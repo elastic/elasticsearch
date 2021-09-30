@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -616,8 +615,7 @@ public class PersistedClusterStateService {
                 }
 
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-                for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                     final Long previousValue
                             = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                     assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
@@ -625,8 +623,7 @@ public class PersistedClusterStateService {
 
                 int numIndicesUpdated = 0;
                 int numIndicesUnchanged = 0;
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                     if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                         logger.trace("updating metadata for [{}], changing version from [{}] to [{}]",
@@ -682,8 +679,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());

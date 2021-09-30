@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * A utility class used for index lifecycle policies
@@ -92,8 +91,7 @@ public class LifecyclePolicyUtils {
      */
     public static ItemUsage calculateUsage(final IndexNameExpressionResolver indexNameExpressionResolver,
                                            final ClusterState state, final String policyName) {
-        final List<String> indices = StreamSupport.stream(state.metadata().indices().values().spliterator(), false)
-            .map(cursor -> cursor.value)
+        final List<String> indices = state.metadata().indices().values().stream()
             .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());

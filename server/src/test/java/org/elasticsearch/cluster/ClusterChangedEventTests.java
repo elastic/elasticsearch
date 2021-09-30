@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -31,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -479,8 +477,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder().version(version);
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            builder.addAsNew(cursor.value);
+        for (IndexMetadata value : metadata.indices().values()) {
+            builder.addAsNew(value);
         }
         return builder.build();
     }
@@ -509,8 +507,8 @@ public class ClusterChangedEventTests extends ESTestCase {
                                                           final TombstoneDeletionQuantity deletionQuantity) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (Iterator<IndexMetadata> iter = previousState.metadata().indices().valuesIt(); iter.hasNext();) {
-            stateIndices.add(iter.next().getIndex());
+        for (IndexMetadata value : previousState.metadata().indices().values()) {
+            stateIndices.add(value.getIndex());
         }
         final int numDel;
         switch (deletionQuantity) {

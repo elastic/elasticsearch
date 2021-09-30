@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -159,20 +158,20 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertNotNull(shardDataSetSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
-        for (ObjectCursor<DiskUsage> usage : leastUsages.values()) {
-            logger.info("--> usage: {}", usage.value);
-            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
+        for (DiskUsage usage : leastUsages.values()) {
+            logger.info("--> usage: {}", usage);
+            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
         }
-        for (ObjectCursor<DiskUsage> usage : mostUsages.values()) {
-            logger.info("--> usage: {}", usage.value);
-            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
+        for (DiskUsage usage : mostUsages.values()) {
+            logger.info("--> usage: {}", usage);
+            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
         }
-        for (ObjectCursor<Long> size : shardSizes.values()) {
-            logger.info("--> shard size: {}", size.value);
-            assertThat("shard size is greater than 0", size.value, greaterThanOrEqualTo(0L));
+        for (Long size : shardSizes.values()) {
+            logger.info("--> shard size: {}", size);
+            assertThat("shard size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
-        for (ObjectCursor<Long> size : shardDataSetSizes.values()) {
-            assertThat("shard data set size is greater than 0", size.value, greaterThanOrEqualTo(0L));
+        for (Long size : shardDataSetSizes.values()) {
+            assertThat("shard data set size is greater than 0", size, greaterThanOrEqualTo(0L));
         }
 
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());

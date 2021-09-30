@@ -77,7 +77,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
             project.getPluginManager().apply(DockerComposePlugin.class);
 
             TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
-                t.getOutputs().dir(testfixturesDir);
                 t.doFirst(new Action<Task>() {
                     @Override
                     public void execute(Task task) {

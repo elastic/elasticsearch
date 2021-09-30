@@ -93,7 +93,7 @@ services:
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.mail=email
       - xpack.security.authc.realms.oidc.c2id-jwt.claims.groups=groups
     volumes:
-      - ./build/logs/node1:/usr/share/elasticsearch/logs
+      - ./testfixtures_shared/logs/node1:/usr/share/elasticsearch/logs
       - ./build/certs/testnode.jks:/usr/share/elasticsearch/config/testnode.jks
       - ./docker-test-entrypoint.sh:/docker-test-entrypoint.sh
       - ./oidc/op-jwks.json:/usr/share/elasticsearch/config/op-jwks.json

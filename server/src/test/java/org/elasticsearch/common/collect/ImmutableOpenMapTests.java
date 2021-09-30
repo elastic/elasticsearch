@@ -19,7 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -45,11 +47,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testStreamOperationsOnRandomMap() {
-        ImmutableOpenMap<Long, String> map = Randomness.get().longs(randomIntBetween(1, 1000))
-            .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
-            .collect(() -> ImmutableOpenMap.<Long, String>builder(), (builder, t) -> builder.fPut(t.v1(), t.v2()),
-                ImmutableOpenMap.Builder::putAll)
-            .build();
+        ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
         Map<Long, List<String>> collectedViaStreams = map.stream()
@@ -78,5 +76,55 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testEmptyStreamWorks() {
         assertThat(ImmutableOpenMap.of().stream().count(), equalTo(0L));
+    }
+
+    public void testKeySetStreamOperationsAreSupported() {
+        assertThat(regionCurrencySymbols.keySet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
+            equalTo(Set.of("Japan", "EU", "Korea")));
+    }
+
+    public void testSortedKeysSet() {
+        assertThat(regionCurrencySymbols.keySet(),
+            equalTo(Set.of("EU", "Japan", "Korea", "UK", "USA")));
+    }
+
+    public void testStreamOperationsOnRandomMapKeys() {
+        ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
+
+        int limit = randomIntBetween(0, map.size());
+        List<Long> collectedViaStream = map.keySet()
+            .stream()
+            .filter(e -> e > 0)
+            .sorted()
+            .limit(limit)
+            .collect(Collectors.toList());
+
+        SortedSet<Long> positiveNumbers = new TreeSet<>();
+        for (ObjectObjectCursor<Long, String> cursor : map) {
+            if (cursor.key > 0) {
+                positiveNumbers.add(cursor.key);
+            }
+        }
+        int i = 0;
+        List<Long> collectedIteratively = new ArrayList<>();
+        for (Long l : positiveNumbers) {
+            if (i++ >= limit) {
+                break;
+            }
+            collectedIteratively.add(l);
+        }
+        assertThat(collectedViaStream, equalTo(collectedIteratively));
+    }
+
+    public void testEmptyKeySetWorks() {
+        assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0));
+    }
+
+    private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {
+        return Randomness.get().longs(randomIntBetween(1, 1000))
+            .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
+            .collect(ImmutableOpenMap::<Long, String>builder, (builder, t) -> builder.fPut(t.v1(), t.v2()),
+                ImmutableOpenMap.Builder::putAll)
+            .build();
     }
 }

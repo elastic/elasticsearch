@@ -404,6 +404,43 @@ setup:
         name: simple-data-stream2
 
 ---
+"Delete data stream by wildcard":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to [-7.8.99] and [data streams only supported in 7.9+] after backport"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: no-matching-data-streams*
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.1.name: simple-data-stream2 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream*
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - length: { data_streams: 0 }
+
+---
 "append-only writes to backing indices prohibited":
   - skip:
       version: " - 7.8.99"

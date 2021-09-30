@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -209,6 +210,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test51AutoConfigurationWithPasswordProtectedKeystore() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
+        assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         FileUtils.assertPathsDoNotExist(installation.data);
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";

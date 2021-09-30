@@ -339,7 +339,6 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
-import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
@@ -494,11 +493,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
-        GenerateInitialBuiltinUsersPasswordListener generateInitialBuiltinUsersPasswordListener =
-            new GenerateInitialBuiltinUsersPasswordListener(nativeUsersStore, securityIndex.get());
-        if (BOOTSTRAP_ELASTIC_PASSWORD.exists(settings) == false && SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
-            securityIndex.get().addStateListener(generateInitialBuiltinUsersPasswordListener);
-        }
+
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -571,6 +566,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
+        if (SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
+            InitialSecurityConfigurationListener initialSecurityConfigurationListener = new InitialSecurityConfigurationListener(
+                nativeUsersStore,
+                securityIndex.get(),
+                getSslService(),
+                client,
+                environment
+            );
+            securityIndex.get().addStateListener(initialSecurityConfigurationListener);
+        }
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);

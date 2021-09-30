@@ -111,6 +111,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     @Override
     public void onMaster() {
         isMaster = true;
+        try {
+            asyncRefresh();
+        } catch (Exception ex) {
+            logger.warn("unexpected failure while attempting asynchronous refresh on new master assignment", ex);
+        }
         logger.trace("ML memory tracker on master");
     }
 
@@ -493,7 +498,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     logIfNecessary(
                         () -> logger.error(
                             () -> new ParameterizedMessage(
-                                "[{}]  failed to calculate anomaly detector job established model memory requirement",
+                                "[{}] failed to calculate anomaly detector job established model memory requirement",
                                 jobId
                             ),
                             e
@@ -506,7 +511,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             logIfNecessary(
                 () -> logger.error(
                     () -> new ParameterizedMessage(
-                        "[{}]  failed to calculate anomaly detector job established model memory requirement",
+                        "[{}] failed to calculate anomaly detector job established model memory requirement",
                         jobId
                     ),
                     e
@@ -550,6 +555,12 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }));
     }
 
+    /**
+     * To reduce spamming the log in an unstable environment, this method will only call the runnable if:
+     *  - The current node is the master node (and thus valid for tracking memory)
+     *  - The current node is NOT stopped (and thus not shutting down)
+     * @param log Runnable that writes the log message
+     */
     private void logIfNecessary(Runnable log) {
         if (isMaster && (stopped == false)) {
             log.run();

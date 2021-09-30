@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -52,6 +53,21 @@ class IndexLifecycleRunner {
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
+
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
+        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
+                ClusterStateTaskExecutor.ClusterTasksResult.builder();
+        ClusterState state = currentState;
+        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+            try {
+                state = task.execute(state);
+                builder.success(task);
+            } catch (Exception e) {
+                builder.failure(task, e);
+            }
+        }
+        return builder.build(state);
+    };
 
     IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ILMHistoryStore ilmHistoryStore, ClusterService clusterService,
                          ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -541,7 +557,7 @@ class IndexLifecycleRunner {
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task);
+            clusterService.submitStateUpdateTask(source, task, task, ILM_TASK_EXECUTOR, task);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

@@ -39,10 +39,26 @@ public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateU
         return currentStepKey;
     }
 
+    private boolean executed;
+
+    @Override
+    public final ClusterState execute(ClusterState currentState) throws Exception {
+        assert executed == false;
+        final ClusterState updatedState = doExecute(currentState);
+        if (currentState != updatedState) {
+            executed = true;
+        }
+        return updatedState;
+    }
+
+    protected abstract ClusterState doExecute(ClusterState currentState) throws Exception;
+
     @Override
     public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
         listener.onResponse(null);
-        onClusterStateProcessed(source, oldState, newState);
+        if (executed) {
+            onClusterStateProcessed(source, oldState, newState);
+        }
     }
 
     @Override
@@ -63,6 +79,9 @@ public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateU
     /**
      * This method is functionally the same as {@link ClusterStateUpdateTask#clusterStateProcessed(String, ClusterState, ClusterState)}
      * and implementations can override it as they would override {@code ClusterStateUpdateTask#clusterStateProcessed}.
+     * The only difference to  {@code ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ClusterState)}
+     * implementation was a noop and returned the input cluster state, then this method will not be invoked. It is therefore guaranteed
+     * that {@code oldState} is always different from {@code newState}.
      */
     protected void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
     }

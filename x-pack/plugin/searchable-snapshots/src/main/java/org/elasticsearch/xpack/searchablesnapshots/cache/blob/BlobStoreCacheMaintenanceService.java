@@ -62,9 +62,13 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
@@ -122,6 +126,18 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The retention period to keep obsolete documents in the blob store cache index. This duration is used during the periodic cleanup in
+     * order to avoid deleting documents belonging to concurrently mounted searchable snapshots. Defaults to 1h.
+     */
+    public static final Setting<TimeValue> SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD = Setting.timeSetting(
+        "searchable_snapshots.blob_cache.periodic_cleanup.retention_period",
+        TimeValue.timeValueHours(1L),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final ClusterService clusterService;
     private final Client clientWithOrigin;
     private final String systemIndexName;
@@ -130,6 +146,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     private volatile Scheduler.Cancellable periodicTask;
     private volatile TimeValue periodicTaskInterval;
     private volatile TimeValue periodicTaskKeepAlive;
+    private volatile TimeValue periodicTaskRetention;
     private volatile int periodicTaskBatchSize;
     private volatile boolean schedulePeriodic;
 
@@ -147,10 +164,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         this.periodicTaskInterval = SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.get(settings);
         this.periodicTaskKeepAlive = SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING.get(settings);
         this.periodicTaskBatchSize = SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING.get(settings);
+        this.periodicTaskRetention = SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.get(settings);
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING, this::setPeriodicTaskInterval);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING, this::setPeriodicTaskKeepAlive);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING, this::setPeriodicTaskBatchSize);
+        clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD, this::setPeriodicTaskRetention);
     }
 
     @Override
@@ -180,6 +199,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private void setPeriodicTaskKeepAlive(TimeValue keepAlive) {
         this.periodicTaskKeepAlive = keepAlive;
+    }
+
+    public void setPeriodicTaskRetention(TimeValue retention) {
+        this.periodicTaskRetention = retention;
     }
 
     public void setPeriodicTaskBatchSize(int batchSize) {
@@ -237,6 +260,21 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             }
         }
         return false;
+    }
+
+    private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
+        Map<String, Set<String>> snapshots = null;
+        for (IndexMetadata indexMetadata : state.metadata()) {
+            final Settings indexSettings = indexMetadata.getSettings();
+            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+                if (snapshots == null) {
+                    snapshots = new HashMap<>();
+                }
+                snapshots.computeIfAbsent(SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings), s -> new HashSet<>())
+                    .add(SNAPSHOT_INDEX_ID_SETTING.get(indexSettings));
+            }
+        }
+        return snapshots != null ? Collections.unmodifiableMap(snapshots) : Collections.emptyMap();
     }
 
     static QueryBuilder buildDeleteByQuery(int numberOfShards, String snapshotUuid, String indexUuid) {
@@ -375,6 +413,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         private final AtomicLong deletes = new AtomicLong();
         private final AtomicLong total = new AtomicLong();
 
+        private volatile Map<String, Set<String>> existingSnapshots;
         private volatile SearchResponse searchResponse;
         private volatile String pointIntTimeId;
         private volatile Object[] searchAfter;
@@ -452,8 +491,17 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     final ClusterState state = clusterService.state();
                     final BulkRequest bulkRequest = new BulkRequest();
 
-                    final Set<Tuple<String, String>> knownSnapshots = new HashSet<>();
-                    final Set<Tuple<String, String>> missingSnapshots = new HashSet<>();
+                    final TimeValue retention = periodicTaskRetention;
+                    final Instant expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
+                        .minus(retention.duration(), retention.timeUnit().toChronoUnit());
+
+                    // compute the list of existing searchable snapshots once
+                    Map<String, Set<String>> knownSnapshots = existingSnapshots;
+                    if (knownSnapshots == null) {
+                        knownSnapshots = listSearchableSnapshots(state);
+                        existingSnapshots = knownSnapshots;
+                    }
+
                     final Set<String> knownRepositories = state.metadata()
                         .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
                         .repositories()
@@ -463,51 +511,49 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                     Object[] lastSortValues = null;
                     for (SearchHit searchHit : searchHits) {
+                        lastSortValues = searchHit.getSortValues();
                         assert searchHit.getId() != null;
                         assert searchHit.hasSource();
 
-                        // See {@link BlobStoreCacheService#generateId}
-                        // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
-                        final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
-                        assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
-
-                        boolean delete = false;
-                        lastSortValues = searchHit.getSortValues();
-
-                        final String repositoryName = parts[0];
-                        if (knownRepositories.contains(repositoryName) == false) {
-                            logger.trace(
-                                "deleting blob store cache entry [id:{}, repository:{}, reason: repository does not exist]",
-                                searchHit.getId(),
-                                repositoryName
-                            );
-                            delete = true;
-                        } else {
-                            final Tuple<String, String> snapshot = Tuple.tuple(parts[1], parts[2]);
-                            boolean isMissing = missingSnapshots.contains(snapshot);
-                            boolean isKnown = knownSnapshots.contains(snapshot);
-                            if (isMissing
-                                || (isKnown == false && hasSearchableSnapshotWith(state, snapshot.v1(), snapshot.v2()) == false)) {
-                                logger.trace(
-                                    "deleting blob store cache entry [id:{}, snapshotId:{}, indexId:{}, reason: unused]",
-                                    searchHit.getId(),
-                                    snapshot.v1(),
-                                    snapshot.v2()
-                                );
-                                if (isMissing == false) {
-                                    missingSnapshots.add(snapshot);
-                                }
-                                delete = true;
-                            } else if (isKnown == false) {
-                                knownSnapshots.add(snapshot);
+                        try {
+                            final CachedBlob cachedBlob = CachedBlob.fromSource(searchHit.getSourceAsMap());
+                            if (cachedBlob.creationTime().isAfter(expirationTime)) {
+                                logger.trace("blob store cache entry with id [{}] was created recently, skipping", searchHit.getId());
+                                continue;
                             }
-                        }
-                        if (delete) {
-                            final DeleteRequest deleteRequest = new DeleteRequest().index(searchHit.getIndex());
-                            deleteRequest.id(searchHit.getId());
-                            deleteRequest.setIfSeqNo(searchHit.getSeqNo());
-                            deleteRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
-                            bulkRequest.add(deleteRequest);
+                            boolean delete = false;
+
+                            // See {@link BlobStoreCacheService#generateId}
+                            // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
+                            final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
+                            assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+
+                            final String repositoryName = parts[0];
+                            if (knownRepositories.contains(repositoryName) == false) {
+                                logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
+                                delete = true;
+                            } else {
+                                final Set<String> knownIndexIds = knownSnapshots.get(parts[1]);
+                                if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
+                                    logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
+                                    delete = true;
+                                }
+                            }
+                            if (delete) {
+                                final DeleteRequest deleteRequest = new DeleteRequest().index(searchHit.getIndex());
+                                deleteRequest.id(searchHit.getId());
+                                deleteRequest.setIfSeqNo(searchHit.getSeqNo());
+                                deleteRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
+                                bulkRequest.add(deleteRequest);
+                            }
+                        } catch (Exception e) {
+                            logger.warn(
+                                () -> new ParameterizedMessage(
+                                    "exception when parsing blob store cache entry with id [{}], skipping",
+                                    searchHit.getId()
+                                ),
+                                e
+                            );
                         }
                     }
 

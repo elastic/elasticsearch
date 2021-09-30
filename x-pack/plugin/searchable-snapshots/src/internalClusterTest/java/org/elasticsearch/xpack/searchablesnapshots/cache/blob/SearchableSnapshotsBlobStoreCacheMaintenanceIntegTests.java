@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -15,32 +16,42 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -199,16 +210,29 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         createRepository("repo", FsRepository.TYPE);
         Map<String, Tuple<Settings, Long>> mountedIndices = mountRandomIndicesWithCache("repo", 1, 3);
         ensureYellow(SNAPSHOT_BLOB_CACHE_INDEX);
+
+        final long nbEntriesInCacheForMountedIndices = mountedIndices.values().stream().mapToLong(Tuple::v2).sum();
         refreshSystemIndex(true);
-        assertThat(numberOfEntriesInCache(), equalTo(mountedIndices.values().stream().mapToLong(Tuple::v2).sum()));
+        assertThat(numberOfEntriesInCache(), equalTo(nbEntriesInCacheForMountedIndices));
 
         createRepository("other", FsRepository.TYPE);
         Map<String, Tuple<Settings, Long>> otherMountedIndices = mountRandomIndicesWithCache("other", 1, 3);
+
+        final long nbEntriesInCacheForOtherIndices = otherMountedIndices.values().stream().mapToLong(Tuple::v2).sum();
         refreshSystemIndex(true);
-        assertThat(
-            numberOfEntriesInCache(),
-            equalTo(Stream.concat(mountedIndices.values().stream(), otherMountedIndices.values().stream()).mapToLong(Tuple::v2).sum())
-        );
+        assertThat(numberOfEntriesInCache(), equalTo(nbEntriesInCacheForMountedIndices + nbEntriesInCacheForOtherIndices));
+
+        final int oldDocsInCache;
+        if (randomBoolean()) {
+            oldDocsInCache = indexRandomDocsInCache(1, 50, Instant.now().minus(Duration.ofDays(7L)).toEpochMilli());
+            refreshSystemIndex(true);
+            assertThat(
+                numberOfEntriesInCache(),
+                equalTo(nbEntriesInCacheForMountedIndices + nbEntriesInCacheForOtherIndices + oldDocsInCache)
+            );
+        } else {
+            oldDocsInCache = 0;
+        }
 
         // creates a backup of the system index cache to be restored later
         createRepository("backup", FsRepository.TYPE);
@@ -248,6 +272,38 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(1));
             assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
 
+            final int recentDocsInCache;
+            if (randomBoolean()) {
+                // recent as in the future, actually
+                recentDocsInCache = indexRandomDocsInCache(1, 50, Instant.now().plus(Duration.ofDays(10L)).toEpochMilli());
+            } else {
+                recentDocsInCache = 0;
+            }
+
+            // only very old docs should have been deleted
+            assertBusy(() -> {
+                refreshSystemIndex(true);
+                assertThat(
+                    numberOfEntriesInCache(),
+                    equalTo(nbEntriesInCacheForMountedIndices + nbEntriesInCacheForOtherIndices + recentDocsInCache)
+                );
+            }, 30L, TimeUnit.SECONDS);
+
+            // updating the retention period from 1H to immediate
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(
+                        Settings.builder()
+                            .put(
+                                BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey(),
+                                TimeValue.timeValueSeconds(0L)
+                            )
+                    )
+            );
+
+            // only used documents should remain
             final long expectNumberOfRemainingCacheEntries = otherMountedIndices.entrySet()
                 .stream()
                 .filter(e -> indicesToDelete.contains(e.getKey()) == false)
@@ -256,7 +312,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
             assertBusy(() -> {
                 refreshSystemIndex(true);
-                assertThat(numberOfEntriesInCache(), equalTo(expectNumberOfRemainingCacheEntries));
+                assertThat(numberOfEntriesInCache(), equalTo(expectNumberOfRemainingCacheEntries + recentDocsInCache));
             }, 30L, TimeUnit.SECONDS);
 
         } finally {
@@ -265,7 +321,9 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                     .cluster()
                     .prepareUpdateSettings()
                     .setTransientSettings(
-                        Settings.builder().putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
+                        Settings.builder()
+                            .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
+                            .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey())
                     )
             );
         }
@@ -363,5 +421,39 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             i += 1;
         }
         return Collections.unmodifiableMap(mountedIndices);
+    }
+
+    private int indexRandomDocsInCache(final int minDocs, final int maxDocs, final long creationTimeInEpochMillis) {
+        final int nbDocs = randomIntBetween(minDocs, maxDocs);
+        final CountDownLatch latch = new CountDownLatch(nbDocs);
+
+        String repository = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        SnapshotId snapshotId = new SnapshotId("snap", UUIDs.randomBase64UUID());
+        IndexId indexId = new IndexId("index", UUIDs.randomBase64UUID());
+        ShardId shardId = new ShardId("index", UUIDs.randomBase64UUID(), randomInt(5));
+        String fileName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT) + '.' + randomFrom(LuceneFilesExtensions.values()).getExtension();
+        byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 64));
+
+        final BlobStoreCacheService blobStoreCacheService = internalCluster().getDataNodeInstance(BlobStoreCacheService.class);
+        for (int i = 0; i < nbDocs; i++) {
+            int length = randomIntBetween(1, Math.max(1, bytes.length - 1));
+            blobStoreCacheService.putAsync(
+                repository,
+                snapshotId,
+                indexId,
+                shardId,
+                fileName,
+                ByteRange.of(i, i + length),
+                new BytesArray(bytes, 0, length),
+                creationTimeInEpochMillis,
+                ActionListener.wrap(latch::countDown)
+            );
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+        return nbDocs;
     }
 }

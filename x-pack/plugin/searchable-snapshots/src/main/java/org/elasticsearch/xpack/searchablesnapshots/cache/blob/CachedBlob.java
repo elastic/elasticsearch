@@ -121,6 +121,10 @@ public class CachedBlob implements ToXContent {
         return version;
     }
 
+    public Instant creationTime() {
+        return creationTime;
+    }
+
     @SuppressWarnings("unchecked")
     public static CachedBlob fromSource(final Map<String, Object> source) {
         final Long creationTimeEpochMillis = (Long) source.get("creation_time");

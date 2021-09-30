@@ -218,7 +218,7 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
             }
         );
-        Shell.Result result = runElasticsearchStartCommand("", true, false);
+        Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);
 

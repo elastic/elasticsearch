@@ -100,7 +100,8 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
         } finally {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null));
+            updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(),
+                (String) null));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
     }

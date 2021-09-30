@@ -404,6 +404,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                 + "}"
         );
         ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
+        // the prefix '_mvt_' is reserved for internal aggregations
         assertThat(ex.getMessage(), Matchers.containsString("Invalid aggregation name [_mvt_name]"));
     }
 

@@ -200,6 +200,32 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMessages(XPackField.MONITORING, from, BASIC, 2);
     }
 
+    public void testSqlAckAnyToTrialOrPlatinum() {
+        assertAckMessages(XPackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
+    }
+
+    public void testSqlAckTrialOrPlatinumToNotTrialOrPlatinum() {
+        assertAckMessages(XPackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+    }
+
+    public void testCcrAckAnyToTrialOrPlatinum() {
+        assertAckMessages(XPackField.CCR, randomMode(), randomTrialOrPlatinumMode(), 0);
+    }
+
+    public void testCcrAckTrialOrPlatinumToNotTrialOrPlatinum() {
+        assertAckMessages(XPackField.CCR, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+    }
+
+    public void testExpiredLicense() {
+        // use standard feature which would normally be allowed at all license levels
+        LicensedFeature feature = LicensedFeature.momentary("family", "enterpriseFeature", STANDARD);
+        assertAllowed(STANDARD, false, s -> s.isAllowed(feature), false);
+        assertAllowed(GOLD, false, s -> s.isAllowed(feature), false);
+        assertAllowed(PLATINUM, false, s -> s.isAllowed(feature), false);
+        assertAllowed(ENTERPRISE, false, s -> s.isAllowed(feature), false);
+        assertAllowed(TRIAL, false, s -> s.isAllowed(feature), false);
+    }
+
     public void testStandardFeature() {
         LicensedFeature feature = LicensedFeature.momentary("family", "standardFeature", STANDARD);
         assertAllowed(BASIC, true, s -> s.isAllowed(feature), false);
@@ -231,7 +257,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testEnterpriseFeature() {
-        LicensedFeature feature = LicensedFeature.momentary("family", "platinumFeature", ENTERPRISE);
+        LicensedFeature feature = LicensedFeature.momentary("family", "enterpriseFeature", ENTERPRISE);
         assertAllowed(BASIC, true, s -> s.isAllowed(feature), false);
         assertAllowed(STANDARD, true, s -> s.isAllowed(feature), false);
         assertAllowed(GOLD, true, s -> s.isAllowed(feature), false);

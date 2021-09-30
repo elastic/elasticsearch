@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
@@ -19,13 +20,16 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -317,12 +321,59 @@ public final class IndexSettings {
     public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
         = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
 
+    /**
+     * Is the {@code index.mode} enabled? It should only be enbaled if you
+     * pass a jvm parameter or are running a snapshot build.
+     */
+    private static final Boolean TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.index_mode_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.index_mode_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
+    }
+
+    public static boolean isTimeSeriesModeEnabled() {
+        return Build.CURRENT.isSnapshot() || (TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED != null && TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED);
+    }
+
+    /**
+     * The {@link IndexMode "mode"} of the index.
+     */
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<IndexMode>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
+    /**
+     * The {@link IndexMode "mode"} of the index.
+     */
+    private final IndexMode mode;
+
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
     private volatile IndexMetadata indexMetadata;
@@ -463,6 +514,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
+        mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -651,6 +703,13 @@ public final class IndexSettings {
      * Returns the number of replicas this index has.
      */
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null); }
+
+    /**
+     * "Mode" that controls which behaviors and settings an index supports.
+     */
+    public IndexMode getMode() {
+        return mode;
+    }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the

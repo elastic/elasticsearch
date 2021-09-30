@@ -29,7 +29,10 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -74,7 +77,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 // Auto add dependent modules to the test cluster
                 if (project1.findProject(":modules:" + pluginName) != null) {
                     NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                    testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
+                    testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
                 }
             });
             final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
@@ -117,17 +120,17 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        final var runCluster = testClusters.create("runTask", cluster -> {
+        var runCluster = testClusters.register("runtTask", c -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
-                cluster.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+                c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {
-                cluster.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
+                c.plugin(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             }
         });
 
-        project.getTasks().register("run", RunTask.class, runTask -> {
-            runTask.useCluster(runCluster);
-            runTask.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
+        project.getTasks().register("run", RunTask.class, r -> {
+            r.useCluster(runCluster.get());
+            r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
         });
     }
 
@@ -238,7 +241,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(bundle));
 
         // also make the zip available as a configuration (used when depending on this project)
-        project.getConfigurations().create("zip");
+        Configuration configuration = project.getConfigurations().create("zip");
+        configuration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
         project.getArtifacts().add("zip", bundle);
 
         return bundle;

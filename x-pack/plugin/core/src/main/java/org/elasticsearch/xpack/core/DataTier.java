@@ -16,8 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,28 +37,30 @@ public class DataTier {
     public static final String DATA_COLD = "data_cold";
     public static final String DATA_FROZEN = "data_frozen";
 
-    public static final Set<String> ALL_DATA_TIERS =
-        new HashSet<>(Arrays.asList(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN));
+    public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
+
+    static {
+        for (String tier : ALL_DATA_TIERS) {
+            assert tier.equals(DATA_FROZEN) || tier.contains(DATA_FROZEN) == false
+                : "can't have two tier names containing [" + DATA_FROZEN + "] because it would break setting validation optimizations" +
+                " in the data tier allocation decider";
+        }
+    }
 
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
-    private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS =
-        List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+    private static final List<String> ORDERED_FROZEN_TO_HOT_TIERS = List.of(DATA_FROZEN, DATA_COLD, DATA_WARM, DATA_HOT);
 
     /**
      * Returns true if the given tier name is a valid tier
      */
     public static boolean validTierName(String tierName) {
-        return DATA_CONTENT.equals(tierName) ||
-            DATA_HOT.equals(tierName) ||
-            DATA_WARM.equals(tierName) ||
-            DATA_COLD.equals(tierName) ||
-            DATA_FROZEN.equals(tierName);
+        return ALL_DATA_TIERS.contains(tierName);
     }
 
     /**
      * Based on the provided target tier it will return a comma separated list of preferred tiers.
      * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`
-     * This is usually used in conjunction with {@link DataTierAllocationDecider#INDEX_ROUTING_PREFER_SETTING}
+     * This is usually used in conjunction with {@link DataTierAllocationDecider#TIER_PREFERENCE_SETTING}
      */
     public static String getPreferredTiersConfiguration(String targetTier) {
         int indexOfTargetTier = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(targetTier);
@@ -128,9 +128,9 @@ public class DataTier {
         @Override
         public Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings indexSettings) {
             Set<String> settings = indexSettings.keySet();
-            if (settings.contains(DataTierAllocationDecider.INDEX_ROUTING_PREFER)) {
-                // It's okay to put it, it will be removed or overridden by the template/request settings
-                return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
+            if (settings.contains(DataTierAllocationDecider.TIER_PREFERENCE)) {
+                // just a marker -- this null value will be removed or overridden by the template/request settings
+                return Settings.builder().putNull(DataTierAllocationDecider.TIER_PREFERENCE).build();
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".")) ||
                 settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
@@ -142,9 +142,9 @@ public class DataTier {
                 // tier if the index is part of a data stream, the "content"
                 // tier if it is not.
                 if (isDataStreamIndex) {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_HOT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_HOT).build();
                 } else {
-                    return Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_CONTENT).build();
+                    return Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_CONTENT).build();
                 }
             }
         }

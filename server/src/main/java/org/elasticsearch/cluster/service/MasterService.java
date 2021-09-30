@@ -42,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -462,7 +461,7 @@ public class MasterService extends AbstractLifecycleComponent {
             taskInputs.executor.clusterStatePublished(clusterStatePublicationEvent);
         }
 
-        Discovery.AckListener createAckListener(ThreadPool threadPool, ClusterState newClusterState) {
+        ClusterStatePublisher.AckListener createAckListener(ThreadPool threadPool, ClusterState newClusterState) {
             return new DelegatingAckListener(nonFailedTasks.stream()
                 .filter(task -> task.listener instanceof AckedClusterStateTaskListener)
                 .map(task -> new AckCountDownListener((AckedClusterStateTaskListener) task.listener, newClusterState.version(),
@@ -632,30 +631,30 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class DelegatingAckListener implements Discovery.AckListener {
+    private static class DelegatingAckListener implements ClusterStatePublisher.AckListener {
 
-        private final List<Discovery.AckListener> listeners;
+        private final List<ClusterStatePublisher.AckListener> listeners;
 
-        private DelegatingAckListener(List<Discovery.AckListener> listeners) {
+        private DelegatingAckListener(List<ClusterStatePublisher.AckListener> listeners) {
             this.listeners = listeners;
         }
 
         @Override
         public void onCommit(TimeValue commitTime) {
-            for (Discovery.AckListener listener : listeners) {
+            for (ClusterStatePublisher.AckListener listener : listeners) {
                 listener.onCommit(commitTime);
             }
         }
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            for (Discovery.AckListener listener : listeners) {
+            for (ClusterStatePublisher.AckListener listener : listeners) {
                 listener.onNodeAck(node, e);
             }
         }
     }
 
-    private static class AckCountDownListener implements Discovery.AckListener {
+    private static class AckCountDownListener implements ClusterStatePublisher.AckListener {
 
         private static final Logger logger = LogManager.getLogger(AckCountDownListener.class);
 

@@ -38,6 +38,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -55,6 +56,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             true,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -68,13 +70,24 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
+            MissingOrder.DEFAULT,
             0,
             -1
         );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
 
         MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new BinaryValuesSource(BigArrays.NON_RECYCLING_INSTANCE, (b) -> {}, ip, context -> null, DocValueFormat.RAW, false, 1, 1);
+        source = new BinaryValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
+            ip,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
@@ -87,6 +100,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -104,6 +118,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             true,
+            MissingOrder.DEFAULT,
             1,
             1
         );
@@ -118,6 +133,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             context -> null,
             DocValueFormat.RAW,
             false,
+            MissingOrder.DEFAULT,
             1,
             -1
         );
@@ -125,7 +141,17 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
 
         final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
-        source = new OrdinalValuesSource(BigArrays.NON_RECYCLING_INSTANCE, (b) -> {}, ip, context -> null, DocValueFormat.RAW, false, 1, 1);
+        source = new OrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
+            ip,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
     }
@@ -146,6 +172,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     false,
+                    MissingOrder.DEFAULT,
                     1,
                     1
                 );
@@ -179,6 +206,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     true,
+                    MissingOrder.DEFAULT,
                     1,
                     1
                 );
@@ -200,6 +228,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     value -> value,
                     DocValueFormat.RAW,
                     false,
+                    MissingOrder.DEFAULT,
                     1,
                     -1
                 );
@@ -218,6 +247,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                         context -> null,
                         DocValueFormat.RAW,
                         false,
+                        MissingOrder.DEFAULT,
                         1,
                         1
                     );

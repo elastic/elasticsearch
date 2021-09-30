@@ -1,12 +1,19 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation project(path: ':modules:ingest-common')
+  javaRestTestImplementation project(path: ':modules:reindex')
+  javaRestTestImplementation project(path: ':modules:transport-netty4')
+  javaRestTestImplementation project(path: xpackModule('autoscaling'))
   javaRestTestImplementation project(path: xpackModule('data-streams'))
+  javaRestTestImplementation project(path: xpackModule('ilm'))
+  javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 // location for keys and certificates
@@ -28,7 +35,7 @@ tasks.named("javaRestTest").configure {
   dependsOn "copyKeyCerts"
 }
 
-testClusters.all {
+testClusters.configureEach {
   numberOfNodes = 3
   testDistribution = 'DEFAULT'
 
@@ -46,6 +53,7 @@ testClusters.all {
   setting 'xpack.ml.min_disk_space_off_heap', '200mb'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
+  setting 'stack.templates.enabled', 'false'
   // To spice things up a bit, one of the nodes is not an ML node
   nodes.'javaRestTest-0'.setting 'node.roles', '["master","data","ingest"]'
   nodes.'javaRestTest-1'.setting 'node.roles', '["master","data","ingest","ml"]'

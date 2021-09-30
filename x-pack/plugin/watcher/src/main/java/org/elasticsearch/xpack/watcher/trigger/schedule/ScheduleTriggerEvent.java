@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 
@@ -30,8 +29,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
     public ScheduleTriggerEvent(String jobName, ZonedDateTime triggeredTime, ZonedDateTime scheduledTime) {
         super(jobName, triggeredTime);
         this.scheduledTime = scheduledTime;
-        data.put(Field.SCHEDULED_TIME.getPreferredName(),
-            new JodaCompatibleZonedDateTime(scheduledTime.toInstant(), ZoneOffset.UTC));
+        data.put(Field.SCHEDULED_TIME.getPreferredName(), ZonedDateTime.ofInstant(scheduledTime.toInstant(), ZoneOffset.UTC));
     }
 
     @Override

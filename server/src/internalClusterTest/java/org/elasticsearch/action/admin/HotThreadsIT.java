@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -54,7 +55,10 @@ public class HotThreadsIT extends ESIntegTestCase {
             }
             nodesHotThreadsRequestBuilder.setIgnoreIdleThreads(randomBoolean());
             if (randomBoolean()) {
-                switch (randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 3)) {
+                    case 3:
+                        type = "mem";
+                        break;
                     case 2:
                         type = "cpu";
                         break;
@@ -66,7 +70,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                         break;
                 }
                 assertThat(type, notNullValue());
-                nodesHotThreadsRequestBuilder.setType(type);
+                nodesHotThreadsRequestBuilder.setType(HotThreads.ReportType.of(type));
             } else {
                 type = null;
             }

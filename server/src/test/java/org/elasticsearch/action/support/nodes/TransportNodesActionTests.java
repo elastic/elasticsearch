@@ -289,7 +289,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new TestNodeResponse(in);
         }
 

@@ -21,7 +21,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -33,6 +33,15 @@ if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+    systemProperty 'tests.rest.blacklist', [
+            // remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)
+            'mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)',
+            'mustache/30_search_input/Test search input mustache integration (using request body)',
+            'mustache/40_search_transform/Test search transform mustache integration (using request body)'
+    ].join(',')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure({ task ->

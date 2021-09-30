@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -309,12 +310,32 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             .setMapping("time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
+        final long intervalMillis = TimeValue.timeValueHours(1).millis();
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
         long twoWeeksAgo = oneWeekAgo - 604800000;
-        indexDocs(logger, indexName, numDocs, twoWeeksAgo, oneWeekAgo);
+        indexDocs(
+            logger,
+            indexName,
+            1,
+            Intervals.alignToCeil(twoWeeksAgo, intervalMillis),
+            Intervals.alignToCeil(twoWeeksAgo, intervalMillis) + 1
+        );
+        indexDocs(
+            logger,
+            indexName,
+            numDocs - 1,
+            Intervals.alignToCeil(twoWeeksAgo, intervalMillis) + intervalMillis,
+            Intervals.alignToFloor(oneWeekAgo, intervalMillis)
+        );
         long numDocs2 = randomIntBetween(32, 2048);
-        indexDocs(logger, indexName, numDocs2, oneWeekAgo, now);
+        indexDocs(
+            logger,
+            indexName,
+            numDocs2,
+            Intervals.alignToCeil(oneWeekAgo, intervalMillis),
+            Intervals.alignToFloor(now, intervalMillis)
+        );
         client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().get();
 
         String scrollJobId = "stop-restart-scroll";
@@ -423,7 +444,10 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             Bucket scrollBucket = scrollBuckets.get(i);
             Bucket compositeBucket = compositeBuckets.get(i);
             try {
-                assertThat(compositeBucket.getTimestamp(), equalTo(scrollBucket.getTimestamp()));
+                assertThat("scroll buckets " + scrollBuckets + " composite buckets " + compositeBuckets,
+                    compositeBucket.getTimestamp(),
+                    equalTo(scrollBucket.getTimestamp())
+                );
                 assertThat(
                     "composite bucket [" + compositeBucket.getTimestamp() + "] [" + compositeBucket.getEventCount() + "] does not equal"
                         + " scroll bucket [" + scrollBucket.getTimestamp() + "] [" + scrollBucket.getEventCount() + "]",

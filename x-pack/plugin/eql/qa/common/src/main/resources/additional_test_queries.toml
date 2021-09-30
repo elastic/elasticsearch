@@ -228,19 +228,35 @@ sequence by unique_pid
   [any where true]
   [any where serial_event_id < 72]
 '''
-expected_event_ids  = [
-                       54, 55, 59,
-                       55, 59, 61,
-                       59, 61, 65,
-                       16, 60, 66,
-                       61, 65, 67,
-                       65, 67, 70,
-                       60, 66, 71]
+expected_event_ids = [
+                      54, 55, 59,
+                      55, 59, 61,
+                      59, 61, 65,
+                      16, 60, 66,
+                      61, 65, 67,
+                      65, 67, 70,
+                      60, 66, 71]
+
+[[queries]]
+name = "sequenceWithMoreThan10Results-Runs"
+query = '''
+sequence by unique_pid
+  [any where true] [runs=2]
+  [any where serial_event_id < 72]
+'''
+expected_event_ids = [
+                      54, 55, 59,
+                      55, 59, 61,
+                      59, 61, 65,
+                      16, 60, 66,
+                      61, 65, 67,
+                      65, 67, 70,
+                      60, 66, 71]
 
 [[queries]]
 name = "seqSingleArg"
 query = 'process where string(serial_event_id) : ("1")'
-expected_event_ids  = [1]
+expected_event_ids = [1]
 
 [[queries]]
 name = "seqSingleArgPattern"

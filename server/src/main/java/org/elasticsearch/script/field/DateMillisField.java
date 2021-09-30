@@ -8,18 +8,17 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
+public class DateMillisField extends Field<ZonedDateTime> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
     public static LongField toLongField(DateMillisField sourceField) {
-        FieldValues<JodaCompatibleZonedDateTime> fv = sourceField.getFieldValues();
-        return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, JodaCompatibleZonedDateTime>(fv) {
+        FieldValues<ZonedDateTime> fv = sourceField.getFieldValues();
+        return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, ZonedDateTime>(fv) {
             @Override
             public List<Long> getValues() {
                 return values.getValues().stream().map(dt -> dt.toInstant().toEpochMilli()).collect(Collectors.toList());
@@ -32,25 +31,25 @@ public class DateMillisField extends Field<JodaCompatibleZonedDateTime> {
 
             @Override
             public long getLongValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return (long)values.getDoubleValue();
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long toLong(JodaCompatibleZonedDateTime dt) {
+    public static long toLong(ZonedDateTime dt) {
         return dt.toInstant().toEpochMilli();
     }
 
     /* ---- DateMillis Field Members ---- */
 
-    public DateMillisField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
+    public DateMillisField(String name, FieldValues<ZonedDateTime> values) {
         super(name, values);
     }
 }

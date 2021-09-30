@@ -104,8 +104,28 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        // TODO fix this!
-        sortField.setOptimizeSortWithPoints(false);
+
+        // TODO: Now that numeric sort uses indexed points to skip over non-competitive documents,
+        //  Lucene 9 requires that the same data/type is stored in points and doc values.
+        //  We break this assumption in ES by using the wider numeric sort type for every field,
+        //  (e.g. shorts use longs and floats use doubles). So for now we forbid the usage of
+        //  points in numeric sort on field types that use a different sort type.
+        //  We could expose these optimizations for all numeric types but that would require
+        //  to rewrite the logic to handle types when merging results coming from different
+        //  indices.
+        switch (getNumericType()) {
+            case DATE_NANOSECONDS:
+            case DATE:
+            case LONG:
+            case DOUBLE:
+                // longs, doubles and dates use the same type for doc-values and points.
+                break;
+
+            default:
+                sortField.setOptimizeSortWithPoints(false);
+                break;
+        }
+
         return sortField;
     }
 

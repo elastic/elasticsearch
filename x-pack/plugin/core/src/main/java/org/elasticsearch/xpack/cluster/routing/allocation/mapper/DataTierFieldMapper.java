@@ -89,7 +89,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
          */
         private String getTierPreference(SearchExecutionContext context) {
             Settings settings = context.getIndexSettings().getSettings();
-            String value = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings);
+            String value = DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(settings);
 
             if (Strings.hasText(value) == false) {
                 return null;

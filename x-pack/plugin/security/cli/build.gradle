@@ -16,7 +16,8 @@ dependencies {
   }
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
-testImplementation(testArtifact(project(xpackModule('core'))))}
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'

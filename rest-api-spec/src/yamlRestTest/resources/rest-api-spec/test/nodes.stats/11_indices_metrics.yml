@@ -341,7 +341,7 @@
 "Metric - _all for indices shard_stats":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.14.99"
+      version: " - 7.16.1"
       reason:  "total shard count added in version 7.15.0"
   - do:
       nodes.info: {}

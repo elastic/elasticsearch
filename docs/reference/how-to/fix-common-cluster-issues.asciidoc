@@ -19,7 +19,7 @@ other nodes in the data tier.
 
 To verify that shards are moving off the affected node, use the
 <<cluster-allocation-explain,cluster allocation explanation API>>. If shards
-remain on the node, the API provides a detailed explanation for their status.
+remain on the node, the API provides an explanation for their status.
 
 [source,console]
 ----

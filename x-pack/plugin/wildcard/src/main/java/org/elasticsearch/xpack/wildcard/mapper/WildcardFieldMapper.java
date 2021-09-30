@@ -549,7 +549,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 //Remove simple terms that are only string beginnings or ends.
                 String s = tq.getTerm().text();
                 if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) || s.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
-                    return new MatchAllButRequireVerificationQuery();
+                    // all documents have a string end and beginning
+                    // The start/end markers weren't attached to other chars so no use.
+                    return new MatchAllDocsQuery();
                 }
 
                 // Break term into tokens
@@ -559,12 +561,24 @@ public class WildcardFieldMapper extends FieldMapper {
                 for (String string : tokens) {
                     addClause(string, rewritten, Occur.MUST);
                 }
-                return simplify(rewritten.build());
+                return fullSimplify(rewritten.build());
             }
             if (isMatchAll(approxQuery)) {
                 return approxQuery;
             }
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
+        }
+        
+        static Query fullSimplify(Query input) {
+            for (int i = 0;i < 100; i++) {
+                Query output = simplify(input);
+                if(output == input) {
+                    return output;
+                }
+                input = output;
+            };
+            throw new IllegalStateException("Maximum number of regex query rewrites exceeded");
+            
         }
 
         static Query simplify(Query input) {
@@ -573,53 +587,63 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             BooleanQuery result = (BooleanQuery) input;
             if (result.clauses().size() == 0) {
+                assert false; // Shouldn't get here
                 // A ".*" clause can produce zero clauses in which case we return MatchAll
                 return new MatchAllDocsQuery();
             }
             if (result.clauses().size() == 1) {
-                return simplify(result.clauses().get(0).getQuery());
+                return fullSimplify(result.clauses().get(0).getQuery());
             }
 
             // We may have a mix of MatchAll and concrete queries - assess if we can simplify
             int matchAllCount = 0;
             int verifyCount = 0;
-            boolean allConcretesAreOptional = true;
+            int concreteCount = 0;
             for (BooleanClause booleanClause : result.clauses()) {
                 Query q = booleanClause.getQuery();
+                q = fullSimplify(q);
                 if (q instanceof MatchAllDocsQuery) {
                     matchAllCount++;
                 } else if (q instanceof MatchAllButRequireVerificationQuery) {
-                    if (booleanClause.getOccur() != Occur.SHOULD) {
-                        verifyCount++;
-                    }
+                    verifyCount++;
                 } else {
                     // Concrete query
                     if (booleanClause.getOccur() != Occur.SHOULD) {
-                        allConcretesAreOptional = false;
+                        concreteCount++;
                     }
                 }
             }
 
-            if ((allConcretesAreOptional && matchAllCount > 0 && verifyCount == 0)) {
+            if ((matchAllCount > 0 && concreteCount + verifyCount == 0)) {
                 // Any match all expression takes precedence over all optional concrete queries.
                 return new MatchAllDocsQuery();
             }
 
-            if ((allConcretesAreOptional && verifyCount > 0)) {
-                // Any match all expression that needs verification takes precedence over all optional concrete queries.
+            if ((concreteCount == 0 && verifyCount > 0)) {
+                // Any mandatory match all expression that needs verification takes precedence over all optional concrete queries.
+                // It's essentially a piece of criteria we couldn't recognise so have no hope to accelerate
                 return new MatchAllButRequireVerificationQuery();
             }
 
-            // We have some mandatory concrete queries - strip out the superfluous match all expressions
-            if (allConcretesAreOptional == false && matchAllCount + verifyCount > 0) {
-                BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-                for (BooleanClause booleanClause : result.clauses()) {
-                    if (isMatchAll(booleanClause.getQuery()) == false) {
-                        rewritten.add(booleanClause);
+            // We have some mandatory concrete queries 
+            if (concreteCount > 0) {
+                // We have some mandatory concrete queries - strip out all the superfluous match all expressions
+                if (matchAllCount + verifyCount > 0) {
+                    BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
+                    for (BooleanClause booleanClause : result.clauses()) {
+                        if (isMatchAll(booleanClause.getQuery()) == false) {
+                            rewritten.add(booleanClause);
+                        }
                     }
+                    // simplify because it might be one clause
+                    return fullSimplify(rewritten.build());
                 }
-                return simplify(rewritten.build());
+            } else if(matchAllCount + verifyCount > 1) {
+                // No concrete clauses and multiple variations of match-all including 
+               // at least one MatchAllButRequireVerificationQuery
+                return new MatchAllButRequireVerificationQuery();
             }
+            // Should be an array of optional concrete clauses
             return result;
         }
 

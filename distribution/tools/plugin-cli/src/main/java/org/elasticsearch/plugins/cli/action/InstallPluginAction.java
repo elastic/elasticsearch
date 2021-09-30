@@ -85,7 +85,6 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.elasticsearch.cli.Terminal.Verbosity.NORMAL;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
@@ -473,7 +472,7 @@ public class InstallPluginAction implements Closeable {
                 if (percent == 100) {
                     sb.append("\n");
                 }
-                terminal.print(NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"));
+                terminal.print(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"));
             }
         }
     }

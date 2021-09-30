@@ -41,6 +41,9 @@ public class GenerateInitialBuiltinUsersPasswordListener implements BiConsumer<S
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         final PrintStream out = BootstrapInfo.getOriginalStandardOut();
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
+        if (out == null) {
+            return;
+        }
         out.println();
         if (out.checkError()) {
             outputOnError(null);

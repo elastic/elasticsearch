@@ -8,6 +8,7 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -58,12 +59,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
     private static RestClient restClient = null;
-    private static SecureString BOOTSTRAP_PASSWORD = null;
-
-    @BeforeClass
-    public static void generateBootstrapPassword() {
-        BOOTSTRAP_PASSWORD = TEST_PASSWORD_SECURE_STRING.clone();
-    }
 
     @BeforeClass
     public static void initDefaultSettings() {
@@ -82,10 +77,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
         customSecuritySettingsSource = null;
-        if (BOOTSTRAP_PASSWORD != null) {
-            BOOTSTRAP_PASSWORD.close();
-            BOOTSTRAP_PASSWORD = null;
-        }
         tearDownRestClient();
     }
 
@@ -180,8 +171,15 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         if (builder.getSecureSettings() == null) {
             builder.setSecureSettings(new MockSecureSettings());
         }
-        ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", BOOTSTRAP_PASSWORD.toString());
+        SecureString boostrapPassword = getBootstrapPassword();
+        if (boostrapPassword != null) {
+            ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", boostrapPassword.toString());
+        }
         return builder.build();
+    }
+
+    protected SecureString getBootstrapPassword() {
+        return TEST_PASSWORD_SECURE_STRING;
     }
 
     @Override

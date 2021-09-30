@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.ilm.Step;
 
 /**
  * Base class for index lifecycle cluster state update tasks that requires implementing {@code equals} and {@code hashCode} to allow
@@ -19,6 +21,23 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateUpdateTask {
 
     private final ListenableFuture<Void> listener = new ListenableFuture<>();
+
+    protected final Index index;
+
+    protected final Step.StepKey currentStepKey;
+
+    protected IndexLifecycleClusterStateUpdateTask(Index index, Step.StepKey currentStepKey) {
+        this.index = index;
+        this.currentStepKey = currentStepKey;
+    }
+
+    final Index getIndex() {
+        return index;
+    }
+
+    final Step.StepKey getCurrentStepKey() {
+        return currentStepKey;
+    }
 
     @Override
     public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {

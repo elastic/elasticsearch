@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 import static org.hamcrest.Matchers.is;
@@ -94,7 +94,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithPendingShards() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -121,7 +121,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithPendingShardsAndTargetRoleNotPresentInCluster() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -157,7 +157,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteIsComplete() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -179,7 +179,7 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
 
     public void testExecuteWithGenericDataNodes() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.CURRENT).put(INDEX_ROUTING_PREFER, DataTier.DATA_WARM))
+            .settings(settings(Version.CURRENT).put(TIER_PREFERENCE, DataTier.DATA_WARM))
             .numberOfShards(1).numberOfReplicas(0).build();
         Index index = indexMetadata.getIndex();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)

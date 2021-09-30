@@ -42,7 +42,7 @@ public class NerConfig implements NlpConfig {
     @SuppressWarnings({ "unchecked"})
     private static ConstructingObjectParser<NerConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<NerConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new NerConfig((VocabularyConfig) a[0], (Tokenization) a[1], (List<String>) a[2]));
+            a -> new NerConfig((VocabularyConfig) a[0], (Tokenization) a[1], (List<String>) a[2], (String) a[3]));
         parser.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> {
@@ -61,26 +61,32 @@ public class NerConfig implements NlpConfig {
                 TOKENIZATION
         );
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), CLASSIFICATION_LABELS);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
+
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
     private final List<String> classificationLabels;
+    private final String resultsField;
 
     public NerConfig(@Nullable VocabularyConfig vocabularyConfig,
                      @Nullable Tokenization tokenization,
-                     @Nullable List<String> classificationLabels) {
+                     @Nullable List<String> classificationLabels,
+                     @Nullable String resultsField) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.classificationLabels = classificationLabels == null ? Collections.emptyList() : classificationLabels;
+        this.resultsField = resultsField;
     }
 
     public NerConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         classificationLabels = in.readStringList();
+        resultsField = in.readOptionalString();
     }
 
     @Override
@@ -88,6 +94,7 @@ public class NerConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeStringCollection(classificationLabels);
+        out.writeOptionalString(resultsField);
     }
 
     @Override
@@ -97,6 +104,9 @@ public class NerConfig implements NlpConfig {
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         if (classificationLabels.isEmpty() == false) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
+        }
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
         builder.endObject();
         return builder;
@@ -130,12 +140,13 @@ public class NerConfig implements NlpConfig {
         NerConfig that = (NerConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
-            && Objects.equals(classificationLabels, that.classificationLabels);
+            && Objects.equals(classificationLabels, that.classificationLabels)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization, classificationLabels);
+        return Objects.hash(vocabularyConfig, tokenization, classificationLabels, resultsField);
     }
 
     @Override
@@ -150,6 +161,11 @@ public class NerConfig implements NlpConfig {
 
     public List<String> getClassificationLabels() {
         return classificationLabels;
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override

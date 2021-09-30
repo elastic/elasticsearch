@@ -64,8 +64,8 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                             if (licenseChecker.get()) {
                                 found = true;
                                 logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
-                                exception = new ElasticsearchSecurityException(
-                                    "Can't execute a bulk " + "item request with update requests embedded if field or document level security is enabled",
+                                exception = new ElasticsearchSecurityException("Can't execute a bulk "
+                                    + "item request with update requests embedded if field or document level security is enabled",
                                     RestStatus.BAD_REQUEST);
                             } else {
                                 exception = LicenseUtils.newComplianceException("field and document level security");

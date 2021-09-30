@@ -27,7 +27,7 @@ Retrieves configuration information for a trained model.
 [[ml-get-trained-models-prereq]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 
@@ -71,9 +71,9 @@ default value is empty, indicating no optional fields are included. Valid
 options are:
  - `definition`: Includes the model definition.
  - `feature_importance_baseline`: Includes the baseline for {feat-imp} values.
- - `hyperparameters`: Includes the information about hyperparameters used to 
-    train the model. This information consists of the value, the absolute and 
-    relative importance of the hyperparameter as well as an indicator of whether 
+ - `hyperparameters`: Includes the information about hyperparameters used to
+    train the model. This information consists of the value, the absolute and
+    relative importance of the hyperparameter as well as an indicator of whether
     it was specified by the user or tuned during hyperparameter optimization.
  - `total_feature_importance`: Includes the total {feat-imp} for the training
    data set.
@@ -222,8 +222,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
 [%collapsible%open]
 ======
 `classification_labels`::::
-(Optional, string) 
-An array of classification labels. NER supports only 
+(Optional, string)
+An array of classification labels. NER supports only
 Inside-Outside-Beginning labels (IOB) and only persons, organizations, locations,
 and miscellaneous. For example:
 `["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]`.
@@ -338,7 +338,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 [%collapsible%open]
 ======
 `classification_labels`::::
-(Optional, string) 
+(Optional, string)
 An array of classification labels.
 
 `num_top_classes`::::
@@ -431,6 +431,68 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary
 The index where the vocabulary is stored.
 =======
 ======
+`zero_shot_classification`::::
+(Object, optional)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification]
++
+.Properties of zero_shot_classification inference
+[%collapsible%open]
+======
+`classification_labels`::::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-classification-labels]
+
+`hypothesis_template`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-hypothesis-template]
+
+`labels`::::
+(Optional, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-labels]
+
+`multi_label`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-multi-label]
+
+`tokenization`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+=======
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+========
+`do_lower_case`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
+
+`max_sequence_length`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+========
+=======
+`vocabulary`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-vocabulary]
++
+.Properties of vocabulary
+[%collapsible%open]
+=======
+`index`::::
+(Required, string)
+The index where the vocabulary is stored.
+=======
+======
 =====
 
 `input`:::
@@ -456,7 +518,7 @@ provided.
 =====
 `index`:::
 (Required, object)
-Indicates that the model definition is stored in an index. It is required to be empty as 
+Indicates that the model definition is stored in an index. It is required to be empty as
 the index for storing model definitions is configured automatically.
 =====
 // End location
@@ -480,7 +542,7 @@ it is a single value. For {classanalysis}, there is a value for each class.
 
 `hyperparameters`:::
 (array)
-List of the available hyperparameters optimized during the 
+List of the available hyperparameters optimized during the
 `fine_parameter_tuning` phase as well as specified by the user.
 +
 .Properties of hyperparameters
@@ -488,10 +550,10 @@ List of the available hyperparameters optimized during the
 ======
 `absolute_importance`::::
 (double)
-A positive number showing how much the parameter influences the variation of the 
-{ml-docs}/dfa-regression-lossfunction.html[loss function]. For 
-hyperparameters with values that are not specified by the user but tuned during 
-hyperparameter optimization. 
+A positive number showing how much the parameter influences the variation of the
+{ml-docs}/dfa-regression-lossfunction.html[loss function]. For
+hyperparameters with values that are not specified by the user but tuned during
+hyperparameter optimization.
 
 `max_trees`::::
 (integer)
@@ -503,14 +565,14 @@ Name of the hyperparameter.
 
 `relative_importance`::::
 (double)
-A number between 0 and 1 showing the proportion of influence on the variation of 
-the loss function among all tuned hyperparameters. For hyperparameters with 
-values that are not specified by the user but tuned during hyperparameter 
+A number between 0 and 1 showing the proportion of influence on the variation of
+the loss function among all tuned hyperparameters. For hyperparameters with
+values that are not specified by the user but tuned during hyperparameter
 optimization.
 
 `supplied`::::
 (Boolean)
-Indicates if the hyperparameter is specified by the user (`true`) or optimized 
+Indicates if the hyperparameter is specified by the user (`true`) or optimized
 (`false`).
 
 `value`::::
@@ -602,7 +664,7 @@ Identifier for the trained model.
 `model_type`::
 (Optional, string)
 The created model type. By default the model type is `tree_ensemble`.
-Appropriate types are: 
+Appropriate types are:
 +
 --
 * `tree_ensemble`: The model definition is an ensemble model of decision trees.

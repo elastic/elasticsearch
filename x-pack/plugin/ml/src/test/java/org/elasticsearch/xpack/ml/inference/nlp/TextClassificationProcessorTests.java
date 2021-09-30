@@ -65,7 +65,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
         TextClassificationConfig config = new TextClassificationConfig(new VocabularyConfig("test-index"), null, null, null);
         TextClassificationProcessor processor = new TextClassificationProcessor(tokenizer, config);
 
-        NlpTask.Request request = processor.getRequestBuilder().buildRequest(List.of("Elasticsearch fun"), "request1");
+        NlpTask.Request request = processor.getRequestBuilder(config).buildRequest(List.of("Elasticsearch fun"), "request1");
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 

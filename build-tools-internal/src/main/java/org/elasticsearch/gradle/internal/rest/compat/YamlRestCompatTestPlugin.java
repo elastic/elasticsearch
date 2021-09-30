@@ -44,6 +44,7 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTest
  */
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
+    private static final String COMPATIBILITY_TESTS_CONFIGURATION = "restCompatTests";
     private static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
     private static final Path RELATIVE_TEST_PATH = Path.of("rest-api-spec/test");
@@ -138,7 +139,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.onlyIf(t -> isEnabled(project));
             });
 
-      
+
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
             .register("yamlRestTestV"+ compatibleVersion + "CompatTransform", RestCompatTestTransformTask.class, task -> {
@@ -152,6 +153,14 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         yamlCompatTestSourceSet.getOutput().dir(copyCompatYamlSpecTask.map(CopyRestApiTask::getOutputResourceDir));
         yamlCompatTestSourceSet.getOutput().dir(transformCompatTestTask.map(RestCompatTestTransformTask::getOutputDirectory));
 
+        // Register artifact for transformed compatibility tests
+        Configuration compatRestTests = project.getConfigurations().create(COMPATIBILITY_TESTS_CONFIGURATION);
+        project.getArtifacts()
+            .add(
+                compatRestTests.getName(),
+                transformCompatTestTask.flatMap(t -> t.getOutputDirectory().dir(RELATIVE_TEST_PATH.toString()))
+            );
+
         // Grab the original rest resources locations so we can omit them from the compatibility testing classpath down below
         Provider<Directory> originalYamlSpecsDir = project.getTasks()
             .withType(CopyRestApiTask.class)
@@ -163,7 +172,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
         String testTaskName = "yamlRestTestV"+ compatibleVersion + "CompatTest";
-  
+
         // setup the test task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet, testTaskName);
         project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {

@@ -10,16 +10,20 @@ apply plugin: 'base'
 configurations {
   apis
   freeTests
+  freeCompatTests
   platinumTests
+  platinumCompatTests
 }
 
 dependencies {
   apis project(path: ':rest-api-spec', configuration: 'restSpecs')
   freeTests project(path: ':rest-api-spec', configuration: 'restTests')
+  freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
+  platinumCompatTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
 }
 
-tasks.register('restResourcesZip', Zip).configure {
+def restResourcesZip = tasks.register('restResourcesZip', Zip) {
   description = 'Build archive containing all REST API specifications and YAML tests'
 
   destinationDirectory = layout.buildDirectory.dir('distributions')
@@ -29,9 +33,17 @@ tasks.register('restResourcesZip', Zip).configure {
   from(configurations.freeTests) {
     into 'rest-api-spec/test/free'
   }
+  from(configurations.freeCompatTests) {
+    into 'rest-api-spec/compatTest/free'
+  }
   from(configurations.platinumTests) {
     into 'rest-api-spec/test/platinum'
   }
+  from(configurations.platinumCompatTests) {
+    into 'rest-api-spec/compatTest/platinum'
+  }
 }
 
-tasks.named("assemble").configure { dependsOn 'restResourcesZip' }
+artifacts {
+  archives restResourcesZip
+}

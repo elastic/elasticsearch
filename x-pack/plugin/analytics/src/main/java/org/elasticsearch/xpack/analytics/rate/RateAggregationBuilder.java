@@ -30,7 +30,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, RateAggregationBuilder> {
+public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
+    ValuesSource,
+    RateAggregationBuilder> {
     public static final String NAME = "rate";
     public static final ParseField UNIT_FIELD = new ParseField("unit");
     public static final ParseField MODE_FIELD = new ParseField("mode");

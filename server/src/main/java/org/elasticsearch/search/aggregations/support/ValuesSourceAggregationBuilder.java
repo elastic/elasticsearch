@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -141,6 +142,48 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         @Override
         public final BucketCardinality bucketCardinality() {
             return BucketCardinality.NONE;
+        }
+    }
+
+    public abstract static class MetricsAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
+        LeafOnly<VS, AB> {
+
+        protected MetricsAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected MetricsAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected MetricsAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        /** Generated metrics from this aggregation that can be accessed via
+         * {@link org.elasticsearch.search.aggregations.InternalAggregation#getProperty(String)}*/
+        public abstract Iterable<String> metricNames();
+    }
+
+    public abstract static class SingleMetricAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
+        extends MetricsAggregationBuilder<VS, AB> {
+
+        private static final Iterable<String> METRIC_NAME = List.of("value");
+
+        protected SingleMetricAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected SingleMetricAggregationBuilder(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected SingleMetricAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Iterable<String> metricNames() {
+            return METRIC_NAME;
         }
     }
 

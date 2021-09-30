@@ -49,7 +49,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
     }
 
-    private static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
         Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
     );
 

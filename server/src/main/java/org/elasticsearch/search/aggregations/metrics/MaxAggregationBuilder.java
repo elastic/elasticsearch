@@ -26,7 +26,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregationBuilder> {
+public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
+    ValuesSource.Numeric,
+    MaxAggregationBuilder> {
     public static final String NAME = "max";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,

@@ -900,6 +900,22 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
     }
 
+    public void testSearchableSnapshotRequiresSnapshotRepoToExist() throws IOException {
+        String repo = randomAlphaOfLengthBetween(4, 10);
+        final String phaseName = "cold";
+        ResponseException ex = expectThrows(ResponseException.class, () ->
+            createNewSingletonPolicy(client(), policy, phaseName, new SearchableSnapshotAction(repo)));
+        assertThat(ex.getMessage(), containsString("no such repository"));
+    }
+
+    public void testWaitForSnapshotRequiresSLMPolicyToExist() throws IOException {
+        String slmPolicy = randomAlphaOfLengthBetween(4, 10);
+        final String phaseName = "delete";
+        ResponseException ex = expectThrows(ResponseException.class, () ->
+            createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy)));
+        assertThat(ex.getMessage(), containsString("no such snapshot lifecycle policy"));
+    }
+
     // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success, String stepName) throws IOException {
         assertHistoryIsPresent(policyName, indexName, success, null, null, stepName);

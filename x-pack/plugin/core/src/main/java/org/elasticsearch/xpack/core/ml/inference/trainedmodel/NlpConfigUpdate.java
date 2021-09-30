@@ -7,11 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.ParseField;
-
 public abstract class NlpConfigUpdate implements InferenceConfigUpdate {
-
-    static ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     @Override
     public InferenceConfig toConfig() {

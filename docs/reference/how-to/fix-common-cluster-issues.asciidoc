@@ -4,7 +4,7 @@
 This guide describes how to fix common errors and problems with {es} clusters.
 
 [discrete]
-=== disk usage exceeded flood-stage watermark, index has read-only-allow-delete block
+=== Error: disk usage exceeded flood-stage watermark, index has read-only-allow-delete block
 
 This error indicates a data node is critically low on disk space and has reached
 the <<cluster-routing-flood-stage,flood-stage disk usage watermark>>. When a

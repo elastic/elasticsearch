@@ -8,12 +8,11 @@
 
 package org.elasticsearch.plugins.cli.action;
 
-import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginLogger;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.cli.PluginDescriptor;
 
@@ -29,12 +28,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
 public class RemovePluginAction {
 
-    private final PluginLogger logger;
+    private final Terminal terminal;
     private final Environment env;
     private final boolean purge;
 
@@ -48,12 +49,12 @@ public class RemovePluginAction {
     /**
      * Creates a new action.
      *
-     * @param logger   the terminal to use for input/output
+     * @param terminal   the terminal to use for input/output
      * @param env        the environment for the local node
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      */
-    public RemovePluginAction(PluginLogger logger, Environment env, boolean purge) {
-        this.logger = logger;
+    public RemovePluginAction(Terminal terminal, Environment env, boolean purge) {
+        this.terminal = terminal;
         this.env = env;
         this.purge = purge;
     }
@@ -66,6 +67,10 @@ public class RemovePluginAction {
      * @throws IOException if a problem occurs loading the plugins that are currently installed.
      */
     public Tuple<RemovePluginProblem, String> checkRemovePlugins(List<PluginDescriptor> plugins) throws IOException {
+        if (plugins == null || plugins.isEmpty()) {
+            throw new IllegalArgumentException("At least one plugin ID is required");
+        }
+
         final Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(this.env.pluginsFile());
 
         for (PluginDescriptor plugin : plugins) {
@@ -139,7 +144,7 @@ public class RemovePluginAction {
      */
     public void removePlugins(List<PluginDescriptor> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
+            throw new IllegalArgumentException("At least one plugin ID is required");
         }
 
         for (PluginDescriptor plugin : plugins) {
@@ -153,7 +158,7 @@ public class RemovePluginAction {
         final Path pluginConfigDir = env.configFile().resolve(pluginId);
         final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);
 
-        logger.info("-> removing [" + pluginId + "]...");
+        terminal.println("-> removing [" + pluginId + "]...");
 
         final List<Path> pluginPaths = new ArrayList<>();
 
@@ -165,7 +170,7 @@ public class RemovePluginAction {
             try (Stream<Path> paths = Files.list(pluginDir)) {
                 pluginPaths.addAll(paths.collect(Collectors.toList()));
             }
-            logger.debug("removing [" + pluginDir + "]");
+            terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         }
 
         final Path pluginBinDir = env.binFile().resolve(pluginId);
@@ -174,7 +179,7 @@ public class RemovePluginAction {
                 pluginPaths.addAll(paths.collect(Collectors.toList()));
             }
             pluginPaths.add(pluginBinDir);
-            logger.debug("removing [" + pluginBinDir + "]");
+            terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
         }
 
         if (Files.exists(pluginConfigDir)) {
@@ -183,7 +188,7 @@ public class RemovePluginAction {
                     pluginPaths.addAll(paths.collect(Collectors.toList()));
                 }
                 pluginPaths.add(pluginConfigDir);
-                logger.debug("removing [" + pluginConfigDir + "]");
+                terminal.println(VERBOSE, "removing [" + pluginConfigDir + "]");
             } else {
                 /*
                  * By default we preserve the config files in case the user is upgrading the plugin, but we print a message so the user
@@ -194,7 +199,7 @@ public class RemovePluginAction {
                     "-> preserving plugin config files [%s] in case of upgrade; use --purge if not needed",
                     pluginConfigDir
                 );
-                logger.info(message);
+                terminal.println(message);
             }
         }
 
@@ -213,7 +218,7 @@ public class RemovePluginAction {
              * We need to suppress the marker file already existing as we could be in this state if a previous removal attempt failed and
              * the user is attempting to remove the plugin again.
              */
-            logger.debug("marker file [" + removing + "] already exists");
+            terminal.println(VERBOSE, "marker file [" + removing + "] already exists");
         }
 
         // add the plugin directory

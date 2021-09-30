@@ -11,8 +11,8 @@ package org.elasticsearch.plugins.cli;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.plugins.PluginLogger;
 
 import java.io.IOException;
 import java.net.URL;
@@ -31,32 +31,32 @@ public class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    public static void confirmPolicyExceptions(PluginLogger logger, Set<String> permissions, boolean batch) throws UserException {
+    public static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
-            logger.debug("plugin has a policy file with no additional permissions");
+            terminal.println(Terminal.Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
         } else {
 
             // sort permissions in a reasonable order
             Collections.sort(requested);
 
-            logger.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            logger.warn("@     WARNING: plugin requires additional permissions     @");
-            logger.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.errorPrintln("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.errorPrintln("@     WARNING: plugin requires additional permissions     @");
+            terminal.errorPrintln("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             // print all permissions:
             for (String permission : requested) {
-                logger.warn("* " + permission);
+                terminal.errorPrintln("* " + permission);
             }
-            logger.warn("See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-            logger.warn("for descriptions of what these permissions allow and the associated risks.");
-            prompt(logger, batch);
+            terminal.errorPrintln("See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
+            terminal.errorPrintln("for descriptions of what these permissions allow and the associated risks.");
+            prompt(terminal, batch);
         }
     }
 
-    private static void prompt(final PluginLogger logger, final boolean batch) throws UserException {
+    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
         if (batch == false) {
-            logger.info("");
-            String text = logger.readText("Continue with installation? [y/N]");
+            terminal.println("");
+            String text = terminal.readText("Continue with installation? [y/N]");
             if (text.equalsIgnoreCase("y") == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
             }

@@ -12,7 +12,9 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.cli.action.InstallPluginAction;
@@ -82,7 +84,11 @@ public class InstallPluginCommand extends EnvironmentAwareCommand {
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
 
-        InstallPluginAction action = new InstallPluginAction(new TerminalLogger(terminal), env, isBatch);
+        if (plugins.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "at least one plugin ID is required");
+        }
+
+        InstallPluginAction action = new InstallPluginAction(terminal, env, isBatch);
         action.execute(plugins);
     }
 }

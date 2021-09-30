@@ -51,9 +51,9 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.cli.MockInstallPluginCommand;
 import org.elasticsearch.plugins.cli.PluginDescriptor;
-import org.elasticsearch.plugins.cli.TerminalLogger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -141,13 +141,13 @@ public class InstallPluginActionTests extends ESTestCase {
         pluginDir = createPluginDir(temp);
         terminal = new MockTerminal();
         env = createEnv(temp);
-        skipJarHellAction = new InstallPluginAction(new TerminalLogger(terminal), null, false) {
+        skipJarHellAction = new InstallPluginAction(terminal, null, false) {
             @Override
             void jarHellCheck(PluginInfo candidateInfo, Path candidate, Path pluginsDir, Path modulesDir) {
                 // no jarhell check
             }
         };
-        defaultAction = new InstallPluginAction(new TerminalLogger(terminal), env.v2(), false);
+        defaultAction = new InstallPluginAction(terminal, env.v2(), false);
     }
 
     @Override
@@ -397,8 +397,16 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testMissingPluginId() {
-        final UserException e = expectThrows(UserException.class, () -> installPlugin((String) null));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> installPlugin((String) null));
         assertTrue(e.getMessage(), e.getMessage().contains("at least one plugin id is required"));
+    }
+
+    public void testMissingPluginIdWithCommand() throws Exception {
+        final MockTerminal terminal = new MockTerminal();
+        final int exitCode = new MockInstallPluginCommand(env.v2()).main(new String[] {}, terminal);
+
+        assertThat(terminal.getErrorOutput(), containsString("ERROR: at least one plugin ID is required"));
+        assertThat(exitCode, Matchers.equalTo(ExitCodes.USAGE));
     }
 
     public void testSomethingWorks() throws Exception {
@@ -770,7 +778,7 @@ public class InstallPluginActionTests extends ESTestCase {
         throws IOException {
 
         final Environment environment = createEnv(temp).v2();
-        final InstallPluginAction flavorAction = new InstallPluginAction(new TerminalLogger(terminal), environment, false) {
+        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment, false) {
             @Override
             Build.Flavor buildFlavor() {
                 return flavor;
@@ -854,7 +862,7 @@ public class InstallPluginActionTests extends ESTestCase {
     ) throws Exception {
         PluginDescriptor pluginZip = createPlugin(name, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getUrl()));
-        InstallPluginAction action = new InstallPluginAction(new TerminalLogger(terminal), env.v2(), false) {
+        InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
             @Override
             Path downloadZip(String urlString, Path tmpDir) throws IOException {
                 assertEquals(url, urlString);

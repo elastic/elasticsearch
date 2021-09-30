@@ -31,7 +31,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
     public void testUnlicensedPlugin() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(false);
-        InstallPluginAction.checkCanInstallationProceed(new TerminalLogger(terminal), Build.Flavor.OSS, pluginInfo);
+        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo);
     }
 
     /**
@@ -42,7 +42,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
         PluginInfo pluginInfo = buildInfo(true);
         final UserException userException = expectThrows(
             UserException.class,
-            () -> InstallPluginAction.checkCanInstallationProceed(new TerminalLogger(terminal), Build.Flavor.OSS, pluginInfo)
+            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
         );
 
         assertThat(userException.exitCode, equalTo(ExitCodes.NOPERM));
@@ -57,7 +57,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
         PluginInfo pluginInfo = buildInfo(true);
         expectThrows(
             UserException.class,
-            () -> InstallPluginAction.checkCanInstallationProceed(new TerminalLogger(terminal), Build.Flavor.UNKNOWN, pluginInfo)
+            () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
         );
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
     }
@@ -68,7 +68,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
     public void testInstallPluginActionOnDefault() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
-        InstallPluginAction.checkCanInstallationProceed(new TerminalLogger(terminal), Build.Flavor.DEFAULT, pluginInfo);
+        InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.DEFAULT, pluginInfo);
     }
 
     private PluginInfo buildInfo(boolean isLicensed) {

@@ -229,9 +229,9 @@ Each feature is a `Polygon` of the cell's bounding box.
 Each feature is a `Point` that's the centroid of the cell.
 
 `centroid`:::
-Each feature is a `Point` that's the centroid of the data within the cell. If the centroid
-of the data is outside the cell, the feature is set to the closest point inside the cell
-to the centroid.
+Each feature is a `Point` that's the centroid of the data within the cell. For
+complex geometries, the actual centroid may be outside the cell. In these cases,
+the feature is set to the closest point to the centroid inside the cell.
 // end::grid-type[]
 
 // tag::size[]

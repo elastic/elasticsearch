@@ -84,8 +84,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private BytesReference source;
 
-    // TODO - just use List<Object> instead of DocumentField here?
-    private Map<String, DocumentField> ignoredFieldValues;
+    private Map<String, DocumentField> ignoredFieldValues  = emptyMap();
     private Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
 
@@ -129,7 +128,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         this.nestedIdentity = nestedIdentity;
         this.documentFields = documentFields == null ? emptyMap() : documentFields;
-        this.ignoredFieldValues = emptyMap();
         this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
@@ -729,7 +727,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
             builder.endObject();
         }
-        if (ignoredFieldValues != null && ignoredFieldValues.isEmpty() == false) {
+        if (ignoredFieldValues.isEmpty() == false) {
             builder.startObject(Fields.IGNORED_FIELD_VALUES);
             for (DocumentField field : ignoredFieldValues.values()) {
                 if (field.getValues().size() > 0) {
@@ -846,7 +844,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (matchedQueries != null) {
             searchHit.matchedQueries(matchedQueries.toArray(new String[0]));
         }
-        searchHit.ignoredFieldValues = emptyMap();
 
         return searchHit;
     }

@@ -84,7 +84,6 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         for (String name : names) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
-        request.indices(names.toArray(Strings.EMPTY_ARRAY));
 
         clusterService.submitStateUpdateTask(
             "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.getNames()) + "]",

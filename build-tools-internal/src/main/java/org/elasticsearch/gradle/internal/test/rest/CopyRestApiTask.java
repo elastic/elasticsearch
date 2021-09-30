@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.DuplicatesStrategy;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -126,6 +127,7 @@ public class CopyRestApiTask extends DefaultTask {
 
         getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
         fileSystemOperations.copy(c -> {
+            c.setDuplicatesStrategy(DuplicatesStrategy.FAIL);
             c.from(configToFileTree.apply(config));
             c.into(restSpecOutputDir);
             c.include(patternSet.getIncludes());
@@ -133,6 +135,7 @@ public class CopyRestApiTask extends DefaultTask {
         // copy any additional config
         if (additionalConfig != null) {
             fileSystemOperations.copy(c -> {
+                c.setDuplicatesStrategy(DuplicatesStrategy.FAIL);
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(restSpecOutputDir);
             });

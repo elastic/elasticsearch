@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.test.rest;
 import org.apache.tools.ant.filters.ReplaceTokens;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.DuplicatesStrategy;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -136,6 +137,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeCore.get().isEmpty() == false) {
             getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
             fileSystemOperations.copy(c -> {
+                c.setDuplicatesStrategy(DuplicatesStrategy.FAIL);
                 c.from(coreConfigToFileTree.apply(coreConfig));
                 c.into(restTestOutputDir);
                 c.include(corePatternSet.getIncludes());
@@ -148,6 +150,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", projectPath);
             fileSystemOperations.copy(c -> {
+                c.setDuplicatesStrategy(DuplicatesStrategy.FAIL);
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(restTestOutputDir);
                 c.include(xpackPatternSet.getIncludes());
@@ -159,6 +162,7 @@ public class CopyRestTestsTask extends DefaultTask {
         // copy any additional config
         if (additionalConfig != null) {
             fileSystemOperations.copy(c -> {
+                c.setDuplicatesStrategy(DuplicatesStrategy.FAIL);
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(restTestOutputDir);
                 if (substitutions != null) {

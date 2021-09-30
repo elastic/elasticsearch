@@ -21,12 +21,14 @@ import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -35,7 +37,11 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
 
@@ -178,10 +184,32 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     .minus(project.files(originalYamlSpecsDir))
                     .minus(project.files(originalYamlTestsDir))
             );
+
+            // Ensure no duplicates YAML tests on classpath since tests are sourced from the prior major and the local source set
+            testTask.doFirst(new Action<>() {
+                @Override
+                public void execute(Task task) {
+                    FileTree yamlTests = project.getTasks().withType(RestIntegTestTask.class)
+                        .getByName(testTaskName).getClasspath().getAsFileTree().matching(f -> f.include("**/*.yml"));
+                    Set<Path> found = new HashSet<>();
+                    Set<Path> duplicates = yamlTests.getFiles().stream().map(file -> {
+                        Path p = file.toPath();
+                        int partCount = p.getNameCount();
+                        return p.subpath(partCount - 2, partCount);
+                    }).filter(p -> found.add(p) == false).collect(Collectors.toSet());
+                    if (duplicates.isEmpty() == false) {
+                        throw new IllegalStateException("Found duplicated test(s) ["
+                            + duplicates.stream().map(Path::toString).collect(Collectors.joining(", "))
+                            + "] please ensure there not any duplicate YAML test files between the [" + compatibleVersion
+                            + ".x] branch and the [" + sourceSetName + "] tests. ");
+                    }
+                }
+            });
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.onlyIf(t -> isEnabled(project));
         });
+
 
         setupTestDependenciesDefaults(project, yamlCompatTestSourceSet);
 

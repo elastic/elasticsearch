@@ -65,7 +65,8 @@ public class ZeroShotClassificationConfig implements NlpConfig {
                 (Tokenization) a[2],
                 (String) a[3],
                 (Boolean) a[4],
-                (List<String>) a[5]
+                (List<String>) a[5],
+                (String) a[6]
             )
         );
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), CLASSIFICATION_LABELS);
@@ -89,6 +90,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), HYPOTHESIS_TEMPLATE);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), MULTI_LABEL);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), LABELS);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
         return parser;
     }
 
@@ -98,6 +100,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     private final List<String> labels;
     private final boolean isMultiLabel;
     private final String hypothesisTemplate;
+    private final String resultsField;
 
     public ZeroShotClassificationConfig(
         List<String> classificationLabels,
@@ -105,7 +108,8 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         @Nullable Tokenization tokenization,
         @Nullable String hypothesisTemplate,
         @Nullable Boolean isMultiLabel,
-        @Nullable List<String> labels
+        @Nullable List<String> labels,
+        @Nullable String resultsField
     ) {
         this.classificationLabels = ExceptionsHelper.requireNonNull(classificationLabels, CLASSIFICATION_LABELS);
         if (this.classificationLabels.size() != 3) {
@@ -136,6 +140,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         if (labels != null && labels.isEmpty()) {
             throw ExceptionsHelper.badRequestException("[{}] must not be empty", LABELS.getPreferredName());
         }
+        this.resultsField = resultsField;
     }
 
     public ZeroShotClassificationConfig(StreamInput in) throws IOException {
@@ -145,6 +150,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         isMultiLabel = in.readBoolean();
         hypothesisTemplate = in.readString();
         labels = in.readOptionalStringList();
+        resultsField = in.readOptionalString();
     }
 
     @Override
@@ -155,6 +161,7 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         out.writeBoolean(isMultiLabel);
         out.writeString(hypothesisTemplate);
         out.writeOptionalStringCollection(labels);
+        out.writeOptionalString(resultsField);
     }
 
     @Override
@@ -167,6 +174,9 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         builder.field(HYPOTHESIS_TEMPLATE.getPreferredName(), hypothesisTemplate);
         if (labels != null) {
             builder.field(LABELS.getPreferredName(), labels);
+        }
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
         builder.endObject();
         return builder;
@@ -203,12 +213,13 @@ public class ZeroShotClassificationConfig implements NlpConfig {
             && Objects.equals(isMultiLabel, that.isMultiLabel)
             && Objects.equals(hypothesisTemplate, that.hypothesisTemplate)
             && Objects.equals(labels, that.labels)
-            && Objects.equals(classificationLabels, that.classificationLabels);
+            && Objects.equals(classificationLabels, that.classificationLabels)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization, classificationLabels, hypothesisTemplate, isMultiLabel, labels);
+        return Objects.hash(vocabularyConfig, tokenization, classificationLabels, hypothesisTemplate, isMultiLabel, labels, resultsField);
     }
 
     @Override
@@ -235,6 +246,11 @@ public class ZeroShotClassificationConfig implements NlpConfig {
 
     public List<String> getLabels() {
         return Optional.ofNullable(labels).orElse(List.of());
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override

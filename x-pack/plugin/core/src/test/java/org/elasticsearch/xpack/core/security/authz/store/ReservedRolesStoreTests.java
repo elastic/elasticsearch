@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -1217,25 +1218,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
-        Map<String, IndexAccessControl> authzMap =
-                superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a1").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap =
-            superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a1").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a2").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices()
-                .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
+        IndicesAccessControl indicesAccessControl =
+                superuserRole.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        assertThat(indicesAccessControl.getIndexPermissions("a1").isGranted(), is(true));
+        assertThat(indicesAccessControl.getIndexPermissions("b").isGranted(), is(true));
+        indicesAccessControl =
+            superuserRole.authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        assertThat(indicesAccessControl.getIndexPermissions("a1").isGranted(), is(true));
+        assertThat(indicesAccessControl.getIndexPermissions("b").isGranted(), is(true));
+        indicesAccessControl = superuserRole.authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
+        assertThat(indicesAccessControl.getIndexPermissions("a2").isGranted(), is(true));
+        assertThat(indicesAccessControl.getIndexPermissions("b").isGranted(), is(true));
+        indicesAccessControl =
+            superuserRole.authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
+        assertThat(indicesAccessControl.getIndexPermissions("aaaaaa").isGranted(), is(true));
+        assertThat(indicesAccessControl.getIndexPermissions("b").isGranted(), is(true));
+        indicesAccessControl = superuserRole.authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
                 Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
+        assertThat(indicesAccessControl.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+        assertThat(indicesAccessControl.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 

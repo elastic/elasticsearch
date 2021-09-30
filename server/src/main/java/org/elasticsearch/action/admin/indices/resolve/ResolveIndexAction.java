@@ -26,16 +26,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -51,9 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
-import java.util.Spliterators;
 import java.util.TreeMap;
-import java.util.stream.StreamSupport;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -540,10 +538,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case CONCRETE_INDEX:
                         IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
 
-                        String[] aliasNames = StreamSupport.stream(
-                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keysIt(), 0), false)
-                            .toArray(String[]::new);
-                        Arrays.sort(aliasNames);
+                        String[] aliasNames = index.getWriteIndex().getAliases().keySet().stream().sorted().toArray(String[]::new);
 
                         List<String> attributes = new ArrayList<>();
                         attributes.add(index.getWriteIndex().getState() == IndexMetadata.State.OPEN ? "open" : "closed");

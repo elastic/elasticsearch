@@ -4,7 +4,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.max_keep_alive: null
             search.default_keep_alive: null
 
@@ -29,7 +29,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.default_keep_alive: "1m"
             search.max_keep_alive: "1m"
 

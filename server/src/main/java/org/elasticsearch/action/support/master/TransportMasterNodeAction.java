@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -99,6 +100,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return null;
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
@@ -135,22 +140,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
-                        if (blockException.retryable() == false) {
-                            logger.trace("can't execute due to a non-retryable cluster block", blockException);
-                            listener.onFailure(blockException);
-                        } else {
-                            logger.debug("can't execute due to a cluster block, retrying", blockException);
-                            retry(clusterState, blockException, newState -> {
-                                try {
-                                    ClusterBlockException newException = checkBlock(request, newState);
-                                    return (newException == null || newException.retryable() == false);
-                                } catch (Exception e) {
-                                    // accept state as block will be rechecked by doStart() and listener.onFailure() then called
-                                    logger.debug("exception occurred during cluster block checking, accepting state", e);
-                                    return true;
-                                }
-                            });
-                        }
+                        handleClusterBlockException(clusterState, blockException);
                     } else {
                         ActionListener<Response> delegate = listener.delegateResponse((delegatedListener, t) -> {
                             if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
@@ -193,9 +183,38 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         });
                     }
                 }
+            } catch (IndexNotFoundException e) {
+                // In some situations it's possible that this is a false exception, i.e. while there's a STATE_NOT_RECOVERED_BLOCK
+                // to ensure that this is a legitimate index not found exception we should check if there's a cluster exception and
+                // handle it if there's one.
+                ClusterBlockException clusterBlockException = checkGlobalBlock(clusterState);
+                if (clusterBlockException != null) {
+                    handleClusterBlockException(clusterState, clusterBlockException);
+                } else {
+                    listener.onFailure(e);
+                }
             } catch (Exception e) {
                 logger.trace("top-level failure", e);
                 listener.onFailure(e);
+            }
+        }
+
+        private void handleClusterBlockException(ClusterState clusterState, ClusterBlockException blockException) {
+            if (blockException.retryable() == false) {
+                logger.trace("can't execute due to a non-retryable cluster block", blockException);
+                listener.onFailure(blockException);
+            } else {
+                logger.debug("can't execute due to a cluster block, retrying", blockException);
+                retry(clusterState, blockException, newState -> {
+                    try {
+                        ClusterBlockException newException = checkBlock(request, newState);
+                        return (newException == null || newException.retryable() == false);
+                    } catch (Exception e) {
+                        // accept state as block will be rechecked by doStart() and listener.onFailure() then called
+                        logger.debug("exception occurred during cluster block checking, accepting state", e);
+                        return true;
+                    }
+                });
             }
         }
 

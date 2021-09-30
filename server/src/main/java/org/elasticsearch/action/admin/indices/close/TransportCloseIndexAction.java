@@ -81,6 +81,11 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
     protected void masterOperation(final Task task,
                                    final CloseIndexRequest request,
                                    final ClusterState state,

@@ -72,6 +72,11 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
     protected void masterOperation(final Task task,
                                    final AddIndexBlockRequest request,
                                    final ClusterState state,

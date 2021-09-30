@@ -63,6 +63,11 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    @Override
     protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
         // resolve all concrete indices upfront and warn/error later

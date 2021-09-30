@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -61,6 +62,11 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
         return state.blocks().indicesAllowReleaseResources(indexNameExpressionResolver.concreteIndexNames(state, request));
+    }
+
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

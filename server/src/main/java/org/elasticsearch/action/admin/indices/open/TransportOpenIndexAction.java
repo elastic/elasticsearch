@@ -62,6 +62,11 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
     protected void masterOperation(Task task, final OpenIndexRequest request, final ClusterState state,
                                    final ActionListener<OpenIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);

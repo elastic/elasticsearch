@@ -79,6 +79,11 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
     protected void masterOperation(Task task, final PutMappingRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {

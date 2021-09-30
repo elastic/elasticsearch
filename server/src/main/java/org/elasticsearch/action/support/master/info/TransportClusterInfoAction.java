@@ -34,15 +34,13 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        // Check first for global blocks to avoid throwing a false IndexNotFound exception
-        // when there's a STATE_NOT_RECOVERED_BLOCK and the cluster state doesn't contain
-        // the indices metadata yet.
-        ClusterBlockException clusterBlockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-        if (clusterBlockException != null) {
-            return clusterBlockException;
-        }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
             indexNameExpressionResolver.concreteIndexNames(state, request));
+    }
+
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

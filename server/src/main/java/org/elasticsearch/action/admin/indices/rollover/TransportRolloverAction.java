@@ -77,6 +77,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
     protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState oldState,
                                    final ActionListener<RolloverResponse> listener) throws Exception {
 

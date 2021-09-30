@@ -54,6 +54,11 @@ public class TransportClusterSearchShardsAction extends
     }
 
     @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    @Override
     protected void masterOperation(Task task, final ClusterSearchShardsRequest request, final ClusterState state,
                                    final ActionListener<ClusterSearchShardsResponse> listener) {
         ClusterState clusterState = clusterService.state();

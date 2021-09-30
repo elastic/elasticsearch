@@ -112,6 +112,11 @@ public class TransportIndicesShardStoresAction
             indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
+        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
     private class AsyncShardStoresInfoFetches {
         private final DiscoveryNodes nodes;
         private final RoutingNodes routingNodes;

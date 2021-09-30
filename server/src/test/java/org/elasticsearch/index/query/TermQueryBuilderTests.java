@@ -171,6 +171,20 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+    }
     public void testParseAndSerializeBigInteger() throws IOException {
         String json = "{\n" +
                 "  \"term\" : {\n" +

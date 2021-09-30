@@ -311,5 +311,19 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
         assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
     }
-}
 
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        // At least one name is good
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
+    }
+}

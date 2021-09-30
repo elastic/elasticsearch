@@ -19,6 +19,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.CanMatchNodeResponse;
+import org.elasticsearch.action.search.CanMatchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -120,6 +122,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1218,6 +1221,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
         try {
             listener.onResponse(canMatch(request));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void canMatch(CanMatchRequest request, ActionListener<CanMatchNodeResponse> listener) {
+        try {
+            List<CanMatchResponse> responses = new ArrayList<>();
+            for (ShardSearchRequest shardSearchRequest : request.createShardSearchRequests()) {
+                responses.add(canMatch(shardSearchRequest));
+            }
+            listener.onResponse(new CanMatchNodeResponse(responses));
         } catch (IOException e) {
             listener.onFailure(e);
         }

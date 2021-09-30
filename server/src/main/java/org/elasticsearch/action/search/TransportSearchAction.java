@@ -768,14 +768,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     interface SearchAsyncActionProvider {
-        AbstractSearchAsyncAction<? extends SearchPhaseResult> asyncSearchAction(
+        SearchPhase asyncSearchAction(
             SearchTask task, SearchRequest searchRequest, Executor executor, GroupShardsIterator<SearchShardIterator> shardIterators,
             SearchTimeProvider timeProvider, BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState, Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
             ActionListener<SearchResponse> listener, boolean preFilter, ThreadPool threadPool, SearchResponse.Clusters clusters);
     }
 
-    private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(
+    private SearchPhase searchAsyncAction(
         SearchTask task,
         SearchRequest searchRequest,
         Executor executor,
@@ -790,10 +790,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         SearchResponse.Clusters clusters) {
         if (preFilter) {
-            return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
+            return new CanMatchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, executor, searchRequest, listener, shardIterators,
                 timeProvider, clusterState, task, (iter) -> {
-                AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
+                SearchPhase action = searchAsyncAction(
                     task,
                     searchRequest,
                     executor,
@@ -807,6 +807,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     false,
                     threadPool,
                     clusters);
+                assert action instanceof AbstractSearchAsyncAction;
                 return new SearchPhase(action.getName()) {
                     @Override
                     public void run() {

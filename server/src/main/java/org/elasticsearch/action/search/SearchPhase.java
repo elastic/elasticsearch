@@ -28,4 +28,8 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     public String getName() {
         return name;
     }
+
+    public void start() {
+
+    }
 }

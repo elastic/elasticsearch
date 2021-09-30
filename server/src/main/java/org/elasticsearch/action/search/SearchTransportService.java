@@ -73,6 +73,7 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
 
     private final TransportService transportService;
     private final NodeClient client;
@@ -119,6 +120,12 @@ public class SearchTransportService {
     public void sendCanMatch(Transport.Connection connection, final ShardSearchRequest request, SearchTask task, final
                             ActionListener<SearchService.CanMatchResponse> listener) {
         transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new));
+    }
+
+    public void sendCanMatch(Transport.Connection connection, final CanMatchRequest request, SearchTask task, final
+                             ActionListener<SearchService.CanMatchResponse> listener) {
+        transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new));
     }
 
@@ -364,6 +371,11 @@ public class SearchTransportService {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, true, SearchService.CanMatchResponse::new);
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NODE_NAME, ThreadPool.Names.SAME, CanMatchRequest::new,
+            (request, channel, task) -> {
+                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+            });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
     }
 
 

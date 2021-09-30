@@ -619,7 +619,7 @@ public abstract class PackagingTestCase extends Assert {
                 );
             Path localTempDir = createTempDir("docker-config");
             copyFromContainer(es.config("elasticsearch.yml"), localTempDir.resolve("docker_elasticsearch.yml"));
-            configLines = Files.readAllLines(getRootTempDir().resolve("docker_elasticsearch.yml"));
+            configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir);
         }

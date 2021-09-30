@@ -143,7 +143,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
-        return clusterState(env, psf.loadOnDiskState());
+        return clusterState(env, psf.loadBestOnDiskState());
     }
 
     private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, Metadata metadata) {

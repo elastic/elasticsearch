@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -60,7 +60,7 @@ setup:
 query a dimension:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -76,7 +76,7 @@ query a dimension:
 query a metric:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -95,7 +95,7 @@ query a metric:
 fetch a dimension:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -114,7 +114,7 @@ fetch a dimension:
 fetch a metric:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -134,7 +134,7 @@ fetch a metric:
 fetch a tag:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -156,7 +156,7 @@ fetch a tag:
 aggregate a dimension:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -178,7 +178,7 @@ aggregate a dimension:
 aggregate a metric:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -206,7 +206,7 @@ aggregate a metric:
 aggregate a tag:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -235,7 +235,7 @@ aggregate a tag:
 field capabilities:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       field_caps:
@@ -259,8 +259,3 @@ field capabilities:
   - is_false: fields.k8s\.pod\.ip.ip.non_searchable_indices
   - is_false: fields.k8s\.pod\.ip.ip.non_aggregatable_indices
   # TODO assert tsid once we build it:
-  # - match: {fields._tsid._tsid.searchable:                    false}
-  # - match: {fields._tsid._tsid.aggregatable:                  true}
-  # - is_false: fields._tsid._tsid.indices
-  # - is_false: fields._tsid._tsid.non_searchable_indices
-  # - is_false: fields._tsid._tsid.non_aggregatable_indices

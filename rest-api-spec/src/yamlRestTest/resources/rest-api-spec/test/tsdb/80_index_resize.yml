@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -10,6 +10,8 @@ setup:
             settings:
               index:
                 mode: time_series
+                number_of_shards: 3
+                number_of_replicas: 0
             mappings:
               properties:
                 "@timestamp":
@@ -56,80 +58,105 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
----
-search an alias:
-  - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
-
   - do:
-      indices.put_alias:
+      indices.put_settings:
         index: test
-        name:  test_alias
-
-
-  # TODO search on tsid once we generate it
-  # - do:
-  #     search:
-  #       index: test_alias
-  #       body:
-  #         size: 0
-  #         aggs:
-  #           tsids:
-  #             terms:
-  #               field: _tsid
-  #               order:
-  #                 _key: asc
-
-  # - match: {hits.total.value: 8}
-  # - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
-  # - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  # - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
-  # - match: {aggregations.tsids.buckets.1.doc_count: 4}
-
----
-index into alias:
-  - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
-
-  - do:
-      indices.put_alias:
-        index: test
-        name:  test_alias
-
-  - do:
-      bulk:
-        refresh: true
-        index: test_alias
         body:
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434521831, "rx": 530575198}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434577921, "rx": 530600088}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434587694, "rx": 530604797}}}}'
-          - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434595272, "rx": 530605511}}}}'
-  - match: {errors: false}
+          index.blocks.write: true
 
-  # TODO search on tsid once we generate it
-  # - do:
-  #     search:
-  #       index: test
-  #       body:
-  #         size: 0
-  #         aggs:
-  #           tsids:
-  #             terms:
-  #               field: _tsid
-  #               order:
-  #                 _key: asc
+---
+split:
+  - skip:
+      version: all
+      reason: shard splitting doesn't work yet
+      features: "arbitrary_key"
 
-  # - match: {hits.total.value: 12}
-  # - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
-  # - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  # - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
-  # - match: {aggregations.tsids.buckets.1.doc_count: 4}
-  # - match: {aggregations.tsids.buckets.2.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
-  # - match: {aggregations.tsids.buckets.2.doc_count: 4}
+  - do:
+      indices.split:
+        index: test
+        target: test_split
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 6
+
+  - do:
+      search:
+        index: test_split
+        body:
+          fields:
+            # TODO fetch tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  # TODO test fetching tsid
+
+---
+shrink:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+      features: "arbitrary_key"
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.routing.allocation.include._id: $node_id
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_no_relocating_shards: true
+        index: test
+
+  - do:
+      indices.shrink:
+        index: test
+        target: test_shrink
+        body:
+          settings:
+            index.number_of_shards: 1
+
+  - do:
+      search:
+        index: test_shrink
+        body:
+          # TODO test fetching tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  # TODO test fetching tsid
+
+---
+clone:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      indices.clone:
+        index: test
+        target: test_clone
+
+  - do:
+      search:
+        index: test_clone
+        body:
+          # TODO test fetching tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  # TODO test fetching tsid

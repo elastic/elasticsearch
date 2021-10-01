@@ -2,7 +2,7 @@
 add dimensions with put_mapping:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -16,15 +16,7 @@ add dimensions with put_mapping:
                 "@timestamp":
                   type: date
 
-  # TODO restore after #77731
-  # - do:
-  #     catch: "/Error building time series id: There aren't any mapped dimensions/"
-  #     index:
-  #       index: test
-  #       refresh: true
-  #       body:
-  #         "@timestamp": "2021-04-28T18:35:24.467Z"
-  #         metricset: cat
+  # TODO verify its an error to index without an declared dimensions #77731
 
   - do:
       indices.put_mapping:
@@ -48,18 +40,18 @@ add dimensions with put_mapping:
         index: test
         body:
           fields:
-  #         - field: _tsid  TODO fetch the tsid
+            # TODO fetch the tsid
             - field: "@timestamp"
 
   - match: {hits.total.value: 1}
-  # - match: {hits.hits.0.fields._tsid: [{metricset: cat}]} TODO Fetch the tsid
+  # TODO Fetch the tsid
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to no dims with dynamic_template over index:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -93,17 +85,17 @@ add dimensions to no dims with dynamic_template over index:
         index: test
         body:
           fields:
-            #  - field: _tsid TODO fetch the tsid
+            # TODO fetch the tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # - match: {hits.hits.0.fields._tsid: [{metricset: cat}]} TODO fetch the tsid
+  # TODO fetch the tsid
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to no dims with dynamic_template over bulk:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.15.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -137,17 +129,17 @@ add dimensions to no dims with dynamic_template over bulk:
        index: test
        body:
          fields:
-            # - field: _tsid TODO fetch tsid
+            # TODO fetch tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # - match: {hits.hits.0.fields._tsid: [{metricset: cat}]} TODO fetch tsid
+  # TODO fetch tsid
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to some dims with dynamic_template over index:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -185,17 +177,17 @@ add dimensions to some dims with dynamic_template over index:
        index: test
        body:
          fields:
-          #  - field: _tsid TODO fetch tsid
+          # TODO fetch tsid
            - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # - match: {hits.hits.0.fields._tsid: [{metricset: cat, other_dim: cat}]} TODO fetch tsid
+  # TODO fetch tsid
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to some dims with dynamic_template over bulk:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -232,8 +224,8 @@ add dimensions to some dims with dynamic_template over bulk:
        index: test
        body:
          fields:
-            #  - field: _tsid TODO fetch tsid
+            # TODO fetch tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # - match: {hits.hits.0.fields._tsid: [{metricset: cat, other_dim: cat}]} TODO fetch tsid
+  # TODO fetch tsid
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}

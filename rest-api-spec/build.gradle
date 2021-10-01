@@ -81,6 +81,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
+  task.skipTest("cluster.health/20_request_timeout/cluster health request timeout on waiting for nodes", "Cluster health request timeout was changed to 200 from 408.")
+  task.skipTest("cluster.health/20_request_timeout/cluster health request timeout waiting for active shards", "Cluster health request timeout was changed to 200 from 408.")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

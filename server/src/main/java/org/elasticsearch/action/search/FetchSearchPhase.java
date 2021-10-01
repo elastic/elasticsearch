@@ -139,7 +139,7 @@ final class FetchSearchPhase extends SearchPhase {
                         SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
                         Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getContextId(), i, entry,
-                            lastEmittedDocPerShard, context.getOriginalIndices(shardTarget.getClusterAlias()),
+                            lastEmittedDocPerShard, context.getOriginalIndices(queryResult.getShardIndex()),
                             queryResult.getShardSearchRequest(), queryResult.getRescoreDocIds());
                         executeFetch(queryResult.getShardIndex(), shardTarget, counter, fetchSearchRequest,
                             queryResult.queryResult(), connection);
@@ -203,7 +203,7 @@ final class FetchSearchPhase extends SearchPhase {
                 SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                 context.sendReleaseSearchContext(queryResult.getContextId(), connection,
-                    context.getOriginalIndices(shardTarget.getClusterAlias()));
+                    context.getOriginalIndices(queryResult.getShardIndex()));
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

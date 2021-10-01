@@ -75,7 +75,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public OriginalIndices getOriginalIndices(String clusterAlias) {
+    public OriginalIndices getOriginalIndices(int shardIndex) {
         return new OriginalIndices(searchRequest.indices(), searchRequest.indicesOptions());
     }
 

@@ -66,7 +66,7 @@ final class DfsQueryPhase extends SearchPhase {
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(context.getOriginalIndices(shardTarget.getClusterAlias()),
+            QuerySearchRequest querySearchRequest = new QuerySearchRequest(context.getOriginalIndices(dfsResult.getShardIndex()),
                     dfsResult.getContextId(), dfsResult.getShardSearchRequest(), dfs);
             final int shardIndex = dfsResult.getShardIndex();
             searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
@@ -94,7 +94,7 @@ final class DfsQueryPhase extends SearchPhase {
                                 // execution) and the search context that was created in dfs phase might not be released.
                                 // release it again to be in the safe side
                                 context.sendReleaseSearchContext(
-                                    querySearchRequest.contextId(), connection, context.getOriginalIndices(shardTarget.getClusterAlias()));
+                                    querySearchRequest.contextId(), connection, context.getOriginalIndices(shardIndex));
                             }
                         }
                     }

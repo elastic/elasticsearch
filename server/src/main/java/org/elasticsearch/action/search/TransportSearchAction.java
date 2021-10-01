@@ -550,15 +550,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 //add the cluster name to the remote index names for indices disambiguation
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
-                AliasFilter aliasFilter = aliasFilterMap.get(shardId.getIndex().getUUID());
-                String[] aliases = aliasFilter.getAliases();
                 String clusterAlias = entry.getKey();
-                String[] finalIndices = aliases.length == 0 ? new String[]{shardId.getIndexName()} : aliases;
-                final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
-                assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
+                assert remoteIndicesByCluster.get(clusterAlias) != null : "original indices are null for clusterAlias: " + clusterAlias;
+                final OriginalIndices originalIndices = getOriginalIndexOrAlias(shardId.getIndex(),
+                    aliasFilterMap, remoteIndicesByCluster.get(clusterAlias).indicesOptions());
                 SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId,
-                    Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
-                    originalIndices.indicesOptions()));
+                    Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
                 remoteShardIterators.add(shardIterator);
             }
         }
@@ -585,8 +582,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
+                assert remoteClusterIndices.get(clusterAlias) != null : "original indices are null for clusterAlias: " + clusterAlias;
+                final OriginalIndices originalIndices = getOriginalIndexOrAlias(shardId.getIndex(),
+                    searchContextId.aliasFilter(), remoteClusterIndices.get(clusterAlias).indicesOptions());
                 SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId, targetNodes,
-                    remoteClusterIndices.get(clusterAlias), perNode.getSearchContextId(), searchContextKeepAlive);
+                    originalIndices, perNode.getSearchContextId(), searchContextKeepAlive);
                 remoteShardIterators.add(shardIterator);
             }
         }
@@ -653,11 +653,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             GroupShardsIterator<ShardIterator> localShardRoutings = clusterService.operationRouting().searchShards(clusterState,
                 concreteLocalIndices, routingMap, searchRequest.preference(),
                 searchService.getResponseCollectorService(), nodeSearchCounts);
-            localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
-                .map(it -> new SearchShardIterator(
-                    searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), localIndices))
-                .collect(Collectors.toList());
             aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
+            localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
+                .map(it -> {
+                    final OriginalIndices originalIndices = getOriginalIndexOrAlias(it.shardId().getIndex(),
+                        aliasFilter, localIndices.indicesOptions());
+                    return new SearchShardIterator(searchRequest.getLocalClusterAlias(),
+                        it.shardId(), it.getShardRoutings(), originalIndices);
+                })
+                .collect(Collectors.toList());
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -950,10 +954,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
-                iterators.add(new SearchShardIterator(localClusterAlias, shardId, targetNodes, originalIndices,
+                iterators.add(new SearchShardIterator(localClusterAlias, shardId, targetNodes,
+                    getOriginalIndexOrAlias(shardId.getIndex(), searchContext.aliasFilter(), originalIndices.indicesOptions()),
                     perNode.getSearchContextId(), keepAlive));
             }
         }
         return iterators;
+    }
+
+    static OriginalIndices getOriginalIndexOrAlias(Index index,
+                                                   Map<String, AliasFilter> aliasFilter,
+                                                   IndicesOptions indicesOptions) {
+        String[] aliases = aliasFilter.get(index.getUUID()).getAliases();
+        String[] finalIndices = aliases.length == 0 ? new String[] { index.getName() } : aliases;
+        return new OriginalIndices(finalIndices, indicesOptions);
     }
 }

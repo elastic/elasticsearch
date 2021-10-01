@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -69,7 +68,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     private final SearchRequest request;
-    private final Map<String, OriginalIndices> originalIndicesMap;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
@@ -90,7 +88,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final Map<SearchShardIterator, Integer> shardItIndexMap;
+    private final SearchShardIterator[] shardIterators;
+    private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -111,29 +110,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
-        Map<String, OriginalIndices> originalIndices = new HashMap<>();
         for (final SearchShardIterator iterator : shardsIts) {
-            OriginalIndices ret = originalIndices.putIfAbsent(iterator.getClusterAlias(), iterator.getOriginalIndices());
-            assert iterator.getOriginalIndices() == ret;
             if (iterator.skip()) {
                 toSkipIterators.add(iterator);
             } else {
                 iterators.add(iterator);
             }
         }
-        this.originalIndicesMap = Collections.unmodifiableMap(originalIndices);
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
-        this.shardItIndexMap = new HashMap<>();
 
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        List<SearchShardIterator> naturalOrder = new ArrayList<>(iterators);
-        CollectionUtil.timSort(naturalOrder);
-        for (int i = 0; i < naturalOrder.size(); i++) {
-            shardItIndexMap.put(naturalOrder.get(i), i);
+        Map<SearchShardIterator, Integer> shardMap = new HashMap<>();
+        List<SearchShardIterator> searchIterators = new ArrayList<>(iterators);
+        CollectionUtil.timSort(iterators);
+        for (int i = 0; i < searchIterators.size(); i++) {
+            shardMap.put(searchIterators.get(i), i);
         }
+        this.shardIndexMap = Collections.unmodifiableMap(shardMap);
+        this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
 
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
@@ -230,8 +227,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             for (int i = 0; i < shardsIts.size(); i++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(i);
                 assert shardRoutings.skip() == false;
-                assert shardItIndexMap.containsKey(shardRoutings);
-                int shardIndex = shardItIndexMap.get(shardRoutings);
+                assert shardIndexMap.containsKey(shardRoutings);
+                int shardIndex = shardIndexMap.get(shardRoutings);
                 performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
             }
         }
@@ -617,8 +614,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public OriginalIndices getOriginalIndices(@Nullable String clusterAlias) {
-        return originalIndicesMap.get(clusterAlias);
+    public OriginalIndices getOriginalIndices(int shardIndex) {
+        return shardIterators[shardIndex].getOriginalIndices();
     }
 
     @Override
@@ -687,7 +684,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 try {
                     SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
                     Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection, getOriginalIndices(searchShardTarget.getClusterAlias()));
+                    sendReleaseSearchContext(entry.getContextId(), connection, getOriginalIndices(entry.getShardIndex()));
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.trace("failed to release context", inner);

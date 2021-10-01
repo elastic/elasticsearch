@@ -53,6 +53,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.in;
 
 public class ServerUtils {
 
@@ -64,6 +65,7 @@ public class ServerUtils {
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
+    private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(2);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
         final boolean securityEnabled;
@@ -186,7 +188,7 @@ public class ServerUtils {
     public static Path getCaCert(Path configPath) throws IOException {
         boolean enrollmentEnabled = false;
         boolean httpSslEnabled = false;
-        Path caCert = configPath.resolve("certs/ca/ca.crt");
+        Path caCert = configPath.resolve("certs").resolve("ca").resolve("ca.crt");
         Path configFilePath = configPath.resolve("elasticsearch.yml");
         if (Files.exists(configFilePath)) {
             // In docker we might not even have a file, and if we do it's not in the host's FS
@@ -242,11 +244,21 @@ public class ServerUtils {
                         password,
                         caCert
                     );
-
                     if (response.getStatusLine().getStatusCode() >= 300) {
-                        final String statusLine = response.getStatusLine().toString();
-                        final String body = EntityUtils.toString(response.getEntity());
-                        throw new RuntimeException("Connecting to elasticsearch cluster health API failed:\n" + statusLine + "\n" + body);
+                        // We create the security index on startup (in order to create an enrollment token and/or set the elastic password)
+                        // In Docker, even when the ELASTIC_PASSWORD is set, when the security index exists and we get an authN attempt as
+                        // `elastic` , the reserved realm checks the security index first. It can happen that we check the security index
+                        // too early after the security index creation in DockerTests causing an UnavailableShardsException. We retry
+                        // authentication errors for a couple of seconds just to verify this is not the case.
+                        if (false == (installation.distribution.isDocker()
+                            && timeElapsed < dockerWaitForSecurityIndex
+                            && response.getStatusLine().getStatusCode() == 401)) {
+                            final String statusLine = response.getStatusLine().toString();
+                            final String body = EntityUtils.toString(response.getEntity());
+                            throw new RuntimeException(
+                                "Connecting to elasticsearch cluster health API failed:\n" + statusLine + "\n" + body
+                            );
+                        }
                     }
 
                     started = true;

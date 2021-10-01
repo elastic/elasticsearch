@@ -253,13 +253,14 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test60StartAndStop() throws Exception {
-
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         startElasticsearch();
 
         assertThat(installation.logs.resolve("gc.log"), fileExists());
         ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
 
         stopElasticsearch();
+        Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
     public void test61EsJavaHomeOverride() throws Exception {

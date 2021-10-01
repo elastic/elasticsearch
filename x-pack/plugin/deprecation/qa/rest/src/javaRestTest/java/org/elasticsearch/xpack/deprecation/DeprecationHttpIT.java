@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -279,7 +278,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_POST_/_test_cluster/deprecated_settings"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
@@ -367,7 +366,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasKey("@timestamp"),
                             hasKey("elasticsearch.cluster.name"),
@@ -466,7 +465,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasKey("@timestamp"),
                             hasKey("elasticsearch.cluster.name"),
@@ -583,7 +582,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasKey("@timestamp"),
                             hasKey("elasticsearch.cluster.name"),
@@ -678,7 +677,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
@@ -688,8 +687,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
                         ),
                         allOf(
-                            hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
-                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                            hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
+                            hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
                         ),
                         allOf(
                             hasEntry(KEY_FIELD_NAME, "deprecated_settings"),

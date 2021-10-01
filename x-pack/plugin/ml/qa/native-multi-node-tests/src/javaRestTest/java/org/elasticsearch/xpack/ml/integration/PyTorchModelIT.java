@@ -156,7 +156,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {

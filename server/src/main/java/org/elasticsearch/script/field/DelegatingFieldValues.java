@@ -28,14 +28,4 @@ public abstract class DelegatingFieldValues<T, D> implements FieldValues<T> {
     public int size() {
         return values.size();
     }
-
-    @Override
-    public long getLongValue() {
-        return values.getLongValue();
-    }
-
-    @Override
-    public double getDoubleValue() {
-        return values.getDoubleValue();
-    }
 }

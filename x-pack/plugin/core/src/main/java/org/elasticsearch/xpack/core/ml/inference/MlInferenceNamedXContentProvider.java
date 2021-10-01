@@ -25,15 +25,14 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -41,17 +40,24 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.LenientlyParsedOutputAggregator;
@@ -184,11 +190,33 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             new ParseField(TextEmbeddingConfig.NAME), TextEmbeddingConfig::fromXContentLenient));
         namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class, new ParseField(TextEmbeddingConfig.NAME),
             TextEmbeddingConfig::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedInferenceConfig.class,
+            new ParseField(ZeroShotClassificationConfig.NAME), ZeroShotClassificationConfig::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedInferenceConfig.class,
+            new ParseField(ZeroShotClassificationConfig.NAME),
+            ZeroShotClassificationConfig::fromXContentStrict));
 
+        // Inference Configs Update
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, ClassificationConfigUpdate.NAME,
             ClassificationConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, new ParseField(FillMaskConfigUpdate.NAME),
+            FillMaskConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, new ParseField(NerConfigUpdate.NAME),
+            NerConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, new ParseField(PassThroughConfigUpdate.NAME),
+            PassThroughConfigUpdate::fromXContentStrict));
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, RegressionConfigUpdate.NAME,
             RegressionConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, new ParseField(TextClassificationConfig.NAME),
+            TextClassificationConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfigUpdate.class, new ParseField(TextEmbeddingConfigUpdate.NAME),
+            TextEmbeddingConfigUpdate::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(
+                InferenceConfigUpdate.class,
+                new ParseField(ZeroShotClassificationConfigUpdate.NAME),
+                ZeroShotClassificationConfigUpdate::fromXContentStrict
+            )
+        );
 
         // Inference models
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceModel.class, Ensemble.NAME, EnsembleInferenceModel::fromXContent));
@@ -267,9 +295,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             PyTorchPassThroughResults.NAME,
             PyTorchPassThroughResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
-            TextClassificationResults.NAME,
-            TextClassificationResults::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
             TextEmbeddingResults.NAME,
             TextEmbeddingResults::new));
 
@@ -288,15 +313,30 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             PassThroughConfig.NAME, PassThroughConfig::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
             TextEmbeddingConfig.NAME, TextEmbeddingConfig::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class,
+            ZeroShotClassificationConfig.NAME, ZeroShotClassificationConfig::new));
 
+        // Inference Configs Updates
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             ClassificationConfigUpdate.NAME.getPreferredName(), ClassificationConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            EmptyConfigUpdate.NAME, EmptyConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            FillMaskConfigUpdate.NAME, FillMaskConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            NerConfigUpdate.NAME, NerConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            PassThroughConfigUpdate.NAME, PassThroughConfigUpdate::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             RegressionConfigUpdate.NAME.getPreferredName(), RegressionConfigUpdate::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
             ResultsFieldUpdate.NAME, ResultsFieldUpdate::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
-            EmptyConfigUpdate.NAME, EmptyConfigUpdate::new));
+            TextClassificationConfigUpdate.NAME, TextClassificationConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            TextEmbeddingConfigUpdate.NAME, TextClassificationConfigUpdate::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class,
+            ZeroShotClassificationConfigUpdate.NAME, ZeroShotClassificationConfigUpdate::new));
 
         // Location
         namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModelLocation.class,

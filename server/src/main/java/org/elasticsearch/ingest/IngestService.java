@@ -14,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -349,15 +348,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 // existing pipeline matches request pipeline -- no need to update
                 listener.onResponse(AcknowledgedResponse.TRUE);
                 return;
-            }
-        }
-
-        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
-            pipelineConfig = pipelineConfig == null
-                ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
-                : pipelineConfig;
-            if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
-                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
             }
         }
 

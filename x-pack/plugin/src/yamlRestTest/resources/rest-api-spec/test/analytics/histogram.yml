@@ -175,8 +175,8 @@ setup:
 ---
 histogram with time series mappings:
   - skip:
-      version: " - 7.15.99"
-      reason: introduced in 7.16.0
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/78443"
 
   - do:
 
@@ -222,7 +222,6 @@ histogram with wrong time series mappings:
         body:
           settings:
             index:
-              mode: time_series
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

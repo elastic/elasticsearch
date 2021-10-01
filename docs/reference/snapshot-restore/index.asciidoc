@@ -96,16 +96,19 @@ The one caveat is that snapshots taken by {es} 2.0 can be restored in clusters r
 
 ifeval::["{release-state}"!="released"]
 [[snapshot-prerelease-build-compatibility]]
-NOTE: This documentation is for {es} {version}, which is not yet released. The
-compatibility table above applies only to snapshots taken in a released version
-of {es}. If you're testing a pre-release build of {es} then you can also take
-and restore snapshots as normal, but you must not use the same snapshot
-repository with other builds of {es} even if the builds are the same version.
+NOTE: This documentation is for {es} version {version}, which is not yet
+released. The compatibility table above applies only to snapshots taken in a
+released version of {es}. If you're testing a pre-release build of {es} then you
+can still restore snapshots taken in earlier released builds as permitted by
+this compatibility table. You can also take snapshots using your pre-release
+build, and restore them using the same build. However once a pre-release build
+of {es} has written to a snapshot repository you must not use the same
+repository with other builds of {es}, even if the builds have the same version.
 Different pre-release builds of {es} may use different and incompatible
 repository layouts. If the repository layout is incompatible with the {es} build
 in use then taking and restoring snapshots may result in errors or may appear to
-succeed having silently lost some data. You should discard the repository when
-moving to a different build.
+succeed having silently lost some data. You should discard your repository
+before using a different build.
 endif::[]
 
 Each snapshot can contain indices created in various versions of {es}. This

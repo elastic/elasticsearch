@@ -55,7 +55,10 @@ public class HotThreadsIT extends ESIntegTestCase {
             }
             nodesHotThreadsRequestBuilder.setIgnoreIdleThreads(randomBoolean());
             if (randomBoolean()) {
-                switch (randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 3)) {
+                    case 3:
+                        type = "mem";
+                        break;
                     case 2:
                         type = "cpu";
                         break;

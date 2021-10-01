@@ -1,0 +1,33 @@
+[discrete]
+[[breaking_80_monitoring_changes]]
+=== Monitoring changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `use_ingest` setting on Monitoring exporter configurations has been removed.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.use_ingest` property was deprecated in 7.16.0 and
+has been removed. This parameter controlled the creation of pipelines for monitoring
+indices that previously had no function.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.
+====
+
+.The `index.pipeline.master_timeout` setting on Monitoring HTTP exporter configurations has been removed.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.index.pipeline.master_timeout` property was
+deprecated in 7.16.0. This parameter set the timeout when waiting for the remote
+Monitoring cluster to create pipelines. Those pipelines for monitoring indices previously
+had no function and are now removed in 8.0.0.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting.
+====
+//end::notable-breaking-changes[]

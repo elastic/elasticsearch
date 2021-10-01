@@ -373,11 +373,25 @@ An array of `trained_model` objects. Supported trained models are `tree` and
 (Optional, string)
 A human-readable description of the {infer} trained model.
 
+`estimated_heap_memory_usage_bytes`:::
+(Optional, integer)
+The estimated heap usage in bytes to keep the trained model in memory.
+
+Can only be supplied if `defer_definition_decompression` is `true` or the
+model definition is not supplied.
+
+`estimated_operations`:::
+(Optional, integer)
+The estimated number of operations to use the trained model during inference.
+
+Can only be supplied if `defer_definition_decompression` is `true` or the
+model definition is not supplied.
+
 //Begin inference_config
 `inference_config`::
 (Required, object)
 The default configuration for inference. This can be: `regression`,
-`classification`, `fill_mask`, `ner`, `text_classification`, or `text_embedding`. 
+`classification`, `fill_mask`, `ner`, `text_classification`, `text_embedding` or `zero_shot_classification`.
 If `regression` or `classification`, it must match the `target_type` of the
 underlying `definition.trained_model`. If `fill_mask`, `ner`,
 `text_classification`, or `text_embedding`; the `model_type` must be `pytorch`.
@@ -457,7 +471,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
 [%collapsible%open]
 =====
 `classification_labels`::::
-(Optional, string) 
+(Optional, string)
 An array of classification labels. NER only supports Inside-Outside-Beginning labels (IOB)
 and only persons, organizations, locations, and miscellaneous.
 Example: ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC"]
@@ -620,6 +634,57 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 =======
 ======
 =====
+`zero_shot_classification`:::
+(Object, optional)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification]
++
+.Properties of zero_shot_classification inference
+[%collapsible%open]
+=====
+`classification_labels`::::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-classification-labels]
+
+`hypothesis_template`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-hypothesis-template]
+
+`labels`::::
+(Optional, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-labels]
+
+`multi_label`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-multi-label]
+
+`tokenization`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+.Properties of tokenization
+[%collapsible%open]
+======
+`bert`::::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+=======
+`do_lower_case`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-do-lower-case]
+
+`max_sequence_length`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-max-sequence-length]
+
+`with_special_tokens`::::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+=======
+======
+=====
 ====
 //End of inference_config
 
@@ -660,7 +725,7 @@ An object map that contains metadata about the model.
 `model_type`::
 (Optional, string)
 The created model type. By default the model type is `tree_ensemble`.
-Appropriate types are: 
+Appropriate types are:
 +
 --
 * `tree_ensemble`: The model definition is an ensemble model of decision trees.

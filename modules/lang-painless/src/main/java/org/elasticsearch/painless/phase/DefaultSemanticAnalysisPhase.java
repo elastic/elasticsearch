@@ -14,7 +14,6 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;

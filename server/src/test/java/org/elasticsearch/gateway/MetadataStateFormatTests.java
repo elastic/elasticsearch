@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -79,14 +80,17 @@ public class MetadataStateFormatTests extends ESTestCase {
     }
 
     public void testReadWriteState() throws IOException {
-        final Path dir = createTempDir();
-        final long id = addDummyFiles("foo-", dir);
+        Path[] dirs = new Path[randomIntBetween(1, 5)];
+        for (int i = 0; i < dirs.length; i++) {
+            dirs[i] = createTempDir();
+        }
+        final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
             randomDouble(), randomBoolean());
-        format.writeAndCleanup(state, dir);
-        {
-            Path[] list = content("*", dir);
+        format.writeAndCleanup(state, dirs);
+        for (Path file : dirs) {
+            Path[] list = content("*", file);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo(MetadataStateFormat.STATE_DIR_NAME));
             Path stateDir = list[0];
@@ -97,68 +101,79 @@ public class MetadataStateFormatTests extends ESTestCase {
             DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
         }
-            DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
-                randomDouble(), randomBoolean());
-            format.writeAndCleanup(state2, dir);
+        DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        format.writeAndCleanup(state2, dirs);
 
-        {
-            Path[] list = content("*", dir);
+        for (Path file : dirs) {
+            Path[] list = content("*", file);
+            assertEquals(list.length, 1);
+            assertThat(list[0].getFileName().toString(), equalTo(MetadataStateFormat.STATE_DIR_NAME));
+            Path stateDir = list[0];
+            assertThat(Files.isDirectory(stateDir), is(true));
+            list = content("foo-*", stateDir);
+            assertEquals(list.length,1);
+            assertThat(list[0].getFileName().toString(), equalTo("foo-"+ (id+1) + ".st"));
+            DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
+            assertThat(read, equalTo(state2));
+
+        }
+    }
+
+    public void testVersionMismatch() throws IOException {
+        Path[] dirs = new Path[randomIntBetween(1, 5)];
+        for (int i = 0; i < dirs.length; i++) {
+            dirs[i] = createTempDir();
+        }
+        final long id = addDummyFiles("foo-", dirs);
+
+        Format format = new Format("foo-");
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        format.writeAndCleanup(state, dirs);
+        for (Path file : dirs) {
+            Path[] list = content("*", file);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo(MetadataStateFormat.STATE_DIR_NAME));
             Path stateDir = list[0];
             assertThat(Files.isDirectory(stateDir), is(true));
             list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
-            assertThat(list[0].getFileName().toString(), equalTo("foo-" + (id + 1) + ".st"));
+            assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
             DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
-            assertThat(read, equalTo(state2));
+            assertThat(read, equalTo(state));
         }
     }
 
-    public void testVersionMismatch() throws IOException {
-        final Path dir = createTempDir();
-        final long id = addDummyFiles("foo-", dir);
-
-        Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
-            randomDouble(), randomBoolean());
-        format.writeAndCleanup(state, dir);
-        Path[] list = content("*", dir);
-        assertEquals(list.length, 1);
-        assertThat(list[0].getFileName().toString(), equalTo(MetadataStateFormat.STATE_DIR_NAME));
-        Path stateDir = list[0];
-        assertThat(Files.isDirectory(stateDir), is(true));
-        list = content("foo-*", stateDir);
-        assertEquals(list.length, 1);
-        assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
-        DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
-        assertThat(read, equalTo(state));
-    }
-
     public void testCorruption() throws IOException {
-        final Path dir = createTempDir();
-        final long id = addDummyFiles("foo-", dir);
+        Path[] dirs = new Path[randomIntBetween(1, 5)];
+        for (int i = 0; i < dirs.length; i++) {
+            dirs[i] = createTempDir();
+        }
+        final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
             randomDouble(), randomBoolean());
-        format.writeAndCleanup(state, dir);
-        Path[] list = content("*", dir);
-        assertEquals(list.length, 1);
-        assertThat(list[0].getFileName().toString(), equalTo(MetadataStateFormat.STATE_DIR_NAME));
-        Path stateDir = list[0];
-        assertThat(Files.isDirectory(stateDir), is(true));
-        list = content("foo-*", stateDir);
-        assertEquals(list.length, 1);
-        assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
-        DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
-        assertThat(read, equalTo(state));
-        // now corrupt it
-        corruptFile(list[0], logger);
-        try {
-            format.read(NamedXContentRegistry.EMPTY, list[0]);
-            fail("corrupted file");
-        } catch (CorruptStateException ex) {
-            // expected
+        format.writeAndCleanup(state, dirs);
+        for (Path file : dirs) {
+            Path[] list = content("*", file);
+            assertEquals(list.length, 1);
+            assertThat(list[0].getFileName().toString(), equalTo(MetadataStateFormat.STATE_DIR_NAME));
+            Path stateDir = list[0];
+            assertThat(Files.isDirectory(stateDir), is(true));
+            list = content("foo-*", stateDir);
+            assertEquals(list.length, 1);
+            assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
+            DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
+            assertThat(read, equalTo(state));
+            // now corrupt it
+            corruptFile(list[0], logger);
+            try {
+                format.read(NamedXContentRegistry.EMPTY, list[0]);
+                fail("corrupted file");
+            } catch (CorruptStateException ex) {
+                // expected
+            }
         }
     }
 
@@ -203,13 +218,22 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
     }
 
-    private DummyState writeAndReadStateSuccessfully(Format format, Path path) throws IOException {
+    private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException {
         format.noFailures();
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
-        format.writeAndCleanup(state, path);
-        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
+        format.writeAndCleanup(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
         return state;
+    }
+
+    private static void ensureOnlyOneStateFile(Path[] paths) throws IOException {
+        for (Path path : paths) {
+            try (Directory dir = new NIOFSDirectory(path.resolve(MetadataStateFormat.STATE_DIR_NAME))) {
+                assertThat(dir.listAll().length, equalTo(1));
+            }
+        }
     }
 
     public void testFailWriteAndReadPreviousState() throws IOException {
@@ -256,12 +280,38 @@ public class MetadataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, path);
     }
 
+    public void testFailCopyTmpFileToExtraLocation() throws IOException {
+        Path paths[] = new Path[randomIntBetween(2, 5)];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+        Format format = new Format("foo-");
+
+        DummyState initialState = writeAndReadStateSuccessfully(format, paths);
+
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            format.failOnMethods(Format.FAIL_OPEN_STATE_FILE_WHEN_COPYING);
+            DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+                    randomDouble(), randomBoolean());
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.writeAndCleanup(newState, paths));
+            assertFalse(ex.isDirty());
+
+            format.noFailures();
+            assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        }
+
+        writeAndReadStateSuccessfully(format, paths);
+    }
+
     public void testFailRandomlyAndReadAnyState() throws IOException {
-        Path path = createTempDir();
+        Path paths[] = new Path[randomIntBetween(1, 5)];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
         Format format = new Format("foo-");
         Set<DummyState> possibleStates = new HashSet<>();
 
-        DummyState initialState = writeAndReadStateSuccessfully(format, path);
+        DummyState initialState = writeAndReadStateSuccessfully(format, paths);
         possibleStates.add(initialState);
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
@@ -269,7 +319,7 @@ public class MetadataStateFormatTests extends ESTestCase {
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
             try {
-                format.writeAndCleanup(newState, path);
+                format.writeAndCleanup(newState, paths);
                 possibleStates.clear();
                 possibleStates.add(newState);
             } catch (WriteStateException e) {
@@ -279,17 +329,19 @@ public class MetadataStateFormatTests extends ESTestCase {
             }
 
             format.noFailures();
-            DummyState stateOnDisk = format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+            //we call loadLatestState not on full path set, but only on random paths from this set. This is to emulate disk failures.
+            Path[] randomPaths = randomSubsetOf(randomIntBetween(1, paths.length), paths).toArray(new Path[0]);
+            DummyState stateOnDisk = format.loadLatestState(logger, NamedXContentRegistry.EMPTY, randomPaths);
             assertTrue(possibleStates.contains(stateOnDisk));
             if (possibleStates.size() > 1) {
                 //if there was a WriteStateException we need to override current state before we continue
-                newState = writeAndReadStateSuccessfully(format, path);
+                newState = writeAndReadStateSuccessfully(format, paths);
                 possibleStates.clear();
                 possibleStates.add(newState);
             }
         }
 
-        writeAndReadStateSuccessfully(format, path);
+        writeAndReadStateSuccessfully(format, paths);
     }
 
     private static class Format extends MetadataStateFormat<DummyState> {
@@ -486,21 +538,23 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
     }
 
-    public long addDummyFiles(String prefix, Path path) throws IOException {
+    public long addDummyFiles(String prefix, Path... paths) throws IOException {
         int realId = -1;
-        if (randomBoolean()) {
-            Path stateDir = path.resolve(MetadataStateFormat.STATE_DIR_NAME);
-            Files.createDirectories(stateDir);
-            String actualPrefix = prefix;
-            int id = randomIntBetween(0, 10);
+        for (Path path : paths) {
             if (randomBoolean()) {
-                actualPrefix = "dummy-";
-            } else {
-               realId = Math.max(realId, id);
-            }
-            try (OutputStream stream =
-                     Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetadataStateFormat.STATE_FILE_EXTENSION))) {
-                stream.write(0);
+                Path stateDir = path.resolve(MetadataStateFormat.STATE_DIR_NAME);
+                Files.createDirectories(stateDir);
+                String actualPrefix = prefix;
+                int id = randomIntBetween(0, 10);
+                if (randomBoolean()) {
+                    actualPrefix = "dummy-";
+                } else {
+                   realId = Math.max(realId, id);
+                }
+                try (OutputStream stream =
+                         Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetadataStateFormat.STATE_FILE_EXTENSION))) {
+                    stream.write(0);
+                }
             }
         }
         return realId + 1;

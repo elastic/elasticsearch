@@ -474,6 +474,7 @@ class java.time.YearMonth {
 class java.time.ZonedDateTime {
   int getDayOfMonth()
   DayOfWeek getDayOfWeek()
+  DayOfWeek org.elasticsearch.painless.api.Augmentation getDayOfWeekEnum()
   int getDayOfYear()
   int getHour()
   LocalDate toLocalDate()

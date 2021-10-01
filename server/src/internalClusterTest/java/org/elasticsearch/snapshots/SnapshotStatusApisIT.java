@@ -432,8 +432,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         SnapshotStatus snapshotStatus = client().admin().cluster().prepareSnapshotStatus().execute().actionGet().getSnapshots().get(0);
         assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getTotalShards()));
-        assertThat(snapshotInfo.successfulShards(), lessThanOrEqualTo(
-            snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
+        assertThat(
+            snapshotInfo.successfulShards(),
+            lessThanOrEqualTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards())
+        );
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
 
         String notExistedSnapshotName = "snapshot_not_exist";

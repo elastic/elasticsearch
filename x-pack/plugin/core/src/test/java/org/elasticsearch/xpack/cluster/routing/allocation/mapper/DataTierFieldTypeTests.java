@@ -101,7 +101,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     // Tier can be an ordered list of preferences - starting with primary and followed by fallbacks.
-                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_hot")
+                    .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_hot")
             )
             .numberOfShards(1)
             .numberOfReplicas(0)

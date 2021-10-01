@@ -22,6 +22,9 @@ dependencies {
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
+  testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))

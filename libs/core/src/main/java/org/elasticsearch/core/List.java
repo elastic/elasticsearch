@@ -72,7 +72,7 @@ public class List {
             case 1:
                 return List.of(entries[0]);
             default:
-                return new ImmutableList<>(Collections.unmodifiableList(Arrays.asList(entries)));
+                return new EffectivelyImmutableList<>(Collections.unmodifiableList(Arrays.asList(entries)));
         }
     }
 
@@ -85,17 +85,24 @@ public class List {
      */
     @SuppressWarnings("unchecked")
     public static <T> java.util.List<T> copyOf(Collection<? extends T> coll) {
-        if (coll instanceof ImmutableList) {
+        if (coll instanceof EffectivelyImmutableList) {
             return (java.util.List<T>) coll;
         }
         return (java.util.List<T>) List.of(coll.toArray());
     }
 
-    private static class ImmutableList<E> implements java.util.List<E> {
+    /**
+     * Marker class to indicate a list which was created either by {@link List#copyOf} or {@link List#of}
+     * which are effectively immutable since these methods create fresh unmodifiable lists from a copied array.
+     */
+    private static class EffectivelyImmutableList<E> implements java.util.List<E> {
+
+        private static final java.util.List<String> UNMODIFIABLE_LIST = Collections.unmodifiableList(Arrays.asList("one", "two"));
 
         private final java.util.List<E> list;
 
-        private ImmutableList(java.util.List<E> list) {
+        private EffectivelyImmutableList(java.util.List<E> list) {
+            assert list.getClass() == UNMODIFIABLE_LIST.getClass() : "list should be unmodifiable";
             this.list = list;
         }
 

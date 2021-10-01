@@ -306,8 +306,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
             for (Index deletedIndex : event.indicesDeleted()) {
                 final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
-                    : "no previous metadata found for " + deletedIndex;
+                assert indexMetadata != null
+                    || state.metadata().indexGraveyard().containsIndex(deletedIndex) : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     final Settings indexSetting = indexMetadata.getSettings();
                     if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
@@ -556,12 +556,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                                     );
                                     continue;
                                 }
-
-                                final DeleteRequest deleteRequest = new DeleteRequest().index(searchHit.getIndex());
-                                deleteRequest.id(searchHit.getId());
-                                deleteRequest.setIfSeqNo(searchHit.getSeqNo());
-                                deleteRequest.setIfPrimaryTerm(searchHit.getPrimaryTerm());
-                                bulkRequest.add(deleteRequest);
+                                bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
                             }
                         } catch (Exception e) {
                             logger.warn(

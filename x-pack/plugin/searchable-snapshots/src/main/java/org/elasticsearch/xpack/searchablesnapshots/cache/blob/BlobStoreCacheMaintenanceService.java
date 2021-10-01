@@ -308,8 +308,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
             for (Index deletedIndex : event.indicesDeleted()) {
                 final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null
-                    || state.metadata().indexGraveyard().containsIndex(deletedIndex) : "no previous metadata found for " + deletedIndex;
+                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
+                    : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     final Settings indexSetting = indexMetadata.getSettings();
                     if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
@@ -432,9 +432,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         public void run() {
-            final PeriodicMaintenanceTask maintenanceTask = this;
             assert assertGenericThread();
-
             try {
                 ensureOpen();
                 if (pointIntTimeId == null) {
@@ -444,16 +442,16 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         @Override
                         public void onResponse(OpenPointInTimeResponse response) {
                             logger.trace("periodic maintenance task initialized with point-in-time id [{}]", response.getPointInTimeId());
-                            maintenanceTask.pointIntTimeId = response.getPointInTimeId();
-                            executeNext(maintenanceTask);
+                            PeriodicMaintenanceTask.this.pointIntTimeId = response.getPointInTimeId();
+                            executeNext(PeriodicMaintenanceTask.this);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             if (TransportActions.isShardNotAvailableException(e)) {
-                                complete(maintenanceTask, null);
+                                complete(null);
                             } else {
-                                complete(maintenanceTask, e);
+                                complete(e);
                             }
                         }
                     });
@@ -485,16 +483,16 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         @Override
                         public void onResponse(SearchResponse response) {
                             if (searchAfter == null) {
-                                maintenanceTask.total.compareAndSet(0L, response.getHits().getTotalHits().value);
+                                PeriodicMaintenanceTask.this.total.compareAndSet(0L, response.getHits().getTotalHits().value);
                             }
-                            maintenanceTask.searchResponse = response;
-                            maintenanceTask.searchAfter = null;
-                            executeNext(maintenanceTask);
+                            PeriodicMaintenanceTask.this.searchResponse = response;
+                            PeriodicMaintenanceTask.this.searchAfter = null;
+                            executeNext(PeriodicMaintenanceTask.this);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            complete(maintenanceTask, e);
+                            complete(e);
                         }
                     });
                     return;
@@ -586,25 +584,25 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             for (BulkItemResponse itemResponse : response.getItems()) {
                                 if (itemResponse.isFailed() == false) {
                                     assert itemResponse.getResponse() instanceof DeleteResponse;
-                                    maintenanceTask.deletes.incrementAndGet();
+                                    PeriodicMaintenanceTask.this.deletes.incrementAndGet();
                                 }
                             }
-                            maintenanceTask.searchResponse = null;
-                            maintenanceTask.searchAfter = finalSearchAfter;
-                            executeNext(maintenanceTask);
+                            PeriodicMaintenanceTask.this.searchResponse = null;
+                            PeriodicMaintenanceTask.this.searchAfter = finalSearchAfter;
+                            executeNext(PeriodicMaintenanceTask.this);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            complete(maintenanceTask, e);
+                            complete(e);
                         }
                     });
                     return;
                 }
                 // we're done, complete the task
-                complete(this, null);
+                complete(null);
             } catch (Exception e) {
-                complete(this, e);
+                complete(e);
             }
         }
 
@@ -644,10 +642,44 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             }
         }
 
-        private boolean assertGenericThread() {
-            final String threadName = Thread.currentThread().getName();
-            assert threadName.contains(ThreadPool.Names.GENERIC) : threadName;
-            return true;
+        private void complete(@Nullable Exception failure) {
+            assert isClosed() == false;
+            final Releasable releasable = () -> {
+                try {
+                    final Exception previous = error.getAndSet(failure);
+                    assert previous == null : "periodic maintenance task already failed: " + previous;
+                    close();
+                } finally {
+                    startPeriodicTask();
+                }
+            };
+            boolean waitForRelease = false;
+            try {
+                final String pitId = pointIntTimeId;
+                if (Strings.hasLength(pitId)) {
+                    final ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId);
+                    clientWithOrigin.execute(ClosePointInTimeAction.INSTANCE, closeRequest, ActionListener.runAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClosePointInTimeResponse response) {
+                            if (response.isSucceeded()) {
+                                logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
+                            } else {
+                                logger.debug("point-in-time id [{}] not found", pitId);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
+                        }
+                    }, () -> Releasables.close(releasable)));
+                    waitForRelease = true;
+                }
+            } finally {
+                if (waitForRelease == false) {
+                    Releasables.close(releasable);
+                }
+            }
         }
     }
 
@@ -655,44 +687,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         threadPool.generic().execute(maintenanceTask);
     }
 
-    private void complete(PeriodicMaintenanceTask maintenanceTask, @Nullable Exception failure) {
-        assert maintenanceTask.isClosed() == false;
-        final Releasable releasable = () -> {
-            try {
-                final Exception previous = maintenanceTask.error.getAndSet(failure);
-                assert previous == null : "periodic maintenance task already failed: " + previous;
-                maintenanceTask.close();
-            } finally {
-                startPeriodicTask();
-            }
-        };
-        boolean waitForRelease = false;
-        try {
-            final String pitId = maintenanceTask.pointIntTimeId;
-            if (Strings.hasLength(pitId)) {
-                final ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId);
-                clientWithOrigin.execute(ClosePointInTimeAction.INSTANCE, closeRequest, ActionListener.runAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(ClosePointInTimeResponse response) {
-                        if (response.isSucceeded()) {
-                            logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
-                        } else {
-                            logger.debug("point-in-time id [{}] not found", pitId);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
-                    }
-                }, () -> Releasables.close(releasable)));
-                waitForRelease = true;
-            }
-        } finally {
-            if (waitForRelease == false) {
-                Releasables.close(releasable);
-            }
-        }
+    private static boolean assertGenericThread() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains(ThreadPool.Names.GENERIC) : threadName;
+        return true;
     }
 
     private static Instant getCreationTime(SearchHit searchHit) {

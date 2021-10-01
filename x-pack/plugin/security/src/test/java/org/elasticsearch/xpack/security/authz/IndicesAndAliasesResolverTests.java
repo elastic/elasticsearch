@@ -319,26 +319,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new IndicesAndAliasesResolver(settings, clusterService, indexNameExpressionResolver);
     }
 
-    public void test() {
-        final String action = randomAlphaOfLength(30);
-        final String[] indices = randomArray(9999, 9999, String[]::new, () -> randomAlphaOfLength(30));
-        final IndicesRequest indicesRequest = mock(IndicesRequest.class);
-        when(indicesRequest.indices()).thenReturn(indices);
-
-        for (int i = 0; i < 20; i++) {
-            final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(action, indicesRequest);
-        }
-
-        long total = 0;
-        final int n = 100;
-        for (int i = 0; i < n; i++) {
-            final long startTime = System.nanoTime();
-            final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(action, indicesRequest);
-            total += System.nanoTime() - startTime;
-        }
-        System.out.println(total / n);
-    }
-
     public void testDashIndicesAreAllowedInShardLevelRequests() {
         //indices with names starting with '-' or '+' can be created up to version  2.x and can be around in 5.x
         //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x

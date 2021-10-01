@@ -41,7 +41,6 @@ import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.cli.PluginDescriptor;
-import org.elasticsearch.plugins.cli.PluginSecurity;
 import org.elasticsearch.plugins.cli.ProgressInputStream;
 
 import java.io.BufferedReader;

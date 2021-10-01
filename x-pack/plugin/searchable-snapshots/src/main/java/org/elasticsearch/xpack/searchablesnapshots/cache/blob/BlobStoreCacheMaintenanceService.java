@@ -181,7 +181,9 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             return; // state not fully recovered
         }
         final ShardRouting primary = systemIndexPrimaryShard(state);
-        if (primary == null || Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId()) == false) {
+        if (primary == null
+            || primary.active() == false
+            || Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId()) == false) {
             // system index primary shard does not exist or is not assigned to this data node
             stopPeriodicTask();
             return;

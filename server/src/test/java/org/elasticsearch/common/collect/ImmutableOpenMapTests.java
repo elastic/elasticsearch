@@ -15,6 +15,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,9 +38,17 @@ public class ImmutableOpenMapTests extends ESTestCase {
         .fPut("Korea", "₩")
         .build();
 
+    ImmutableOpenMap<String, Integer> countryPopulations = ImmutableOpenMap.<String, Integer>builder()
+        .fPut("Poland", 37_846_611)
+        .fPut("France", 65_273_511)
+        .fPut("Spain", 46_754_778)
+        .fPut("Germany", 83_783_942)
+        .fPut("Italy", 60_461_826)
+        .build();
+
     public void testStreamOperationsAreSupported() {
         assertThat(regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue)
-                .collect(Collectors.toSet()), equalTo(Set.of("£", "$")));
+            .collect(Collectors.toSet()), equalTo(Set.of("£", "$")));
     }
 
     public void testSortedStream() {
@@ -118,6 +128,58 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testEmptyKeySetWorks() {
         assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0));
+    }
+
+    public void testEmptyValuesIsCollection() {
+        assertTrue(ImmutableOpenMap.of().values().isEmpty());
+    }
+
+    public void testValuesIsCollection() {
+        assertTrue(countryPopulations.values().containsAll(List.of(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942)));
+    }
+
+    public void testStreamOperationOnValues() {
+        assertThat(countryPopulations.values().stream()
+                .filter(e -> e > 60_000_000)
+                .sorted(Comparator.reverseOrder())
+                .limit(2).collect(Collectors.toList()),
+            equalTo(List.of(83_783_942, 65_273_511)));
+    }
+
+    public void testStreamOperationsOnRandomMapValues() {
+        ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
+
+        int limit = randomIntBetween(0, map.size());
+        List<String> collectedViaStream = map.values()
+            .stream()
+            .filter(e -> e.hashCode() > 0)
+            .sorted()
+            .limit(limit)
+            .collect(Collectors.toList());
+
+        SortedSet<String> positiveHashCodeStrings = new TreeSet<>();
+        for (ObjectObjectCursor<Long, String> cursor : map) {
+            if (cursor.value.hashCode() > 0) {
+                positiveHashCodeStrings.add(cursor.value);
+            }
+        }
+        int i = 0;
+        List<String> collectedIteratively = new ArrayList<>();
+        for (String s : positiveHashCodeStrings) {
+            if (i++ >= limit) {
+                break;
+            }
+            collectedIteratively.add(s);
+        }
+        assertThat(collectedViaStream, equalTo(collectedIteratively));
+    }
+
+    public void testValuesToArray() {
+        Integer[] populations = countryPopulations.values().toArray(Integer[]::new);
+        assertThat(populations.length, equalTo(5));
+
+        Arrays.sort(populations);
+        assertThat(populations, equalTo(new Integer[]{37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942}));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

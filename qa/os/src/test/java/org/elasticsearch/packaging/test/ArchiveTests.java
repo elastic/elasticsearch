@@ -252,15 +252,27 @@ public class ArchiveTests extends PackagingTestCase {
         );
     }
 
+    public void test52AutoConfiguration() throws Exception {
+        assumeTrue(
+            "run this in place of test51AutoConfigurationWithPasswordProtectedKeystore on windows",
+            distribution.platform == Distribution.Platform.WINDOWS
+        );
+        sh.chown(installation.config, installation.getOwner());
+        FileUtils.assertPathsDoNotExist(installation.data);
+
+        startElasticsearch();
+        verifySecurityAutoConfigured(installation);
+        stopElasticsearch();
+        sh.chown(installation.config);
+    }
+
     public void test60StartAndStop() throws Exception {
-        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         startElasticsearch();
 
         assertThat(installation.logs.resolve("gc.log"), fileExists());
         ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
 
         stopElasticsearch();
-        Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
     public void test61EsJavaHomeOverride() throws Exception {

@@ -965,6 +965,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     static OriginalIndices getOriginalIndexOrAlias(Index index,
                                                    Map<String, AliasFilter> aliasFilter,
                                                    IndicesOptions indicesOptions) {
+        assert aliasFilter.get(index.getUUID()) != null;
         String[] aliases = aliasFilter.get(index.getUUID()).getAliases();
         String[] finalIndices = aliases.length == 0 ? new String[] { index.getName() } : aliases;
         return new OriginalIndices(finalIndices, indicesOptions);

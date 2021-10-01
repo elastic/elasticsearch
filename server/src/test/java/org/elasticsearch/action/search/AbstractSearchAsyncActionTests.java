@@ -72,7 +72,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             resolvedNodes.add(Tuple.tuple(cluster, node));
             return null;
         };
-
+        OriginalIndices originalIndices = new OriginalIndices(request.indices(), request.indicesOptions());
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
             null, request, listener,
@@ -103,6 +103,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection,
                                                  OriginalIndices originalIndices) {
                 releasedContexts.add(contextId);
+            }
+
+            @Override
+            public OriginalIndices getOriginalIndices(int shardIndex) {
+                return originalIndices;
             }
         };
     }

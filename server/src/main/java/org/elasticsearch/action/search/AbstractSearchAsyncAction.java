@@ -125,7 +125,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // consistent between two requests that target the same shards.
         Map<SearchShardIterator, Integer> shardMap = new HashMap<>();
         List<SearchShardIterator> searchIterators = new ArrayList<>(iterators);
-        CollectionUtil.timSort(iterators);
+        CollectionUtil.timSort(searchIterators);
         for (int i = 0; i < searchIterators.size(); i++) {
             shardMap.put(searchIterators.get(i), i);
         }

@@ -124,7 +124,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 long startTimeNanos,
                 ActionListener<BulkResponse> listener,
                 String executorName,
-                boolean onTransportThread,
                 AtomicArray<BulkItemResponse> responses,
                 Map<String, IndexNotFoundException> indicesThatCannotBeCreated
             ) {

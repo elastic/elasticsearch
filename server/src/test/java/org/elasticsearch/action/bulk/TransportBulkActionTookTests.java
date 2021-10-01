@@ -124,7 +124,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     long startTimeNanos,
                     ActionListener<BulkResponse> listener,
                     String executorName,
-                    boolean onTransportThread,
                     AtomicArray<BulkItemResponse> responses,
                     Map<String, IndexNotFoundException> indicesThatCannotBeCreated
                 ) {
@@ -135,7 +134,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         startTimeNanos,
                         listener,
                         executorName,
-                        onTransportThread,
                         responses,
                         indicesThatCannotBeCreated
                     );
@@ -158,7 +156,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     long startTimeNanos,
                     ActionListener<BulkResponse> listener,
                     String executorName,
-                    boolean onTransportThread,
                     AtomicArray<BulkItemResponse> responses,
                     Map<String, IndexNotFoundException> indicesThatCannotBeCreated
                 ) {
@@ -170,7 +167,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                         startTimeNanos,
                         listener,
                         executorName,
-                        onTransportThread,
                         responses,
                         indicesThatCannotBeCreated
                     );

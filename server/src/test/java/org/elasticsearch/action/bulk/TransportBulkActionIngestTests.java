@@ -143,7 +143,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             long startTimeNanos,
             ActionListener<BulkResponse> listener,
             String executorName,
-            boolean onTransportThread,
             AtomicArray<BulkItemResponse> responses,
             Map<String, IndexNotFoundException> indicesThatCannotBeCreated
         ) {

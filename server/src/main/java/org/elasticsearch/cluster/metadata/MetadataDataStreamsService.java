@@ -126,11 +126,7 @@ public class MetadataDataStreamsService {
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
         var dataStream = validateDataStream(metadata, dataStreamName);
         var index = validateIndex(metadata, indexName);
-
         builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex().getIndex()));
-
-        // remove or disable DataStreamTimestampFieldMapper
-        // TODO: is this necessary or desirable?
 
         // un-hide index
         builder.put(IndexMetadata.builder(index.getWriteIndex())

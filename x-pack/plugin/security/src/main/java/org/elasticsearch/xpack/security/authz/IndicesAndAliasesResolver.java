@@ -152,7 +152,7 @@ class IndicesAndAliasesResolver {
         //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
         //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
         // shard level requests.
-        final ArrayList<String> localIndices = new ArrayList<>(indices.length);
+        final List<String> localIndices = new ArrayList<>(indices.length);
         for (String name : indices) {
             localIndices.add(nameExpressionResolver.resolveDateMathExpression(name));
         }

@@ -81,8 +81,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         }
     }
 
-    static final LicensedFeature.Momentary AUTOSCALING_FEATURE =
-        LicensedFeature.momentary(null, "autoscaling", License.OperationMode.ENTERPRISE);
+    static final LicensedFeature.Momentary AUTOSCALING_FEATURE = LicensedFeature.momentary(
+        null,
+        "autoscaling",
+        License.OperationMode.ENTERPRISE
+    );
 
     private final List<AutoscalingExtension> autoscalingExtensions;
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();

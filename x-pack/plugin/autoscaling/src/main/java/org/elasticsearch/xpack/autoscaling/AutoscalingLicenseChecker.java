@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.XPackPlugin;
-
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 

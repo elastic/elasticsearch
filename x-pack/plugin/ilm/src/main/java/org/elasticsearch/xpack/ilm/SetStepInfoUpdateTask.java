@@ -28,28 +28,17 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
 
     private static final Logger logger = LogManager.getLogger(SetStepInfoUpdateTask.class);
 
-    private final Index index;
     private final String policy;
-    private final Step.StepKey currentStepKey;
     private final ToXContentObject stepInfo;
 
     public SetStepInfoUpdateTask(Index index, String policy, Step.StepKey currentStepKey, ToXContentObject stepInfo) {
-        this.index = index;
+        super(index, currentStepKey);
         this.policy = policy;
-        this.currentStepKey = currentStepKey;
         this.stepInfo = stepInfo;
-    }
-
-    Index getIndex() {
-        return index;
     }
 
     String getPolicy() {
         return policy;
-    }
-
-    Step.StepKey getCurrentStepKey() {
-        return currentStepKey;
     }
 
     ToXContentObject getStepInfo() {

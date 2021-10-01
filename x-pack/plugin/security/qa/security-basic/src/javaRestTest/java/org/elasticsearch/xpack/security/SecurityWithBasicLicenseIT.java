@@ -376,7 +376,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security]"));
-            assertThat(e.getMessage(), containsString("index_with_dls_or_fls"));
+            assertThat(e.getMessage(), containsString("indices_with_dls_or_fls"));
         }
     }
 

@@ -64,14 +64,6 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
             containsString("[text_classification] requires at least 2 [classification_labels]; provided [too-few]"));
     }
 
-    public void testInvalidNumClasses() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new TextClassificationConfig(null, null, List.of("one", "two"), 0, null));
-        assertThat(e.getMessage(),
-            containsString("[text_classification] requires at least 1 [num_top_classes]; provided [0]"));
-    }
-
-
     public static TextClassificationConfig createRandom() {
         return new TextClassificationConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),

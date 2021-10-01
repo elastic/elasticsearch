@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
@@ -27,13 +26,13 @@ public class PyTorchBuilder {
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
-    @Nullable private final Integer inferenceThreads;
-    @Nullable private final Integer modelThreads;
+    private final int inferenceThreads;
+    private final int modelThreads;
 
     public PyTorchBuilder(NativeController nativeController,
                           ProcessPipes processPipes,
-                          @Nullable Integer inferenceThreads,
-                          @Nullable Integer modelThreads) {
+                          int inferenceThreads,
+                          int modelThreads) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
         this.inferenceThreads = inferenceThreads;
@@ -53,12 +52,9 @@ public class PyTorchBuilder {
         // License was validated when the trained model was started
         command.add(LICENSE_KEY_VALIDATED_ARG + true);
 
-        if (inferenceThreads != null) {
-            command.add(INFERENCE_THREADS_ARG + inferenceThreads);
-        }
-        if (modelThreads != null) {
-            command.add(MODEL_THREADS_ARG + modelThreads);
-        }
+        command.add(INFERENCE_THREADS_ARG + inferenceThreads);
+        command.add(MODEL_THREADS_ARG + modelThreads);
+
         return command;
     }
 }

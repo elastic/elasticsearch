@@ -16,8 +16,8 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.List;
 
-import static org.mockito.Matchers.any;
 import static org.hamcrest.Matchers.contains;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -44,39 +44,15 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuild() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, null, null).build();
+        new PyTorchBuilder(nativeController, processPipes, 2, 4).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
 
         assertThat(commandCaptor.getValue(), contains(
             "./pytorch_inference",
             "--validElasticLicenseKeyConfirmed=true",
-            PROCESS_PIPES_ARG)
-        );
-    }
-
-    public void testBuild_GivenInferenceThreads() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, 4, null).build();
-
-        verify(nativeController).startProcess(commandCaptor.capture());
-
-        assertThat(commandCaptor.getValue(), contains(
-            "./pytorch_inference",
-            "--validElasticLicenseKeyConfirmed=true",
-            "--inferenceThreads=4",
-            PROCESS_PIPES_ARG)
-        );
-    }
-
-    public void testBuild_GivenModelThreads() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, null, 3).build();
-
-        verify(nativeController).startProcess(commandCaptor.capture());
-
-        assertThat(commandCaptor.getValue(), contains(
-            "./pytorch_inference",
-            "--validElasticLicenseKeyConfirmed=true",
-            "--modelThreads=3",
+            "--inferenceThreads=2",
+            "--modelThreads=4",
             PROCESS_PIPES_ARG)
         );
     }

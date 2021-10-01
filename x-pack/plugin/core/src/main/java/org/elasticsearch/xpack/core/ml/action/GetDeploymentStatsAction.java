@@ -230,14 +230,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             private AllocationState state;
             private AllocationStatus allocationStatus;
             private String reason;
-            private final ByteSizeValue modelSize;
+            @Nullable private final ByteSizeValue modelSize;
             @Nullable private final Integer inferenceThreads;
             @Nullable private final Integer modelThreads;
             private final List<NodeStats> nodeStats;
 
             public AllocationStats(
                 String modelId,
-                ByteSizeValue modelSize,
+                @Nullable ByteSizeValue modelSize,
                 @Nullable Integer inferenceThreads,
                 @Nullable Integer modelThreads,
                 List<NodeStats> nodeStats

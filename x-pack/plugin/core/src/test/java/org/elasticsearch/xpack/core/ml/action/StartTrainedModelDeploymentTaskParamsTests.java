@@ -35,8 +35,8 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractSerializ
         return new TaskParams(
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
-            randomBoolean() ? null : randomIntBetween(1, 8),
-            randomBoolean() ? null : randomIntBetween(1, 8)
+            randomIntBetween(1, 8),
+            randomIntBetween(1, 8)
         );
     }
 }

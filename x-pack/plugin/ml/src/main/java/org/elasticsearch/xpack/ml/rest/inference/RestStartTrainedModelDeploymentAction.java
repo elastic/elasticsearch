@@ -57,12 +57,8 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             request.setWaitForState(AllocationStatus.State.fromString(
                 restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString())
             ));
-            if (restRequest.hasParam(INFERENCE_THREADS.getPreferredName())) {
-                request.setInferenceThreads(Integer.valueOf(restRequest.param(INFERENCE_THREADS.getPreferredName())));
-            }
-            if (restRequest.hasParam(MODEL_THREADS.getPreferredName())) {
-                request.setModelThreads(Integer.valueOf(restRequest.param(MODEL_THREADS.getPreferredName())));
-            }
+            request.setInferenceThreads(restRequest.paramAsInt(INFERENCE_THREADS.getPreferredName(), request.getInferenceThreads()));
+            request.setModelThreads(restRequest.paramAsInt(MODEL_THREADS.getPreferredName(), request.getModelThreads()));
         }
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

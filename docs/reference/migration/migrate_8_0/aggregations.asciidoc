@@ -7,6 +7,32 @@
 
 //tag::notable-breaking-changes[]
 
+[[remove-term-order-key]]
+.The `terms` aggregation no longer supports the `_term` order key.
+[%collapsible]
+====
+*Details* +
+The `terms` aggregation no longer supports the `_term` key in `order` values. To
+sort buckets by their term, use `_key` instead.
+
+*Impact* +
+Discontinue use of the `_term` order key. Requests that include a `_term` order
+key will return an error.
+====
+
+[[remove-time-order-key]]
+.The `date_histogram` aggregation no longer supports the `_time` order key.
+[%collapsible]
+====
+*Details* +
+The `date_histogram` aggregation no longer supports the `_time` key in `order`
+values. To sort buckets by their key, use `_key` instead.
+
+*Impact* +
+Discontinue use of the `_time` order key. Requests that include a `_time` order
+key will return an error.
+====
+
 [[remove-moving-avg-agg]]
 .The `moving_avg` aggregation has been removed.
 [%collapsible]

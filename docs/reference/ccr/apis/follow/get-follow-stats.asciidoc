@@ -162,7 +162,7 @@ task.
 //End read_exceptions
 
 `remote_cluster`::
-(string) The <<modules-remote-clusters,remote cluster>> containing the leader
+(string) The <<remote-clusters,remote cluster>> containing the leader
 index.
 
 `shard_id`::

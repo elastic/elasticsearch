@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,7 +62,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
-    public void testExecuteSuccessfullyMoved() {
+    public void testExecuteSuccessfullyMoved() throws Exception {
         long now = randomNonNegativeLong();
         List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
@@ -85,7 +84,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertTrue(changed.get());
     }
 
-    public void testExecuteDifferentCurrentStep() {
+    public void testExecuteDifferentCurrentStep() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         long now = randomNonNegativeLong();
@@ -96,7 +95,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteDifferentPolicy() {
+    public void testExecuteDifferentPolicy() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         long now = randomNonNegativeLong();
         setStateToKey(currentStepKey, now);
@@ -107,7 +106,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteSuccessfulMoveWithInvalidNextStep() {
+    public void testExecuteSuccessfulMoveWithInvalidNextStep() throws Exception {
         long now = randomNonNegativeLong();
         List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
@@ -139,11 +138,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now,
             new AlwaysExistingStepRegistry(), state -> {});
         Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
-                + "] to step [" + nextStepKey + "].", exception.getMessage());
-        assertSame(expectedException, exception.getCause());
+        task.onFailure(randomAlphaOfLength(10), expectedException);
     }
 
     /**

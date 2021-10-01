@@ -118,7 +118,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                     .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, allocatable ? "data_hot" : "data_content")
+                    .put(DataTierAllocationDecider.TIER_PREFERENCE, allocatable ? "data_hot" : "data_content")
                     .build()
             ).setWaitForActiveShards(allocatable ? ActiveShardCount.DEFAULT : ActiveShardCount.NONE)
         );
@@ -132,7 +132,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 .indices()
                 .updateSettings(
                     new UpdateSettingsRequest(indexName).settings(
-                        Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_hot")
+                        Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_hot")
                     )
                 )
                 .actionGet()

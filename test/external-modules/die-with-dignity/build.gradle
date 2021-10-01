@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   description 'Die with dignity plugin'
-  classname 'org.elasticsearch.DieWithDignityPlugin'
+  classname 'org.elasticsearch.test.diewithdignity.DieWithDignityPlugin'
 }
 
 // let the javaRestTest see the classpath of main
@@ -16,7 +16,7 @@ tasks.named("javaRestTest").configure {
   it.onlyIf { BuildParams.isSnapshotBuild() }
   systemProperty 'tests.security.manager', 'false'
   systemProperty 'tests.system_call_filter', 'false'
-  nonInputProperties.systemProperty 'log', "${-> testClusters.javaRestTest.singleNode().getServerLog()}"
+  nonInputProperties.systemProperty 'log', testClusters.named("javaRestTest").map(c -> c.singleNode().getServerLog())
   systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
 }
 
@@ -30,10 +30,4 @@ tasks.named("test").configure {
 
 tasks.named("yamlRestTest").configure {
   enabled = false
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // these should be moved to an actual package, not the root package
-  ignoreClasses 'org.elasticsearch.DieWithDignityPlugin',
-    'org.elasticsearch.RestDieWithDignityAction'
 }

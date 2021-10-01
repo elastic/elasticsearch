@@ -9,6 +9,7 @@ package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,6 +24,7 @@ import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -34,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -46,6 +49,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
     private final Logger logger;
     private final DeterministicTaskQueue deterministicTaskQueue;
     private final List<Runnable> blackholedRequests = new ArrayList<>();
+    private final Set<String> blockedActions = new HashSet<>();
 
     public DisruptableMockTransport(DiscoveryNode localNode, Logger logger, DeterministicTaskQueue deterministicTaskQueue) {
         this.localNode = localNode;
@@ -87,9 +91,31 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     }
 
                     @Override
-                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                        throws TransportException {
-                        onSendRequest(requestId, action, request, matchingTransport);
+                    public void sendRequest(
+                        long requestId,
+                        String action,
+                        TransportRequest request,
+                        TransportRequestOptions options
+                    ) throws TransportException {
+                        if (blockedActions.contains(action)) {
+                            execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    handleError(requestId, new RemoteTransportException(
+                                        node.getName(),
+                                        node.getAddress(),
+                                        action,
+                                        new ElasticsearchException("action [" + action + "] is blocked")));
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "error response delivery for action [" + action + "] on node [" + node + "]";
+                                }
+                            });
+                        } else {
+                            onSendRequest(requestId, action, request, options, matchingTransport);
+                        }
                     }
                 });
             }
@@ -98,9 +124,13 @@ public abstract class DisruptableMockTransport extends MockTransport {
         }
     }
 
-    protected void onSendRequest(long requestId, String action, TransportRequest request,
-                                 DisruptableMockTransport destinationTransport) {
-
+    protected void onSendRequest(
+        long requestId,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options,
+        DisruptableMockTransport destinationTransport
+    ) {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
@@ -319,6 +349,14 @@ public abstract class DisruptableMockTransport extends MockTransport {
             blackholedRequests.clear();
             return true;
         }
+    }
+
+    public void addActionBlock(String action) {
+        blockedActions.add(action);
+    }
+
+    public void clearActionBlocks() {
+        blockedActions.clear();
     }
 
     /**

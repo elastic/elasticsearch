@@ -53,7 +53,7 @@ public class TopHitsAgg extends LeafAgg {
             if (sortSource.fieldName() != null) {
                 sortBuilderList.add(
                     new FieldSortBuilder(sortSource.fieldName()).order(sortOrder)
-                        .missing(LAST.position())
+                        .missing(LAST.searchOrder())
                         .unmappedType(sortFieldDataType.esType())
                 );
             } else if (sortSource.script() != null) {
@@ -70,7 +70,7 @@ public class TopHitsAgg extends LeafAgg {
 
         if (source().fieldName() != null) {
             sortBuilderList.add(
-                new FieldSortBuilder(source().fieldName()).order(sortOrder).missing(LAST.position()).unmappedType(fieldDataType.esType())
+                new FieldSortBuilder(source().fieldName()).order(sortOrder).missing(LAST.searchOrder()).unmappedType(fieldDataType.esType())
             );
         } else {
             sortBuilderList.add(

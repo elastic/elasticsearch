@@ -249,7 +249,10 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
 
         assertBooleanQuery(query, asList(
             new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
-            new SynonymQuery(new Term(TEXT_FIELD_NAME, "dogs"), new Term(TEXT_FIELD_NAME, "dog")),
+            new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                .addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
+                .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
+                .build(),
             new PrefixQuery(new Term(TEXT_FIELD_NAME, "red"))
         ));
     }

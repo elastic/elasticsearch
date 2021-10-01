@@ -129,7 +129,7 @@ class IndicesAndAliasesResolver {
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
-            if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
+            if (isAllIndices(indicesRequest.indices())) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
                         if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata, nameExpressionResolver,
@@ -242,6 +242,11 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    static boolean isAllIndices(String[] names) {
+        return names == null || names.length == 0
+            || (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0])));
     }
 
     /**

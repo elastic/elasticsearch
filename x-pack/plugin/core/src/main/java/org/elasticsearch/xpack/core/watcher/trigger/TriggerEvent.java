@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.watcher.trigger;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 
 import java.io.IOException;
@@ -28,8 +27,7 @@ public abstract class TriggerEvent implements ToXContentObject {
         this.jobName = jobName;
         this.triggeredTime = triggeredTime;
         this.data = new HashMap<>();
-        data.put(Field.TRIGGERED_TIME.getPreferredName(),
-            new JodaCompatibleZonedDateTime(triggeredTime.toInstant(), ZoneOffset.UTC));
+        data.put(Field.TRIGGERED_TIME.getPreferredName(), ZonedDateTime.ofInstant(triggeredTime.toInstant(), ZoneOffset.UTC));
     }
 
     public String jobName() {

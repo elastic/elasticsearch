@@ -1,0 +1,15 @@
+---
+setup:
+  - skip:
+      features:
+        - pre_existing_feature1
+        - pre_existing_feature2
+      version: "all"
+      reason: "my reason"
+---
+"Test with multiple feature setup":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+
+import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
@@ -30,6 +32,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceValueInMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.skip.Skip;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceTextual;
@@ -41,6 +44,7 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -51,17 +55,20 @@ import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 /**
  * A task to transform REST tests for use in REST API compatibility before they are executed.
@@ -81,7 +88,12 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final DirectoryProperty sourceDirectory;
     private final DirectoryProperty outputDirectory;
     private final PatternFilterable testPatternSet;
+    private final Factory<PatternSet> patternSetFactory;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
+    // PatternFilterable -> reason why skipped.
+    private final Map<PatternFilterable, String> skippedTestByFilePatternTransformations = new HashMap<>();
+    // PatternFilterable -> list of full test names and reasons. Needed for 1 pattern may include many tests and reasons
+    private final Map<PatternFilterable, List<Pair<String, String>>> skippedTestByTestNameTransformations = new HashMap<>();
 
     @Inject
     public RestCompatTestTransformTask(
@@ -89,6 +101,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         Factory<PatternSet> patternSetFactory,
         ObjectFactory objectFactory
     ) {
+        this.patternSetFactory = patternSetFactory;
         this.fileSystemOperations = fileSystemOperations;
         this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
@@ -110,6 +123,37 @@ public class RestCompatTestTransformTask extends DefaultTask {
             }
         }
         return true;
+    }
+
+    public void skipTest(String fullTestName, String reason) {
+        //The tests are defined by 3 parts a/b/c where
+        // a = the folder name
+        // b = the file name without the .yml extension
+        // c = the test name inside the .yml
+        // For example: indices.get_mapping/20_missing_type/Non-existent type returns 404
+        // However, the folder can be arbitrarily nest so, a == a1/a2/a3, and the test name can include forward slashes, so c == c1/c2/c3
+        // So we also need to support a1/a2/a3/b/c1/c2/c3
+
+        String[] testParts = fullTestName.split("/");
+        if(testParts.length < 3 ){
+            throw new IllegalArgumentException("To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]");
+        }
+
+        PatternSet skippedPatternSet = patternSetFactory.create();
+        //create file patterns for all a1/a2/a3/b.yml possibilities.
+        for(int i = testParts.length - 1; i > 1; i-- ){
+            final String lastPart = testParts[i];
+            String filePattern = "**/" + Arrays.stream(testParts).takeWhile(x -> x.equals(lastPart) == false).collect(Collectors.joining("/")) + ".yml";
+            skippedPatternSet.include(filePattern);
+        }
+
+        skippedTestByTestNameTransformations.computeIfAbsent(skippedPatternSet, k -> new ArrayList<>()).add(Pair.of(fullTestName, reason));
+    }
+
+    public void skipTestsByFilePattern(String filePattern, String reason) {
+        PatternSet skippedPatternSet = patternSetFactory.create();
+        skippedPatternSet.include(filePattern);
+        skippedTestByFilePatternTransformations.put(skippedPatternSet, reason);
     }
 
     /**
@@ -136,10 +180,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * A transformation to replace the key in a do section.
+     *
+     * @param oldKeyName the key name directly under do to replace.
+     * @param newKeyName the new key name directly under do.
+     * @param testName   the testName to apply replacement
      * @see ReplaceKeyInDo
-     * @param oldKeyName   the key name directly under do to replace.
-     * @param newKeyName   the new key name directly under do.
-     * @param testName the testName to apply replacement
      */
     public void replaceKeyInDo(String oldKeyName, String newKeyName, String testName) {
         transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, testName));
@@ -147,9 +192,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * A transformation to replace the key in a do section for given REST test.
+     *
+     * @param oldKeyName the key name directly under do to replace.
+     * @param newKeyName the new key name directly under do.
      * @see ReplaceKeyInDo
-     * @param oldKeyName   the key name directly under do to replace.
-     * @param newKeyName   the new key name directly under do.
      */
     public void replaceKeyInDo(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, null));
@@ -157,9 +203,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * A transformation to replace the key in a length assertion.
+     *
+     * @param oldKeyName the key name directly under length to replace.
+     * @param newKeyName the new key name directly under length.
      * @see ReplaceKeyInLength
-     * @param oldKeyName   the key name directly under length to replace.
-     * @param newKeyName   the new key name directly under length.
      */
     public void replaceKeyInLength(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInLength(oldKeyName, newKeyName, null));
@@ -179,6 +226,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     /**
      * Replaces all the values of a length assertion for the given REST test.
      * For example "length":{"x": 1} to "length":{"x": 99}
+     *
      * @param subKey   the key name directly under match to replace. For example "x"
      * @param value    the value used in the replacement. For example 99
      * @param testName the testName to apply replacement
@@ -189,9 +237,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * A transformation to replace the key in a match assertion.
+     *
+     * @param oldKeyName the key name directly under match to replace.
+     * @param newKeyName the new key name directly under match.
      * @see ReplaceKeyInMatch
-     * @param oldKeyName   the key name directly under match to replace.
-     * @param newKeyName   the new key name directly under match.
      */
     public void replaceKeyInMatch(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInMatch(oldKeyName, newKeyName, null));
@@ -202,7 +251,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * For example "is_true": "value_to_replace" to "is_true": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
-     * @param newValue  the value used in the replacement
+     * @param newValue the value used in the replacement
      */
     public void replaceIsTrue(String oldValue, Object newValue) {
         transformations.add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
@@ -213,7 +262,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * For example "is_false": "value_to_replace" to "is_false": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
-     * @param newValue  the value used in the replacement
+     * @param newValue the value used in the replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue) {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
@@ -224,8 +273,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * For example "is_false": "value_to_replace" to "is_false": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
-     * @param newValue  the value used in the replacement
-      @param testName the testName to apply replacement
+     * @param newValue the value used in the replacement
+     * @param testName the testName to apply replacement
      */
     public void replaceIsFalse(String oldValue, Object newValue, String testName) {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
@@ -235,9 +284,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * Replaces all the values of a given key/value pairs for all project REST tests.
      * For example "foo": "bar" can replaced as "foo": "baz"
      *
-     * @param key the key to find
+     * @param key      the key to find
      * @param oldValue the value of that key to find
-     * @param newValue  the value used in the replacement
+     * @param newValue the value used in the replacement
      */
     public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue) {
         transformations.add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class)));
@@ -247,9 +296,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * Replaces all the values of a given key/value pairs for given REST test.
      * For example "foo": "bar" can replaced as "foo": "baz"
      *
-     * @param key the key to find
+     * @param key      the key to find
      * @param oldValue the value of that key to find
-     * @param newValue  the value used in the replacement
+     * @param newValue the value used in the replacement
      * @param testName the testName to apply replacement
      */
     public void replaceValueTextByKeyValue(String key, String oldValue, Object newValue, String testName) {
@@ -293,6 +342,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Adds one or more warnings to the given test
+     *
      * @param testName the test name to add the warning
      * @param warnings the warning(s) to add
      */
@@ -302,7 +352,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Adds one or more regex warnings to the given test
-     * @param testName the test name to add the regex warning
+     *
+     * @param testName      the test name to add the regex warning
      * @param warningsRegex the regex warning(s) to add
      */
     public void addWarningRegex(String testName, String... warningsRegex) {
@@ -311,6 +362,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Removes one or more warnings
+     *
      * @param warnings the warning(s) to remove
      */
     public void removeWarning(String... warnings) {
@@ -319,6 +371,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Removes one or more warnings
+     *
      * @param warnings the warning(s) to remove
      * @param testName the test name to remove the warning
      */
@@ -328,6 +381,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Adds one or more allowed warnings
+     *
      * @param allowedWarnings the warning(s) to add
      */
     public void addAllowedWarning(String... allowedWarnings) {
@@ -336,6 +390,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Adds one or more allowed regular expression warnings
+     *
      * @param allowedWarningsRegex the regex warning(s) to add
      */
     public void addAllowedWarningRegex(String... allowedWarningsRegex) {
@@ -344,6 +399,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * Adds one or more allowed regular expression warnings
+     *
      * @param allowedWarningsRegex the regex warning(s) to add
      * @testName the test name to add a allowedWarningRegex
      */
@@ -367,12 +423,44 @@ public class RestCompatTestTransformTask extends DefaultTask {
         // clean the output directory to ensure no stale files persist
         fileSystemOperations.delete(d -> d.delete(outputDirectory));
 
+        Map<File, String> skippedFilesWithReason = new HashMap<>();
+        skippedTestByFilePatternTransformations.forEach((filePattern, reason) -> {
+            //resolve file pattern to concrete files
+            for (File file : getTestFiles().matching(filePattern).getFiles()) {
+                skippedFilesWithReason.put(file, reason);
+            }
+        });
+
+        Map<File, List<Pair<String, String>>> skippedFilesWithTestAndReason = new HashMap<>();
+        skippedTestByTestNameTransformations.forEach((filePattern, testWithReason) -> {
+            //resolve file pattern to concrete files
+            for (File file : getTestFiles().matching(filePattern).getFiles()) {
+                skippedFilesWithTestAndReason.put(file, testWithReason);
+            }
+        });
+
         RestTestTransformer transformer = new RestTestTransformer();
         // TODO: instead of flattening the FileTree here leverage FileTree.visit() so we can preserve folder hierarchy in a more robust way
         for (File file : getTestFiles().getFiles()) {
             YAMLParser yamlParser = YAML_FACTORY.createParser(file);
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
-            List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
+            List<ObjectNode> transformRestTests;
+            if (skippedFilesWithReason.containsKey(file)) {
+                //skip all the tests in the file
+                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests),
+                    Collections.singletonList(new Skip(skippedFilesWithReason.get(file))));
+            } else {
+                if (skippedFilesWithTestAndReason.containsKey(file)) {
+                    //skip the named tests for this file
+                    skippedFilesWithTestAndReason.get(file).forEach(fullTestNameAndReasonPair -> {
+                        String prefix = file.getName().replace(".yml", "/");
+                        String singleTestName = fullTestNameAndReasonPair.getLeft().replaceAll(".*" + prefix, "");
+                        transformations.add(new Skip(singleTestName, fullTestNameAndReasonPair.getRight()));
+                    });
+                }
+                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
+            }
+
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
             if (testFileParts.length != 2) {
@@ -396,5 +484,20 @@ public class RestCompatTestTransformTask extends DefaultTask {
     @Nested
     public List<RestTestTransform<?>> getTransformations() {
         return transformations;
+    }
+
+    @Input
+    public String getSkippedTestByFilePatternTransformations() {
+        return skippedTestByFilePatternTransformations.keySet().stream()
+            .map(key -> String.join(",", key.getIncludes()) + skippedTestByFilePatternTransformations.get(key))
+            .collect(Collectors.joining());
+    }
+
+    @Input
+    public String getSkippedTestByTestNameTransformations() {
+
+        return skippedTestByTestNameTransformations.keySet().stream()
+            .map(key -> String.join(",", key.getIncludes()) + skippedTestByTestNameTransformations.get(key))
+            .collect(Collectors.joining());
     }
 }

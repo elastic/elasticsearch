@@ -46,25 +46,40 @@ public class PackageUpgradeTests extends PackagingTestCase {
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
         makeRequest(
             Request.Put("http://localhost:9200/library")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
+                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON),
+            "elastic",
+            "keystore_seed",
+            null
         );
         makeRequest(
             Request.Put("http://localhost:9200/library2")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
+                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON),
+            "elastic",
+            "keystore_seed",
+            null
         );
 
         // add some docs
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON)
+                .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON),
+            "elastic",
+            "keystore_seed",
+            null
         );
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON)
+                .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON),
+            "elastic",
+            "keystore_seed",
+            null
         );
         makeRequest(
             Request.Post("http://localhost:9200/library2/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON)
+                .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON),
+            "elastic",
+            "keystore_seed",
+            null
         );
 
         assertDocsExist();
@@ -90,11 +105,11 @@ public class PackageUpgradeTests extends PackagingTestCase {
 
     private void assertDocsExist() throws Exception {
         // TODO handle this as part of https://github.com/elastic/elasticsearch/issues/75940
-        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
+        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"), "elastic", "keystore_seed", null);
         assertThat(response1, containsString("Elasticsearch"));
-        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
+        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"), "elastic", "keystore_seed", null);
         assertThat(response2, containsString("World"));
-        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
+        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"), "elastic", "keystore_seed", null);
         assertThat(response3, containsString("Darkness"));
     }
 }

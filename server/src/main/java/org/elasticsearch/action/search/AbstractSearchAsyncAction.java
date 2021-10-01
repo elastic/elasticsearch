@@ -731,6 +731,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
+        if (filter.getQueryBuilder() == null) {
+            // rewrite to a match_all alias
+            filter = AliasFilter.EMPTY;
+        }
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request,

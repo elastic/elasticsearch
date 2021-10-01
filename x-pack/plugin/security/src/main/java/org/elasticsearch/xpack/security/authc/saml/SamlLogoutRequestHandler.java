@@ -109,7 +109,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
     private String getSessionIndex(LogoutRequest logoutRequest) {
         return logoutRequest.getSessionIndexes()
                 .stream()
-                .map(as -> as.getSessionIndex())
+                .map(as -> as.getValue())
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);

@@ -62,7 +62,8 @@ List projects = [
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
-  'test:fixtures:hdfs-fixture',
+  'test:fixtures:hdfs2-fixture',
+  'test:fixtures:hdfs3-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
@@ -83,6 +84,7 @@ void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
+  if (new File(dir, 'settings.gradle').exists()) return;
   if (findProject(dir) != null) return;
 
   final String projectName = "${path}:${dir.name}"
@@ -94,16 +96,6 @@ void addSubProjects(String path, File dir) {
     addSubProjects(projectName, subdir)
   }
 }
-
-
-// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
-File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
-for (File example : examplePluginsDir.listFiles()) {
-  if (example.isDirectory() == false) continue;
-  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
-  addSubProjects(':example-plugins', example)
-}
-project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
 
 addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))

@@ -10,13 +10,13 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -26,10 +26,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.EnumSet;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -80,33 +82,34 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         String masterNode = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
-        Coordinator coordinator = internalCluster().getInstance(Coordinator.class, masterNode);
         final ClusterState state = clusterService.state();
         Metadata.Builder mdBuilder = Metadata.builder(state.metadata());
         mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));
         ClusterState stateWithCustomMetadata = ClusterState.builder(state).metadata(mdBuilder).build();
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        final DiscoveryNode node = state.nodes().getLocalNode();
 
-        coordinator.sendValidateJoinRequest(
-            stateWithCustomMetadata,
-            new JoinRequest(node, 0L, Optional.empty()),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    fail("onResponse should not be called");
-                }
+        internalCluster().getInstance(TransportService.class, masterNode).sendRequest(
+            state.nodes().getLocalNode(),
+            JoinHelper.JOIN_VALIDATE_ACTION_NAME,
+            new ValidateJoinRequest(stateWithCustomMetadata),
+            new ActionListenerResponseHandler<>(
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(TransportResponse.Empty unused) {
+                        fail("onResponse should not be called");
+                    }
 
-                @Override
-                public void onFailure(Exception t) {
-                    assertThat(t, instanceOf(IllegalStateException.class));
-                    assertThat(t.getCause(), instanceOf(RemoteTransportException.class));
-                    assertThat(t.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-                    assertThat(t.getCause().getCause().getMessage(), containsString("Unknown NamedWriteable"));
-                    future.onResponse(null);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception t) {
+                        assertThat(t, instanceOf(RemoteTransportException.class));
+                        assertThat(t.getCause(), instanceOf(IllegalArgumentException.class));
+                        assertThat(t.getCause().getMessage(), containsString("Unknown NamedWriteable"));
+                        future.onResponse(null);
+                    }
+                },
+                i -> TransportResponse.Empty.INSTANCE,
+                ThreadPool.Names.GENERIC));
 
         future.actionGet(10, TimeUnit.SECONDS);
     }

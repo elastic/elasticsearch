@@ -178,9 +178,7 @@ You can set the following API key service settings in
 
 `xpack.security.authc.api_key.enabled`::
 (<<static-cluster-setting,Static>>)
-Set to `false` to disable the built-in API key service. Defaults to `true` unless
- `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
-  from a connection over plain http.
+Set to `false` to disable the built-in API key service. Defaults to `true`.
 
 `xpack.security.authc.api_key.hashing.algorithm`::
 (<<static-cluster-setting,Static>>)

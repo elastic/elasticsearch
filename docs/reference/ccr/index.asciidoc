@@ -32,7 +32,7 @@ If newer, the versions must also be compatible as outlined in the following matr
 [[ccr-version-compatibility]]
 .Version compatibility matrix
 ====
-include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
+include::../modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
 [discrete]
@@ -52,7 +52,7 @@ secondary cluster
 
 Watch the
 https://www.elastic.co/webinars/replicate-elasticsearch-data-with-cross-cluster-replication-ccr[{ccr} webinar] to learn more about the following use cases.
-Then, <<ccr-getting-started,set up {ccr}>> on your local machine and work
+Then, <<ccr-getting-started-tutorial,set up {ccr}>> on your local machine and work
 through the demo from the webinar.
 
 [discrete]
@@ -163,7 +163,7 @@ image::images/ccr-arch-central-reporting.png[Three clusters in different regions
 [discrete]
 [[ccr-replication-mechanics]]
 === Replication mechanics
-Although you <<ccr-getting-started,set up {ccr}>> at the index level, {es}
+Although you <<ccr-getting-started-tutorial,set up {ccr}>> at the index level, {es}
 achieves replication at the shard level. When a follower index is created,
 each shard in that index pulls changes from its corresponding shard in the
 leader index, which means that a follower index has the same number of
@@ -306,7 +306,7 @@ enabled.
 This following sections provide more information about how to configure
 and use {ccr}:
 
-* <<ccr-getting-started>>
+* <<ccr-getting-started-tutorial>>
 * <<ccr-managing>>
 * <<ccr-auto-follow>>
 * <<ccr-upgrading>>

@@ -128,13 +128,6 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         if (segment.getSegmentSort() != null) {
                             toXContent(builder, segment.getSegmentSort());
                         }
-                        if (segment.ramTree != null) {
-                            builder.startArray(Fields.RAM_TREE);
-                            for (Accountable child : segment.ramTree.getChildResources()) {
-                                toXContent(builder, child);
-                            }
-                            builder.endArray();
-                        }
                         if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                             builder.field("attributes", segment.attributes);
                         }

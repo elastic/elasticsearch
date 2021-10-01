@@ -234,11 +234,12 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     protected void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
+        final String customDataPath = resolveCustomDataPath(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
         boolean shardFolderFound = false;
         for (String node : internalCluster().getNodeNames()) {
             final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, null);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
                 assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));

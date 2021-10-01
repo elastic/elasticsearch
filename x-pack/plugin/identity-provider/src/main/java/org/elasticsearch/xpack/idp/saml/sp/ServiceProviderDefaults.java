@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.idp.saml.sp;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.joda.time.Duration;
-import org.joda.time.ReadableDuration;
 import org.opensaml.saml.saml2.core.NameID;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -30,11 +29,11 @@ public final class ServiceProviderDefaults {
 
     public final String applicationName;
     public final String nameIdFormat;
-    public final ReadableDuration authenticationExpiry;
+    public final Duration authenticationExpiry;
 
     public ServiceProviderDefaults(String applicationName,
                                    String nameIdFormat,
-                                   ReadableDuration authenticationExpiry) {
+                                   Duration authenticationExpiry) {
         this.applicationName = applicationName;
         this.nameIdFormat = nameIdFormat;
         this.authenticationExpiry = authenticationExpiry;
@@ -44,7 +43,7 @@ public final class ServiceProviderDefaults {
         final String appplication = require(settings, APPLICATION_NAME_SETTING);
         final String nameId = NAMEID_FORMAT_SETTING.get(settings);
         final TimeValue expiry = AUTHN_EXPIRY_SETTING.get(settings);
-        return new ServiceProviderDefaults(appplication, nameId, Duration.millis(expiry.millis()));
+        return new ServiceProviderDefaults(appplication, nameId, Duration.ofMillis(expiry.millis()));
     }
 
     private static <T> T require(Settings settings, Setting<T> setting) {

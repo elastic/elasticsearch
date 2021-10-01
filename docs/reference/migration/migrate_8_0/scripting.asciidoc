@@ -1,0 +1,25 @@
+[discrete]
+[[breaking_80_scripting_changes]]
+==== Scripting changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `JodaCompatibleDateTime` class has been removed.
+[%collapsible]
+====
+*Details* +
+As a transition from Joda datetime to Java datetime, scripting used
+an intermediate class called `JodaCompatibleDateTime`. This class has
+been removed and is replaced by `ZonedDateTime`. Any use of casting
+to a `JodaCompatibleDateTime` in a script will result in a compilation
+error, and may not allow the upgraded node to start.
+
+*Impact* +
+Before upgrading, replace `getDayOfWeek` with `getDayOfWeekEnum().value` in any
+scripts. Any use of `getDayOfWeek` expecting a return value of `int` will result
+in a compilation error or runtime error and may not allow the upgraded node to
+start.
+====
+// end::notable-breaking-changes[]

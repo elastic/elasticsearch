@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -413,12 +412,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private static String[] ingestNodes(final ClusterState clusterState) {
-        String[] ingestNodes = new String[clusterState.nodes().getIngestNodes().size()];
-        Iterator<String> nodeIterator = clusterState.nodes().getIngestNodes().keysIt();
-        int i = 0;
-        while(nodeIterator.hasNext()) {
-            ingestNodes[i++] = nodeIterator.next();
-        }
-        return ingestNodes;
+        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
     }
 }

@@ -32,12 +32,12 @@ import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
-import org.joda.time.Duration;
 import org.mockito.Mockito;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
@@ -157,7 +157,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
             true,
             new URL("https://sp.some.org/api/security/v1/saml"),
             TRANSIENT,
-            Duration.standardMinutes(5),
+            Duration.ofMinutes(5),
             null,
             new SamlServiceProvider.AttributeNames(
                 "https://saml.elasticsearch.org/attributes/principal",
@@ -168,7 +168,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         mockRegisteredServiceProvider(serviceResolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(serviceResolver, "https://sp2.other.org", null);
         final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            "elastic-cloud", TRANSIENT, Duration.standardMinutes(15));
+            "elastic-cloud", TRANSIENT, Duration.ofMinutes(15));
         final X509Credential signingCredential = readCredentials("RSA", randomFrom(1024, 2048, 4096));
         final SamlIdentityProvider idp = SamlIdentityProvider
             .builder(serviceResolver, wildcardResolver)

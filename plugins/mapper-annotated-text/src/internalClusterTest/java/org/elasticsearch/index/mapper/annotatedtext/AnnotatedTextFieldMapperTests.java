@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.plugin.mapper.AnnotatedTextPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;

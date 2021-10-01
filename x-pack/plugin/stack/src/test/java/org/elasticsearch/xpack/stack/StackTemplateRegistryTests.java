@@ -39,6 +39,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
@@ -91,6 +93,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
                     (p) -> TimeseriesLifecycleType.INSTANCE
                 ),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
             )
         );
@@ -154,7 +158,12 @@ public class StackTemplateRegistryTests extends ESTestCase {
                     anyOf(
                         equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
-                        equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME)
+                        equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_7_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_30_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_90_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_180_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_365_DAYS_POLICY_NAME)
                     )
                 );
                 assertNotNull(listener);
@@ -173,7 +182,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(3)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(8)));
     }
 
     public void testPolicyAlreadyExists() {
@@ -185,7 +194,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
-        assertThat(policies, hasSize(3));
+        assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -214,7 +223,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
-        assertThat(policies, hasSize(3));
+        assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {

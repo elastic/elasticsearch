@@ -152,20 +152,20 @@ public class ImmutableOpenMapTests extends ESTestCase {
         int limit = randomIntBetween(0, map.size());
         List<String> collectedViaStream = map.values()
             .stream()
-            .filter(e -> e.hashCode() > 0)
+            .filter(e -> e.contains("ab") || e.contains("cd") || e.contains("ef"))
             .sorted()
             .limit(limit)
             .collect(Collectors.toList());
 
-        SortedSet<String> positiveHashCodeStrings = new TreeSet<>();
+        SortedSet<String> filteredSortedStrings = new TreeSet<>();
         for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.value.hashCode() > 0) {
-                positiveHashCodeStrings.add(cursor.value);
+            if (cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) {
+                filteredSortedStrings.add(cursor.value);
             }
         }
         int i = 0;
         List<String> collectedIteratively = new ArrayList<>();
-        for (String s : positiveHashCodeStrings) {
+        for (String s : filteredSortedStrings) {
             if (i++ >= limit) {
                 break;
             }

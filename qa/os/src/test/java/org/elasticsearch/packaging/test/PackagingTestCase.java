@@ -596,7 +596,7 @@ public abstract class PackagingTestCase extends Assert {
         Optional<String> autoConfigDirName = getAutoConfigDirName(es);
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
         final List<String> configLines;
-        if (installation.distribution.isDocker() == false) {
+        if (installation.distribution.isArchive()) {
             assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
                 .forEach(
@@ -606,7 +606,7 @@ public abstract class PackagingTestCase extends Assert {
                     )
                 );
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        } else {
+        } else if (installation.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
                 .forEach(
@@ -620,8 +620,19 @@ public abstract class PackagingTestCase extends Assert {
             configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir);
+        } else {
+            assert installation.distribution.isPackage();
+            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+                .forEach(
+                    file -> assertThat(
+                        es.config(autoConfigDirName.get()).resolve(file),
+                        FileMatcher.file(File, "root", "elasticsearch", p660)
+                    )
+                );
+            assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, Matchers.containsString("autoconfig.password_hash"));
+            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         }
-        assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, Matchers.containsString("autoconfig.password_hash"));
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));

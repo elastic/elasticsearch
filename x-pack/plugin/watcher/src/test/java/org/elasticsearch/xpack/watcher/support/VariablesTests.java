@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -47,8 +46,7 @@ public class VariablesTests extends ESTestCase {
         assertThat(model, notNullValue());
         assertThat(model.size(), is(1));
 
-        JodaCompatibleZonedDateTime jodaJavaExecutionTime =
-            new JodaCompatibleZonedDateTime(executionTime.toInstant(), ZoneOffset.UTC);
+        ZonedDateTime jodaJavaExecutionTime = ZonedDateTime.ofInstant(executionTime.toInstant(), ZoneOffset.UTC);
         assertThat(ObjectPath.eval("ctx", model), instanceOf(Map.class));
         assertThat(ObjectPath.eval("ctx.id", model), is(wid.value()));
         // NOTE: we use toString() here because two ZonedDateTime are *not* equal, we need to check with isEqual

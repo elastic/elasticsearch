@@ -30,7 +30,6 @@ import java.util.function.LongSupplier;
 public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
-    private final Index index;
     private final Step startStep;
     private final PolicyStepsRegistry policyStepsRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
@@ -40,8 +39,8 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry,
                                   IndexLifecycleRunner lifecycleRunner, LongSupplier nowSupplier) {
+        super(index, startStep.getKey());
         this.policy = policy;
-        this.index = index;
         this.startStep = startStep;
         this.policyStepsRegistry = policyStepsRegistry;
         this.nowSupplier = nowSupplier;
@@ -50,10 +49,6 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     String getPolicy() {
         return policy;
-    }
-
-    Index getIndex() {
-        return index;
     }
 
     Step getStartStep() {

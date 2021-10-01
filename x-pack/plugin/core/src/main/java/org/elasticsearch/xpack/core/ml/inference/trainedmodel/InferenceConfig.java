@@ -24,5 +24,7 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
         return false;
     }
 
+    String getResultsField();
+
     boolean isAllocateOnly();
 }

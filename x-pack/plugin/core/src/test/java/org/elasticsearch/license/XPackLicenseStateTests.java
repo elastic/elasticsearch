@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.license.License.OperationMode.BASIC;
 import static org.elasticsearch.license.License.OperationMode.ENTERPRISE;
 import static org.elasticsearch.license.License.OperationMode.GOLD;
-import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.PLATINUM;
 import static org.elasticsearch.license.License.OperationMode.STANDARD;
 import static org.elasticsearch.license.License.OperationMode.TRIAL;
@@ -201,171 +200,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMessages(XPackField.MONITORING, from, BASIC, 2);
     }
 
-    public void testMonitoringUpdateRetention() {
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.MONITORING_UPDATE_RETENTION), true);
-        assertAllowed(GOLD, true, s -> s.checkFeature(Feature.MONITORING_UPDATE_RETENTION), true);
-        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.MONITORING_UPDATE_RETENTION), true);
-        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.MONITORING_UPDATE_RETENTION), true);
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.MONITORING_UPDATE_RETENTION), false);
-        assertAllowed(MISSING, false, s -> s.checkFeature(Feature.MONITORING_UPDATE_RETENTION), false);
-    }
-
-    public void testWatcherPlatinumGoldTrialStandard() throws Exception {
-        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.WATCHER), true);
-        assertAllowed(GOLD, true, s -> s.checkFeature(Feature.WATCHER), true);
-        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.WATCHER), true);
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.WATCHER), true);
-    }
-
-    public void testWatcherBasicLicense() throws Exception {
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.WATCHER), false);
-    }
-
-    public void testWatcherInactive() {
-        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.WATCHER), false);
-    }
-
-    public void testWatcherInactivePlatinumGoldTrial() throws Exception {
-        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.WATCHER), false);
-        assertAllowed(GOLD, false, s -> s.checkFeature(Feature.WATCHER), false);
-        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.WATCHER), false);
-        assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.WATCHER), false);
-    }
-
-    public void testEncryptedSnapshotsWithInactiveLicense() {
-        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(GOLD, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(ENTERPRISE, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-    }
-
-    public void testEncryptedSnapshotsWithActiveLicense() {
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
-        assertAllowed(GOLD, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
-        assertAllowed(ENTERPRISE, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
-    }
-
-    public void testGraphPlatinumTrial() throws Exception {
-        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.GRAPH), true);
-        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.GRAPH), true);
-    }
-
-    public void testGraphBasic() throws Exception {
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.GRAPH), false);
-    }
-
-    public void testGraphStandard() throws Exception {
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.GRAPH), false);
-    }
-
-    public void testGraphInactiveBasic() {
-        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.GRAPH), false);
-    }
-
-    public void testGraphInactivePlatinumTrial() throws Exception {
-        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-    }
-
-    public void testMachineLearningPlatinumTrial() throws Exception {
-        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.MACHINE_LEARNING), true);
-        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.MACHINE_LEARNING), true);
-    }
-
-    public void testMachineLearningBasic() throws Exception {
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-    }
-
-    public void testMachineLearningStandard() throws Exception {
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-    }
-
-    public void testMachineLearningInactiveBasic() {
-        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-    }
-
-    public void testMachineLearningInactivePlatinumTrial() throws Exception {
-        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.MACHINE_LEARNING), false);
-    }
-
-    public void testLogstashPlatinumGoldTrialStandard() throws Exception {
-        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.LOGSTASH), true);
-        assertAllowed(GOLD, true, s -> s.checkFeature(Feature.LOGSTASH), true);
-        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.LOGSTASH), true);
-        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.LOGSTASH), true);
-    }
-
-    public void testLogstashBasicLicense() throws Exception {
-        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.LOGSTASH), false);
-    }
-
-    public void testLogstashInactive() {
-        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.LOGSTASH), false);
-        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.LOGSTASH), false);
-        assertAllowed(GOLD, false, s -> s.checkFeature(Feature.LOGSTASH), false);
-        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.LOGSTASH), false);
-        assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.LOGSTASH), false);
-    }
-
-    public void testJdbcDefaults() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
-    }
-
-    public void testJdbcBasic() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, true, null);
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
-    public void testJdbcStandard() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(STANDARD, true, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
-    public void testJdbcStandardExpired() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(STANDARD, false, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
-    public void testJdbcGold() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(GOLD, true, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
-    public void testJdbcGoldExpired() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(GOLD, false, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
-    public void testJdbcPlatinum() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(PLATINUM, true, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
-    }
-
-    public void testJdbcPlatinumExpired() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(PLATINUM, false, null);
-
-        assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
-    }
-
     public void testSqlAckAnyToTrialOrPlatinum() {
         assertAckMessages(XPackField.SQL, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
@@ -374,73 +208,62 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMessages(XPackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
-    public void testCcrDefaults() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        assertTrue(state.checkFeature(XPackLicenseState.Feature.CCR));
-    }
-
-    public void testCcrBasic() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(BASIC, true, null);
-
-        assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
-    }
-
-    public void testCcrBasicExpired() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(BASIC, false, null);
-
-        assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
-    }
-
-    public void testCcrStandard() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(STANDARD, true, null);
-
-        assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
-    }
-
-    public void testCcrStandardExpired() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(STANDARD, false, null);
-
-        assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
-    }
-
-    public void testCcrGold() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(GOLD, true, null);
-
-        assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
-    }
-
-    public void testCcrGoldExpired() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(GOLD, false, null);
-
-        assertThat(state.checkFeature(XPackLicenseState.Feature.CCR), is(false));
-    }
-
-    public void testCcrPlatinum() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(PLATINUM, true, null);
-
-        assertTrue(state.checkFeature(XPackLicenseState.Feature.CCR));
-    }
-
-    public void testCcrPlatinumExpired() {
-        final XPackLicenseState state = TestUtils.newTestLicenseState();
-        state.update(PLATINUM, false, null);
-
-        assertFalse(state.checkFeature(XPackLicenseState.Feature.CCR));
-    }
-
     public void testCcrAckAnyToTrialOrPlatinum() {
         assertAckMessages(XPackField.CCR, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testCcrAckTrialOrPlatinumToNotTrialOrPlatinum() {
         assertAckMessages(XPackField.CCR, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
+    }
+
+    public void testExpiredLicense() {
+        // use standard feature which would normally be allowed at all license levels
+        LicensedFeature feature = LicensedFeature.momentary("family", "enterpriseFeature", STANDARD);
+        assertAllowed(STANDARD, false, s -> s.isAllowed(feature), false);
+        assertAllowed(GOLD, false, s -> s.isAllowed(feature), false);
+        assertAllowed(PLATINUM, false, s -> s.isAllowed(feature), false);
+        assertAllowed(ENTERPRISE, false, s -> s.isAllowed(feature), false);
+        assertAllowed(TRIAL, false, s -> s.isAllowed(feature), false);
+    }
+
+    public void testStandardFeature() {
+        LicensedFeature feature = LicensedFeature.momentary("family", "standardFeature", STANDARD);
+        assertAllowed(BASIC, true, s -> s.isAllowed(feature), false);
+        assertAllowed(STANDARD, true, s -> s.isAllowed(feature), true);
+        assertAllowed(GOLD, true, s -> s.isAllowed(feature), true);
+        assertAllowed(PLATINUM, true, s -> s.isAllowed(feature), true);
+        assertAllowed(ENTERPRISE, true, s -> s.isAllowed(feature), true);
+        assertAllowed(TRIAL, true, s -> s.isAllowed(feature), true);
+    }
+
+    public void testGoldFeature() {
+        LicensedFeature feature = LicensedFeature.momentary("family", "goldFeature", GOLD);
+        assertAllowed(BASIC, true, s -> s.isAllowed(feature), false);
+        assertAllowed(STANDARD, true, s -> s.isAllowed(feature), false);
+        assertAllowed(GOLD, true, s -> s.isAllowed(feature), true);
+        assertAllowed(PLATINUM, true, s -> s.isAllowed(feature), true);
+        assertAllowed(ENTERPRISE, true, s -> s.isAllowed(feature), true);
+        assertAllowed(TRIAL, true, s -> s.isAllowed(feature), true);
+    }
+
+    public void testPlatinumFeature() {
+        LicensedFeature feature = LicensedFeature.momentary("family", "platinumFeature", PLATINUM);
+        assertAllowed(BASIC, true, s -> s.isAllowed(feature), false);
+        assertAllowed(STANDARD, true, s -> s.isAllowed(feature), false);
+        assertAllowed(GOLD, true, s -> s.isAllowed(feature), false);
+        assertAllowed(PLATINUM, true, s -> s.isAllowed(feature), true);
+        assertAllowed(ENTERPRISE, true, s -> s.isAllowed(feature), true);
+        assertAllowed(TRIAL, true, s -> s.isAllowed(feature), true);
+    }
+
+    public void testEnterpriseFeature() {
+        LicensedFeature feature = LicensedFeature.momentary("family", "enterpriseFeature", ENTERPRISE);
+        assertAllowed(BASIC, true, s -> s.isAllowed(feature), false);
+        assertAllowed(STANDARD, true, s -> s.isAllowed(feature), false);
+        assertAllowed(GOLD, true, s -> s.isAllowed(feature), false);
+        assertAllowed(PLATINUM, true, s -> s.isAllowed(feature), false);
+        assertAllowed(ENTERPRISE, true, s -> s.isAllowed(feature), true);
+        assertAllowed(TRIAL, true, s -> s.isAllowed(feature), true);
     }
 
     public void testLastUsedMomentaryFeature() {

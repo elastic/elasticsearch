@@ -89,7 +89,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         HashSet<Object> ignoredSourceValues = new HashSet<Object>(sourceValues);
                         ignoredSourceValues.removeAll(docValues);
                         if (ignoredSourceValues.isEmpty() == false) {
-                            hit.setIgnoredFieldValues(ignoredFieldName, new DocumentField(ignoredFieldName, List.of(ignoredSourceValues)));
+                            hit.setIgnoredFieldValues(ignoredFieldName, new DocumentField(ignoredFieldName, List.copyOf(ignoredSourceValues)));
                         }
                     }
                 }

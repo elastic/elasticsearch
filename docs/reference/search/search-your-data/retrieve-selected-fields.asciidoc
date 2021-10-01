@@ -443,6 +443,7 @@ returned in the `fields` section.
         "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 1.0,
+        "_ignored" : [ "my-small"],
         "fields" : {
           "my-large": [
             "ok content"

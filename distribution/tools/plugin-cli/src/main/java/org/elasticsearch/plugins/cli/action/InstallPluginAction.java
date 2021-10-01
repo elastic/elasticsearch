@@ -26,7 +26,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.set.Sets;
@@ -36,7 +38,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.InstallPluginProblem;
 import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -122,6 +123,16 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
+    // exit codes for install
+    /**
+     * A plugin with the same name is already installed.
+     */
+    static final int PLUGIN_EXISTS = 1;
+    /**
+     * The plugin zip is not properly structured.
+     */
+    static final int PLUGIN_MALFORMED = 2;
+
     /**
      * The builtin modules, which are plugins, but cannot be installed or removed.
      */
@@ -188,16 +199,16 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         this.proxy = proxy;
     }
 
-    @Override
-    public void execute(List<PluginDescriptor> plugins) throws InstallPluginException {
-        if (plugins == null || plugins.isEmpty()) {
-            throw new IllegalArgumentException("at least one plugin id is required");
+    // pkg private for testing
+    public void execute(List<PluginDescriptor> plugins) throws Exception {
+        if (plugins.isEmpty()) {
+            throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
 
         final Set<String> uniquePluginIds = new HashSet<>();
         for (final PluginDescriptor plugin : plugins) {
             if (uniquePluginIds.add(plugin.getId()) == false) {
-                throw new InstallPluginException(InstallPluginProblem.DUPLICATE_PLUGIN_ID, "duplicate plugin id [" + plugin.getId() + "]");
+                throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + plugin.getId() + "]");
             }
         }
 
@@ -243,16 +254,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                         terminal.println(logPrefix + "Rolled back " + deleteOnFailureEntry.getKey());
                     }
                 }
-
-                if (installProblem instanceof InstallPluginException) {
-                    throw (InstallPluginException) installProblem;
-                }
-
-                throw new InstallPluginException(
-                    InstallPluginProblem.INSTALLATION_FAILED,
-                    "Installation failed: " + installProblem.getMessage(),
-                    installProblem
-                );
+                throw installProblem;
             }
         }
         if (terminal.isHeadless() == false) {
@@ -264,20 +266,17 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         return Build.CURRENT.flavor();
     }
 
-    private static void handleInstallXPack(final Build.Flavor flavor) throws InstallPluginException {
+    private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
         switch (flavor) {
             case DEFAULT:
-                throw new InstallPluginException(
-                    InstallPluginProblem.NO_XPACK,
-                    "this distribution of Elasticsearch contains X-Pack by default"
-                );
+                throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
             case OSS:
-                throw new InstallPluginException(
-                    InstallPluginProblem.NO_XPACK,
+                throw new UserException(
+                    ExitCodes.CONFIG,
                     "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
                 );
             case UNKNOWN:
-                throw new InstallPluginException(InstallPluginProblem.INSTALLATION_FAILED, "your distribution is broken");
+                throw new IllegalStateException("your distribution is broken");
         }
     }
 
@@ -324,23 +323,20 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             if (pluginSuggestions.isEmpty() == false) {
                 msg += ", did you mean " + (pluginSuggestions.size() > 1 ? "any of " : "") + pluginSuggestions + "?";
             }
-            throw new InstallPluginException(InstallPluginProblem.UNKNOWN_PLUGIN, msg);
+            throw new UserException(ExitCodes.USAGE, msg);
         }
         terminal.println(logPrefix + "Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
         return downloadZip(pluginLocation, tmpDir);
     }
 
     @SuppressForbidden(reason = "Need to use PathUtils#get")
-    private Path getPluginArchivePath(String pluginId, String pluginArchiveDir) throws InstallPluginException {
+    private Path getPluginArchivePath(String pluginId, String pluginArchiveDir) throws UserException {
         final Path path = PathUtils.get(pluginArchiveDir);
         if (Files.exists(path) == false) {
-            throw new InstallPluginException(InstallPluginProblem.INSTALLATION_FAILED, "Location in ES_PLUGIN_ARCHIVE_DIR does not exist");
+            throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR does not exist");
         }
         if (Files.isDirectory(path) == false) {
-            throw new InstallPluginException(
-                InstallPluginProblem.INSTALLATION_FAILED,
-                "Location in ES_PLUGIN_ARCHIVE_DIR is not a directory"
-            );
+            throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR is not a directory");
         }
         return PathUtils.get(pluginArchiveDir, pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
     }
@@ -363,11 +359,11 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         final boolean isSnapshot,
         final String pluginId,
         final String platform
-    ) throws IOException, InstallPluginException {
+    ) throws IOException, UserException {
         final String baseUrl;
         if (isSnapshot && stagingHash == null) {
-            throw new InstallPluginException(
-                InstallPluginProblem.RELEASE_SNAPSHOT_MISMATCH,
+            throw new UserException(
+                ExitCodes.CONFIG,
                 "attempted to install release build of official plugin on snapshot build of Elasticsearch"
             );
         }
@@ -541,10 +537,11 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
      * @param officialPlugin true if the plugin is an official plugin
      * @return the path to the downloaded plugin ZIP
      * @throws IOException   if an I/O exception occurs download or reading files and resources
-     * @throws InstallPluginException if checksum validation fails
+     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
+     * @throws UserException if checksum validation fails
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        InstallPluginException {
+        PGPException, UserException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -561,7 +558,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             digestAlgo = "SHA-1";
         }
         if (checksumUrl == null) {
-            throw new InstallPluginException(InstallPluginProblem.MISSING_CHECKSUM, "Plugin checksum missing: " + checksumUrlString);
+            throw new UserException(ExitCodes.IO_ERROR, "Plugin checksum missing: " + checksumUrlString);
         }
         final String expectedChecksum;
         try (InputStream in = urlOpenStream(checksumUrl)) {
@@ -578,7 +575,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 final String checksumLine = checksumReader.readLine();
                 final String[] fields = checksumLine.split(" {2}");
                 if (officialPlugin && fields.length != 2 || officialPlugin == false && fields.length > 2) {
-                    throw new InstallPluginException(InstallPluginProblem.INVALID_CHECKSUM, "Invalid checksum file at " + checksumUrl);
+                    throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
                 }
                 expectedChecksum = fields[0];
                 if (fields.length == 2) {
@@ -593,12 +590,12 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                             expectedFile,
                             fields[1]
                         );
-                        throw new InstallPluginException(InstallPluginProblem.INVALID_CHECKSUM, message);
+                        throw new UserException(ExitCodes.IO_ERROR, message);
                     }
                 }
             }
             if (checksumReader.readLine() != null) {
-                throw new InstallPluginException(InstallPluginProblem.INVALID_CHECKSUM, "Invalid checksum file at " + checksumUrl);
+                throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
             }
         }
 
@@ -614,8 +611,8 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 }
                 final String actualChecksum = MessageDigests.toHexString(digest.digest());
                 if (expectedChecksum.equals(actualChecksum) == false) {
-                    throw new InstallPluginException(
-                        InstallPluginProblem.INVALID_CHECKSUM,
+                    throw new UserException(
+                        ExitCodes.IO_ERROR,
                         digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum
                     );
                 }
@@ -638,18 +635,12 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloaded plugin ZIP
-     * @throws InstallPluginException  if an I/O exception occurs, or if the PGP implementation throws an internal exception during
-     * verification
+     * @throws IOException  if an I/O exception occurs reading from various input streams
+     * @throws PGPException if the PGP implementation throws an internal exception during verification
      */
-    void verifySignature(final Path zip, final String urlString) throws InstallPluginException {
+    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
-        final URL ascUrl;
-        try {
-            ascUrl = openUrl(ascUrlString);
-        } catch (IOException e) {
-            throw new InstallPluginException(InstallPluginProblem.INSTALLATION_FAILED, "Failed to construct asc URL: " + e.getMessage(), e);
-        }
-
+        final URL ascUrl = openUrl(ascUrlString);
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
@@ -664,10 +655,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             // validate the signature has key ID matching our public key ID
             final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
             if (getPublicKeyId().equals(keyId) == false) {
-                throw new InstallPluginException(
-                    InstallPluginProblem.INVALID_SIGNATURE,
-                    "key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]"
-                );
+                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
             }
 
             // compute the signature of the downloaded plugin zip
@@ -682,13 +670,8 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
 
             // finally we verify the signature of the downloaded plugin zip matches the expected signature
             if (signature.verify() == false) {
-                throw new InstallPluginException(
-                    InstallPluginProblem.INVALID_SIGNATURE,
-                    "signature verification for [" + urlString + "] failed"
-                );
+                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
-        } catch (IOException | PGPException e) {
-            throw new InstallPluginException(InstallPluginProblem.INSTALLATION_FAILED, e.getMessage(), e);
         }
     }
 
@@ -738,7 +721,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         return checksumUrl;
     }
 
-    private Path unzip(Path zip, Path pluginsDir) throws IOException, InstallPluginException {
+    private Path unzip(Path zip, Path pluginsDir) throws IOException, UserException {
         // unzip plugin to a staging temp dir
 
         final Path target = stagingDirectory(pluginsDir);
@@ -749,8 +732,8 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
                 if (entry.getName().startsWith("elasticsearch/")) {
-                    throw new InstallPluginException(
-                        InstallPluginProblem.PLUGIN_MALFORMED,
+                    throw new UserException(
+                        PLUGIN_MALFORMED,
                         "This plugin was built with an older plugin structure."
                             + " Contact the plugin author to remove the intermediate \"elasticsearch\" directory within the plugin zip."
                     );
@@ -763,8 +746,8 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 // normalizing the path (which removes foo/..) and ensuring the normalized entry
                 // is still rooted with the target plugin directory.
                 if (targetFile.normalize().startsWith(target) == false) {
-                    throw new InstallPluginException(
-                        InstallPluginProblem.PLUGIN_MALFORMED,
+                    throw new UserException(
+                        PLUGIN_MALFORMED,
                         "Zip contains entry name '" + entry.getName() + "' resolving outside of plugin directory"
                     );
                 }
@@ -784,7 +767,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 }
                 zipInput.closeEntry();
             }
-        } catch (InstallPluginException e) {
+        } catch (UserException e) {
             IOUtils.rm(target);
             throw e;
         }
@@ -805,14 +788,11 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName) throws InstallPluginException {
+    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
         // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
-            throw new InstallPluginException(
-                InstallPluginProblem.PLUGIN_IS_MODULE,
-                "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module"
-            );
+            throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
         }
 
         final Path destination = pluginPath.resolve(pluginName);
@@ -823,7 +803,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
                 destination,
                 pluginName
             );
-            throw new InstallPluginException(InstallPluginProblem.PLUGIN_EXISTS, message);
+            throw new UserException(PLUGIN_EXISTS, message);
         }
     }
 
@@ -833,7 +813,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
     private PluginInfo loadPluginInfo(Path pluginRoot) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         if (info.hasNativeController()) {
-            throw new InstallPluginException(InstallPluginProblem.PLUGIN_MALFORMED, "plugins can not have native controllers");
+            throw new IllegalStateException("plugins can not have native controllers");
         }
         PluginsService.verifyCompatibility(info);
 
@@ -903,8 +883,8 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         // exception is if we install a plugin via `InstallPluginCommand` by specifying a URL or
         // Maven coordinates, because then we can't know in advance what the plugin ID ought to be.
         if (descriptor.getId().contains(":") == false && descriptor.getId().equals(info.getName()) == false) {
-            throw new InstallPluginException(
-                InstallPluginProblem.PLUGIN_MALFORMED,
+            throw new UserException(
+                PLUGIN_MALFORMED,
                 "Expected downloaded plugin to have ID [" + descriptor.getId() + "] but found [" + info.getName() + "]"
             );
         }
@@ -974,10 +954,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
      */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
-            throw new InstallPluginException(
-                InstallPluginProblem.PLUGIN_MALFORMED,
-                "bin in plugin " + info.getName() + " is not a directory"
-            );
+            throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectories(destBinDir);
         setFileAttributes(destBinDir, BIN_DIR_PERMS);
@@ -985,8 +962,8 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new InstallPluginException(
-                        InstallPluginProblem.PLUGIN_MALFORMED,
+                    throw new UserException(
+                        PLUGIN_MALFORMED,
                         "Directories not allowed in bin dir " + "for plugin " + info.getName() + ", found " + srcFile.getFileName()
                     );
                 }
@@ -1005,10 +982,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
      */
     private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
-            throw new InstallPluginException(
-                InstallPluginProblem.PLUGIN_MALFORMED,
-                "config in plugin " + info.getName() + " is not a directory"
-            );
+            throw new UserException(PLUGIN_MALFORMED, "config in plugin " + info.getName() + " is not a directory");
         }
 
         Files.createDirectories(destConfigDir);
@@ -1027,10 +1001,7 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new InstallPluginException(
-                        InstallPluginProblem.PLUGIN_MALFORMED,
-                        "Directories not allowed in config dir for plugin " + info.getName()
-                    );
+                    throw new UserException(PLUGIN_MALFORMED, "Directories not allowed in config dir for plugin " + info.getName());
                 }
 
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
@@ -1089,9 +1060,6 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
             "installation of Elasticsearch is: [" + flavor + "]."
         ).forEach(terminal::errorPrintln);
 
-        throw new InstallPluginException(
-            InstallPluginProblem.INCOMPATIBLE_LICENSE,
-            "Plugin license is incompatible with [" + flavor + "] installation"
-        );
+        throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }
 }

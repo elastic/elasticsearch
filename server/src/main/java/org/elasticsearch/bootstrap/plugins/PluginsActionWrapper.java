@@ -11,11 +11,9 @@ package org.elasticsearch.bootstrap.plugins;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.RemovePluginProblem;
 import org.elasticsearch.plugins.RemovePluginProvider;
 
 import java.io.IOException;
@@ -61,21 +59,26 @@ public class PluginsActionWrapper {
             return;
         }
 
-        final Tuple<RemovePluginProblem, String> problem = this.pluginRemover.checkRemovePlugins(plugins);
-        if (problem != null) {
-            logger.error("Cannot proceed with plugin removal: {}", problem.v2());
-            throw new PluginSyncException(problem.v2());
+        try {
+            this.pluginRemover.setPurge(true);
+            this.pluginRemover.execute(plugins);
+        } catch (Exception e) {
+            logger.error("Failed to remove plugins: {}", e.getMessage());
+            throw e;
         }
-
-        this.pluginRemover.setPurge(true);
-        this.pluginRemover.removePlugins(plugins);
     }
 
     public void installPlugins(List<PluginDescriptor> plugins) throws Exception {
         if (plugins.isEmpty()) {
             return;
         }
-        this.pluginInstaller.execute(plugins);
+
+        try {
+            this.pluginInstaller.execute(plugins);
+        } catch (Exception e) {
+            logger.error("Failed to install plugins: {}", e.getMessage());
+            throw e;
+        }
     }
 
     public void upgradePlugins(List<PluginDescriptor> plugins) throws Exception {
@@ -83,14 +86,20 @@ public class PluginsActionWrapper {
             return;
         }
 
-        final Tuple<RemovePluginProblem, String> problem = this.pluginRemover.checkRemovePlugins(plugins);
-        if (problem != null) {
-            logger.error("Cannot proceed with plugin removal: {}", problem.v2());
-            throw new PluginSyncException(problem.v2());
+        try {
+            this.pluginRemover.setPurge(false);
+            this.pluginRemover.execute(plugins);
+        } catch (Exception e) {
+            logger.error("Failed to remove plugins as part of upgrade: {}", e.getMessage());
+            throw e;
         }
 
-        this.pluginRemover.setPurge(false);
-        this.pluginInstaller.execute(plugins);
+        try {
+            this.pluginInstaller.execute(plugins);
+        } catch (Exception e) {
+            logger.error("Failed to install plugins as part of upgrade: {}", e.getMessage());
+            throw e;
+        }
     }
 
     private ClassLoader buildClassLoader(Environment env) {

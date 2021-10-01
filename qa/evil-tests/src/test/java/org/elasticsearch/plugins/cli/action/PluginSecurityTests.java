@@ -11,6 +11,7 @@ package org.elasticsearch.plugins.cli.action;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.cli.action.PluginSecurity;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

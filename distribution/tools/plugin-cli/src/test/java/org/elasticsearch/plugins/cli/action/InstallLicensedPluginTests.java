@@ -6,20 +6,21 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.cli;
+package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginType;
-import org.elasticsearch.plugins.cli.action.InstallPluginAction;
-import org.elasticsearch.plugins.cli.action.InstallPluginException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InstallLicensedPluginTests extends ESTestCase {
 
@@ -38,11 +39,12 @@ public class InstallLicensedPluginTests extends ESTestCase {
     public void testInstallPluginActionOnOss() throws Exception {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
-        expectThrows(
-            InstallPluginException.class,
+        final UserException userException = expectThrows(
+            UserException.class,
             () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.OSS, pluginInfo)
         );
 
+        assertThat(userException.exitCode, equalTo(ExitCodes.NOPERM));
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));
     }
 
@@ -53,7 +55,7 @@ public class InstallLicensedPluginTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         PluginInfo pluginInfo = buildInfo(true);
         expectThrows(
-            InstallPluginException.class,
+            UserException.class,
             () -> InstallPluginAction.checkCanInstallationProceed(terminal, Build.Flavor.UNKNOWN, pluginInfo)
         );
         assertThat(terminal.getErrorOutput(), containsString("ERROR: This is a licensed plugin"));

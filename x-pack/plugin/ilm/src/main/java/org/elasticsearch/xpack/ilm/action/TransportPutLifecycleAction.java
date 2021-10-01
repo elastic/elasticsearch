@@ -79,41 +79,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
-        LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
-        List<SearchableSnapshotAction> searchableSnapshotActions = request.getPolicy().getPhases().values().stream()
-            .map(phase -> (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        // check license level for searchable snapshots
-        if (searchableSnapshotActions.isEmpty() == false && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
-            throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
-                SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
-        }
-        // make sure any referenced snapshot repositories exist
-        for (SearchableSnapshotAction action : searchableSnapshotActions) {
-            String repository = action.getSnapshotRepository();
-            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
-                throw new IllegalArgumentException("no such repository [" + repository + "]");
-            }
-        }
 
-        List<WaitForSnapshotAction> waitForSnapshotActions = request.getPolicy().getPhases().values().stream()
-            .map(phase -> (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        // make sure any referenced snapshot lifecycle policies exist
-        for (WaitForSnapshotAction action : waitForSnapshotActions) {
-            String policy = action.getPolicy();
-            if (state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
-                .getSnapshotConfigurations().get(policy) == null) {
-                throw new IllegalArgumentException("no such snapshot lifecycle policy [" + policy + "]");
-            }
-        }
+        LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
 
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
             new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
+                    validatePrerequisites(request.getPolicy(), currentState);
+
                     ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
                     IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
                     if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
@@ -150,6 +124,46 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                     }
                 }
             });
+    }
+
+    /**
+     * Validate that the license level is compliant for searchable-snapshots, that any referenced snapshot
+     * repositories exist, and that any referenced SLM policies exist.
+     *
+     * @param policy The lifecycle policy
+     * @param state The cluster state
+     */
+    private void validatePrerequisites(LifecyclePolicy policy, ClusterState state) {
+        List<SearchableSnapshotAction> searchableSnapshotActions = policy.getPhases().values().stream()
+            .map(phase -> (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        // check license level for searchable snapshots
+        if (searchableSnapshotActions.isEmpty() == false && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+            throw new IllegalArgumentException("policy [" + policy.getName() + "] defines the [" +
+                SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
+        }
+        // make sure any referenced snapshot repositories exist
+        for (SearchableSnapshotAction action : searchableSnapshotActions) {
+            String repository = action.getSnapshotRepository();
+            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .repository(repository) == null) {
+                throw new IllegalArgumentException("no such repository [" + repository + "]");
+            }
+        }
+
+        List<WaitForSnapshotAction> waitForSnapshotActions = policy.getPhases().values().stream()
+            .map(phase -> (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        // make sure any referenced snapshot lifecycle policies exist
+        for (WaitForSnapshotAction action : waitForSnapshotActions) {
+            String slmPolicy = action.getPolicy();
+            if (state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
+                .getSnapshotConfigurations().get(slmPolicy) == null) {
+                throw new IllegalArgumentException("no such snapshot lifecycle policy [" + slmPolicy + "]");
+            }
+        }
     }
 
     @Override

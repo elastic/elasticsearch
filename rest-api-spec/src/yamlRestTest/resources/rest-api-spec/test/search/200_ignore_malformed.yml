@@ -97,7 +97,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        body: { query: { ids: { "values": [ "3" ] } } }
+        body: { query: { ids: { "values": [ "3" ] } },"_source":false, "fields":["my*"]}
 
   - length:   { hits.hits: 1  }
   - length:   { hits.hits.0._ignored: 2}

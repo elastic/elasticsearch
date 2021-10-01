@@ -71,7 +71,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             final Tuple<String, Boolean> tuple = assertCreateApiKeyWithDlsFls();
             apiKeyCredentials2 = tuple.v1();
             keyRoleHasDlsFls = tuple.v2();
-            assertSearchWithApiKey(apiKeyCredentials2, "index*", true);
+            assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -80,10 +80,11 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
             // Any indices with DLS/FLS cannot be searched with the API key when the license is on Basic
-            assertSearchWithApiKey(apiKeyCredentials2, "index*", false);
-            assertSearchWithApiKey(apiKeyCredentials2, "index1,index2", false);
-            assertSearchWithApiKey(apiKeyCredentials2, "index41", false == keyRoleHasDlsFls);
-            assertSearchWithApiKey(apiKeyCredentials2, "index42", true);
+            assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", false);
+            assertReadWithApiKey(apiKeyCredentials2, "/index1,index2/_search", false);
+            assertReadWithApiKey(apiKeyCredentials2, "/index41/_search", false == keyRoleHasDlsFls);
+            assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
+            assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
         }
     }
 
@@ -363,12 +364,11 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertOK(adminClient().performRequest(request));
     }
 
-    private void assertSearchWithApiKey(String apiKeyCredentials, String indexPattern, boolean shouldSucceed) throws IOException {
-        final Request request = new Request("GET", "/" + indexPattern + "/_search");
+    private void assertReadWithApiKey(String apiKeyCredentials, String path, boolean shouldSucceed) throws IOException {
+        final Request request = new Request("GET", path);
         final RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "ApiKey " + apiKeyCredentials);
         request.setOptions(options);
-        request.addParameter("allow_no_indices", "true");
 
         if (shouldSucceed) {
             assertOK(client().performRequest(request));
@@ -379,5 +379,4 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getMessage(), containsString("indices_with_dls_or_fls"));
         }
     }
-
 }

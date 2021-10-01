@@ -140,6 +140,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -2525,9 +2526,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     }
                 } else if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
                     TargetType targetType = userDotNode.isNullSafe() ? null : semanticScope.getDecoration(userDotNode, TargetType.class);
-                    // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-                    valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                            semanticScope.getCondition(userDotNode, Explicit.class) ? def.class : targetType.getTargetType();
+                    valueType = targetType == null || semanticScope.getCondition(userDotNode, Explicit.class) ?
+                            def.class : targetType.getTargetType();
 
                     if (write) {
                         semanticScope.setCondition(userDotNode, DefOptimized.class);
@@ -2888,9 +2888,38 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "[" + semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
+        boolean indy = false;
+        PainlessMethod method = null;
+
+        if (prefixValueType != null) {
+            if (prefixValueType.getValueType() == def.class) {
+                indy = true;
+            } else {
+                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
+                        prefixValueType.getValueType(), false, methodName, userArgumentsSize);
+
+                if (method == null) {
+                    throw userCallNode.createError(new IllegalArgumentException("member method " +
+                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
+                            "not found"));
+                }
+            }
+        } else if (prefixStaticType != null) {
+            method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
+                    prefixStaticType.getStaticType(), true, methodName, userArgumentsSize);
+
+            if (method == null) {
+                throw userCallNode.createError(new IllegalArgumentException("static method " +
+                        "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
+                        "not found"));
+            }
+        } else {
+            throw userCallNode.createError(new IllegalStateException("value required: instead found no value"));
+        }
+
         Class<?> valueType;
 
-        if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
+        if (indy) {
             for (AExpression userArgumentNode : userArgumentNodes) {
                 semanticScope.setCondition(userArgumentNode, Read.class);
                 semanticScope.setCondition(userArgumentNode, Internal.class);
@@ -2904,34 +2933,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             }
 
             TargetType targetType = userCallNode.isNullSafe() ? null : semanticScope.getDecoration(userCallNode, TargetType.class);
-            // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
-                    semanticScope.getCondition(userCallNode, Explicit.class) ? def.class : targetType.getTargetType();
+            valueType = targetType == null || semanticScope.getCondition(userCallNode, Explicit.class) ?
+                    def.class : targetType.getTargetType();
         } else {
-            PainlessMethod method;
-
-            if (prefixValueType != null) {
-                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixValueType.getValueType(), false, methodName, userArgumentsSize);
-
-                if (method == null) {
-                    throw userCallNode.createError(new IllegalArgumentException("member method " +
-                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
-                            "not found"));
-                }
-            } else if (prefixStaticType != null) {
-                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixStaticType.getStaticType(), true, methodName, userArgumentsSize);
-
-                if (method == null) {
-                    throw userCallNode.createError(new IllegalArgumentException("static method " +
-                            "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
-                            "not found"));
-                }
-            } else {
-                throw userCallNode.createError(new IllegalStateException("value required: instead found no value"));
-            }
-
+            Objects.requireNonNull(method);
             semanticScope.getScriptScope().markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
             for (int argument = 0; argument < userArgumentsSize; ++argument) {

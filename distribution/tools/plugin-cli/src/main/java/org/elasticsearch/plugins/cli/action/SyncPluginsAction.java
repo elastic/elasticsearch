@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -172,6 +173,7 @@ public class SyncPluginsAction implements SyncPluginsProvider {
                 this.terminal.println(
                     Terminal.Verbosity.VERBOSE,
                     String.format(
+                        Locale.ROOT,
                         "Location for plugin [%s] has changed from [%s] to [%s], reinstalling",
                         eachPluginId,
                         cachedPluginIdToLocation.get(eachPluginId),
@@ -188,18 +190,17 @@ public class SyncPluginsAction implements SyncPluginsProvider {
                 final PluginInfo info = existingPlugins.stream()
                     .filter(each -> each.getName().equals(eachPluginId))
                     .findFirst()
-                    .orElseThrow(
-                        () -> {
-                            // It should be literally impossible for us not to find a matching existing plugin. We derive
-                            // the list of existing plugin IDs from the list of installed plugins.
-                            throw new RuntimeException("Couldn't find a PluginInfo for [" + eachPluginId + "], which should be impossible");
-                        }
-                    );
+                    .orElseThrow(() -> {
+                        // It should be literally impossible for us not to find a matching existing plugin. We derive
+                        // the list of existing plugin IDs from the list of installed plugins.
+                        throw new RuntimeException("Couldn't find a PluginInfo for [" + eachPluginId + "], which should be impossible");
+                    });
 
                 if (info.getElasticsearchVersion().before(Version.CURRENT)) {
                     this.terminal.println(
                         Terminal.Verbosity.VERBOSE,
                         String.format(
+                            Locale.ROOT,
                             "Official plugin [%s] is out-of-date (%s versus %s), upgrading",
                             eachPluginId,
                             info.getElasticsearchVersion(),
@@ -235,6 +236,7 @@ public class SyncPluginsAction implements SyncPluginsProvider {
                         && info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
                         this.terminal.errorPrintln(
                             String.format(
+                                Locale.ROOT,
                                 "WARNING: plugin [%s] was built for Elasticsearch version %s but version %s is required",
                                 info.getName(),
                                 info.getElasticsearchVersion(),
@@ -272,7 +274,7 @@ public class SyncPluginsAction implements SyncPluginsProvider {
         final BiConsumer<String, List<PluginDescriptor>> printSummary = (action, plugins) -> {
             if (plugins.isEmpty() == false) {
                 List<String> pluginIds = plugins.stream().map(PluginDescriptor::getId).collect(Collectors.toList());
-                this.terminal.errorPrintln(String.format("Plugins to be %s: %s", action, pluginIds));
+                this.terminal.errorPrintln(String.format(Locale.ROOT, "Plugins to be %s: %s", action, pluginIds));
             }
         };
 

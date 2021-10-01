@@ -78,7 +78,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'index', 'indices', 'nodes', 'search', 'snapshot'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
   }
 }
 

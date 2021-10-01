@@ -347,7 +347,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     private MapperService getMapperService(IndexMetadata im) {
         try {
-            return createMapperService("{\"_doc\": " + im.mapping().source().toString() + "}");
+            String mapping = im.mapping().source().toString();
+            return createMapperService(mapping);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

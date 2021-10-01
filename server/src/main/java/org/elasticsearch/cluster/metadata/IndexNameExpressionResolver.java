@@ -50,6 +50,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.Spliterators;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -472,9 +473,7 @@ public class IndexNameExpressionResolver {
      *         If the data stream, index or alias contains date math then that is resolved too.
      */
     public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate());
-        String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction, context);
+        String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction);
         return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }
 
@@ -482,13 +481,7 @@ public class IndexNameExpressionResolver {
      * @return If the specified string is data math expression then this method returns the resolved expression.
      */
     public String resolveDateMathExpression(String dateExpression) {
-        // The data math expression resolver doesn't rely on cluster state or indices options, because
-        // it just resolves the date math to an actual date.
-        if (false == DateMathExpressionResolver.isDateMathExpression(dateExpression)) {
-            return dateExpression;
-        }
-        return DateMathExpressionResolver.resolveExpression(dateExpression,
-            new Context(null, null, getSystemIndexAccessLevel(), getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate()));
+        return DateMathExpressionResolver.resolveExpression(dateExpression);
     }
 
     /**
@@ -496,8 +489,7 @@ public class IndexNameExpressionResolver {
      * @return If the specified string is data math expression then this method returns the resolved expression.
      */
     public String resolveDateMathExpression(String dateExpression, long time) {
-        return DateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, time, getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate()));
+        return DateMathExpressionResolver.resolveExpression(dateExpression, () -> time);
     }
 
     /**
@@ -1237,7 +1229,7 @@ public class IndexNameExpressionResolver {
         public List<String> resolve(final Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
             for (String expression : expressions) {
-                result.add(resolveExpression(expression, context));
+                result.add(resolveExpression(expression, context::getStartTime));
             }
             return result;
         }
@@ -1246,8 +1238,12 @@ public class IndexNameExpressionResolver {
             return expression.startsWith(EXPRESSION_LEFT_BOUND) && expression.endsWith(EXPRESSION_RIGHT_BOUND);
         }
 
+        static String resolveExpression(String expression) {
+            return resolveExpression(expression, System::currentTimeMillis);
+        }
+
         @SuppressWarnings("fallthrough")
-        static String resolveExpression(String expression, final Context context) {
+        static String resolveExpression(String expression, LongSupplier getTime) {
             if (false == DateMathExpressionResolver.isDateMathExpression(expression)) {
                 return expression;
             }
@@ -1332,7 +1328,7 @@ public class IndexNameExpressionResolver {
 
                                 DateFormatter formatter = dateFormatter.withZone(timeZone);
                                 DateMathParser dateMathParser = formatter.toDateMathParser();
-                                Instant instant = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
+                                Instant instant = dateMathParser.parse(mathExpression, getTime, false, timeZone);
 
                                 String time = formatter.format(instant);
                                 beforePlaceHolderSb.append(time);

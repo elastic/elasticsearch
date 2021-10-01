@@ -12,9 +12,12 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+
 dependencies {
   testImplementation project(":client:rest-high-level")
 }
+
+testClusters.register('remote-cluster')
 
 tasks.register('remote-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")

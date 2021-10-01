@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ccr.repository;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -39,12 +40,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
@@ -185,8 +186,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             .get(ccrSettings.getRecoveryActionTimeout());
         Metadata metadata = response.getState().metadata();
         ImmutableOpenMap<String, IndexMetadata> indicesMap = metadata.indices();
-        ArrayList<String> indices = new ArrayList<>(indicesMap.size());
-        indicesMap.keysIt().forEachRemaining(indices::add);
+        List<String> indices = new ArrayList<>(indicesMap.keySet());
 
         // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(

@@ -1,11 +1,11 @@
 add time series mappings:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 7.15.99"
+      reason: introduced in 7.16.0
 
   - do:
       indices.create:
-          index: test_index
+          index: tsdb_index
           body:
             settings:
               index:

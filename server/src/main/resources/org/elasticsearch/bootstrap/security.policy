@@ -22,8 +22,6 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
 grant codeBase "${codebase.elasticsearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
-  // needed for SPI class loading
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
   // needed by HotThreads to enable wait/block time accounting on demand
   permission java.lang.management.ManagementPermission "control";
 };

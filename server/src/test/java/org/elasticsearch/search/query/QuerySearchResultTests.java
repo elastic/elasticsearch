@@ -70,12 +70,10 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
-        assertTrue(querySearchResult.hasReferences());
         boolean delayed = randomBoolean();
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
             delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
             Version.CURRENT);
-        assertTrue(deserialized.hasReferences());
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);

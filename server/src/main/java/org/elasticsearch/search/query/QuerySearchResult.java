@@ -32,10 +32,6 @@ import java.io.IOException;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-/**
- * Notice that the ref counting on this only concerns the aggregations and that other parts of this object is sometimes used in non
- * ref-count safe situations
- */
 public final class QuerySearchResult extends SearchPhaseResult {
     private int from;
     private int size;

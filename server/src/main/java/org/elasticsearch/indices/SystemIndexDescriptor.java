@@ -40,7 +40,12 @@ import java.util.stream.Collectors;
  * creating the system index, upgrading its mappings, and creating an alias.
  */
 public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
-    /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
+    /**
+     * A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices.
+     * Note that this pattern must not overlap with any other {@link SystemIndexDescriptor}s and must allow an alphanumeric suffix
+     * (see {@link SystemIndices#UPGRADED_INDEX_SUFFIX} for the specific suffix that's checked) to ensure that there's a name within the
+     * pattern we can use to create a new index when upgrading.
+     * */
     private final String indexPattern;
 
     /**
@@ -107,7 +112,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *                     overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *                     {@link SystemIndexDescriptor#indexPattern} for details).
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
@@ -118,7 +125,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *                            overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *                            {@link SystemIndexDescriptor#indexPattern} for details).
      * @param description The name of the plugin responsible for this system index.
      * @param type The {@link Type} of system index
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
@@ -133,7 +142,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * Creates a descriptor for system indices matching the supplied pattern. These indices will be managed
      * by Elasticsearch internally if mappings or settings are provided.
      *
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *                            overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *                            {@link SystemIndexDescriptor#indexPattern} for details).
      * @param primaryIndex The primary index name of this descriptor. Used when creating the system index for the first time.
      * @param description The name of the plugin responsible for this system index.
      * @param mappings The mappings to apply to this index when auto-creating, if appropriate
@@ -314,7 +325,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
 
     /**
-     * @return The pattern of index names that this descriptor will be used for.
+     * @return The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *         overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *         {@link SystemIndexDescriptor#indexPattern} for details).
      */
     @Override
     public String getIndexPattern() {
@@ -683,7 +696,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     private static String patternToRegex(String input) {
         String output = input;
-        output = output.replaceAll("\\.", "\\.");
+        output = output.replaceAll("\\.", "\\\\.");
         output = output.replaceAll("\\*", ".*");
         return output;
     }

@@ -12,12 +12,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -63,23 +68,98 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-
-        final IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
-        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
+        // generate a snapshot repository with the expected name
+        RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder()
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                .build()).build();
+
+        ClusterState newClusterState;
+
+        // the snapshot index name, snapshot repository, and snapshot name are generated as expected
+        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        assertThat(executionState.getSnapshotIndexName(), is(indexName));
         assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
             notNullValue());
         assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
         assertThat(executionState.getSnapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
         assertThat(executionState.getSnapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
+
+        // re-running this step results in no change to the important outputs
+        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newClusterState);
+        LifecycleExecutionState repeatedState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        assertThat(repeatedState.getSnapshotIndexName(), is(executionState.getSnapshotIndexName()));
+        assertThat(repeatedState.getSnapshotRepository(), is(executionState.getSnapshotRepository()));
+        assertThat(repeatedState.getSnapshotName(), is(executionState.getSnapshotName()));
+    }
+
+    public void testPerformActionRejectsNonexistentRepository() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder()
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .build()).build();
+
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState));
+        assertThat(illegalStateException.getMessage(), is("repository [" + generateSnapshotNameStep.getSnapshotRepository() + "] " +
+            "is missing. [test-ilm-policy] policy for index [" + indexName + "] cannot continue until the repository " +
+            "is created or the policy is changed"));
+    }
+
+    public void testPerformActionWillOverwriteCachedRepository() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+
+        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder();
+        newCustomData.setSnapshotName("snapshot-name-is-not-touched");
+        newCustomData.setSnapshotRepository("snapshot-repository-will-be-reset");
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())
+            .build();
+
+        GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+
+        // generate a snapshot repository with the expected name
+        RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder()
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                .build()).build();
+
+        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
+
+        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        assertThat(executionState.getSnapshotName(), is("snapshot-name-is-not-touched"));
+        assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
     }
 
     public void testNameGeneration() {

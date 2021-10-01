@@ -475,7 +475,6 @@ public class IndexNameExpressionResolver {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate());
         String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction, context);
-
         return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }
 

@@ -53,7 +53,6 @@ import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.in;
 
 public class ServerUtils {
 

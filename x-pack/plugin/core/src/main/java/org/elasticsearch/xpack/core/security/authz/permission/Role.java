@@ -38,7 +38,6 @@ import java.util.function.Predicate;
 public class Role {
 
     public static final Role EMPTY = Role.builder(Automatons.EMPTY, "__empty").build();
-    public static final Predicate<IndexAbstraction> MATCH_ALL_INDICES_MATCHER = indexAbstraction -> true;
 
     private final String[] names;
     private final ClusterPermission cluster;
@@ -94,11 +93,7 @@ public class Role {
      * has the privilege for executing the given action on.
      */
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        if (indices.isTotal()) {
-            return MATCH_ALL_INDICES_MATCHER;
-        } else {
-            return indices.allowedIndicesMatcher(action);
-        }
+        return indices.allowedIndicesMatcher(action);
     }
 
     public Automaton allowedActionsMatcher(String index) {

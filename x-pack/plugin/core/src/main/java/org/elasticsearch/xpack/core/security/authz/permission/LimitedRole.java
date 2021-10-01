@@ -98,13 +98,9 @@ public final class LimitedRole extends Role {
      */
     @Override
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
-        if (super.indices().isTotal() && limitedBy.indices().isTotal()) {
-            return MATCH_ALL_INDICES_MATCHER;
-        } else {
-            Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
-            predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
-            return predicate;
-        }
+        Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
+        predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
+        return predicate;
     }
 
     @Override

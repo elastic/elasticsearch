@@ -109,7 +109,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
         final ClusterState clusterState = clusterService.state();
         final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, shard.getIndexName(), indicesAndAliases);
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, shard.getIndexName(), indicesAndAliases, true);
         return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }
 

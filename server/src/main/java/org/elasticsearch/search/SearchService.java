@@ -1208,8 +1208,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
-        return indicesService.buildAliasFilter(state, index, resolvedExpressions);
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions, boolean onlyFiltering) {
+        return indicesService.buildAliasFilter(state, index, resolvedExpressions, onlyFiltering);
     }
 
     public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {

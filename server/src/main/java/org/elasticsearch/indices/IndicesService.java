@@ -1519,7 +1519,7 @@ public class IndicesService extends AbstractLifecycleComponent
         (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions, boolean onlyFiltering) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
@@ -1529,7 +1529,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 return parseInnerQueryBuilder(parser);
             }
         };
-        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
+        String[] aliases = onlyFiltering ? indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions)
+            : indexNameExpressionResolver.indexAliases(state, index, aliasMetadata -> true,
+                dataStreamAlias -> true, true, resolvedExpressions);
         if (aliases == null) {
             return AliasFilter.EMPTY;
         }
@@ -1540,6 +1542,9 @@ public class IndicesService extends AbstractLifecycleComponent
             List<QueryBuilder> filters = Arrays.stream(aliases)
                 .map(name -> metadata.dataStreamAliases().get(name))
                 .map(dataStreamAlias -> {
+                    if (dataStreamAlias.getFilter() == null) {
+                        return null;
+                    }
                     try {
                         return filterParser.apply(dataStreamAlias.getFilter().uncompressed());
                     } catch (IOException e) {
@@ -1555,6 +1560,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 } else {
                     BoolQueryBuilder bool = new BoolQueryBuilder();
                     for (QueryBuilder filter : filters) {
+                        if (filter == null) {
+                            // one of the matching alias is a match_all so we ignore the other filters
+                            return new AliasFilter(null, aliases);
+                        }
                         bool.should(filter);
                     }
                     return new AliasFilter(bool, aliases);

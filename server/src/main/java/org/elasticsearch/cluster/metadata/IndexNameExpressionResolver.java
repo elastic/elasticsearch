@@ -1234,17 +1234,13 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
-        static boolean isDateMathExpression(String expression) {
-            return expression.startsWith(EXPRESSION_LEFT_BOUND) && expression.endsWith(EXPRESSION_RIGHT_BOUND);
-        }
-
         static String resolveExpression(String expression) {
             return resolveExpression(expression, System::currentTimeMillis);
         }
 
         @SuppressWarnings("fallthrough")
         static String resolveExpression(String expression, LongSupplier getTime) {
-            if (false == DateMathExpressionResolver.isDateMathExpression(expression)) {
+            if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;
             }
 

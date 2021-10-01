@@ -57,4 +57,11 @@ public class ListTests extends ESTestCase {
         assertTrue(copy.containsAll(coll));
         expectThrows(UnsupportedOperationException.class, () -> copy.add("foo"));
     }
+
+    public void doesNotCopyEffectivelyImmutableList() {
+        final Collection<String> coll = Arrays.asList("foo", "bar", "baz");
+        final java.util.List<String> copy = List.copyOf(coll);
+        final java.util.List<String> copyOfCopy = List.copyOf(copy);
+        assertSame(copy, equalTo(copyOfCopy));
+    }
 }

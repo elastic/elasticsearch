@@ -51,7 +51,8 @@ public class NerConfigTests extends InferenceConfigItemTestCase<NerConfig> {
         return new NerConfig(
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ? null : BertTokenizationTests.createRandom(),
-            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10))
+            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomAlphaOfLength(5)
         );
     }
 }

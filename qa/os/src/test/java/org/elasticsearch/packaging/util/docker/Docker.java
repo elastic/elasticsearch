@@ -458,7 +458,7 @@ public class Docker {
 
     public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
         throws Exception {
-        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password, null));
     }
 
     /**

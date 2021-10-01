@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -97,7 +98,9 @@ public class CertGenCliTests extends PackagingTestCase {
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
 
         // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
-        final List<String> tlsConfig = List.of(
+        // (we do disable autoconiguration above but for packaged installations TLS autoconfig happens on installation time and is
+        // not affected by this setting
+        final List<String> newTlsConfig = List.of(
             "node.name: mynode",
             "xpack.security.transport.ssl.key: " + keyPath,
             "xpack.security.transport.ssl.certificate: " + certPath,
@@ -108,8 +111,15 @@ public class CertGenCliTests extends PackagingTestCase {
             "xpack.security.transport.ssl.enabled: true",
             "xpack.security.http.ssl.enabled: true"
         );
+        List<String> existingConfig = Files.readAllLines(installation.config("elasticsearch.yml"));
+        List<String> newConfig = existingConfig.stream()
+            .filter(l -> l.startsWith("node.name:") == false)
+            .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
+            .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
+            .collect(Collectors.toList());
+        newConfig.addAll(newTlsConfig);
 
-        Files.write(installation.config("elasticsearch.yml"), tlsConfig, TRUNCATE_EXISTING);
+        Files.write(installation.config("elasticsearch.yml"), newConfig, TRUNCATE_EXISTING);
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();

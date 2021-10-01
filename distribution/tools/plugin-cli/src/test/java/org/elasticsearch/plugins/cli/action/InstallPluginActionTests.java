@@ -47,7 +47,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.cli.MockInstallPluginCommand;

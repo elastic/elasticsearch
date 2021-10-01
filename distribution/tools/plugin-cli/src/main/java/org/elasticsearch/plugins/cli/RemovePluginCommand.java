@@ -16,7 +16,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.cli.action.PluginDescriptor;
 import org.elasticsearch.plugins.cli.action.RemovePluginAction;
 
 import java.nio.file.Files;

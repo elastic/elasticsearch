@@ -11,7 +11,6 @@ package org.elasticsearch.plugins.cli.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.SyncPluginsProvider;
 

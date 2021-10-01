@@ -16,7 +16,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.cli.MockRemovePluginCommand;
 import org.elasticsearch.test.ESTestCase;

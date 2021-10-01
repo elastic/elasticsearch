@@ -13,6 +13,7 @@ archivesBaseName = 'x-pack'
 dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':test:framework')
 }
 
 // let the yamlRestTests see the classpath of test
@@ -89,7 +90,32 @@ tasks.named("yamlRestTest").configure {
   dependsOn "copyExtraResources"
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
+  task.skipTest("vectors/10_dense_vector_basic/Deprecated function signature", "to support it, it would require to almost revert back the #48725 and complicate the code" )
+  task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
+  task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")
+  task.skipTest("vectors/30_sparse_vector_basic/Dot Product", "not supported for compatibility")
+  task.skipTest("vectors/35_sparse_vector_l1l2/L1 norm", "not supported for compatibility")
+  task.skipTest("vectors/35_sparse_vector_l1l2/L2 norm", "not supported for compatibility")
+  task.skipTest("vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently", "not supported for compatibility")
+  task.skipTest("vectors/40_sparse_vector_special_cases/Documents missing a vector field", "not supported for compatibility")
+  task.skipTest("vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents' vectors", "not supported for compatibility")
+  task.skipTest("vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions", "not supported for compatibility")
+  task.skipTest("vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types", "not supported for compatibility")
+  task.skipTest("vectors/50_vector_stats/Usage stats on vector fields", "not supported for compatibility")
+  task.skipTest("roles/30_prohibited_role_query/Test use prohibited query inside role query", "put role request with a term lookup (deprecated) and type. Requires validation in REST layer")
+  task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
+  task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
+  task.skipTest("ml/datafeeds_crud/Test update datafeed to point to different job", "behaviour change #44752 - not allowing to update datafeed job_id")
+  task.skipTest("ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed", "behaviour change #44752 - not allowing to update datafeed job_id")
+  task.skipTest("rollup/delete_job/Test basic delete_job", "rollup was an experimental feature, also see #41227")
+  task.skipTest("rollup/delete_job/Test delete job twice", "rollup was an experimental feature, also see #41227")
+  task.skipTest("rollup/delete_job/Test delete running job", "rollup was an experimental feature, also see #41227")
+  task.skipTest("rollup/get_jobs/Test basic get_jobs", "rollup was an experimental feature, also see #41227")
+  task.skipTest("rollup/put_job/Test basic put_job", "rollup was an experimental feature, also see #41227")
+  task.skipTest("rollup/start_job/Test start job twice", "rollup was an experimental feature, also see #41227")
+  task.skipTest("ml/trained_model_cat_apis/Test cat trained models", "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)")
+
   task.replaceKeyInDo("license.delete", "xpack-license.delete")
   task.replaceKeyInDo("license.get", "xpack-license.get")
   task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
@@ -163,52 +189,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-})
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-      // UNMUTE after #78184 is backported to 7.x
-      'indices.freeze/10_basic/Basic',
-      'indices.freeze/10_basic/Test index options',
-      // to support it, it would require to almost revert back the #48725 and complicate the code
-      'vectors/10_dense_vector_basic/Deprecated function signature',
-      // not going to be supported
-      'vectors/30_sparse_vector_basic/Cosine Similarity',
-      'vectors/30_sparse_vector_basic/Deprecated function signature',
-      'vectors/30_sparse_vector_basic/Dot Product',
-      'vectors/35_sparse_vector_l1l2/L1 norm',
-      'vectors/35_sparse_vector_l1l2/L2 norm',
-      'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
-      'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
-      'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
-      'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
-      'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
-      // the test uses sparse vector - not supported
-      'vectors/50_vector_stats/Usage stats on vector fields',
-
-      // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
-      'roles/30_prohibited_role_query/Test use prohibited query inside role query',
-      //removing undocumented functionality
-      'ml/jobs_crud/Test create job with delimited format',
-      // behaviour change #44752 - not allowing to update datafeed job_id
-      'ml/datafeeds_crud/Test update datafeed to point to missing job',
-      'ml/datafeeds_crud/Test update datafeed to point to different job',
-      'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
-      //rollup was an experimental feature
-      //https://github.com/elastic/elasticsearch/pull/41227.
-      'rollup/delete_job/Test basic delete_job',
-      'rollup/delete_job/Test delete job twice',
-      'rollup/delete_job/Test delete running job',
-      'rollup/get_jobs/Test basic get_jobs',
-      'rollup/put_job/Test basic put_job',
-      //https://github.com/elastic/elasticsearch/pull/41502
-      'rollup/start_job/Test start job twice',
-
-      // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
-      // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
-      'ml/trained_model_cat_apis/Test cat trained models'
-  ].join(',')
-  dependsOn "copyExtraResources"
 }
+
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML

@@ -42,7 +42,7 @@ public class FrozenUtilsTests extends AutoscalingTestCase {
     public static Settings indexSettings(String tierPreference) {
         Settings.Builder settings = Settings.builder()
             .put(randomAlphaOfLength(10), randomLong())
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tierPreference)
+            .put(DataTierAllocationDecider.TIER_PREFERENCE, tierPreference)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         // pass setting validator.
         if (Objects.equals(tierPreference, DataTier.DATA_FROZEN)) {

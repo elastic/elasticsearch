@@ -90,7 +90,7 @@ public class ServerUtils {
             // make the http port available until the system is really ready to serve requests
             waitForXpack();
         } else {
-            waitForElasticsearch("green", null, installation, null, null);
+            waitForElasticsearch("green", null, installation, null, null, null);
         }
     }
 
@@ -161,9 +161,41 @@ public class ServerUtils {
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
+    public static Path getCaCert(Path configPath) throws IOException {
+        boolean enrollmentEnabled = false;
+        boolean httpSslEnabled = false;
+        Path caCert = configPath.resolve("certs/ca/ca.crt");
+        Path configFilePath = configPath.resolve("elasticsearch.yml");
+        if (Files.exists(configFilePath)) {
+            // In docker we might not even have a file, and if we do it's not in the host's FS
+            String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
+            enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
+            httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
+        }
+        if (enrollmentEnabled && httpSslEnabled) {
+            assert Files.exists(caCert) == false;
+            Path autoConfigTlsDir = Files.list(configPath)
+                .filter(p -> p.getFileName().toString().startsWith("tls_auto_config_initial_node_"))
+                .findFirst()
+                .get();
+            caCert = autoConfigTlsDir.resolve("http_ca.crt");
+            logger.info("Node has TLS auto-configured [" + caCert + "]");
+            assert Files.exists(caCert);
+        } else if (Files.exists(caCert) == false) {
+            logger.info("No TLS certificate configured");
+            caCert = null; // no cert, so don't use ssl
+        }
+        return caCert;
+    }
 
+    public static void waitForElasticsearch(
+        String status,
+        String index,
+        Installation installation,
+        String username,
+        String password,
+        Path caCert
+    ) throws Exception {
         Objects.requireNonNull(status);
 
         // we loop here rather than letting httpclient handle retries so we can measure the entire waiting time
@@ -172,10 +204,8 @@ public class ServerUtils {
         long timeElapsed = 0;
         boolean started = false;
         Throwable thrownException = null;
-
-        Path caCert = installation.config("certs/ca/ca.crt");
-        if (Files.exists(caCert) == false) {
-            caCert = null; // no cert, so don't use ssl
+        if (caCert == null) {
+            caCert = getCaCert(installation.config);
         }
 
         while (started == false && timeElapsed < waitTime) {
@@ -183,7 +213,7 @@ public class ServerUtils {
                 try {
 
                     final HttpResponse response = execute(
-                        Request.Get("http://localhost:9200/_cluster/health")
+                        Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/_cluster/health")
                             .connectTimeout((int) timeoutLength)
                             .socketTimeout((int) timeoutLength),
                         username,
@@ -223,9 +253,18 @@ public class ServerUtils {
 
         final String url;
         if (index == null) {
-            url = "http://localhost:9200/_cluster/health?wait_for_status=" + status + "&timeout=60s&pretty";
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health?wait_for_status="
+                + status
+                + "&timeout=60s"
+                + "&pretty";
         } else {
-            url = "http://localhost:9200/_cluster/health/" + index + "?wait_for_status=" + status + "&timeout=60s&pretty";
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health/"
+                + index
+                + "?wait_for_status="
+                + status
+                + "&timeout=60s&pretty";
         }
 
         final String body = makeRequest(Request.Get(url), username, password, caCert);

@@ -126,7 +126,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
                         "warning",
                         SetStepInfoUpdateTask.class.getCanonicalName(),
                         Level.WARN,
-                        "*policy [" + policy + "] for index [" + index.getName() + "] failed trying to set step info for step ["
+                        "*policy [" + policy + "] for index [" + index + "] failed trying to set step info for step ["
                                 + currentStepKey + "]."));
 
         final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);

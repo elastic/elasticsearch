@@ -15,7 +15,7 @@
     concurrent: true
     logrotate:
       daysToKeep: 30
-      numToKeep: 90
+      numToKeep: 500
       artifactDaysToKeep: 7
     parameters:
       - string:

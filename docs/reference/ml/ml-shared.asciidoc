@@ -323,7 +323,7 @@ end::custom-preprocessor[]
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
-results should be skipped. {kib} refers to custom rules as _job rules_. For more 
+results should be skipped. {kib} refers to custom rules as _job rules_. For more
 examples, see
 {ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 end::custom-rules[]
@@ -526,21 +526,21 @@ end::detector-index[]
 tag::dfas-alpha[]
 Advanced configuration option. {ml-cap} uses loss guided tree growing, which
 means that the decision trees grow where the regularized loss decreases most
-quickly. This parameter affects loss calculations by acting as a multiplier of 
-the tree depth. Higher alpha values result in shallower trees and faster 
-training times. By default, this value is calculated during hyperparameter 
-optimization. It must be greater than or equal to zero. 
+quickly. This parameter affects loss calculations by acting as a multiplier of
+the tree depth. Higher alpha values result in shallower trees and faster
+training times. By default, this value is calculated during hyperparameter
+optimization. It must be greater than or equal to zero.
 end::dfas-alpha[]
 
 tag::dfas-downsample-factor[]
-Advanced configuration option. Controls the fraction of data that is used to 
-compute the derivatives of the loss function for tree training. A small value 
-results in the use of a small fraction of the data. If this value is set to be 
-less than 1, accuracy typically improves. However, too small a value may result 
+Advanced configuration option. Controls the fraction of data that is used to
+compute the derivatives of the loss function for tree training. A small value
+results in the use of a small fraction of the data. If this value is set to be
+less than 1, accuracy typically improves. However, too small a value may result
 in poor convergence for the ensemble and so require more trees. For more
 information about shrinkage, refer to
 {wikipedia}/Gradient_boosting#Stochastic_gradient_boosting[this wiki article].
-By default, this value is calculated during hyperparameter optimization. It 
+By default, this value is calculated during hyperparameter optimization. It
 must be greater than zero and less than or equal to 1.
 end::dfas-downsample-factor[]
 
@@ -553,9 +553,9 @@ By default, early stoppping is enabled.
 end::dfas-early-stopping-enabled[]
 
 tag::dfas-eta-growth[]
-Advanced configuration option. Specifies the rate at which `eta` increases for 
-each new tree that is added to the forest. For example, a rate of 1.05 
-increases `eta` by 5% for each extra tree. By default, this value is calculated 
+Advanced configuration option. Specifies the rate at which `eta` increases for
+each new tree that is added to the forest. For example, a rate of 1.05
+increases `eta` by 5% for each extra tree. By default, this value is calculated
 during hyperparameter optimization. It must be between 0.5 and 2.
 end::dfas-eta-growth[]
 
@@ -565,16 +565,16 @@ candidate split.
 end::dfas-feature-bag-fraction[]
 
 tag::dfas-feature-processors[]
-Advanced configuration option. A collection of feature preprocessors that modify 
-one or more included fields. The analysis uses the resulting one or more 
-features instead of the original document field. However, these features are 
-ephemeral; they are not stored in the destination index. Multiple 
-`feature_processors` entries can refer to the same document fields. Automatic 
-categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs 
+Advanced configuration option. A collection of feature preprocessors that modify
+one or more included fields. The analysis uses the resulting one or more
+features instead of the original document field. However, these features are
+ephemeral; they are not stored in the destination index. Multiple
+`feature_processors` entries can refer to the same document fields. Automatic
+categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs
 for the fields that are unprocessed by a custom processor or that have
-categorical values. Use this property only if you want to override the automatic 
-feature encoding of the specified fields. Refer to 
-{ml-docs}/ml-feature-processors.html[{dfanalytics} feature processors] to learn 
+categorical values. Use this property only if you want to override the automatic
+feature encoding of the specified fields. Refer to
+{ml-docs}/ml-feature-processors.html[{dfanalytics} feature processors] to learn
 more.
 end::dfas-feature-processors[]
 
@@ -591,13 +591,13 @@ The configuration information necessary to perform frequency encoding.
 end::dfas-feature-processors-frequency[]
 
 tag::dfas-feature-processors-frequency-map[]
-The resulting frequency map for the field value. If the field value is missing 
+The resulting frequency map for the field value. If the field value is missing
 from the `frequency_map`, the resulting value is `0`.
 end::dfas-feature-processors-frequency-map[]
 
 tag::dfas-feature-processors-multi[]
-The configuration information necessary to perform multi encoding. It allows 
-multiple processors to be changed together. This way the output of a processor 
+The configuration information necessary to perform multi encoding. It allows
+multiple processors to be changed together. This way the output of a processor
 can then be passed to another as an input.
 end::dfas-feature-processors-multi[]
 
@@ -606,10 +606,10 @@ The ordered array of custom processors to execute. Must be more than 1.
 end::dfas-feature-processors-multi-proc[]
 
 tag::dfas-feature-processors-ngram[]
-The configuration information necessary to perform n-gram encoding. Features 
-created by this encoder have the following name format: 
-`<feature_prefix>.<ngram><string position>`. For example, if the 
-`feature_prefix` is `f`, the feature name for the second unigram in a string is 
+The configuration information necessary to perform n-gram encoding. Features
+created by this encoder have the following name format:
+`<feature_prefix>.<ngram><string position>`. For example, if the
+`feature_prefix` is `f`, the feature name for the second unigram in a string is
 `f.11`.
 end::dfas-feature-processors-ngram[]
 
@@ -622,17 +622,17 @@ The name of the text field to encode.
 end::dfas-feature-processors-ngram-field[]
 
 tag::dfas-feature-processors-ngram-length[]
-Specifies the length of the n-gram substring. Defaults to `50`. Must be greater 
+Specifies the length of the n-gram substring. Defaults to `50`. Must be greater
 than `0`.
 end::dfas-feature-processors-ngram-length[]
 
 tag::dfas-feature-processors-ngram-ngrams[]
-Specifies which n-grams to gather. It’s an array of integer values where the 
+Specifies which n-grams to gather. It’s an array of integer values where the
 minimum value is 1, and a maximum value is 5.
 end::dfas-feature-processors-ngram-ngrams[]
 
 tag::dfas-feature-processors-ngram-start[]
-Specifies the zero-indexed start of the n-gram substring. Negative values are 
+Specifies the zero-indexed start of the n-gram substring. Negative values are
 allowed for encoding n-grams of string suffixes. Defaults to `0`.
 end::dfas-feature-processors-ngram-start[]
 
@@ -686,19 +686,19 @@ decision tree when the tree is trained.
 end::dfas-num-splits[]
 
 tag::dfas-soft-limit[]
-Advanced configuration option. {ml-cap} uses loss guided tree growing, which 
-means that the decision trees grow where the regularized loss decreases most 
-quickly. This soft limit combines with the `soft_tree_depth_tolerance` to 
-penalize trees that exceed the specified depth; the regularized loss increases 
-quickly beyond this depth. By default, this value is calculated during 
+Advanced configuration option. {ml-cap} uses loss guided tree growing, which
+means that the decision trees grow where the regularized loss decreases most
+quickly. This soft limit combines with the `soft_tree_depth_tolerance` to
+penalize trees that exceed the specified depth; the regularized loss increases
+quickly beyond this depth. By default, this value is calculated during
 hyperparameter optimization. It must be greater than or equal to 0.
 end::dfas-soft-limit[]
 
 tag::dfas-soft-tolerance[]
-Advanced configuration option. This option controls how quickly the regularized 
-loss increases when the tree depth exceeds `soft_tree_depth_limit`. By default, 
-this value is calculated during hyperparameter optimization. It must be greater 
-than or equal to 0.01. 
+Advanced configuration option. This option controls how quickly the regularized
+loss increases when the tree depth exceeds `soft_tree_depth_limit`. By default,
+this value is calculated during hyperparameter optimization. It must be greater
+than or equal to 0.01.
 end::dfas-soft-tolerance[]
 
 tag::dfas-timestamp[]
@@ -744,7 +744,7 @@ end::empty-bucket-count[]
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
-However, larger forests cause slower training. For more information about 
+However, larger forests cause slower training. For more information about
 shrinkage, refer to
 {wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization. It must
@@ -833,10 +833,10 @@ end::function[]
 
 tag::gamma[]
 Advanced configuration option. Regularization parameter to prevent overfitting
-on the training data set. Multiplies a linear penalty associated with the size 
-of individual trees in the forest. A high gamma value causes training to prefer 
-small trees. A small gamma value results in larger individual trees and slower 
-training. By default, this value is calculated during hyperparameter 
+on the training data set. Multiplies a linear penalty associated with the size
+of individual trees in the forest. A high gamma value causes training to prefer
+small trees. A small gamma value results in larger individual trees and slower
+training. By default, this value is calculated during hyperparameter
 optimization. It must be a nonnegative value.
 end::gamma[]
 
@@ -849,7 +849,7 @@ An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
 +
 --
-NOTE: If any indices are in remote clusters then the {ml} nodes need to have the 
+NOTE: If any indices are in remote clusters then the {ml} nodes need to have the
 `remote_cluster_client` role.
 
 --
@@ -921,7 +921,7 @@ BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
 
 tag::inference-config-nlp-tokenization-bert-do-lower-case[]
-Should the tokenization lower case the text sequence when building 
+Should the tokenization lower case the text sequence when building
 the tokens.
 end::inference-config-nlp-tokenization-bert-do-lower-case[]
 
@@ -930,7 +930,7 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 +
 --
 * `[CLS]`: The first token of the sequence being classified.
-* `[SEP]`: Indicates sequence separation. 
+* `[SEP]`: Indicates sequence separation.
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
@@ -997,6 +997,46 @@ The field that is added to incoming documents to contain the inference
 prediction. Defaults to the `results_field` value of the {dfanalytics-job} that was
 used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field-processor[]
+
+tag::inference-config-zero-shot-classification[]
+Configures a zero-shot classification task. Zero-shot classification allows for
+text classification to occur without pre-determined labels. At inference time,
+it is possible to adjust the labels to classify. This makes this type of model
+and task exceptionally flexible.
+
+If consistently classifying the same labels, it may be better to use a fine turned
+text classification model.
+end::inference-config-zero-shot-classification[]
+
+tag::inference-config-zero-shot-classification-classification-labels[]
+The classification labels used during the zero-shot classification. Classification
+labels must not be empty or null and only set at model creation. They must be all three
+of ["entailment", "neutral", "contradiction"].
+
+NOTE: This is NOT the same as `labels` which are the values that zero-shot is attempting to
+      classify.
+end::inference-config-zero-shot-classification-classification-labels[]
+
+tag::inference-config-zero-shot-classification-hypothesis-template[]
+This is the template used when tokenizing the sequences for classification.
+
+The labels replace the `{}` value in the text. The default value is:
+`This example is {}.`
+end::inference-config-zero-shot-classification-hypothesis-template[]
+
+tag::inference-config-zero-shot-classification-labels[]
+The labels to classify. Can be set at creation for default labels, and
+then updated during inference.
+end::inference-config-zero-shot-classification-labels[]
+
+tag::inference-config-zero-shot-classification-multi-label[]
+Indicates if more than one `true` label is possible given the input.
+
+This is useful when labeling text that could pertain to more than one of the
+input labels.
+
+Defaults to `false`.
+end::inference-config-zero-shot-classification-multi-label[]
 
 tag::inference-metadata-feature-importance-feature-name[]
 The feature for which this importance was calculated.
@@ -1102,11 +1142,11 @@ end::job-id-datafeed[]
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting
 on the training data set. Multiplies an L2 regularization term which applies to
-leaf weights of the individual trees in the forest. A high lambda value causes 
-training to favor small leaf weights. This behavior makes the prediction 
+leaf weights of the individual trees in the forest. A high lambda value causes
+training to favor small leaf weights. This behavior makes the prediction
 function smoother at the expense of potentially not being able to capture
 relevant relationships between the features and the {depvar}. A small lambda
-value results in large individual trees and slower training. By default, this 
+value results in large individual trees and slower training. By default, this
 value is calculated during hyperparameter optimization. It must be a nonnegative
 value.
 end::lambda[]
@@ -1151,13 +1191,13 @@ set.
 end::max-empty-searches[]
 
 tag::max-trees[]
-Advanced configuration option. Defines the maximum number of decision trees in 
-the forest. The maximum value is 2000. By default, this value is calculated 
+Advanced configuration option. Defines the maximum number of decision trees in
+the forest. The maximum value is 2000. By default, this value is calculated
 during hyperparameter optimization.
 end::max-trees[]
 
 tag::max-trees-trained-models[]
-The maximum number of decision trees in the forest. The maximum value is 2000. 
+The maximum number of decision trees in the forest. The maximum value is 2000.
 By default, this value is calculated during hyperparameter optimization.
 end::max-trees-trained-models[]
 
@@ -1222,7 +1262,7 @@ default value for jobs created in version 6.1 and later is `1024mb`. If the
 than `1024mb`, however, that value is used instead. The default value is
 relatively small to ensure that high resource usage is a conscious decision. If
 you have jobs that are expected to analyze high cardinality fields, you will
-likely need to use a higher value. 
+likely need to use a higher value.
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit
@@ -1299,11 +1339,11 @@ Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
 tag::model-prune-window[]
-Advanced configuration option. 
-Affects the pruning of models that have not been updated for the given time 
-duration. The value must be set to a multiple of the `bucket_span`. If set too 
-low, important information may be removed from the model. Typically, set to 
-`30d` or longer. If not set, model pruning only occurs if the model memory 
+Advanced configuration option.
+Affects the pruning of models that have not been updated for the given time
+duration. The value must be set to a multiple of the `bucket_span`. If set too
+low, important information may be removed from the model. Typically, set to
+`30d` or longer. If not set, model pruning only occurs if the model memory
 status reaches the soft limit or the hard limit.
 end::model-prune-window[]
 
@@ -1391,10 +1431,10 @@ end::open-time[]
 
 tag::out-of-order-timestamp-count[]
 The number of input documents that have a timestamp chronologically
-preceding the start of the current anomaly detection bucket offset by 
-the latency window. This information is applicable only when you provide 
-data to the {anomaly-job} by using the <<ml-post-data,post data API>>. 
-These out of order documents are discarded, since jobs require time 
+preceding the start of the current anomaly detection bucket offset by
+the latency window. This information is applicable only when you provide
+data to the {anomaly-job} by using the <<ml-post-data,post data API>>.
+These out of order documents are discarded, since jobs require time
 series data to be in ascending chronological order.
 end::out-of-order-timestamp-count[]
 
@@ -1459,9 +1499,9 @@ number of {es} documents.
 end::processed-record-count[]
 
 tag::randomize-seed[]
-Defines the seed for the random generator that is used to pick training data. By 
-default, it is randomly generated. Set it to a specific value to use the same 
-training data each time you start a job (assuming other related parameters such 
+Defines the seed for the random generator that is used to pick training data. By
+default, it is randomly generated. Set it to a specific value to use the same
+training data each time you start a job (assuming other related parameters such
 as `source` and `analyzed_fields` are the same).
 end::randomize-seed[]
 

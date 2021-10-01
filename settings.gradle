@@ -9,21 +9,9 @@ plugins {
   id "com.gradle.enterprise" version "3.6.4"
 }
 
-def isEclipse = providers.systemProperty("eclipse.launcher").forUseAtConfigurationTime().isPresent() ||   // Detects gradle launched from Eclipse's IDE
-  providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-  gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-  gradle.startParameter.taskNames.contains('cleanEclipse')
-
 includeBuild "build-conventions"
 includeBuild "build-tools"
 includeBuild "build-tools-internal"
-
-// Eclipse will hang on import when examples are included in the composite build so omit them
-if (isEclipse == false) {
-  includeBuild("plugins/examples") {
-    name = "example-plugins"
-  }
-}
 
 rootProject.name = "elasticsearch"
 

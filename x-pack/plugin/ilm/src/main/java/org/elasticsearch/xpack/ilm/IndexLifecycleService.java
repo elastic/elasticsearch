@@ -77,8 +77,8 @@ public class IndexLifecycleService
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
-    private ClusterService clusterService;
-    private LongSupplier nowSupplier;
+    private final ClusterService clusterService;
+    private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,

@@ -209,6 +209,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     );
 
     public static final String SNAPSHOT_BLOB_CACHE_INDEX = ".snapshot-blob-cache";
+    public static final String SNAPSHOT_BLOB_CACHE_INDEX_PATTERN = SNAPSHOT_BLOB_CACHE_INDEX + "*";
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
         new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
@@ -401,7 +402,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             SystemIndexDescriptor.builder()
-                .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX)
+                .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX_PATTERN)
                 .setDescription("Contains cached data of blob store repositories")
                 .setPrimaryIndex(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setMappings(getIndexMappings())
@@ -592,7 +593,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_CACHE_INDEX_PREFERENCE)
+            .put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_TIERS_CACHE_INDEX_PREFERENCE)
             .build();
     }
 

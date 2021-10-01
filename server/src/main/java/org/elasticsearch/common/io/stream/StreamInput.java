@@ -32,7 +32,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
@@ -812,12 +811,12 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
-        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
-        // here we are on a new node so we always want a compat datetime
+    private ZonedDateTime readDateTime() throws IOException {
+        // any JodaCompatibleZonedDateTime is read from an older version
+        // so convert this a standard ZonedDateTime
         final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
         long millis = readLong();
-        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {

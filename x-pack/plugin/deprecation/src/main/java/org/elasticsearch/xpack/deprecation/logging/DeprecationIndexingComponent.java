@@ -62,9 +62,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
 
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
-    private final RateLimitingFilter filter;
+    private final RateLimitingFilter rateLimitingFilterForIndexing;
 
-    public DeprecationIndexingComponent(Client client, Settings settings, ClusterService clusterService) {
+    public DeprecationIndexingComponent(Client client, Settings settings, RateLimitingFilter rateLimitingFilterForIndexing) {
+        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
         final Consumer<IndexRequest> consumer = this.processor::add;
 
@@ -76,14 +78,18 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
             .setConfiguration(configuration)
             .build();
 
-        this.filter = new RateLimitingFilter();
+        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender",
+            rateLimitingFilterForIndexing, ecsLayout, consumer);
+        /*
+         this.filter = new RateLimitingFilter();
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
 
         setUseXOpaqueId(true); // default is true, enable on start.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, this::setUseXOpaqueId);
 
         enableDeprecationLogIndexing(true); // default is true, enable on start.
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_INDEX, this::enableDeprecationLogIndexing);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_IND
+         */
     }
 
     @Override
@@ -112,12 +118,11 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
         if (appender.isEnabled() != newEnabled) {
             // We've flipped from disabled to enabled. Make sure we start with a clean cache of
             // previously-seen keys, otherwise we won't index anything.
-//            if (newEnabled) {
-//                this.filter.reset();
-//            }
+            if (newEnabled) {
+                this.rateLimitingFilterForIndexing.reset();
+            }
             appender.setEnabled(newEnabled);
         }
-        this.filter.reset();
     }
 
     /**

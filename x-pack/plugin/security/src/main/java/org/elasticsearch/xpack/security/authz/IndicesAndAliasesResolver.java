@@ -129,7 +129,8 @@ class IndicesAndAliasesResolver {
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
-            if (isAllIndices(indicesRequest.indices())) {
+//            if (isAllIndices(indicesRequest.indices())) {
+            if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
                         if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata, nameExpressionResolver,
@@ -167,7 +168,13 @@ class IndicesAndAliasesResolver {
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
-                    throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
+                    final String[] indices = indicesRequest.indices();
+                    if (indices != null && indices.length == 1 && Regex.isMatchAllPattern(indices[0])) {
+                        // Special handling to keep error message the same as previously thrown in core's IndexAbstractionResolver
+                        throw new IndexNotFoundException(indices[0]);
+                    } else {
+                        throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
+                    }
                 }
             } else {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());

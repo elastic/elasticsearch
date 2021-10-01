@@ -40,6 +40,15 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetadataStateFormatTests extends ESTestCase {
@@ -342,6 +351,47 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
 
         writeAndReadStateSuccessfully(format, paths);
+    }
+
+    private Path makeMockTempDirPathHelper() {
+        Path realPath = createTempDir();
+        Path result = spy(realPath);
+
+        return result;
+    }
+
+    public void testInconsistentMultiPathState() throws IOException {
+        Path paths[] = new Path[3];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = makeMockTempDirPathHelper();
+        }
+        Format format = new Format("foo-");
+
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        // Call write without clean-up to simulate multi-write transaction.
+        long genId = format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
+
+        for (Path path : paths) {
+            assertEquals(genId, format.findMaxGenerationId("foo-", path));
+        }
+        assertEquals(0, format.findStateFilesByGeneration(-1, paths).size());
+        assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
+
+        Path badPath = paths[paths.length-1];
+        Format mockFormat = spy(format);
+        Directory mockDirectory = spy(mockFormat.newDirectory(badPath));
+
+        doThrow(new IOException("Disk temporarily inaccessible")).when(mockDirectory).rename(anyString(), anyString());
+        doCallRealMethod().doCallRealMethod().doReturn(mockDirectory).when(mockFormat).newDirectory(any());
+
+        expectThrows(WriteStateException.class, () -> mockFormat.write(state, paths));
+        long firstPathId = format.findMaxGenerationId("foo-", paths[0]);
+        assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[1]));
+        assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[2]));
+        assertEquals(genId, firstPathId);
     }
 
     private static class Format extends MetadataStateFormat<DummyState> {

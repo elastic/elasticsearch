@@ -190,10 +190,7 @@ public class ArchiveTests extends PackagingTestCase {
             sh.chown(tempDir, installation.getOwner());
             sh.run("attrib +r " + tempConf + "/*.* /s");
         });
-        Platforms.onLinux(() -> {
-            sh.chown(tempDir);
-            sh.run("chmod -w " + tempConf);
-        });
+        Platforms.onLinux(() -> { sh.run("chmod -w " + tempConf); });
         sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);

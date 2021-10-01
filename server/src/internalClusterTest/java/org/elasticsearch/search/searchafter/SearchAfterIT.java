@@ -9,36 +9,50 @@
 package org.elasticsearch.search.searchafter;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Collections;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -394,5 +408,129 @@ public class SearchAfterIT extends ESIntegTestCase {
             }
         }
         return converted;
+    }
+
+    public void testScrollAndSearchAfterWithBigIndex() {
+        int numDocs = randomIntBetween(5000, 10000);
+        List<Long> timestamps = new ArrayList<>();
+        long currentTime = randomLongBetween(0, 1000);
+        for (int i = 0; i < numDocs; i++) {
+            int copies = randomIntBetween(0, 100) <= 5 ? randomIntBetween(2, 5) : 1;
+            for (int j = 0; j < copies; j++) {
+                timestamps.add(currentTime);
+            }
+            currentTime += randomIntBetween(1, 10);
+        }
+        final Settings.Builder indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5));
+        if (randomBoolean()) {
+            indexSettings.put("sort.field", "timestamp").put("sort.order", randomFrom("desc", "asc"));
+        }
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(indexSettings)
+            .setMapping("{\"properties\":{\"timestamp\":{\"type\": \"date\", \"format\": \"epoch_millis\"}}}"));
+        Randomness.shuffle(timestamps);
+        final BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.setRefreshPolicy(IMMEDIATE);
+        for (long timestamp : timestamps) {
+            bulk.add(new IndexRequest("test").source("timestamp", timestamp));
+        }
+        bulk.get();
+        Collections.sort(timestamps);
+        // scroll with big index
+        {
+            SearchResponse resp = client().prepareSearch("test")
+                .setSize(randomIntBetween(50, 100))
+                .setQuery(new MatchAllQueryBuilder())
+                .addSort(new FieldSortBuilder("timestamp"))
+                .setScroll(TimeValue.timeValueMinutes(5))
+                .get();
+            try {
+                int foundHits = 0;
+                do {
+                    for (SearchHit hit : resp.getHits().getHits()) {
+                        assertNotNull(hit.getSourceAsMap());
+                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        assertNotNull(timestamp);
+                        assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
+                        foundHits++;
+                    }
+                    resp = client().prepareSearchScroll(resp.getScrollId())
+                        .setScroll(TimeValue.timeValueMinutes(5))
+                        .get();
+                } while (resp.getHits().getHits().length > 0);
+                assertThat(foundHits, equalTo(timestamps.size()));
+            } finally {
+                client().prepareClearScroll().addScrollId(resp.getScrollId()).get();
+            }
+        }
+        // search_after with sort with point in time
+        String pitID;
+        {
+            OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
+            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            SearchRequest searchRequest = new SearchRequest("test")
+                .source(new SearchSourceBuilder()
+                    .pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
+                    .sort("timestamp"));
+            searchRequest.source().size(randomIntBetween(50, 100));
+            SearchResponse resp = client().search(searchRequest).actionGet();
+            try {
+                int foundHits = 0;
+                do {
+                    Object[] after = null;
+                    for (SearchHit hit : resp.getHits().getHits()) {
+                        assertNotNull(hit.getSourceAsMap());
+                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        assertNotNull(timestamp);
+                        assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
+                        after = hit.getSortValues();
+                        foundHits++;
+                    }
+                    searchRequest.source().size(randomIntBetween(50, 100));
+                    assertNotNull(after);
+                    assertThat("Sorted by timestamp and pit tier breaker", after, arrayWithSize(2));
+                    searchRequest.source().searchAfter(after);
+                    resp = client().search(searchRequest).actionGet();
+                } while (resp.getHits().getHits().length > 0);
+                assertThat(foundHits, equalTo(timestamps.size()));
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+            }
+        }
+
+        // search_after without sort with point in time
+        {
+            OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
+            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            SearchRequest searchRequest = new SearchRequest("test")
+                .source(new SearchSourceBuilder()
+                    .pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
+                    .sort(SortBuilders.pitTiebreaker()));
+            searchRequest.source().size(randomIntBetween(50, 100));
+            SearchResponse resp = client().search(searchRequest).actionGet();
+            List<Long> foundSeqNos = new ArrayList<>();
+            try {
+                do {
+                    Object[] after = null;
+                    for (SearchHit hit : resp.getHits().getHits()) {
+                        assertNotNull(hit.getSourceAsMap());
+                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        assertNotNull(timestamp);
+                        foundSeqNos.add(((Number) timestamp).longValue());
+                        after = hit.getSortValues();
+                    }
+                    searchRequest.source().size(randomIntBetween(50, 100));
+                    assertNotNull(after);
+                    assertThat("sorted by pit tie breaker", after, arrayWithSize(1));
+                    searchRequest.source().searchAfter(after);
+                    resp = client().search(searchRequest).actionGet();
+                } while (resp.getHits().getHits().length > 0);
+                Collections.sort(foundSeqNos);
+                assertThat(foundSeqNos, equalTo(timestamps));
+            } finally {
+                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+            }
+        }
     }
 }

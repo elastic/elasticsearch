@@ -282,6 +282,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return stats.get(getNonNullFileExt(fileName));
     }
 
+    // only used in tests
+    public void clearStats() {
+        stats.clear();
+    }
+
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
         return files().stream()
             .filter(fileInfo -> fileInfo.physicalName().equals(name))

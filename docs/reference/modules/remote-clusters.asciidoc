@@ -65,20 +65,7 @@ local and remote nodes.
 [%collapsible%open]
 .Version compatibility table
 ====
-// tag::remote-cluster-compatibility-matrix[]
-[cols="^,^,^,^,^,^,^,^"]
-|====
-| 7+^h| Local cluster
-h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
-| 5.0->5.5      | {yes-icon} | {yes-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon} | {no-icon}
-| 5.6           | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
-| 6.0->6.6      | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
-| 6.7           | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
-| 6.8           | {no-icon} | {yes-icon} |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 7.0           | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 7.1->7.x      | {no-icon} | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-|====
-// end::remote-cluster-compatibility-matrix[]
+include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
 * *role*: Dedicated master nodes are never selected as gateway nodes.
@@ -99,6 +86,15 @@ The proxy mode is not the default connection mode and must be configured. Simila
 to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
 <<rolling-upgrades,rolling upgrades>>.
+
+Proxy mode has the same version compatibility requirements as sniff mode.
+
+[%collapsible]
+[[proxy-mode-version-compatibility]]
+.Version compatibility matrix
+====
+include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
+====
 
 include::cluster/remote-clusters-security.asciidoc[]
 include::cluster/remote-clusters-connect.asciidoc[]

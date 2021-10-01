@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 testClusters.configureEach {

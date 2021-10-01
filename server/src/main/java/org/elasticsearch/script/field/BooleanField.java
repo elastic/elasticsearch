@@ -20,7 +20,7 @@ public class BooleanField extends Field<Boolean> {
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, Boolean>(fv) {
             @Override
             public List<Long> getValues() {
-                return values.getValues().stream().map(bool -> bool ? 1L : 0L).collect(Collectors.toList());
+                return values.getValues().stream().map(BooleanField::toLong).collect(Collectors.toList());
             }
 
             @Override
@@ -30,12 +30,12 @@ public class BooleanField extends Field<Boolean> {
 
             @Override
             public long getLongValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return (long)values.getDoubleValue();
             }
         });
     }
@@ -47,7 +47,7 @@ public class BooleanField extends Field<Boolean> {
     }
 
     public static double toDouble(boolean bool) {
-        return bool ? 1.0d : 0.0d;
+        return bool ? 1.0 : 0.0;
     }
 
     /* ---- Boolean Field Members ---- */

@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -152,14 +153,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
         int limit = randomIntBetween(0, map.size());
         List<String> collectedViaStream = map.values()
             .stream()
-            .filter(e -> e.contains("ab") || e.contains("cd") || e.contains("ef"))
+            .filter(Predicate.not(e -> e.contains("ab") || e.contains("cd") || e.contains("ef")))
             .sorted()
             .limit(limit)
             .collect(Collectors.toList());
 
         SortedSet<String> filteredSortedStrings = new TreeSet<>();
         for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) {
+            if (!(cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef"))) {
                 filteredSortedStrings.add(cursor.value);
             }
         }

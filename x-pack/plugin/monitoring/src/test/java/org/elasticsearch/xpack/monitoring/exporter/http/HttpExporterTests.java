@@ -425,8 +425,8 @@ public class HttpExporterTests extends ESTestCase {
 
         if (useIngest == false) {
             builder.put("xpack.monitoring.exporters._http.use_ingest", false);
-            expectedWarnings.add("[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
-                "in a future release! See the breaking changes documentation for the next major version.");
+            expectedWarnings.add("[xpack.monitoring.exporters._http.use_ingest] setting was deprecated in Elasticsearch and will be " +
+                "removed in a future release! See the breaking changes documentation for the next major version.");
         }
 
         if (clusterAlertManagement == false) {
@@ -447,7 +447,7 @@ public class HttpExporterTests extends ESTestCase {
         // note: this shouldn't get used with useIngest == false, but it doesn't hurt to try to cause issues
         if (pipelineTimeout != null) {
             builder.put("xpack.monitoring.exporters._http.index.pipeline.master_timeout", pipelineTimeout.getStringRep());
-            if (useIngest == true) {
+            if (useIngest) {
                 expectedWarnings.add("[xpack.monitoring.exporters._http.index.pipeline.master_timeout] setting was deprecated in " +
                     "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
                     "major version.");

@@ -50,7 +50,6 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
             indexNameExpressionResolver.concreteIndexNames(state, request));
     }
-    //
 
     private static boolean isFilteredRequest(GetSettingsRequest request) {
         return CollectionUtils.isEmpty(request.names()) == false;

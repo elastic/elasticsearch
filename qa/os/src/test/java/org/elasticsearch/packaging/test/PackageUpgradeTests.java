@@ -46,40 +46,25 @@ public class PackageUpgradeTests extends PackagingTestCase {
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
         makeRequest(
             Request.Put("http://localhost:9200/library")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON),
-            "elastic",
-            "keystore_seed",
-            null
+                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
         makeRequest(
             Request.Put("http://localhost:9200/library2")
-                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON),
-            "elastic",
-            "keystore_seed",
-            null
+                .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
 
         // add some docs
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON),
-            "elastic",
-            "keystore_seed",
-            null
+                .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON)
         );
         makeRequest(
             Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
-                .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON),
-            "elastic",
-            "keystore_seed",
-            null
+                .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON)
         );
         makeRequest(
             Request.Post("http://localhost:9200/library2/_doc/1?refresh=true&pretty")
-                .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON),
-            "elastic",
-            "keystore_seed",
-            null
+                .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON)
         );
 
         assertDocsExist();

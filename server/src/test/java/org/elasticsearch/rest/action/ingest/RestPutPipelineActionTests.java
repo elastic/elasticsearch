@@ -94,9 +94,9 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
 
     public void testNumericIfVersionValue() {
         Map<String, String> params = new HashMap<>();
-        final long numericValue = randomLong();
+        final int numericValue = randomInt();
         params.put("id", "my_pipeline");
-        params.put("if_version", Long.toString(numericValue));
+        params.put("if_version", Integer.toString(numericValue));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)

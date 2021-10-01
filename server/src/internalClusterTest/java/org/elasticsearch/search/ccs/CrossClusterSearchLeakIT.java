@@ -102,9 +102,10 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
             String[] indices = randomBoolean() ? new String[] { "demo", "cluster_a:prod" } : new String[] { "cluster_a:prod" };
             final SearchRequest searchRequest = new SearchRequest(indices);
             searchRequest.allowPartialSearchResults(false);
+            boolean scroll = randomBoolean();
             searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .aggregation(terms("f").field("f").size(docs + between(0, 10))).size(between(0, 1000)));
-            if (randomBoolean()) {
+                .aggregation(terms("f").field("f").size(docs + between(scroll ? 1 : 0, 10))).size(between(0, 1000)));
+            if (scroll) {
                 searchRequest.scroll("30s");
             }
             searchRequest.setCcsMinimizeRoundtrips(rarely());

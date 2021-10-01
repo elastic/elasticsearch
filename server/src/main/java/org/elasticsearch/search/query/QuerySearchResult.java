@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
@@ -38,7 +37,6 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
  * ref-count safe situations
  */
 public final class QuerySearchResult extends SearchPhaseResult {
-    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(QuerySearchResult.class);
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -65,18 +63,20 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final boolean isNull;
 
-    private final AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {
-        if (aggregations != null) {
-            aggregations.close();
-            aggregations = null;
-        }
-    });
-
     public QuerySearchResult() {
         this(false);
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
+        this(in, false);
+    }
+
+    /**
+     * Read the object, but using a delayed aggregations field when delayedAggregations=true. Using this, the caller must ensure that
+     * either `consumeAggs` or `releaseAggs` is called if `hasAggs() == true`.
+     * @param delayedAggregations whether to use delayed aggregations or not
+     */
+    public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isNull = in.readBoolean();
@@ -85,7 +85,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
-            readFromWithId(id, in);
+            readFromWithId(id, in, delayedAggregations);
         }
     }
 
@@ -199,11 +199,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasAggs;
     }
 
-    public void retainAggregationsUntilConsumed() {
-        if (aggregations != null) {
-            incRef();
-        }
-    }
     /**
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
@@ -217,7 +212,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         } finally {
             aggregations.close();
             aggregations = null;
-            decRef();
         }
     }
 
@@ -225,7 +219,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (aggregations != null) {
             aggregations.close();
             aggregations = null;
-            decRef();
         }
     }
 
@@ -335,6 +328,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
+        readFromWithId(id, in, false);
+    }
+
+    private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
         this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
@@ -352,7 +349,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         boolean success = false;
         try {
             if (hasAggs) {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                if (delayedAggregations) {
+                    aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                } else {
+                    aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                }
             }
             if (in.readBoolean()) {
                 suggest = new Suggest(in);
@@ -378,6 +379,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
+        assert aggregations == null || aggregations.isSerialized() == false : "cannot send serialized version since it will leak";
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(isNull);
         }
@@ -423,25 +426,5 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
-    }
-
-    @Override
-    public void incRef() {
-        refCounted.incRef();
-    }
-
-    @Override
-    public boolean tryIncRef() {
-        return refCounted.tryIncRef();
-    }
-
-    @Override
-    public boolean decRef() {
-        return refCounted.decRef();
-    }
-
-    @Override
-    public boolean hasReferences() {
-        return refCounted.hasReferences();
     }
 }

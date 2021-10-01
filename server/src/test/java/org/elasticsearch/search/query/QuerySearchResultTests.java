@@ -71,13 +71,10 @@ public class QuerySearchResultTests extends ESTestCase {
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         assertTrue(querySearchResult.hasReferences());
+        boolean delayed = randomBoolean();
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
-            QuerySearchResult::new, Version.CURRENT);
-        if (randomBoolean()) {
-            // double copy to check serializing the serialized version.
-            deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
-                QuerySearchResult::new, Version.CURRENT);
-        }
+            delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
+            Version.CURRENT);
         assertTrue(deserialized.hasReferences());
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
@@ -87,9 +84,11 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
+            assertThat(deserialized.aggregations().isSerialized(), is(delayed));
             Aggregations aggs = querySearchResult.consumeAggs();
             Aggregations deserializedAggs = deserialized.consumeAggs();
             assertEquals(aggs.asList(), deserializedAggs.asList());
+            assertThat(deserialized.aggregations(), is(nullValue()));
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }
@@ -99,34 +98,5 @@ public class QuerySearchResultTests extends ESTestCase {
         QuerySearchResult deserialized =
             copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, Version.CURRENT);
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
-    }
-
-    public void testAggregationRefCount() throws Exception {
-        QuerySearchResult querySearchResult = createTestInstance();
-        assertTrue(querySearchResult.hasReferences());
-        boolean hasAggs = querySearchResult.hasAggs();
-
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
-            QuerySearchResult::new, Version.CURRENT);
-        assertTrue(deserialized.hasReferences());
-
-        querySearchResult.decRef();
-        assertFalse(querySearchResult.hasReferences());
-        assertThat(querySearchResult.aggregations(), is(nullValue()));
-
-        assertThat(deserialized.hasAggs(), is(hasAggs));
-        boolean inc = randomBoolean();
-        if (inc && hasAggs) {
-            deserialized.incRef();
-        }
-        if (hasAggs) {
-            assertNotNull(deserialized.consumeAggs());
-        }
-        if (inc || hasAggs == false) {
-            assertTrue(deserialized.hasReferences());
-            deserialized.decRef();
-        }
-        assertThat(deserialized.aggregations(), is(nullValue()));
-        assertFalse(deserialized.hasReferences());
     }
 }

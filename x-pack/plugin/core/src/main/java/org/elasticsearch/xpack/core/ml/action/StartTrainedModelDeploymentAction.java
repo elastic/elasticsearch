@@ -255,7 +255,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private final int inferenceThreads;
         private final int modelThreads;
 
-        public TaskParams(String modelId, long modelBytes, @Nullable Integer inferenceThreads, @Nullable Integer modelThreads) {
+        public TaskParams(String modelId, long modelBytes, int inferenceThreads, int modelThreads) {
             this.modelId = Objects.requireNonNull(modelId);
             this.modelBytes = modelBytes;
             if (modelBytes < 0) {

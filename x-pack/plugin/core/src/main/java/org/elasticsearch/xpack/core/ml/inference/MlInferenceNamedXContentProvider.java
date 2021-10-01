@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -295,9 +294,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
             PyTorchPassThroughResults.NAME,
             PyTorchPassThroughResults::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
-            TextClassificationResults.NAME,
-            TextClassificationResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class,
             TextEmbeddingResults.NAME,
             TextEmbeddingResults::new));

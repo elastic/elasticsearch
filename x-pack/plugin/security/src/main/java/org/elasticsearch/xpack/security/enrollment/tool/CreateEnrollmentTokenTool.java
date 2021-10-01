@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.security.enrollment.EnrollmentTokenGenerator;
+import org.elasticsearch.xpack.security.enrollment.ExternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 
@@ -28,21 +28,21 @@ import java.util.function.Function;
 public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
 
     private final OptionSpec<String> scope;
-    private final CheckedFunction<Environment, EnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
+    private final CheckedFunction<Environment, ExternalEnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction;
     static final List<String> ALLOWED_SCOPES = List.of("node", "kibana");
 
     CreateEnrollmentTokenTool() {
         this(
             environment -> new CommandLineHttpClient(environment),
             environment -> KeyStoreWrapper.load(environment.configFile()),
-            environment -> new EnrollmentTokenGenerator(environment)
+            environment -> new ExternalEnrollmentTokenGenerator(environment)
         );
     }
 
     CreateEnrollmentTokenTool(
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction,
-        CheckedFunction<Environment, EnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction
+        CheckedFunction<Environment, ExternalEnrollmentTokenGenerator, Exception> createEnrollmentTokenFunction
     ) {
         super(clientFunction, keyStoreFunction, "Creates enrollment tokens for elasticsearch nodes and kibana instances");
         this.createEnrollmentTokenFunction = createEnrollmentTokenFunction;
@@ -75,11 +75,11 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
         throws Exception {
         final String tokenScope = scope.value(options);
         try {
-            EnrollmentTokenGenerator enrollmentTokenGenerator = createEnrollmentTokenFunction.apply(env);
+            ExternalEnrollmentTokenGenerator externalEnrollmentTokenGenerator = createEnrollmentTokenFunction.apply(env);
             if (tokenScope.equals("node")) {
-                terminal.println(enrollmentTokenGenerator.createNodeEnrollmentToken(username, password).getEncoded());
+                terminal.println(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(username, password).getEncoded());
             } else {
-                terminal.println(enrollmentTokenGenerator.createKibanaEnrollmentToken(username, password).getEncoded());
+                terminal.println(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(username, password).getEncoded());
             }
         } catch (Exception e) {
             terminal.errorPrintln("Unable to create enrollment token for scope [" + tokenScope + "]");

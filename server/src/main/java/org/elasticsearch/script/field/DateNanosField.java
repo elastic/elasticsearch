@@ -8,21 +8,20 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
+public class DateNanosField extends Field<ZonedDateTime> {
 
     /* ---- Conversion Helpers To Other Fields ---- */
 
     public static LongField toLongField(DateNanosField sourceField) {
-        FieldValues<JodaCompatibleZonedDateTime> fv = sourceField.getFieldValues();
-        return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, JodaCompatibleZonedDateTime>(fv) {
-            protected long nanoLong(JodaCompatibleZonedDateTime dt) {
+        FieldValues<ZonedDateTime> fv = sourceField.getFieldValues();
+        return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, ZonedDateTime>(fv) {
+            protected long nanoLong(ZonedDateTime dt) {
                 return ChronoUnit.NANOS.between(Instant.EPOCH, dt.toInstant());
             }
 
@@ -38,25 +37,25 @@ public class DateNanosField extends Field<JodaCompatibleZonedDateTime> {
 
             @Override
             public long getLongValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return (long)values.getDoubleValue();
             }
         });
     }
 
     /* ---- Conversion Helpers To Other Types ---- */
 
-    public static long toLong(JodaCompatibleZonedDateTime dt) {
+    public static long toLong(ZonedDateTime dt) {
         return ChronoUnit.NANOS.between(Instant.EPOCH, dt.toInstant());
     }
 
     /* ---- DateNanos Field Members ---- */
 
-    public DateNanosField(String name, FieldValues<JodaCompatibleZonedDateTime> values) {
+    public DateNanosField(String name, FieldValues<ZonedDateTime> values) {
         super(name, values);
     }
 }

@@ -164,8 +164,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(2)).submitStateUpdateTask(any(), any());
-
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any());
     }
 
     public void testRunPolicyErrorStep() {

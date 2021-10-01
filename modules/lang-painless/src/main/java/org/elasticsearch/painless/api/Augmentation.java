@@ -11,7 +11,9 @@ package org.elasticsearch.painless.api;
 import org.elasticsearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
@@ -713,5 +715,9 @@ public class Augmentation {
      */
     public static long toEpochMilli(TemporalAccessor v) {
         return v.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + v.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
+    }
+
+    public static DayOfWeek getDayOfWeekEnum(ZonedDateTime receiver) {
+        return receiver.getDayOfWeek();
     }
 }

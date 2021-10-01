@@ -139,6 +139,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertTrue(countryPopulations.values().containsAll(List.of(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942)));
     }
 
+    public void testValuesToArray() {
+        Integer[] populations = countryPopulations.values().toArray(Integer[]::new);
+        assertThat(populations.length, equalTo(5));
+
+        Arrays.sort(populations);
+        assertThat(populations, equalTo(new Integer[]{37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942}));
+    }
+
     public void testStreamOperationOnValues() {
         assertThat(countryPopulations.values().stream()
                 .filter(e -> e > 60_000_000)
@@ -173,14 +181,6 @@ public class ImmutableOpenMapTests extends ESTestCase {
             collectedIteratively.add(s);
         }
         assertThat(collectedViaStream, equalTo(collectedIteratively));
-    }
-
-    public void testValuesToArray() {
-        Integer[] populations = countryPopulations.values().toArray(Integer[]::new);
-        assertThat(populations.length, equalTo(5));
-
-        Arrays.sort(populations);
-        assertThat(populations, equalTo(new Integer[]{37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942}));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

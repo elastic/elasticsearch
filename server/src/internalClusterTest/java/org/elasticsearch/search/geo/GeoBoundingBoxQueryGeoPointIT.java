@@ -11,17 +11,23 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
-public class GeoBoundingBoxQueryGeoPointIT extends AbstractGeoBoundingBoxQueryIT {
+public class GeoBoundingBoxQueryGeoPointIT extends GeoBoundingBoxQueryIntegTestCase {
 
     @Override
-    public XContentBuilder getMapping(Version version) throws IOException {
+    public XContentBuilder getMapping() throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties").startObject("location").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
         return xContentBuilder;
+    }
+
+    @Override
+    public Version randomSupportedVersion() throws IOException {
+        return VersionUtils.randomIndexCompatibleVersion(random());
     }
 }
 

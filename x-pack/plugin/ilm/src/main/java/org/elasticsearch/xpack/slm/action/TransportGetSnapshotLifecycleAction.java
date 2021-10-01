@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
@@ -70,12 +70,12 @@ public class TransportGetSnapshotLifecycleAction extends
                 for (SnapshotsInProgress.Entry entry : sip.entries()) {
                     Map<String, Object> meta = entry.userMetadata();
                     if (meta == null ||
-                        meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) == null ||
-                        (meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
+                        meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null ||
+                        (meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
                         continue;
                     }
 
-                    String policyId = (String) meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD);
+                    String policyId = (String) meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
                     inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
                 }
             }

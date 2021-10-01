@@ -23,15 +23,18 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileMatcher;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.docker.Docker;
+import org.elasticsearch.packaging.util.docker.DockerFileMatcher;
 import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -64,18 +67,25 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.elasticsearch.packaging.util.Installation.ARCHIVE_OWNER;
+import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -369,12 +379,45 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup} and return a reference to the Shell.Result from
+     * starting elasticsearch
+     */
+    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
+        awaitElasticsearchStartupWithResult(result, 0);
+        return result;
+    }
+
+    /**
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} milliseconds more before
+     * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
+     */
+    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
+        awaitElasticsearchStartup(result);
+        if (additionalDelay > 0) {
+            Thread.sleep(additionalDelay);
+        }
+        return result;
+    }
+
+    /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
      * the start command, use {@link #runElasticsearchStartCommand(String, boolean, boolean)}.
      * @throws Exception if Elasticsearch can't start
      */
     public void startElasticsearch() throws Exception {
-        awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+        try {
+            awaitElasticsearchStartup(runElasticsearchStartCommand(null, true, false));
+        } catch (Exception e) {
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("elasticsearch process ({}) failed to start", pid);
+                if (sh.run("jps").stdout.contains(pid)) {
+                    logger.info("Dumping jstack of elasticsearch process ({}) ", pid);
+                    sh.runIgnoreExitCode("jstack " + pid);
+                }
+            }
+            throw e;
+        }
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
@@ -465,17 +508,20 @@ public abstract class PackagingTestCase extends Assert {
         } else {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         }
-        // Security auto-configuration related paths are absolute, replace these in the config so that they points to the right path now
-        Path elasticsearchYaml = tempConf.resolve("elasticsearch.yml");
-        List<String> lines = Files.readAllLines(elasticsearchYaml).stream().map(l -> {
-            if (l.contains(installation.config.toString())) {
-                return l.replace(installation.config.toString(), tempConf.toString());
-            } else {
-                return l;
-            }
-        }).collect(Collectors.toList());
-        Files.write(elasticsearchYaml, lines, TRUNCATE_EXISTING);
 
+        // Auto-configuration file paths are absolute so we need to replace them in the config now that we copied them to tempConf
+        // if auto-configuration has happened. Otherwise, the action below is a no-op.
+        Path yml = tempConf.resolve("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.map(l -> {
+                if (l.contains(installation.config.toString())) {
+                    return l.replace(installation.config.toString(), tempConf.toString());
+                }
+                return l;
+            }).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
         action.accept(tempConf);
         if (distribution.isPackage()) {
             IOUtils.rm(installation.envFile);
@@ -547,17 +593,84 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
-    public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigPathDir(es).isPresent(), is(false));
-        assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, not(Matchers.containsString("autoconfig.password_hash")));
-        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, not(hasItem("# have been automatically generated in order to configure Security.               #")));
+    public void verifySecurityAutoConfigured(Installation es) throws Exception {
+        Optional<String> autoConfigDirName = getAutoConfigDirName(es);
+        assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
+        final List<String> configLines;
+        if (installation.distribution.isDocker() == false) {
+            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
+            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+                .forEach(
+                    file -> assertThat(
+                        es.config(autoConfigDirName.get()).resolve(file),
+                        FileMatcher.file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)
+                    )
+                );
+            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+        } else {
+            assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
+            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+                .forEach(
+                    file -> assertThat(
+                        es.config(autoConfigDirName.get()).resolve(file),
+                        DockerFileMatcher.file(File, "elasticsearch", "root", p660)
+                    )
+                );
+            Path localTempDir = createTempDir("docker-config");
+            copyFromContainer(es.config("elasticsearch.yml"), localTempDir.resolve("docker_elasticsearch.yml"));
+            configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
+            rm(localTempDir.resolve("docker_elasticsearch.yml"));
+            rm(localTempDir);
+        }
+        assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, Matchers.containsString("autoconfig.password_hash"));
+        assertThat(configLines, hasItem("xpack.security.enabled: true"));
+        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
+        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
+
+        assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
+        assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
+        assertThat(
+            configLines,
+            hasItem(
+                "xpack.security.transport.ssl.keystore.path: "
+                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
+            )
+        );
+        assertThat(
+            configLines,
+            hasItem(
+                "xpack.security.transport.ssl.truststore.path: "
+                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
+            )
+        );
+        assertThat(
+            configLines,
+            hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
+        );
+        if (installation.distribution.isDocker() == false) {
+            assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
+        }
     }
 
-    public static Optional<String> getAutoConfigPathDir(Installation es) {
-        final Shell.Result lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
+    public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
+        assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
+        assertThat(sh.run(es.bin("elasticsearch-keystore") + " list").stdout, not(Matchers.containsString("autoconfig.password_hash")));
+        List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+        assertThat(
+            configLines,
+            Matchers.not(hasItem("# have been automatically generated in order to configure Security.               #"))
+        );
+    }
+
+    public static Optional<String> getAutoConfigDirName(Installation es) {
+        final Shell.Result lsResult;
+        if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
+            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name");
+        } else {
+            lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
+        }
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("auto_config_on")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_initial_node_")).findFirst();
     }
 
 }

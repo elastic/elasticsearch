@@ -462,6 +462,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 return;
             }
 
+            // searchResponse may be null if the search was optimized to a noop
+            if (searchResponse == null) {
+                logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
+                // execute finishing tasks
+                onFinish(ActionListener.wrap(
+                    r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                    e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
+                return;
+            }
+
             // allowPartialSearchResults is set to false, so we should never see shard failures here
             assert (searchResponse.getShardFailures().length == 0);
             stats.markStartProcessing();

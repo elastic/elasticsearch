@@ -187,7 +187,7 @@ public final class BulkRequestParser {
                                 if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
                                     // for bigger bulks, deprecation throttling might not be enough
                                     if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
-                                        deprecationLogger.compatibleApiWarning("bulk_with_types",
+                                        deprecationLogger.compatibleCritical("bulk_with_types",
                                             RestBulkAction.TYPES_DEPRECATION_MESSAGE);
                                         typesDeprecationLogged = true;
                                     }

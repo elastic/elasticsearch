@@ -580,6 +580,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
             equalTo(Collections.emptySet()));
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("shutdown_node",
@@ -587,7 +592,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                         .setNodeId("shutdown_node")
                         .setReason("shut down for test")
                         .setStartedAtMillis(randomNonNegativeLong())
-                        .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
+                        .setType(type)
+                        .setTargetNodeName(targetNodeName)
                         .build())))
                 .build())
             .build();

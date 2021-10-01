@@ -52,7 +52,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is first used, when it is referenced via its alias.
      */
     public void testSystemIndexIsAutoCreatedViaAlias() {
-        doCreateTest(() -> indexDoc(INDEX_NAME, "1", "foo", "bar"));
+        doCreateTest(() -> indexDoc(INDEX_NAME, "1", "foo", "bar"), PRIMARY_INDEX_NAME);
     }
 
     /**
@@ -61,7 +61,17 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * index name.
      */
     public void testSystemIndexIsAutoCreatedViaConcreteName() {
-        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "foo", "bar"));
+        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "foo", "bar"), PRIMARY_INDEX_NAME);
+    }
+
+    /**
+     * Check that a system index is auto-created with the expected mappings and
+     * settings when it is first used, when it is referenced via its concrete
+     * index name.
+     */
+    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() {
+        final String nonPrimarySystemIndex = INDEX_NAME + "-2";
+        doCreateTest(() -> indexDoc(nonPrimarySystemIndex, "1", "foo", "bar"), nonPrimarySystemIndex);
     }
 
     /**
@@ -69,7 +79,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is explicitly created, when it is referenced via its alias.
      */
     public void testCreateSystemIndexViaAlias() {
-        doCreateTest(() -> assertAcked(prepareCreate(INDEX_NAME)));
+        doCreateTest(() -> assertAcked(prepareCreate(INDEX_NAME)), PRIMARY_INDEX_NAME);
     }
 
     /**
@@ -78,21 +88,21 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * concrete index name.
      */
     public void testCreateSystemIndexViaConcreteName() {
-        doCreateTest(() -> assertAcked(prepareCreate(PRIMARY_INDEX_NAME)));
+        doCreateTest(() -> assertAcked(prepareCreate(PRIMARY_INDEX_NAME)), PRIMARY_INDEX_NAME);
     }
 
-    private void doCreateTest(Runnable runnable) {
+    private void doCreateTest(Runnable runnable, String concreteIndex) {
         internalCluster().startNodes(1);
 
         // Trigger the creation of the system index
         runnable.run();
         ensureGreen(INDEX_NAME);
 
-        assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings());
+        assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings(), concreteIndex);
 
         // Remove the index and alias...
-        assertAcked(client().admin().indices().prepareAliases().removeAlias(PRIMARY_INDEX_NAME, INDEX_NAME).get());
-        assertAcked(client().admin().indices().prepareDelete(PRIMARY_INDEX_NAME));
+        assertAcked(client().admin().indices().prepareAliases().removeAlias(concreteIndex, INDEX_NAME).get());
+        assertAcked(client().admin().indices().prepareDelete(concreteIndex));
 
         // ...so that we can check that the they will still be auto-created again,
         // but this time with updated settings
@@ -101,14 +111,14 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         runnable.run();
         ensureGreen(INDEX_NAME);
 
-        assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings());
+        assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings(), concreteIndex);
     }
 
     /**
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      * Note that in the case of the mappings, this is just a dumb string comparison, so order of keys matters.
      */
-    private void assertMappingsAndSettings(String expectedMappings) {
+    private void assertMappingsAndSettings(String expectedMappings, String concreteIndex) {
         final GetMappingsResponse getMappingsResponse = client().admin()
             .indices()
             .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
@@ -116,11 +126,11 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
-            "Expected mappings to contain a key for [" + PRIMARY_INDEX_NAME + "], but found: " + mappings.toString(),
-            mappings.containsKey(PRIMARY_INDEX_NAME),
+            "Expected mappings to contain a key for [" + concreteIndex + "], but found: " + mappings.toString(),
+            mappings.containsKey(concreteIndex),
             equalTo(true)
         );
-        final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap();
+        final Map<String, Object> sourceAsMap = mappings.get(concreteIndex).getSourceAsMap();
 
         try {
             assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
@@ -133,7 +143,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .getSettings(new GetSettingsRequest().indices(INDEX_NAME))
             .actionGet();
 
-        final Settings actual = getSettingsResponse.getIndexToSettings().get(PRIMARY_INDEX_NAME);
+        final Settings actual = getSettingsResponse.getIndexToSettings().get(concreteIndex);
 
         for (String settingName : TestSystemIndexDescriptor.SETTINGS.keySet()) {
             assertThat(actual.get(settingName), equalTo(TestSystemIndexDescriptor.SETTINGS.get(settingName)));

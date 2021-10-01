@@ -62,6 +62,20 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
         assertThat(builder.isChanged(), is(true));
     }
 
+    public void testBuilderChangedWhenAllocationChanged() {
+        String allocatedModelId = "test_model_id";
+        TrainedModelAllocationMetadata.Builder builder = TrainedModelAllocationMetadata.Builder.fromMetadata(
+            TrainedModelAllocationMetadata.Builder
+                .empty()
+                .addNewAllocation(allocatedModelId, TrainedModelAllocation.Builder.empty(randomParams(allocatedModelId)))
+                .build()
+        );
+        assertThat(builder.isChanged(), is(false));
+
+        builder.getAllocation(allocatedModelId).addNewRoutingEntry("new-node");
+        assertThat(builder.isChanged(), is(true));
+    }
+
     public void testIsAllocated() {
         String allocatedModelId = "test_model_id";
         TrainedModelAllocationMetadata metadata = TrainedModelAllocationMetadata.Builder.empty()

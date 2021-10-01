@@ -14,13 +14,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
+import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
+import java.util.function.LongPredicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.http.HttpStats.ClientStats.NOT_CLOSED;
 
 /**
  * Tracks a collection of {@link org.elasticsearch.http.HttpStats.ClientStats} for current and recently-closed HTTP connections.
@@ -29,39 +37,21 @@ public class HttpClientStatsTracker {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final long PRUNE_THROTTLE_INTERVAL = TimeUnit.SECONDS.toMillis(60);
-    private static final long MAX_CLIENT_STATS_AGE = TimeUnit.MINUTES.toMillis(5);
-
-    private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
     private final ThreadPool threadPool;
 
-    private volatile long lastClientStatsPruneTime;
+    private final Map<HttpChannel, ClientStatsBuilder> httpChannelStats = new ConcurrentHashMap<>();
+    private final Semaphore closedChannelPermits;
+    private final ConcurrentLinkedQueue<HttpStats.ClientStats> closedChannelStats = new ConcurrentLinkedQueue<>();
+    private final long maxClosedChannelAgeMillis;
+
     private volatile boolean clientStatsEnabled;
 
     HttpClientStatsTracker(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.threadPool = threadPool;
-        clientStatsEnabled = HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.get(settings);
+        this.closedChannelPermits = new Semaphore(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_COUNT.get(settings));
+        this.maxClosedChannelAgeMillis = HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_MAX_CLOSED_CHANNEL_AGE.get(settings).millis();
+        this.clientStatsEnabled = HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED, this::enableClientStats);
-    }
-
-    /**
-     * Prunes client stats of entries that have been disconnected for more than {@link #MAX_CLIENT_STATS_AGE} (i.e. 5 minutes).
-     *
-     * @param throttled When true, executes the prune process only if more than {@link #PRUNE_THROTTLE_INTERVAL} (i.e. 60 seconds) has
-     *                  elapsed since the last execution.
-     */
-    private void pruneClientStats(boolean throttled) {
-        if (clientStatsEnabled && throttled == false ||
-            (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
-            long nowMillis = threadPool.absoluteTimeInMillis();
-            for (var statsEntry : httpChannelStats.entrySet()) {
-                long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
-                if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > MAX_CLIENT_STATS_AGE)) {
-                    httpChannelStats.remove(statsEntry.getKey());
-                }
-            }
-            lastClientStatsPruneTime = threadPool.relativeTimeInMillis();
-        }
     }
 
     /**
@@ -69,54 +59,66 @@ public class HttpClientStatsTracker {
      */
     private void enableClientStats(boolean enabled) {
         this.clientStatsEnabled = enabled;
+
         if (enabled == false) {
-            // when disabling, immediately clear client stats
+            // stop tracking stats for open channels
             httpChannelStats.clear();
+
+            // remove all stats for closed channels (NB best effort attempt, we might be concurrently adding some too, but they'll be pruned
+            // the next time the stats are retrieved)
+            pruneStaleClosedChannelStats(l -> false);
         }
     }
 
     /**
      * Register the given channel with this tracker.
-     *
-     * @return the corresponding newly-created stats object, or {@code null} if disabled.
      */
-    HttpStats.ClientStats addClientStats(final HttpChannel httpChannel) {
-        if (clientStatsEnabled) {
-            final HttpStats.ClientStats clientStats;
-            if (httpChannel != null) {
-                clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
-                httpChannelStats.put(getChannelKey(httpChannel), clientStats);
-                httpChannel.addCloseListener(ActionListener.wrap(() -> {
-                    try {
-                        HttpStats.ClientStats disconnectedClientStats =
-                            httpChannelStats.get(getChannelKey(httpChannel));
-                        if (disconnectedClientStats != null) {
-                            disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
-                        }
-                    } catch (Exception e) {
-                        assert false : e; // the listener code above should never throw
-                        logger.warn("error removing HTTP channel listener", e);
-                    }
-                }));
-            } else {
-                clientStats = null;
-            }
-            pruneClientStats(true);
-            return clientStats;
-        } else {
-            return null;
+    void addClientStats(final HttpChannel httpChannel) {
+        if (clientStatsEnabled == false) {
+            return;
         }
+
+        if (httpChannel == null) {
+            return;
+        }
+
+        httpChannelStats.putIfAbsent(httpChannel, new ClientStatsBuilder(
+            System.identityHashCode(httpChannel),
+            formatAddress(httpChannel.getRemoteAddress()),
+            threadPool.absoluteTimeInMillis()));
+        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+            try {
+                final ClientStatsBuilder disconnectedClientStats = httpChannelStats.remove(httpChannel);
+                if (disconnectedClientStats != null) {
+                    addClosedChannelStats(disconnectedClientStats.build(threadPool.absoluteTimeInMillis()));
+                }
+            } catch (Exception e) {
+                assert false : e; // the listener code above should never throw
+                logger.warn("error removing HTTP channel listener", e);
+            }
+        }));
     }
 
-    private static String getFirstValueForHeader(final HttpRequest request, final String header) {
-        for (Map.Entry<String, List<String>> entry : request.getHeaders().entrySet()) {
-            if (entry.getKey().equalsIgnoreCase(header)) {
-                if (entry.getValue().size() > 0) {
-                    return entry.getValue().get(0);
+    private void addClosedChannelStats(HttpStats.ClientStats clientStats) {
+        if (clientStatsEnabled == false) {
+            return;
+        }
+
+        if (closedChannelPermits.tryAcquire() == false) {
+            // no room in the list, push out the oldest entry
+            synchronized (closedChannelStats) {
+                final HttpStats.ClientStats oldest = closedChannelStats.poll();
+                if (oldest == null && closedChannelPermits.tryAcquire() == false) {
+                    // The list is currently empty but no permits are available (and no prune is in progress). This can theoretically
+                    // happen, e.g. if all the permits are held by other threads that haven't got around to adding their stats yet.
+                    // Stupendously unlikely, and those other threads have fresher data anyway, so let's just give up.
+                    return;
                 }
             }
         }
-        return null;
+
+        // we either acquired a permit or removed an item, so there's now room for our stats in the list
+        closedChannelStats.add(clientStats);
     }
 
     /**
@@ -124,45 +126,10 @@ public class HttpClientStatsTracker {
      */
     void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         if (clientStatsEnabled && httpChannel != null) {
-            HttpStats.ClientStats clientStats = httpChannelStats.get(getChannelKey(httpChannel));
-            if (clientStats == null) {
-                // will always return a non-null value when httpChannel is non-null
-                clientStats = addClientStats(httpChannel);
+            final ClientStatsBuilder clientStats = httpChannelStats.get(httpChannel);
+            if (clientStats != null) {
+                clientStats.update(httpRequest, httpChannel, threadPool.absoluteTimeInMillis());
             }
-
-            if (clientStats.agent == null) {
-                final String elasticProductOrigin = getFirstValueForHeader(httpRequest, "x-elastic-product-origin");
-                if (elasticProductOrigin != null) {
-                    clientStats.agent = elasticProductOrigin;
-                } else {
-                    final String userAgent = getFirstValueForHeader(httpRequest, "User-Agent");
-                    if (userAgent != null) {
-                        clientStats.agent = userAgent;
-                    }
-                }
-            }
-            if (clientStats.localAddress == null) {
-                clientStats.localAddress =
-                    httpChannel.getLocalAddress() == null ? null : NetworkAddress.format(httpChannel.getLocalAddress());
-                clientStats.remoteAddress =
-                    httpChannel.getRemoteAddress() == null ? null : NetworkAddress.format(httpChannel.getRemoteAddress());
-            }
-            if (clientStats.forwardedFor == null) {
-                final String forwardedFor = getFirstValueForHeader(httpRequest, "x-forwarded-for");
-                if (forwardedFor != null) {
-                    clientStats.forwardedFor = forwardedFor;
-                }
-            }
-            if (clientStats.opaqueId == null) {
-                final String opaqueId = getFirstValueForHeader(httpRequest, "x-opaque-id");
-                if (opaqueId != null) {
-                    clientStats.opaqueId = opaqueId;
-                }
-            }
-            clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
-            clientStats.lastUri = httpRequest.uri();
-            clientStats.requestCount.increment();
-            clientStats.requestSizeBytes.add(httpRequest.content().length());
         }
     }
 
@@ -170,16 +137,122 @@ public class HttpClientStatsTracker {
      * @return a list of the stats for the channels that are currently being tracked.
      */
     List<HttpStats.ClientStats> getClientStats() {
-        pruneClientStats(false);
-        return new ArrayList<>(httpChannelStats.values());
+        if (clientStatsEnabled) {
+            final long currentTimeMillis = threadPool.absoluteTimeInMillis();
+            final LongPredicate keepTimePredicate = closeTimeMillis -> currentTimeMillis - closeTimeMillis <= maxClosedChannelAgeMillis;
+            pruneStaleClosedChannelStats(keepTimePredicate);
+            return Stream.concat(
+                closedChannelStats.stream().filter(c -> keepTimePredicate.test(c.closedTimeMillis)),
+                httpChannelStats.values().stream().map(c -> c.build(NOT_CLOSED))
+            ).collect(Collectors.toList());
+        } else {
+            // prune even if disabled since we don't prevent concurrently adding entries while being disabled
+            httpChannelStats.clear();
+            pruneStaleClosedChannelStats(l -> false);
+            return Collections.emptyList();
+        }
     }
 
-    /**
-     * Returns a key suitable for use in a hash table for the specified HttpChannel
-     */
-    private static int getChannelKey(HttpChannel channel) {
-        // always use an identity-based hash code rather than one based on object state
-        return System.identityHashCode(channel);
+    private void pruneStaleClosedChannelStats(LongPredicate keepTimePredicate) {
+        synchronized (closedChannelStats) {
+            while (true) {
+                final HttpStats.ClientStats nextStats = closedChannelStats.peek();
+                if (nextStats == null) {
+                    return;
+                }
+
+                if (keepTimePredicate.test(nextStats.closedTimeMillis)) {
+                    // the list elements are pretty much in the order in which the channels were closed so keep all the remaining items
+                    return;
+                }
+
+                final HttpStats.ClientStats removed = closedChannelStats.poll();
+                assert removed == nextStats; // synchronized (closedChannelStats) means nobody else did a poll() since the peek()
+                closedChannelPermits.release();
+            }
+        }
+    }
+
+    @Nullable
+    private static String formatAddress(@Nullable InetSocketAddress localAddress) {
+        return localAddress == null ? null : NetworkAddress.format(localAddress);
+    }
+
+    private static class ClientStatsBuilder {
+        final int id;
+        final long openedTimeMillis;
+
+        String agent;
+        String localAddress;
+        String remoteAddress;
+        String lastUri;
+        String forwardedFor;
+        String opaqueId;
+        long lastRequestTimeMillis = -1L;
+        long requestCount;
+        long requestSizeBytes;
+
+        ClientStatsBuilder(int id, @Nullable String remoteAddress, long openedTimeMillis) {
+            this.id = id;
+            this.remoteAddress = remoteAddress;
+            this.openedTimeMillis = openedTimeMillis;
+        }
+
+        synchronized void update(HttpRequest httpRequest, HttpChannel httpChannel, long currentTimeMillis) {
+            if (agent == null) {
+                final String elasticProductOrigin = getFirstValueForHeader(httpRequest, "x-elastic-product-origin");
+                if (elasticProductOrigin != null) {
+                    agent = elasticProductOrigin;
+                } else {
+                    agent = getFirstValueForHeader(httpRequest, "User-Agent");
+                }
+            }
+            if (localAddress == null) {
+                localAddress = formatAddress(httpChannel.getLocalAddress());
+            }
+            if (remoteAddress == null) {
+                remoteAddress = formatAddress(httpChannel.getRemoteAddress());
+            }
+            if (forwardedFor == null) {
+                forwardedFor = getFirstValueForHeader(httpRequest, "x-forwarded-for");
+            }
+            if (opaqueId == null) {
+                opaqueId = getFirstValueForHeader(httpRequest, "x-opaque-id");
+            }
+
+            lastRequestTimeMillis = currentTimeMillis;
+            lastUri = httpRequest.uri();
+            requestCount += 1;
+            requestSizeBytes += httpRequest.content().length();
+        }
+
+        private static String getFirstValueForHeader(final HttpRequest request, final String header) {
+            for (Map.Entry<String, List<String>> entry : request.getHeaders().entrySet()) {
+                if (entry.getKey().equalsIgnoreCase(header)) {
+                    if (entry.getValue().size() > 0) {
+                        return entry.getValue().get(0);
+                    }
+                }
+            }
+            return null;
+        }
+
+        synchronized HttpStats.ClientStats build(long closedTimeMillis) {
+            return new HttpStats.ClientStats(
+                id,
+                agent,
+                localAddress,
+                remoteAddress,
+                lastUri,
+                forwardedFor,
+                opaqueId,
+                openedTimeMillis,
+                closedTimeMillis,
+                lastRequestTimeMillis,
+                requestCount,
+                requestSizeBytes
+            );
+        }
     }
 
 }

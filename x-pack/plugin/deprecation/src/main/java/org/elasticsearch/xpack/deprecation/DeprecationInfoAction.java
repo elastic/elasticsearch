@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -208,6 +209,14 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }
+            }
+
+            // WORKAROUND: move transform deprecation issues into cluster_settings
+            List<DeprecationIssue> transformDeprecations = pluginSettingIssues.remove(
+                TransformDeprecationChecker.TRANSFORM_DEPRECATION_KEY
+            );
+            if (transformDeprecations != null) {
+                clusterSettingsIssues.addAll(transformDeprecations);
             }
 
             return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, pluginSettingIssues);

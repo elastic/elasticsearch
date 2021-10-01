@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -108,7 +109,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
         final Map<String, char[]> tokenHashes =
             FileServiceAccountTokenStore.parseFile(getDataPath("service_tokens").getParent().resolve("does-not-exist"), logger);
         assertThat(tokenHashes.isEmpty(), is(true));
-        assertThat(events.size(), equalTo(2));
+        assertThat(events, hasSize(2));
         assertThat(events.get(1), containsString("does not exist"));
     }
 
@@ -214,7 +215,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
 
         final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");
         final List<TokenInfo> tokenInfos = store.findTokensFor(accountId);
-        assertThat(tokenInfos.size(), equalTo(5));
+        assertThat(tokenInfos, hasSize(5));
         assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()),
             equalTo(Set.of("pbkdf2", "bcrypt10", "pbkdf2_stretch", "pbkdf2_50000", "bcrypt")));
         assertThat(tokenInfos.stream().map(TokenInfo::getSource).collect(Collectors.toUnmodifiableSet()),

@@ -16,7 +16,9 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
 public class BreakingChangesGeneratorTest {
@@ -31,6 +33,7 @@ public class BreakingChangesGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateFile.asciidoc"
         );
+
         final List<ChangelogEntry> entries = getEntries();
 
         // when:

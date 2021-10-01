@@ -173,7 +173,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
         return new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter("first_non_blank_line")
+            .addCharFilter("first_line_with_letters")
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()

@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.joda.time.Instant;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -20,6 +20,7 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.opensaml.saml.saml2.core.AuthnContext.KERBEROS_AUTHN_CTX;
@@ -135,9 +136,8 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
         assertThat(request.getNameIDPolicy().getAllowCreate(), equalTo(Boolean.FALSE));
 
         assertThat(request.isForceAuthn(), equalTo(Boolean.FALSE));
-        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().size(), equalTo(1));
-        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(0).getAuthnContextClassRef(),
-            equalTo(KERBEROS_AUTHN_CTX));
+        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs(), hasSize(1));
+        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(0).getURI(), equalTo(KERBEROS_AUTHN_CTX));
     }
 
     public void testBuildRequestWithRequestedAuthnContexts() throws Exception {
@@ -164,13 +164,13 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
         assertThat(request.getNameIDPolicy().getAllowCreate(), equalTo(Boolean.FALSE));
 
         assertThat(request.isForceAuthn(), equalTo(Boolean.FALSE));
-        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().size(), equalTo(3));
-        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(0).getAuthnContextClassRef(),
-            equalTo(KERBEROS_AUTHN_CTX));
-        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(1).getAuthnContextClassRef(),
-            equalTo(SMARTCARD_AUTHN_CTX));
-        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(2).getAuthnContextClassRef(),
-            equalTo("http://an.arbitrary/mfa-profile"));
+        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs(), hasSize(3));
+        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(0).getURI(), equalTo(KERBEROS_AUTHN_CTX));
+        assertThat(request.getRequestedAuthnContext().getAuthnContextClassRefs().get(1).getURI(), equalTo(SMARTCARD_AUTHN_CTX));
+        assertThat(
+            request.getRequestedAuthnContext().getAuthnContextClassRefs().get(2).getURI(),
+            equalTo("http://an.arbitrary/mfa-profile")
+        );
     }
 
     private AuthnRequest buildAndValidateAuthnRequest(SamlAuthnRequestBuilder builder) {

@@ -27,7 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -49,7 +48,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -389,18 +387,12 @@ public class HttpExporterTests extends ESTestCase {
     }
 
     public void testCreateResources() {
-        final boolean useIngest = randomBoolean();
         final boolean clusterAlertManagement = randomBoolean();
         final boolean createOldTemplates = randomBoolean();
         final TimeValue templateTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
-        final TimeValue pipelineTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http");
-
-        if (useIngest == false) {
-            builder.put("xpack.monitoring.exporters._http.use_ingest", false);
-        }
 
         if (clusterAlertManagement == false) {
             builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
@@ -414,11 +406,6 @@ public class HttpExporterTests extends ESTestCase {
             builder.put("xpack.monitoring.exporters._http.index.template.master_timeout", templateTimeout.getStringRep());
         }
 
-        // note: this shouldn't get used with useIngest == false, but it doesn't hurt to try to cause issues
-        if (pipelineTimeout != null) {
-            builder.put("xpack.monitoring.exporters._http.index.pipeline.master_timeout", pipelineTimeout.getStringRep());
-        }
-
         final Config config = createConfig(builder.build());
 
         final MultiHttpResource multiResource = HttpExporter.createResources(config).allResources;
@@ -428,10 +415,6 @@ public class HttpExporterTests extends ESTestCase {
         final List<TemplateHttpResource> templates =
                 resources.stream().filter((resource) -> resource instanceof TemplateHttpResource)
                                   .map(TemplateHttpResource.class::cast)
-                                  .collect(Collectors.toList());
-        final List<PipelineHttpResource> pipelines =
-                resources.stream().filter((resource) -> resource instanceof PipelineHttpResource)
-                                  .map(PipelineHttpResource.class::cast)
                                   .collect(Collectors.toList());
         final List<WatcherExistsHttpResource> watcherCheck =
                 resources.stream().filter((resource) -> resource instanceof WatcherExistsHttpResource)
@@ -449,16 +432,14 @@ public class HttpExporterTests extends ESTestCase {
 
         // expected number of resources
         assertThat(multiResource.getResources().size(),
-                   equalTo(version + templates.size() + pipelines.size() + watcherCheck.size()));
+                   equalTo(version + templates.size() + watcherCheck.size()));
         assertThat(version, equalTo(1));
         assertThat(templates, hasSize(createOldTemplates ? TEMPLATE_IDS.length + OLD_TEMPLATE_IDS.length : TEMPLATE_IDS.length));
-        assertThat(pipelines, hasSize(useIngest ? PIPELINE_IDS.length : 0));
         assertThat(watcherCheck, hasSize(clusterAlertManagement ? 1 : 0));
         assertThat(watches, hasSize(clusterAlertManagement ? ClusterAlertsUtil.WATCH_IDS.length : 0));
 
         // timeouts
         assertMasterTimeoutSet(templates, templateTimeout);
-        assertMasterTimeoutSet(pipelines, pipelineTimeout);
 
         // logging owner names
         final List<String> uniqueOwners =
@@ -470,17 +451,12 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testCreateDefaultParams() {
         final TimeValue bulkTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
-        final boolean useIngest = randomBoolean();
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http");
 
         if (bulkTimeout != null) {
             builder.put("xpack.monitoring.exporters._http.bulk.timeout", bulkTimeout.toString());
-        }
-
-        if (useIngest == false) {
-            builder.put("xpack.monitoring.exporters._http.use_ingest", false);
         }
 
         final Config config = createConfig(builder.build());
@@ -493,11 +469,6 @@ public class HttpExporterTests extends ESTestCase {
             assertThat(parameters.remove("timeout"), equalTo(bulkTimeout.toString()));
         } else {
             assertNull(parameters.remove("timeout"));
-        }
-
-        if (useIngest) {
-            assertThat(parameters.remove("pipeline"),
-                       equalTo(MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION)));
         }
 
         // should have removed everything

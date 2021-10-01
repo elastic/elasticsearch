@@ -107,9 +107,6 @@ public class Archives {
 
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);
-        // TODO: Adjust all tests so that they can run with security on, which is the default behavior
-        // https://github.com/elastic/elasticsearch/issues/75940
-        ServerUtils.possiblyDisableSecurityFeatures(installation);
 
         return installation;
     }
@@ -200,7 +197,6 @@ public class Archives {
             "elasticsearch-certutil",
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
-            "elasticsearch-security-config",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
@@ -241,6 +237,7 @@ public class Archives {
         if (daemonize) {
             command.add("-d");
         }
+        command.add("-v"); // verbose auto-configuration
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
@@ -292,6 +289,7 @@ public class Archives {
             if (daemonize) {
                 command.add("-d");
             }
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(pidFile.toString());
             if (keystorePassword != null) {

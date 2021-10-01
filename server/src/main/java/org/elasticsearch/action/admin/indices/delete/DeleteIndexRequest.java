@@ -25,9 +25,12 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
+        IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+
     private String[] indices;
     // Delete index should work by default on both open and closed indices.
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public DeleteIndexRequest(StreamInput in) throws IOException {
         super(in);

@@ -104,13 +104,7 @@ public class Packages {
         if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
             ServerUtils.disableGeoIpDownloader(installation);
         }
-        // https://github.com/elastic/elasticsearch/issues/75940
-        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
-        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.CURRENT)) {
-            ServerUtils.disableSecurityFeatures(installation);
-        } else {
-            ServerUtils.possiblyDisableSecurityFeatures(installation);
-        }
+
         return installation;
     }
 
@@ -128,11 +122,7 @@ public class Packages {
             throw new RuntimeException("Upgrading distribution " + distribution + " failed: " + result);
         }
 
-        Installation installation = Installation.ofPackage(sh, distribution);
-        // https://github.com/elastic/elasticsearch/issues/75940
-        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
-        ServerUtils.possiblyDisableSecurityFeatures(installation);
-        return installation;
+        return Installation.ofPackage(sh, distribution);
     }
 
     public static Installation forceUpgradePackage(Shell sh, Distribution distribution) throws IOException {
@@ -273,12 +263,18 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) {
         if (isSystemd()) {
+            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
-            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            Result exitCode = sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            if (exitCode.isSuccess() == false) {
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout);
+                logger.warn(journald.getLogs().stdout);
+            }
+            return exitCode;
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
     }

@@ -580,7 +580,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
                 } else if (restApiVersion == RestApiVersion.V_7 && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("termvectors_with_types",
+                    deprecationLogger.compatibleCritical("termvectors_with_types",
                         RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else {
                     throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);

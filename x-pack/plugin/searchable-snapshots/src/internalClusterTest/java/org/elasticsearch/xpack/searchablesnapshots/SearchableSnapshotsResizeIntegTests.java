@@ -120,7 +120,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                     Settings.builder()
                         .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
                         .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT)
+                        .put(DataTierAllocationDecider.TIER_PREFERENCE, DataTier.DATA_HOT)
                         .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                         .build()
                 )

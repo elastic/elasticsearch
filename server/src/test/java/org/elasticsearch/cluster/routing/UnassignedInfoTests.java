@@ -350,11 +350,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
         int numberOfShutdowns = randomIntBetween(1,15);
         for (int i = 0; i <= numberOfShutdowns; i++) {
+            final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
+            final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
             SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
                 .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5,10)))
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
-                .setType(randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class)))
+                .setType(type)
+                .setTargetNodeName(targetNodeName)
                 .build();
             shutdowns.put(shutdown.getNodeId(), shutdown);
         }

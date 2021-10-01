@@ -118,7 +118,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public final MetadataFieldMapper build(ContentPath path) {
+        public final MetadataFieldMapper build(MapperBuilderContext context) {
             return build();
         }
 

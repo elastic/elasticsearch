@@ -419,15 +419,19 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             try {
                 XContentParser.Token token = p.nextToken();
                 assert token == XContentParser.Token.FIELD_NAME;
-                String name = p.currentName();
+                String currentName = p.currentName();
                 try {
-                    T namedObject = namedObjectParser.parse(p, c, name);
+                    T namedObject = namedObjectParser.parse(p, c, currentName);
                     // consume the end object token
                     token = p.nextToken();
                     assert token == XContentParser.Token.END_OBJECT;
                     return namedObject;
                 } catch (Exception e) {
-                    throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
+                    throw new XContentParseException(
+                        p.getTokenLocation(),
+                        "[" + field + "] failed to parse field [" + currentName + "]",
+                        e
+                    );
                 }
             } catch (IOException e) {
                 throw new XContentParseException(p.getTokenLocation(), "[" + field + "] error while parsing named object", e);
@@ -448,11 +452,15 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             }
             // This messy exception nesting has the nice side effect of telling the user which field failed to parse
             try {
-                String name = p.currentName();
+                String currentName = p.currentName();
                 try {
-                    return namedObjectParser.parse(p, c, name);
+                    return namedObjectParser.parse(p, c, currentName);
                 } catch (Exception e) {
-                    throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
+                    throw new XContentParseException(
+                        p.getTokenLocation(),
+                        "[" + field + "] failed to parse field [" + currentName + "]",
+                        e
+                    );
                 }
             } catch (IOException e) {
                 throw new XContentParseException(p.getTokenLocation(), "[" + field + "] error while parsing", e);
@@ -603,14 +611,20 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             this.type = type;
         }
 
-        void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
-            if (parseField.match(parserName, parser::getTokenLocation, currentFieldName, parser.getDeprecationHandler()) == false) {
-                throw new XContentParseException(parser.getTokenLocation(),
+        void assertSupports(String parserName, XContentParser xContentParser, String currentFieldName) {
+            boolean match = parseField.match(
+                parserName,
+                xContentParser::getTokenLocation,
+                currentFieldName,
+                xContentParser.getDeprecationHandler()
+            );
+            if (match == false) {
+                throw new XContentParseException(xContentParser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
-            if (supportedTokens.contains(parser.currentToken()) == false) {
-                throw new XContentParseException(parser.getTokenLocation(),
-                        "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + parser.currentToken());
+            if (supportedTokens.contains(xContentParser.currentToken()) == false) {
+                throw new XContentParseException(xContentParser.getTokenLocation(),
+                        "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + xContentParser.currentToken());
             }
         }
 

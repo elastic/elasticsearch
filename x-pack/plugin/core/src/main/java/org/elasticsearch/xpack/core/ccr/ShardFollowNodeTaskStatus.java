@@ -9,17 +9,18 @@ package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
@@ -97,10 +98,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[23],
                             (long) args[24],
                             (long) args[25],
-                            new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26])
-                                            .stream()
-                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
+                            ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26])
+                                .stream()
+                                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
                             (long) args[27],
                             (ElasticsearchException) args[28]));
 

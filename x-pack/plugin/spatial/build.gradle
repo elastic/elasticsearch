@@ -15,8 +15,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('vector-tile'))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  api project(path: ':modules:geo')
-  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }
 
 restResources {
@@ -28,7 +26,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'

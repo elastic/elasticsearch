@@ -11,9 +11,9 @@ The following specialized API is available in the Score context.
 The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
 
 * double cosineSimilarity(List *, String *)
-* double decayDateExp(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
-* double decayDateGauss(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
-* double decayDateLinear(String *, String *, String *, double *, JodaCompatibleZonedDateTime)
+* double decayDateExp(String *, String *, String *, double *, ZonedDateTime)
+* double decayDateGauss(String *, String *, String *, double *, ZonedDateTime)
+* double decayDateLinear(String *, String *, String *, double *, ZonedDateTime)
 * double decayGeoExp(String *, String *, String *, double *, GeoPoint)
 * double decayGeoGauss(String *, String *, String *, double *, GeoPoint)
 * double decayGeoLinear(String *, String *, String *, double *, GeoPoint)

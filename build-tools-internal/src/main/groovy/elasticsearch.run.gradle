@@ -13,8 +13,7 @@ import org.elasticsearch.gradle.testclusters.RunTask
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 // apply plugin: 'elasticsearch.internal-testclusters'
 
-testClusters {
-  runTask {
+testClusters.register("runTask") {
     testDistribution = providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get()
     if (providers.systemProperty('run.distribution').orElse('default').forUseAtConfigurationTime().get() == 'default') {
       String licenseType = providers.systemProperty("run.license_type").orElse("basic").forUseAtConfigurationTime().get()
@@ -30,11 +29,10 @@ testClusters {
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }
-  }
 }
 
 tasks.register("run", RunTask) {
-  useCluster testClusters.runTask;
+  useCluster testClusters.named("runTask")
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
 

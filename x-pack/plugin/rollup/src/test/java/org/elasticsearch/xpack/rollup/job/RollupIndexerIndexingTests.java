@@ -34,10 +34,10 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -733,7 +733,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, false, false).build(
-                    new ContentPath(0)
+                    MapperBuilderContext.ROOT
                 ).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -741,7 +741,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field).build(new ContentPath(0)).fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field).build(MapperBuilderContext.ROOT).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -749,7 +749,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberType.LONG, ScriptCompiler.NONE, false, false)
-                    .build(new ContentPath(0))
+                    .build(MapperBuilderContext.ROOT)
                     .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }

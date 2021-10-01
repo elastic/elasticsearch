@@ -49,8 +49,8 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public NestedObjectMapper build(ContentPath contentPath) {
-            return new NestedObjectMapper(name, contentPath.pathAsText(name), buildMappers(contentPath), this);
+        public NestedObjectMapper build(MapperBuilderContext context) {
+            return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(false, context), this);
         }
     }
 

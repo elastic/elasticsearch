@@ -1124,7 +1124,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     int parsedSize = parser.intValue();
                     if (parser.getRestApiVersion() == RestApiVersion.V_7 && parsedSize == -1) {
                         // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
-                        deprecationLogger.compatibleApiWarning(
+                        deprecationLogger.compatibleCritical(
                             "search-api-size-1",
                             "Using search size of -1 is deprecated and will be removed in future versions. "
                                 + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
@@ -1180,7 +1180,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                 } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                     INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("indices_boost_object_format",
+                    deprecationLogger.compatibleCritical("indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

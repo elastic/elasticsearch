@@ -127,7 +127,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         injectPointInTimeIfNeeded(
             buildSearchRequest(),
-            ActionListener.wrap(pitSearchRequest -> { doSearch(pitSearchRequest, nextPhase); }, nextPhase::onFailure)
+            ActionListener.wrap(pitSearchRequest -> doSearch(pitSearchRequest, nextPhase), nextPhase::onFailure)
         );
     }
 
@@ -393,12 +393,12 @@ class ClientTransformIndexer extends TransformIndexer {
         Tuple<String, SearchRequest> namedSearchRequest,
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
-        if (disablePit) {
+        SearchRequest searchRequest = namedSearchRequest.v2();
+        if (disablePit || searchRequest.indices().length == 0) {
             listener.onResponse(namedSearchRequest);
             return;
         }
 
-        SearchRequest searchRequest = namedSearchRequest.v2();
         PointInTimeBuilder pit = namedPits.get(namedSearchRequest.v1());
         if (pit != null) {
             searchRequest.source().pointInTimeBuilder(pit);
@@ -455,22 +455,30 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
-    private void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
-        logger.trace(() -> new ParameterizedMessage("searchRequest: [{}]", namedSearchRequest.v2()));
+    void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
+        String name = namedSearchRequest.v1();
+        SearchRequest searchRequest = namedSearchRequest.v2();
+        // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
+        if (searchRequest.indices().length == 0) {
+            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, searchRequest);
+            listener.onResponse(null);
+            return;
+        }
+        logger.trace("searchRequest: [{}]", searchRequest);
 
-        PointInTimeBuilder pit = namedSearchRequest.v2().pointInTimeBuilder();
+        PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            namedSearchRequest.v2(),
+            searchRequest,
             ActionListener.wrap(response -> {
                 // did the pit change?
-                if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId() != pit.getEncodedId())) {
-                    namedPits.put(namedSearchRequest.v1(), new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
-                    logger.trace("point in time handle has changed; request [{}]", namedSearchRequest.v1());
+                if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId().equals(pit.getEncodedId())) == false) {
+                    namedPits.put(name, new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
+                    logger.trace("point in time handle has changed; request [{}]", name);
                 }
 
                 listener.onResponse(response);
@@ -484,18 +492,18 @@ class ClientTransformIndexer extends TransformIndexer {
                         new ParameterizedMessage(
                             "[{}] Search context missing, falling back to normal search; request [{}]",
                             getJobId(),
-                            namedSearchRequest.v1()
+                            name
                         ),
                         e
                     );
-                    namedPits.remove(namedSearchRequest.v1());
-                    namedSearchRequest.v2().source().pointInTimeBuilder(null);
+                    namedPits.remove(name);
+                    searchRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
                         SearchAction.INSTANCE,
-                        namedSearchRequest.v2(),
+                        searchRequest,
                         listener
                     );
                     return;

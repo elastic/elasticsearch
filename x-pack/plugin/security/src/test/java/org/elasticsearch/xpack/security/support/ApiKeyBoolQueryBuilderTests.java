@@ -56,7 +56,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final ApiKeyBoolQueryBuilder apiKeyQb1 = ApiKeyBoolQueryBuilder.build(q1, authentication);
         assertCommonFilterQueries(apiKeyQb1, authentication);
         final List<QueryBuilder> mustQueries = apiKeyQb1.must();
-        assertThat(mustQueries.size(), equalTo(1));
+        assertThat(mustQueries, hasSize(1));
         assertThat(mustQueries.get(0), equalTo(q1));
         assertTrue(apiKeyQb1.should().isEmpty());
         assertTrue(apiKeyQb1.mustNot().isEmpty());

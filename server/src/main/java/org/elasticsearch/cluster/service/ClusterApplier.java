@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 
 import java.util.function.Supplier;
@@ -21,38 +22,12 @@ public interface ClusterApplier {
 
     /**
      * Method to invoke when a new cluster state is available to be applied
-     *
-     * @param source information where the cluster state came from
+     *  @param source information where the cluster state came from
      * @param clusterStateSupplier the cluster state supplier which provides the latest cluster state to apply
-     * @param listener callback that is invoked after cluster state is applied
+     * @param listener notified after cluster state is applied. The implementation must not throw exceptions: an exception thrown by this
+     *                 listener is logged by the cluster applier service at {@code ERROR} level and otherwise ignored, except in tests where
+     *                 it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then implementations must do so
+     *                 themselves, typically using a more specific logger and at a less dramatic log level.
      */
-    void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener);
-
-    /**
-     * Listener for results of cluster state application
-     */
-    interface ClusterApplyListener {
-        /**
-         * Called on successful cluster state application.
-         *
-         * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the cluster applier service at
-         * {@code ERROR} level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the
-         * right behaviour then implementations must do so themselves, typically using a more specific logger and at a less dramatic log
-         * level.
-         */
-        default void onSuccess() {
-        }
-
-        /**
-         * Called on failure during cluster state application.
-         *
-         * Implementations of this callback must not throw exceptions: an exception thrown here is logged by the cluster applier service at
-         * {@code ERROR} level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the
-         * right behaviour then implementations must do so themselves, typically using a more specific logger and at a less dramatic log
-         * level.
-         *
-         * @param e exception that occurred
-         */
-        void onFailure(Exception e);
-    }
+    void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener);
 }

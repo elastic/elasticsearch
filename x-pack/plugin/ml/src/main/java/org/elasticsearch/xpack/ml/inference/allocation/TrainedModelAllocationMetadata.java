@@ -174,7 +174,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
         }
 
         public boolean isChanged() {
-            return isChanged;
+            return isChanged || modelRoutingEntries.values().stream().anyMatch(TrainedModelAllocation.Builder::isChanged);
         }
 
         public TrainedModelAllocationMetadata build() {

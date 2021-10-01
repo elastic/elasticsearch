@@ -99,13 +99,13 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -128,8 +128,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
     }
 
     public void testElasticFleetPrivileges() {
-        final Role role =
-            Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null, Automatons.EMPTY).build();
+        final Role role = Role.builder(
+            ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null, RESTRICTED_INDICES_AUTOMATON).build();
         final Authentication authentication = mock(Authentication.class);
         assertThat(role.cluster().check(CreateApiKeyAction.NAME,
             new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication), is(true));
@@ -162,21 +162,31 @@ public class ElasticServiceAccountsTests extends ESTestCase {
                 assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
             });
 
-        final String dotFleetIndexName = ".fleet-" + randomAlphaOfLengthBetween(1, 20);
-        final IndexAbstraction dotFleetIndex = mockIndexAbstraction(dotFleetIndexName);
-        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
-        // TODO: more tests when role descriptor is finalised for elastic/fleet-server
+        List.of(
+            ".fleet-" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-action" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-agents" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-enrollment-api-keys" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-policies" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-policies-leader" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-servers" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-artifacts" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-actions-results" + randomAlphaOfLengthBetween(1, 20)
+        ).forEach(index -> {
+            final IndexAbstraction dotFleetIndex = mockIndexAbstraction(index);
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
+        });
     }
 
     public void testElasticServiceAccount() {

@@ -485,14 +485,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("yyyy/MM/dd||epoch_millis")
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
         assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
@@ -501,14 +501,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testParseSourceValueWithFormat() throws IOException {
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("strict_date_time")
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
         assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));

@@ -76,7 +76,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -227,7 +227,6 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -337,6 +336,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -450,10 +450,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
 
         scriptServiceReference.set(scriptService);
-
+        // We need to construct the checks here while the secure settings are still available.
+        // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.addAll(Arrays.asList(
-            new ApiKeySSLBootstrapCheck(),
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
             new TLSLicenseBootstrapCheck()));
@@ -490,6 +490,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
+
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -540,9 +541,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);
-        components.add(httpTlsRuntimeCheck);
-
         final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
             settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
         components.add(indexServiceAccountTokenStore);
@@ -551,8 +549,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, clusterService, cacheInvalidatorRegistry);
         components.add(fileServiceAccountTokenStore);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(client,
-            fileServiceAccountTokenStore, indexServiceAccountTokenStore, httpTlsRuntimeCheck);
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(
+            client,
+            fileServiceAccountTokenStore,
+            indexServiceAccountTokenStore
+        );
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
@@ -561,6 +562,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
+        if (SECURITY_AUTOCONFIGURATION_ENABLED.get(settings)) {
+            InitialSecurityConfigurationListener initialSecurityConfigurationListener = new InitialSecurityConfigurationListener(
+                nativeUsersStore,
+                securityIndex.get(),
+                getSslService(),
+                client,
+                environment
+            );
+            securityIndex.get().addStateListener(initialSecurityConfigurationListener);
+        }
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
@@ -1277,7 +1288,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
      private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
          return SystemIndexDescriptor.builder()
              // This can't just be `.security-*` because that would overlap with the tokens index pattern
-             .setIndexPattern(".security-[0-9]+")
+             .setIndexPattern(".security-[0-9]+*")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
              .setDescription("Contains Security configuration")
              .setMappings(getIndexMappings())
@@ -1292,7 +1303,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
      private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
          return SystemIndexDescriptor.builder()
-             .setIndexPattern(".security-tokens-[0-9]+")
+             .setIndexPattern(".security-tokens-[0-9]+*")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
              .setDescription("Contains auth token data")
              .setMappings(getTokenIndexMappings())

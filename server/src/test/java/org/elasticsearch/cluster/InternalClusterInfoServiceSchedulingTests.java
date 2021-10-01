@@ -16,18 +16,17 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -137,11 +136,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         }
     }
 
-    private static ClusterApplier.ClusterApplyListener setFlagOnSuccess(AtomicBoolean flag) {
-        return new ClusterApplier.ClusterApplyListener() {
+    private static ActionListener<Void> setFlagOnSuccess(AtomicBoolean flag) {
+        return new ActionListener<>() {
 
             @Override
-            public void onSuccess() {
+            public void onResponse(Void ignored) {
                 assertTrue(flag.compareAndSet(false, true));
             }
 

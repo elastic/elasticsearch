@@ -101,10 +101,6 @@ public class CachedBlob implements ToXContent {
         return builder.endObject();
     }
 
-    public String generatedId() {
-        return generateId(repository, name, path, from);
-    }
-
     public long from() {
         return from;
     }
@@ -119,10 +115,6 @@ public class CachedBlob implements ToXContent {
 
     public BytesReference bytes() {
         return bytes;
-    }
-
-    public static String generateId(String repository, String name, String path, long offset) {
-        return String.join("/", repository, path, name, "@" + offset);
     }
 
     @SuppressWarnings("unchecked")

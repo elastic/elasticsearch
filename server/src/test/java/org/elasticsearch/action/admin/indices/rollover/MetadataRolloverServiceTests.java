@@ -32,19 +32,19 @@ import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -563,7 +563,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                Version.CURRENT).build(new ContentPath());
+                Version.CURRENT).build(MapperBuilderContext.ROOT);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
@@ -573,7 +573,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
-            Mapping mapping = new Mapping(root.build(new ContentPath("")), new MetadataFieldMapper[] {dtfm}, Collections.emptyMap());
+            Mapping mapping = new Mapping(
+                root.build(MapperBuilderContext.ROOT),
+                new MetadataFieldMapper[] {dtfm},
+                Collections.emptyMap());
             MappingLookup mappingLookup = MappingLookup.fromMappers(
                 mapping,
                 List.of(dtfm, dateFieldMapper),

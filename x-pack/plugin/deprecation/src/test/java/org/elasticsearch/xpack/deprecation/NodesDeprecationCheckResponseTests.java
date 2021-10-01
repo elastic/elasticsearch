@@ -13,7 +13,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -79,8 +82,21 @@ public class NodesDeprecationCheckResponseTests
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        List<DeprecationIssue> issuesList = Arrays.asList(randomArray(0,10, DeprecationIssue[]::new,
-            DeprecationIssueTests::createTestInstance));
+        List<DeprecationIssue> issuesList = Arrays.asList(
+            randomArray(0, 10, DeprecationIssue[]::new, NodesDeprecationCheckResponseTests::createTestDeprecationIssue)
+        );
         return new NodesDeprecationCheckAction.NodeResponse(node, issuesList);
+    }
+
+    private static DeprecationIssue createTestDeprecationIssue() {
+        String details = randomBoolean() ? randomAlphaOfLength(10) : null;
+        return new DeprecationIssue(
+            randomFrom(Level.values()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            details,
+            randomBoolean(),
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+        );
     }
 }

@@ -116,5 +116,10 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         public boolean decRef() {
             return chunk.decRef();
         }
+
+        @Override
+        public boolean hasReferences() {
+            return chunk.hasReferences();
+        }
     }
 }

@@ -197,7 +197,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         index = parser.text();
                     } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
                     }

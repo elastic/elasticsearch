@@ -11,40 +11,39 @@ dependencies {
 }
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
+  String bwcVersionString = bwcVersion.toString()
+  String baseName = "v" + bwcVersionString
 
-  testClusters {
-    "${baseName}" {
-      testDistribution = "DEFAULT"
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 3
+  def baseCluster = testClusters.register(baseName) {
+    testDistribution = "DEFAULT"
+    versions = [bwcVersionString, project.version]
+    numberOfNodes = 3
 
-      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'xpack.security.enabled', 'false'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
-      setting 'xpack.license.self_generated.type', 'basic'
-    }
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'basic'
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
   }
 
-  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
+  String oldVersion = bwcVersionString.replace('-SNAPSHOT', '')
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -52,12 +51,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -65,12 +64,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
   }

@@ -207,8 +207,4 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         return indexDebugThreshold;
     }
 
-    int getMaxSourceCharsToLog() {
-        return maxSourceCharsToLog;
-    }
-
 }

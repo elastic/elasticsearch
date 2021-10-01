@@ -46,9 +46,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;

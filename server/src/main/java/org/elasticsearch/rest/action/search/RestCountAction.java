@@ -59,7 +59,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            deprecationLogger.compatibleApiWarning("count_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("count_with_types", TYPES_DEPRECATION_MESSAGE);
             request.param("type");
         }
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));

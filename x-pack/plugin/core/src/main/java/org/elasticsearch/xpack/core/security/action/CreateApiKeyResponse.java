@@ -20,8 +20,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -40,6 +42,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("api_key"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("encoded"));
     }
 
     private final String name;
@@ -151,6 +154,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }
+        builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
         return builder.endObject();
     }
 

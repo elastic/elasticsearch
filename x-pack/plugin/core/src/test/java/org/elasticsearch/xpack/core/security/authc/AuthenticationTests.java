@@ -170,7 +170,7 @@ public class AuthenticationTests extends ESTestCase {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         } else {
             metadata = Arrays.stream(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
-                .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
+                .distinct().collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
         }
         if (randomBoolean()) { // run-as
             return new Authentication(new User(user.principal(), user.roles(), randomUser()),

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -516,6 +517,16 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         public Builder setAggregations(AggProvider aggProvider) {
             this.aggProvider = aggProvider;
+            return this;
+        }
+
+        // Used only in testing
+        public Builder setParsedAggregations(AggregatorFactories.Builder aggregations) {
+            try {
+                this.aggProvider = AggProvider.fromParsedAggs(aggregations);
+            } catch (IOException exception) {
+                throw new UncheckedIOException(exception);
+            }
             return this;
         }
 

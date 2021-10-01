@@ -31,6 +31,7 @@ public class ReleaseHighlightsGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/ReleaseHighlightsGeneratorTest.generateFile.asciidoc"
         );
+
         final List<ChangelogEntry> entries = getEntries();
 
         // when:

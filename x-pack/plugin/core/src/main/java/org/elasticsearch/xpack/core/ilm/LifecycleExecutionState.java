@@ -43,6 +43,8 @@ public class LifecycleExecutionState {
     private static final String SHRINK_INDEX_NAME ="shrink_index_name";
     private static final String ROLLUP_INDEX_NAME = "rollup_index_name";
 
+    public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
+
     private final String phase;
     private final String action;
     private final String step;
@@ -93,8 +95,11 @@ public class LifecycleExecutionState {
      */
     public static LifecycleExecutionState fromIndexMetadata(IndexMetadata indexMetadata) {
         Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
-        customData = customData == null ? new HashMap<>() : customData;
-        return fromCustomMetadata(customData);
+        if (customData != null && customData.isEmpty() == false) {
+            return fromCustomMetadata(customData);
+        } else {
+            return EMPTY_STATE;
+        }
     }
 
     /**
@@ -160,76 +165,93 @@ public class LifecycleExecutionState {
 
     static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
         Builder builder = builder();
-        if (customData.containsKey(PHASE)) {
-            builder.setPhase(customData.get(PHASE));
+        String phase = customData.get(PHASE);
+        if (phase != null) {
+            builder.setPhase(phase);
         }
-        if (customData.containsKey(ACTION)) {
-            builder.setAction(customData.get(ACTION));
+        String action = customData.get(ACTION);
+        if (action != null) {
+            builder.setAction(action);
         }
-        if (customData.containsKey(STEP)) {
-            builder.setStep(customData.get(STEP));
+        String step = customData.get(STEP);
+        if (step != null) {
+            builder.setStep(step);
         }
-        if (customData.containsKey(FAILED_STEP)) {
-            builder.setFailedStep(customData.get(FAILED_STEP));
+        String failedStep = customData.get(FAILED_STEP);
+        if (failedStep != null) {
+            builder.setFailedStep(failedStep);
         }
-        if (customData.containsKey(IS_AUTO_RETRYABLE_ERROR)) {
-            builder.setIsAutoRetryableError(Boolean.parseBoolean(customData.get(IS_AUTO_RETRYABLE_ERROR)));
+        String isAutoRetryableError = customData.get(IS_AUTO_RETRYABLE_ERROR);
+        if (isAutoRetryableError != null) {
+            builder.setIsAutoRetryableError(Boolean.parseBoolean(isAutoRetryableError));
         }
-        if (customData.containsKey(FAILED_STEP_RETRY_COUNT)) {
-            builder.setFailedStepRetryCount(Integer.parseInt(customData.get(FAILED_STEP_RETRY_COUNT)));
+        String failedStepRetryCount = customData.get(FAILED_STEP_RETRY_COUNT);
+        if (failedStepRetryCount != null) {
+            builder.setFailedStepRetryCount(Integer.parseInt(failedStepRetryCount));
         }
-        if (customData.containsKey(STEP_INFO)) {
-            builder.setStepInfo(customData.get(STEP_INFO));
+        String stepInfo = customData.get(STEP_INFO);
+        if (stepInfo != null) {
+            builder.setStepInfo(stepInfo);
         }
-        if (customData.containsKey(PHASE_DEFINITION)) {
-            builder.setPhaseDefinition(customData.get(PHASE_DEFINITION));
+        String phaseDefinition = customData.get(PHASE_DEFINITION);
+        if (phaseDefinition != null) {
+            builder.setPhaseDefinition(phaseDefinition);
         }
-        if (customData.containsKey(SNAPSHOT_REPOSITORY)) {
-            builder.setSnapshotRepository(customData.get(SNAPSHOT_REPOSITORY));
+        String snapShotRepository = customData.get(SNAPSHOT_REPOSITORY);
+        if (snapShotRepository != null) {
+            builder.setSnapshotRepository(snapShotRepository);
         }
-        if (customData.containsKey(SNAPSHOT_NAME)) {
-            builder.setSnapshotName(customData.get(SNAPSHOT_NAME));
+        String snapshotName = customData.get(SNAPSHOT_NAME);
+        if (snapshotName != null) {
+            builder.setSnapshotName(snapshotName);
         }
-        if (customData.containsKey(SHRINK_INDEX_NAME)) {
-            builder.setShrinkIndexName(customData.get(SHRINK_INDEX_NAME));
+        String shrinkIndexName = customData.get(SHRINK_INDEX_NAME);
+        if (shrinkIndexName != null) {
+            builder.setShrinkIndexName(shrinkIndexName);
         }
-        if (customData.containsKey(INDEX_CREATION_DATE)) {
+        String indexCreationDate = customData.get(INDEX_CREATION_DATE);
+        if (indexCreationDate != null) {
             try {
-                builder.setIndexCreationDate(Long.parseLong(customData.get(INDEX_CREATION_DATE)));
+                builder.setIndexCreationDate(Long.parseLong(indexCreationDate));
             } catch (NumberFormatException e) {
                 throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
                     e, INDEX_CREATION_DATE, customData.get(INDEX_CREATION_DATE));
             }
         }
-        if (customData.containsKey(PHASE_TIME)) {
+        String phaseTime = customData.get(PHASE_TIME);
+        if (phaseTime != null) {
             try {
-                builder.setPhaseTime(Long.parseLong(customData.get(PHASE_TIME)));
+                builder.setPhaseTime(Long.parseLong(phaseTime));
             } catch (NumberFormatException e) {
                 throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
                     e, PHASE_TIME, customData.get(PHASE_TIME));
             }
         }
-        if (customData.containsKey(ACTION_TIME)) {
+        String actionTime = customData.get(ACTION_TIME);
+        if (actionTime != null) {
             try {
-                builder.setActionTime(Long.parseLong(customData.get(ACTION_TIME)));
+                builder.setActionTime(Long.parseLong(actionTime));
             } catch (NumberFormatException e) {
                 throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
                     e, ACTION_TIME, customData.get(ACTION_TIME));
             }
         }
-        if (customData.containsKey(STEP_TIME)) {
+        String stepTime = customData.get(STEP_TIME);
+        if (stepTime != null) {
             try {
-                builder.setStepTime(Long.parseLong(customData.get(STEP_TIME)));
+                builder.setStepTime(Long.parseLong(stepTime));
             } catch (NumberFormatException e) {
                 throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
                     e, STEP_TIME, customData.get(STEP_TIME));
             }
         }
-        if (customData.containsKey(SNAPSHOT_INDEX_NAME)) {
-            builder.setSnapshotIndexName(customData.get(SNAPSHOT_INDEX_NAME));
+        String snapshotIndexName = customData.get(SNAPSHOT_INDEX_NAME);
+        if (snapshotIndexName != null) {
+            builder.setSnapshotIndexName(snapshotIndexName);
         }
-        if (customData.containsKey(ROLLUP_INDEX_NAME)) {
-            builder.setRollupIndexName(customData.get(ROLLUP_INDEX_NAME));
+        String rollupIndexName = customData.get(ROLLUP_INDEX_NAME);
+        if (rollupIndexName != null) {
+            builder.setRollupIndexName(rollupIndexName);
         }
         return builder.build();
     }

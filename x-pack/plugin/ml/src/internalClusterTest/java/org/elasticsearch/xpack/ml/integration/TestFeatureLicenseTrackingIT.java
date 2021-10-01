@@ -129,7 +129,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
                 .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
                 .setTrainedModel(buildClassification(true)))
             .build();
-        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();
+        client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config, false)).actionGet();
 
         String pipelineId = "pipeline-inference-model-tracked";
         putTrainedModelIngestPipeline(pipelineId, modelId);

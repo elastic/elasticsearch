@@ -15,6 +15,7 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -106,6 +107,13 @@ public final class BinaryDocValuesRangeQuery extends Query {
                 return DocValues.isCacheable(ctx, fieldName);
             }
         };
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(fieldName)) {
+            visitor.visitLeaf(this);
+        }
     }
 
     @Override

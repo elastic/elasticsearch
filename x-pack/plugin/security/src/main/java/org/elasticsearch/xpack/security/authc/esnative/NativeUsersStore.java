@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -252,7 +253,13 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (isIndexNotFoundOrDocumentMissing(e)) {
                                 if (docType.equals(RESERVED_USER_TYPE)) {
-                                    createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
+                                    updateReservedUser(
+                                        username,
+                                        request.passwordHash(),
+                                        DocWriteRequest.OpType.INDEX,
+                                        request.getRefreshPolicy(),
+                                        listener
+                                    );
                                 } else {
                                     logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
                                             new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
@@ -269,17 +276,36 @@ public class NativeUsersStore {
     }
 
     /**
-     * Asynchronous method to create a reserved user with the given password hash. The cache for the user will be cleared after the document
-     * has been indexed
+     * Asynchronous method to create or update a reserved user with the given password hash. The cache for the user will be
+     * cleared after the document has been indexed
      */
-    private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
+    public void updateReservedUser(
+        String username,
+        char[] passwordHash,
+        DocWriteRequest.OpType opType,
+        RefreshPolicy refresh,
+        ActionListener<Void> listener
+    ) {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_MAIN_ALIAS).setId(getIdForUser(RESERVED_USER_TYPE, username))
-                            .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
-                                    true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
-                            .setRefreshPolicy(refresh).request(),
-                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                client.prepareIndex(SECURITY_MAIN_ALIAS)
+                    .setOpType(opType)
+                    .setId(getIdForUser(RESERVED_USER_TYPE, username))
+                    .setSource(
+                        Fields.PASSWORD.getPreferredName(),
+                        String.valueOf(passwordHash),
+                        Fields.ENABLED.getPreferredName(),
+                        true,
+                        Fields.TYPE.getPreferredName(),
+                        RESERVED_USER_TYPE
+                    )
+                    .setRefreshPolicy(refresh)
+                    .request(),
+                listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
+                client::index
+            );
         });
     }
 

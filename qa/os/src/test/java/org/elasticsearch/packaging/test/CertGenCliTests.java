@@ -20,9 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -50,8 +48,8 @@ public class CertGenCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
-        // Enable security for this test only where it is necessary, until we can enable it for all
-        ServerUtils.enableSecurityFeatures(installation);
+        // Disable security auto-configuration as we want to generate keys/certificates manually here
+        ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
     public void test20Help() {
@@ -98,8 +96,10 @@ public class CertGenCliTests extends PackagingTestCase {
         final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
         final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
+
+
         // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
-        List<String> newTlsConfig = List.of(
+        final List<String> tlsConfig = List.of(
             "node.name: mynode",
             "xpack.security.transport.ssl.key: " + keyPath,
             "xpack.security.transport.ssl.certificate: " + certPath,
@@ -110,15 +110,8 @@ public class CertGenCliTests extends PackagingTestCase {
             "xpack.security.transport.ssl.enabled: true",
             "xpack.security.http.ssl.enabled: true"
         );
-        List<String> existingConfig = Files.readAllLines(installation.config("elasticsearch.yml"));
-        List<String> newConfig = existingConfig.stream()
-            .filter(l -> l.startsWith("node.name:") == false)
-            .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
-            .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
-            .collect(Collectors.toList());
-        newConfig.addAll(newTlsConfig);
 
-        Files.write(installation.config("elasticsearch.yml"), newConfig, TRUNCATE_EXISTING);
+        Files.write(installation.config("elasticsearch.yml"), tlsConfig, TRUNCATE_EXISTING);
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();
@@ -128,16 +121,8 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        final Pattern userpassRegex = Pattern.compile("PASSWORD (\\w+) = ([^\\s]+)");
-        Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch -u https://127.0.0.1:9200", null);
-        Matcher matcher = userpassRegex.matcher(result.stdout);
-        assertNotNull(matcher);
-        while (matcher.find()) {
-            if (matcher.group(1).equals("elastic")) {
-                return matcher.group(2);
-            }
-        }
-        return null;
+        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
+        return result.stdout;
     }
 
 }

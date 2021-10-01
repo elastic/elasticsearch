@@ -34,7 +34,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -169,7 +169,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 final int rangeStart = getRangeStart(exchange);
                 assertThat(rangeStart, lessThan(bytes.length));
                 assertTrue(getRangeEnd(exchange).isPresent());
-                final int rangeEnd = getRangeEnd(exchange).get();
+                final int rangeEnd = getRangeEnd(exchange).getAsInt();
                 assertThat(rangeEnd, greaterThanOrEqualTo(rangeStart));
                 // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
                 final int effectiveRangeEnd = Math.min(bytes.length - 1, rangeEnd);
@@ -325,22 +325,22 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return Math.toIntExact(getRange(exchange).v1());
     }
 
-    protected static Optional<Integer> getRangeEnd(HttpExchange exchange) {
+    protected static OptionalInt getRangeEnd(HttpExchange exchange) {
         final long rangeEnd = getRange(exchange).v2();
         if (rangeEnd == MAX_RANGE_VAL) {
-            return Optional.empty();
+            return OptionalInt.empty();
         }
-        return Optional.of(Math.toIntExact(rangeEnd));
+        return OptionalInt.of(Math.toIntExact(rangeEnd));
     }
 
     protected void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
         final int rangeStart = getRangeStart(exchange);
         assertThat(rangeStart, lessThan(bytes.length));
-        final Optional<Integer> rangeEnd = getRangeEnd(exchange);
+        final OptionalInt rangeEnd = getRangeEnd(exchange);
         final int length;
         if (rangeEnd.isPresent()) {
             // adapt range end to be compliant to https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
-            final int effectiveRangeEnd = Math.min(rangeEnd.get(), bytes.length - 1);
+            final int effectiveRangeEnd = Math.min(rangeEnd.getAsInt(), bytes.length - 1);
             length = effectiveRangeEnd - rangeStart + 1;
         } else {
             length = bytes.length - rangeStart;

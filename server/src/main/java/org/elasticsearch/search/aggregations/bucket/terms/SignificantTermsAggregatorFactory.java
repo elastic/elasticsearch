@@ -372,7 +372,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if ("global_ordinals".equals(value)) {
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.AGGREGATIONS,
                     "global_ordinals_hash",
                     "global_ordinals_hash is deprecated. Please use [global_ordinals] instead."

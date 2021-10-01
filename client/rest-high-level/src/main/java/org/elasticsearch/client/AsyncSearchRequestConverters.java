@@ -11,6 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.RequestConverters.Params;
 import org.elasticsearch.client.asyncsearch.DeleteAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.GetAsyncSearchRequest;
@@ -53,7 +54,9 @@ final class AsyncSearchRequestConverters {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(request.getRouting());
         params.withPreference(request.getPreference());
-        params.withIndicesOptions(request.getIndicesOptions());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(request.getIndicesOptions()) == false) {
+            params.withIndicesOptions(request.getIndicesOptions());
+        }
         params.withSearchType(request.getSearchType().name().toLowerCase(Locale.ROOT));
         params.withMaxConcurrentShardRequests(request.getMaxConcurrentShardRequests());
         if (request.getRequestCache() != null) {

@@ -33,6 +33,13 @@
         "required":false,
         "description":"Controls the amount of time to wait for the model to deploy.",
         "default": "20s"
+      },
+      "wait_for":{
+        "type":"string",
+        "required":false,
+        "description":"The allocation status for which to wait",
+        "options": ["starting", "started", "fully_allocated"],
+        "default": "started"
       }
     }
   }

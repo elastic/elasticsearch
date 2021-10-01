@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 
 public class YamlXContentParser extends JsonXContentParser {
 
@@ -27,6 +28,18 @@ public class YamlXContentParser extends JsonXContentParser {
                               RestApiVersion restApiVersion) {
         super(xContentRegistry, deprecationHandler, parser, restApiVersion);
     }
+
+    public YamlXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        JsonParser parser,
+        RestApiVersion restApiVersion,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) {
+        super(xContentRegistry, deprecationHandler, parser, restApiVersion, includes, excludes);
+    }
+
 
     @Override
     public XContentType contentType() {

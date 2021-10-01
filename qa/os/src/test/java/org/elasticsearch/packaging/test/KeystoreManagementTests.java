@@ -58,6 +58,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
     private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
+    private static final String FILE_REALM_SUPERUSER = "test-user";
+    private static final String FILE_REALM_SUPERUSER_PASSWORD = "test-user-password";
     private static final String KEYSTORE_PASSWORD = "keystore-password";
 
     /** Test initial archive state */
@@ -66,6 +68,18 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
+        // Add a user for tests to use.
+        // TODO: Possibly capture autoconfigured password from running the node the first time
+        Shell.Result result = sh.run(
+            installation.executables().usersTool
+                + " useradd "
+                + FILE_REALM_SUPERUSER
+                + " -p "
+                + FILE_REALM_SUPERUSER_PASSWORD
+                + " -r "
+                + "superuser"
+        );
+        assumeTrue(result.isSuccess());
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
@@ -114,13 +128,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        // TODO Change this to setKeystorePassword(password);, when we merge the code to auto-configure security for archives
         createKeystore(KEYSTORE_PASSWORD);
 
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, false));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 
@@ -143,7 +156,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, true));
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
         stopElasticsearch();
     }
 
@@ -175,7 +188,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test30KeystorePasswordFromFile() throws Exception {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        setKeystorePassword(KEYSTORE_PASSWORD);
+
+        rmKeystoreIfExists();
+        createKeystore(KEYSTORE_PASSWORD);
+
         assertPasswordProtectedKeystore();
 
         try {
@@ -185,7 +201,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_PASSWORD));
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            ServerUtils.runElasticsearchTests("elastic", installation.getElasticPassword(), ServerUtils.getCaCert(installation));
             stopElasticsearch();
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");
@@ -220,7 +236,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
     public void test40DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -238,14 +254,14 @@ public class KeystoreManagementTests extends PackagingTestCase {
         );
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation, USERNAME, PASSWORD);
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
     }
 
     /**
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
     public void test41DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -273,7 +289,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
-            ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
+            ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
         } finally {
             if (tempDir != null) {
                 rm(tempDir);
@@ -285,7 +301,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/76124")
     public void test42DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -314,6 +330,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // Run this test last so that removing the existing keystore doesn't make subsequent tests fail
         assumeTrue("Packages and docker are installed with a keystore file", distribution.isArchive());
         rmKeystoreIfExists();
+        // Elasticsearch was auto-configured for security. We need to remove that configuration as it depended on settings in the previous
+        // keystore
+        ServerUtils.disableSecurityFeatures(installation);
 
         startElasticsearch();
         stopElasticsearch();

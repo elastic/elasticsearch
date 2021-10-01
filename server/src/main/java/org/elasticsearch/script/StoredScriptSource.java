@@ -134,10 +134,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (source == null) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_templates",
+                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates",
                             "empty templates should no longer be used");
                     } else {
-                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_scripts",
+                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_scripts",
                             "empty scripts should no longer be used");
                     }
                 } else {
@@ -146,10 +146,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             } else if (source.isEmpty()) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_templates",
+                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates",
                             "empty templates should no longer be used");
                     } else {
-                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_scripts",
+                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_scripts",
                             "empty scripts should no longer be used");
                     }
                 } else {
@@ -250,7 +250,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             token = parser.nextToken();
 
             if (token == Token.END_OBJECT) {
-                deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_templates", "empty templates should no longer be used");
+                deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates", "empty templates should no longer be used");
 
                 return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
             }

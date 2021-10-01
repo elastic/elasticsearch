@@ -207,7 +207,18 @@ public final class PemUtils {
         if (null == line || PKCS8_FOOTER.equals(line.trim()) == false) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
-        byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
+        return parsePKCS8PemString(sb.toString());
+    }
+
+    /**
+     * Creates a {@link PrivateKey} from a String that contains the PEM encoded representation of a plaintext private key encoded in PKCS8
+     * @param pemString the PEM encoded representation of a plaintext private key encoded in PKCS8
+     * @return {@link PrivateKey}
+     * @throws IOException if the algorithm identifier can not be parsed from DER
+     * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
+     */
+    public static PrivateKey parsePKCS8PemString(String pemString) throws IOException, GeneralSecurityException{
+        byte[] keyBytes = Base64.getDecoder().decode(pemString);
         String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));

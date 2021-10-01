@@ -657,7 +657,7 @@ setup:
         refresh: true
         index: test_1
         id: 1
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -665,7 +665,7 @@ setup:
         refresh: true
         index: test_1
         id: 2
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -673,7 +673,7 @@ setup:
         refresh: true
         index: test_1
         id: 3
-        routing: 1
+        routing: "1"
         body: { "str": "bcd" }
 
   - do:
@@ -703,7 +703,7 @@ setup:
         refresh: true
         index: test_1
         id: 1
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -711,7 +711,7 @@ setup:
         refresh: true
         index: test_1
         id: 2
-        routing: 1
+        routing: "1"
         body: { "str": "abc" }
 
   - do:
@@ -719,7 +719,7 @@ setup:
         refresh: true
         index: test_1
         id: 3
-        routing: 1
+        routing: "1"
         body: { "str": "bcd" }
 
   - do:
@@ -1328,8 +1328,8 @@ precise size:
 ---
 huge size:
   - skip:
-        version: " - 7.99.99"
-        reason: "Fixed in 8.0.0 to be backported to 7.14.1"
+        version: " - 7.14.0"
+        reason: "Fixed in 7.14.1"
 
   - do:
       bulk:

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -404,6 +405,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected SnapshotInfo createFullSnapshot(String repoName, String snapshotName) {
+        return createFullSnapshot(logger, repoName, snapshotName);
+    }
+
+    public static SnapshotInfo createFullSnapshot(Logger logger, String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
             .setIncludeGlobalState(true)
@@ -757,5 +762,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             }
         }
         return metadata;
+    }
+
+    public static String[] matchAllPattern() {
+        return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -31,8 +33,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
+import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.matchAllPattern;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
@@ -181,6 +188,138 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
+    }
+
+    public void testFilterBySLMPolicy() throws Exception {
+        final String repoName = "test-repo";
+        AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
+        AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(1, 5));
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*").setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME).get().getSnapshots();
+        final String snapshotWithPolicy = "snapshot-with-policy";
+        final String policyName = "some-policy";
+        final SnapshotInfo withPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
+            logger,
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+
+        assertThat(getAllSnapshotsForPolicies(policyName), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("some-*"), is(List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), empty());
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(
+                getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
+        assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
+
+        final String snapshotWithOtherPolicy = "snapshot-with-other-policy";
+        final String otherPolicyName = "other-policy";
+        final SnapshotInfo withOtherPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
+            logger,
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+                .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+        assertThat(getAllSnapshotsForPolicies("*"), is(List.of(withOtherPolicy, withPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
+        assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots("*")
+                .setSnapshots("*")
+                .setSort(GetSnapshotsRequest.SortBy.NAME)
+                .get()
+                .getSnapshots();
+        assertThat(
+                getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName),
+                is(allSnapshots)
+        );
+        assertThat(
+                getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"),
+                is(allSnapshots)
+        );
+    }
+
+    public void testSortAfterStartTime() throws Exception {
+        final String repoName = "test-repo";
+        AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
+        final HashSet<Long> startTimes = new HashSet<>();
+        final SnapshotInfo snapshot1 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-1", startTimes);
+        final SnapshotInfo snapshot2 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-2", startTimes);
+        final SnapshotInfo snapshot3 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-3", startTimes);
+
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+                .setSnapshots(matchAllPattern())
+                .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+                .get()
+                .getSnapshots();
+        assertThat(allSnapshotInfo, is(List.of(snapshot1, snapshot2, snapshot3)));
+
+        final long startTime1 = snapshot1.startTime();
+        final long startTime2 = snapshot2.startTime();
+        final long startTime3 = snapshot3.startTime();
+
+        assertThat(allAfterStartTimeAscending(startTime1 - 1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime1), is(allSnapshotInfo));
+        assertThat(allAfterStartTimeAscending(startTime2), is(List.of(snapshot2, snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3), is(List.of(snapshot3)));
+        assertThat(allAfterStartTimeAscending(startTime3 + 1), empty());
+
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+                .setSnapshots(matchAllPattern())
+                .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+                .setOrder(SortOrder.DESC)
+                .get()
+                .getSnapshots();
+        assertThat(allSnapshotInfoDesc, is(List.of(snapshot3, snapshot2, snapshot1)));
+
+        assertThat(allBeforeStartTimeDescending(startTime3 + 1), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime3), is(allSnapshotInfoDesc));
+        assertThat(allBeforeStartTimeDescending(startTime2), is(List.of(snapshot2, snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1), is(List.of(snapshot1)));
+        assertThat(allBeforeStartTimeDescending(startTime1 - 1), empty());
+    }
+
+    // create a snapshot that is guaranteed to have a unique start time
+    private SnapshotInfo createFullSnapshotWithUniqueStartTime(String repoName, String snapshotName, Set<Long> forbiddenStartTimes) {
+        while (true) {
+            final SnapshotInfo snapshotInfo = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, snapshotName);
+            if (forbiddenStartTimes.contains(snapshotInfo.startTime())) {
+                logger.info("--> snapshot start time collided");
+                assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
+            } else {
+                assertTrue(forbiddenStartTimes.add(snapshotInfo.startTime()));
+                return snapshotInfo;
+            }
+        }
+    }
+
+    private List<SnapshotInfo> allAfterStartTimeAscending(long timestamp) throws IOException {
+        final Request request = baseGetSnapshotsRequest("*");
+        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
+        request.addParameter("from_sort_value", String.valueOf(timestamp));
+        final Response response = getRestClient().performRequest(request);
+        return readSnapshotInfos(response).getSnapshots();
+    }
+
+    private List<SnapshotInfo> allBeforeStartTimeDescending(long timestamp) throws IOException {
+        final Request request = baseGetSnapshotsRequest("*");
+        request.addParameter("sort", GetSnapshotsRequest.SortBy.START_TIME.toString());
+        request.addParameter("from_sort_value", String.valueOf(timestamp));
+        request.addParameter("order", SortOrder.DESC.toString());
+        final Response response = getRestClient().performRequest(request);
+        return readSnapshotInfos(response).getSnapshots();
+    }
+
+    private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) throws IOException {
+        final Request requestWithPolicy = new Request(HttpGet.METHOD_NAME, "/_snapshot/*/*");
+        requestWithPolicy.addParameter("slm_policy_filter", Strings.arrayToCommaDelimitedString(policies));
+        requestWithPolicy.addParameter("sort", GetSnapshotsRequest.SortBy.NAME.toString());
+        return readSnapshotInfos(getRestClient().performRequest(requestWithPolicy)).getSnapshots();
     }
 
     private void createIndexWithContent(String indexName) {

@@ -26,7 +26,10 @@ import static java.util.Collections.singletonList;
 
 public class DocValuesWhitelistExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(DocValuesWhitelistExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        DocValuesWhitelistExtension.class,
+        "org.elasticsearch.xpack.unsignedlong.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

@@ -19,10 +19,10 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -267,7 +267,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             int maxLength = 15;
             List<String> testText = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                /**
+                /*
                  * Build a string with a few unicode sequences separated by
                  * spaces. The unicode sequences aren't going to be of the same
                  * code page which is a shame because it makes the entire

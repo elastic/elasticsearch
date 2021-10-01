@@ -33,7 +33,7 @@ public class PluginsManager {
             "org.elasticsearch.plugins.cli.action.SyncPluginsAction"
         );
 
-        final SyncPluginsProvider provider = installClass.getDeclaredConstructor(Terminal.class, Environment.class)
+        final SyncPluginsProvider provider = installClass.getConstructor(Terminal.class, Environment.class)
             .newInstance(LoggerTerminal.getLogger("org.elasticsearch.plugins.cli.action.SyncPluginsAction"), env);
 
         provider.execute();

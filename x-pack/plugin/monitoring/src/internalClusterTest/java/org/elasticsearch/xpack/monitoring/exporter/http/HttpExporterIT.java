@@ -504,12 +504,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         final List<Tuple<String, String>> templates = monitoringTemplates(includeOldTemplates);
 
         assertMonitorVersionResource(webServer, alreadyExists, "/_template/", templates, customHeaders, basePath);
-
-        if (includeOldTemplates) {
-            assertWarnings("[xpack.monitoring.exporters._http.index.template.create_legacy_templates] setting was deprecated in " +
-                "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next " +
-                "major version.");
-        }
     }
 
     private void assertMonitorPipelines(final MockWebServer webServer,

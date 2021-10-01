@@ -301,8 +301,12 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
-        SystemIndices systemIndices = new SystemIndices(Map.of(
-            "plugin", new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "")))));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "plugin",
+                new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "")))
+            )
+        );
         return new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             TestIndexNameExpressionResolver.newInstance(systemIndices), systemIndices);
     }

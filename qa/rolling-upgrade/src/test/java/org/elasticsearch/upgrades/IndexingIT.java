@@ -257,7 +257,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testTsdb() throws IOException {
-        assumeTrue("tsdb added in 8.0.0 to be backported to 7.16.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
+        assumeTrue("tsdb added in 8.0.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
         StringBuilder bulk = new StringBuilder();
         switch (CLUSTER_TYPE) {

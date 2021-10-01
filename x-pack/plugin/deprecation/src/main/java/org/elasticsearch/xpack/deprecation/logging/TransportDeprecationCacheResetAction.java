@@ -68,7 +68,7 @@ public class TransportDeprecationCacheResetAction
     @Override
     protected DeprecationCacheResetAction.NodeResponse nodeOperation(DeprecationCacheResetAction.NodeRequest request, Task task) {
         rateLimitingFilterForIndexing.reset();
-        logger.debug( "Deprecation cache was reset");
+        logger.warn( "Deprecation cache was reset");
         return new DeprecationCacheResetAction.NodeResponse(transportService.getLocalNode());
     }
 }

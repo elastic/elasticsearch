@@ -40,13 +40,24 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.USE_X_OPAQUE_ID_IN_FILTERING;
-import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 
 /**
  * The plugin class for the Deprecation API
  */
 public class Deprecation extends Plugin implements ActionPlugin {
+    public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
+        "cluster.deprecation_indexing.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> USE_X_OPAQUE_ID_IN_FILTERING = Setting.boolSetting(
+        "cluster.deprecation_indexing.x_opaque_id_used.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -85,10 +96,19 @@ public class Deprecation extends Plugin implements ActionPlugin {
         templateRegistry.initialize();
 
         final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
+        //default is true, enable on start.
+        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.getDefault(environment.settings()));
 
-        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings(),
-            rateLimitingFilterForIndexing);
-        clusterService.addListener(component);
+        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client,
+            environment.settings(),
+            rateLimitingFilterForIndexing,
+            WRITE_DEPRECATION_LOGS_TO_INDEX.getDefault(environment.settings())// default is true, enable on start.
+        );
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING,
+            rateLimitingFilterForIndexing::setUseXOpaqueId);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_INDEX,
+            component::enableDeprecationLogIndexing);
 
         return List.of(component, rateLimitingFilterForIndexing);
     }

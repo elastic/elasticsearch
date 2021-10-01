@@ -21,12 +21,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -46,25 +44,12 @@ import java.util.stream.Collectors;
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
-    public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
-        "cluster.deprecation_indexing.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Boolean> USE_X_OPAQUE_ID_IN_FILTERING = Setting.boolSetting(
-        "cluster.deprecation_indexing.x_opaque_id_used.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
     private final RateLimitingFilter rateLimitingFilterForIndexing;
 
-    public DeprecationIndexingComponent(Client client, Settings settings, RateLimitingFilter rateLimitingFilterForIndexing) {
+    public DeprecationIndexingComponent(Client client, Settings settings, RateLimitingFilter rateLimitingFilterForIndexing,
+                                        boolean enableDeprecationLogIndexingDefault) {
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
 
         this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
@@ -80,16 +65,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
 
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender",
             rateLimitingFilterForIndexing, ecsLayout, consumer);
-        /*
-         this.filter = new RateLimitingFilter();
-        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
-
-        setUseXOpaqueId(true); // default is true, enable on start.
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, this::setUseXOpaqueId);
-
-        enableDeprecationLogIndexing(true); // default is true, enable on start.
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(WRITE_DEPRECATION_LOGS_TO_IND
-         */
+        enableDeprecationLogIndexing(enableDeprecationLogIndexingDefault);
     }
 
     @Override
@@ -110,11 +86,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     }
 
 
-    private void setUseXOpaqueId(boolean useXOpaqueId) {
-        this.filter.setUseXOpaqueId(useXOpaqueId);
-    }
-
-    private void enableDeprecationLogIndexing(boolean newEnabled) {
+    public void enableDeprecationLogIndexing(boolean newEnabled) {
         if (appender.isEnabled() != newEnabled) {
             // We've flipped from disabled to enabled. Make sure we start with a clean cache of
             // previously-seen keys, otherwise we won't index anything.

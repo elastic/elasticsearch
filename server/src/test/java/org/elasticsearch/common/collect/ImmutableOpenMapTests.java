@@ -141,8 +141,8 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testValuesToArray() {
         Integer[] populations = countryPopulations.values().toArray(Integer[]::new);
-        assertThat(populations.length, equalTo(5));
 
+        assertThat(populations.length, equalTo(5));
         Arrays.sort(populations);
         assertThat(populations, equalTo(new Integer[]{37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942}));
     }

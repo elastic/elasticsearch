@@ -26,24 +26,31 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class TextClassificationProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
-        TextClassificationConfig config = new TextClassificationConfig(
-            new VocabularyConfig("test-index"), null, List.of("a", "b"), null, null);
-
-        TextClassificationProcessor processor = new TextClassificationProcessor(mock(BertTokenizer.class), config);
         {
             PyTorchResult torchResult = new PyTorchResult("foo", new double[][][] {}, 0L, null);
-            InferenceResults inferenceResults = processor.processResult(null, torchResult);
+            InferenceResults inferenceResults = TextClassificationProcessor.processResult(
+                null,
+                torchResult,
+                randomInt(),
+                List.of("a", "b"),
+                randomAlphaOfLength(10)
+            );
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals("Text classification result has no data", ((WarningInferenceResults) inferenceResults).getWarning());
         }
         {
             PyTorchResult torchResult = new PyTorchResult("foo", new double[][][] { { { 1.0 } } }, 0L, null);
-            InferenceResults inferenceResults = processor.processResult(null, torchResult);
+            InferenceResults inferenceResults = TextClassificationProcessor.processResult(
+                null,
+                torchResult,
+                randomInt(),
+                List.of("a", "b"),
+                randomAlphaOfLength(10)
+            );
             assertThat(inferenceResults, instanceOf(WarningInferenceResults.class));
             assertEquals(
                 "Expected exactly [2] values in text classification result; got [1]",

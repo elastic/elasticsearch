@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
@@ -418,7 +419,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo");
         awaitNumberOfSnapshotsInProgress(1);
-
         GetSnapshotsResponse response1 = client().admin()
             .cluster()
             .prepareGetSnapshots("test-repo")
@@ -432,7 +432,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         SnapshotStatus snapshotStatus = client().admin().cluster().prepareSnapshotStatus().execute().actionGet().getSnapshots().get(0);
         assertThat(snapshotInfo.totalShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getTotalShards()));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
+        assertThat(snapshotInfo.successfulShards(), lessThanOrEqualTo(snapshotStatus.getIndices().get(indexName).getShardsStats().getDoneShards()));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
 
         String notExistedSnapshotName = "snapshot_not_exist";

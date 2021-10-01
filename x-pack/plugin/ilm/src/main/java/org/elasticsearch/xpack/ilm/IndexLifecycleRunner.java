@@ -13,10 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -52,6 +54,21 @@ class IndexLifecycleRunner {
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
+
+    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
+        ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
+                ClusterStateTaskExecutor.ClusterTasksResult.builder();
+        ClusterState state = currentState;
+        for (IndexLifecycleClusterStateUpdateTask task : tasks) {
+            try {
+                state = task.execute(state);
+                builder.success(task);
+            } catch (Exception e) {
+                builder.failure(task, e);
+            }
+        }
+        return builder.build(state);
+    };
 
     IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ILMHistoryStore ilmHistoryStore, ClusterService clusterService,
                          ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -522,6 +539,8 @@ class IndexLifecycleRunner {
      */
     private final Set<Tuple<Index, StepKey>> busyIndices = Collections.synchronizedSet(new HashSet<>());
 
+    static final ClusterStateTaskConfig ILM_TASK_CONFIG = ClusterStateTaskConfig.build(Priority.NORMAL);
+
     /**
      * Tracks already executing {@link IndexLifecycleClusterStateUpdateTask} tasks in {@link #executingTasks} to prevent queueing up
      * duplicate cluster state updates.
@@ -541,7 +560,7 @@ class IndexLifecycleRunner {
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task);
+            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR, task);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

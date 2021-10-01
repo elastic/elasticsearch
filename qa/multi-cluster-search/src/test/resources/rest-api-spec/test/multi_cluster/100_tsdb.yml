@@ -3,7 +3,7 @@ setup:
   # Create a local tsdb index with a tsid the doesn't overlap with the remote cluster.
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:
@@ -57,7 +57,7 @@ setup:
 teardown:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.delete:
@@ -68,7 +68,7 @@ teardown:
 aggregate tsid:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:

@@ -157,7 +157,7 @@
 tsdb:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:

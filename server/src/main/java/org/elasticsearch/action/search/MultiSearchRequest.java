@@ -14,6 +14,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
@@ -35,6 +37,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,6 +49,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 
 /**
  * A multi search API request.
@@ -179,7 +184,25 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex, RestApiVersion restApiVersion) throws IOException {
+                                           boolean allowExplicitIndex,
+                                           RestApiVersion restApiVersion) throws IOException {
+        readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing, searchType, ccsMinimizeRoundtrips, registry,
+            allowExplicitIndex, restApiVersion, false);
+
+    }
+
+    public static void readMultiLineFormat(BytesReference data,
+                                           XContent xContent,
+                                           CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+                                           String[] indices,
+                                           IndicesOptions indicesOptions,
+                                           String routing,
+                                           String searchType,
+                                           Boolean ccsMinimizeRoundtrips,
+                                           NamedXContentRegistry registry,
+                                           boolean allowExplicitIndex,
+                                           RestApiVersion restApiVersion,
+                                           boolean supportWaitForCheckpoints) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -251,7 +274,23 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if(restApiVersion == RestApiVersion.V_7 &&
                             ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
                             deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                        } else {
+                        } else if ("wait_for_checkpoints".equals(entry.getKey())) {
+                            if (supportWaitForCheckpoints) {
+                                throw new IllegalArgumentException("wait_for_checkpoints parameter not supported");
+                            }
+                            String[] stringWaitForCheckpoints = nodeStringArrayValue(value);
+                            final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+                            for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+                                waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+                            }
+                            searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
+                        } else if ("wait_for_checkpoints_timeout".equals(entry.getKey())) {
+                            if (supportWaitForCheckpoints) {
+                                throw new IllegalArgumentException("wait_for_checkpoints_timeout parameter not supported");
+                            }
+                            final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value,TimeValue.timeValueSeconds(30));
+                            searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
+                        }  else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }

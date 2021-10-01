@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -129,6 +130,18 @@ public class RestSearchAction extends BaseRestHandler {
                                           XContentParser requestContentParser,
                                           NamedWriteableRegistry namedWriteableRegistry,
                                           IntConsumer setSize) throws IOException {
+        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, false);
+    }
+
+
+    /**
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request. This variation
+     * allows the caller to specify if wait_for_checkpoints functionality is supported.
+     */
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
+                                          XContentParser requestContentParser,
+                                          NamedWriteableRegistry namedWriteableRegistry,
+                                          IntConsumer setSize, boolean supportWaitForCheckpoints) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
             deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
@@ -181,6 +194,24 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
         }
+
+        if (supportWaitForCheckpoints) {
+            String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
+            final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+            for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+                waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+            }
+            String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+            if (indices.length > 1) {
+                throw new IllegalArgumentException(
+                    "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
+                );
+            }
+            searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
+            final TimeValue waitForCheckpointsTimeout = request.paramAsTime("wait_for_checkpoints_timeout", TimeValue.timeValueSeconds(30));
+            searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
+        }
+
     }
 
     /**

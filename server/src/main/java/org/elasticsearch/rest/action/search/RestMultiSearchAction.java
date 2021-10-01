@@ -96,6 +96,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                   boolean allowExplicitIndex) throws IOException {
+        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, false);
+    }
+
+    /**
+     * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}. This variation allows the caller to specify if
+     * wauit_for_checkpoints functionality is supported.
+     */
+    public static MultiSearchRequest parseRequest(RestRequest restRequest,
+                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                  boolean allowExplicitIndex, boolean supportWaitForCheckpoints) throws IOException {
         if(restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
             restRequest.param("type");
         }
@@ -150,7 +160,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+                                             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, false);
+    }
+
+    /**
+     * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
+     * This variation allows the caller to specify if wait_for_checkpoints functionality is supported.
+     */
+    public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
+            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer, boolean supportWaitForCheckpoints) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
@@ -161,7 +180,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing,
-                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, request.getRestApiVersion());
+                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, request.getRestApiVersion(),
+                supportWaitForCheckpoints);
     }
 
     @Override

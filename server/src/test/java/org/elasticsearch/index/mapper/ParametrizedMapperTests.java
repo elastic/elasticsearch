@@ -29,6 +29,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +40,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ParametrizedMapperTests extends MapperServiceTestCase {
+
+    public enum DummyEnumType {
+        name1,
+        name2,
+        name3
+    }
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
         @Override
@@ -119,6 +126,23 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         final Parameter<String> restricted
             = Parameter.restrictedStringParam("restricted", true, m -> toType(m).restricted, "foo", "bar");
 
+        final Parameter<DummyEnumType> enumField = Parameter.enumParam(
+            "enum_field",
+            true,
+            m -> toType(m).enumField,
+            DummyEnumType.name1,
+            DummyEnumType.class
+        );
+
+        final Parameter<DummyEnumType> restrictedEnumField = Parameter.restrictedEnumParam(
+            "restricted_enum_field",
+            true,
+            m -> toType(m).restrictedEnumField,
+            DummyEnumType.name1,
+            DummyEnumType.class,
+            EnumSet.of(DummyEnumType.name1, DummyEnumType.name2)
+        );
+
         protected Builder(String name) {
             super(name);
             // only output search analyzer if different to analyzer
@@ -128,7 +152,20 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(fixed, fixed2, variable, index, wrapper, intValue, analyzer, searchAnalyzer, required, restricted);
+            return List.of(
+                fixed,
+                fixed2,
+                variable,
+                index,
+                wrapper,
+                intValue,
+                analyzer,
+                searchAnalyzer,
+                required,
+                restricted,
+                enumField,
+                restrictedEnumField
+            );
         }
 
         @Override
@@ -162,6 +199,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         private final boolean index;
         private final String required;
         private final String restricted;
+        private final DummyEnumType enumField;
+        private final DummyEnumType restrictedEnumField;
 
         protected TestMapper(String simpleName, String fullName, MultiFields multiFields, CopyTo copyTo,
                              ParametrizedMapperTests.Builder builder) {
@@ -176,6 +215,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             this.index = builder.index.getValue();
             this.required = builder.required.getValue();
             this.restricted = builder.restricted.getValue();
+            this.enumField = builder.enumField.getValue();
+            this.restrictedEnumField = builder.restrictedEnumField.getValue();
         }
 
         @Override
@@ -253,7 +294,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
                 "\"fixed2\":false,\"variable\":\"default\",\"index\":true," +
                 "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"_keyword\"," +
-                "\"required\":\"value\",\"restricted\":\"foo\"}}",
+                "\"required\":\"value\",\"restricted\":\"foo\",\"enum_field\":\"name1\"," +
+                "\"restricted_enum_field\":\"name1\"}}",
             toStringWithDefaults(mapper));
     }
 
@@ -476,7 +518,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
                 "\"fixed2\":false,\"variable\":\"default\",\"index\":true," +
                 "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"default\"," +
-                "\"required\":\"value\",\"restricted\":\"foo\"}}",
+                "\"required\":\"value\",\"restricted\":\"foo\",\"enum_field\":\"name1\"," +
+                "\"restricted_enum_field\":\"name1\"}}",
             toStringWithDefaults(mapper));
     }
 
@@ -508,6 +551,47 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\"}";
             TestMapper mapper = fromMapping(mapping);
             assertEquals("foo", mapper.restricted);
+        }
+    }
+
+    public void testEnumField() {
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\",\"enum_field\":\"baz\"}";
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping));
+            assertEquals("Unknown value [baz] for field [enum_field] - accepted values are [name1, name2, name3]", e.getMessage());
+        }
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\",\"enum_field\":\"name3\"}";
+            TestMapper mapper = fromMapping(mapping);
+            assertEquals(DummyEnumType.name3, mapper.enumField);
+        }
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\"}";
+            TestMapper mapper = fromMapping(mapping);
+            assertEquals(DummyEnumType.name1, mapper.enumField);
+        }
+    }
+
+    public void testRestrictedEnumField() {
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\",\"restricted_enum_field\":\"baz\"}";
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping));
+            assertEquals("Unknown value [baz] for field [restricted_enum_field] - accepted values are [name1, name2]", e.getMessage());
+        }
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\",\"restricted_enum_field\":\"name3\"}";
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping));
+            assertEquals("Unknown value [name3] for field [restricted_enum_field] - accepted values are [name1, name2]", e.getMessage());
+        }
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\",\"restricted_enum_field\":\"name2\"}";
+            TestMapper mapper = fromMapping(mapping);
+            assertEquals(DummyEnumType.name2, mapper.restrictedEnumField);
+        }
+        {
+            String mapping = "{\"type\":\"test_mapper\",\"required\":\"a\"}";
+            TestMapper mapper = fromMapping(mapping);
+            assertEquals(DummyEnumType.name1, mapper.restrictedEnumField);
         }
     }
 

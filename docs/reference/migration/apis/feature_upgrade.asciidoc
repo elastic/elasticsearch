@@ -1,0 +1,88 @@
+[role="xpack"]
+[testenv="basic"]
+[[migration-api-feature-upgrade]]
+=== Feature Upgrade APIs
+++++
+<titleabbrev>Feature upgrade APIs</titleabbrev>
+++++
+
+IMPORTANT: Use this API to check for system features that need to be upgraded before
+a major version upgrade. You should run it on the last minor version of the
+major version you are upgrading from.
+
+The feature upgrade APIs are to be used to retrieve information about system features
+that have to be upgraded before a cluster can be migrated to the next major version number,
+and to trigger an automated system upgrade that might potentially involve downtime for
+{es} system features.
+
+[[feature-upgrade-api-request]]
+==== {api-request-title}
+
+`GET /migration/system_features`
+
+[[feature-upgrade-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. (TODO: true?)
+
+[[feature-upgrade-api-example]]
+==== {api-examples-title}
+
+To see the list of system features needing upgrades, submit a GET request to the
+`_migration/system_features` endpoint:
+
+[source,console]
+--------------------------------------------------
+GET /_migration/system_features
+--------------------------------------------------
+
+Example response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "features" : [
+    {
+      "feature_name" : "security",
+      "minimum_index_version" : "7.1.1",
+      "upgrade_status" : "UPGRADE_NEEDED",
+      "indices" : [
+        {
+          "index" : ".security-7",
+          "version" : "7.1.1"
+        }
+      ]
+    }
+  ],
+  "upgrade_status" : "UPGRADE_NEEDED"
+}
+--------------------------------------------------
+
+This response tells us that Elasticsearch security needs its internal
+indices upgraded before we can upgrade the cluster to 8.0.
+
+To perform the required upgrade, submit a POST request to the same endpoint.
+
+[source,console]
+--------------------------------------------------
+POST /_migration/system_features
+--------------------------------------------------
+
+Example response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "accepted" : true,
+  "features" : [
+    {
+      "feature_name" : "security"
+    }
+  ]
+}
+--------------------------------------------------
+
+This tells us that the security index is being upgraded. To check the
+overall status of the upgrade, call the endpoint with GET.
+

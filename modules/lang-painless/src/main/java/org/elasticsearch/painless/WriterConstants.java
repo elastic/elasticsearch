@@ -8,7 +8,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -18,7 +17,6 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -57,10 +55,6 @@ public final class WriterConstants {
     public static final Type UTILITY_TYPE = Type.getType(Utility.class);
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
-
-    // TODO: remove this when the transition from Joda to Java datetimes is completed
-    public static final Method JCZDT_TO_ZONEDDATETIME =
-            getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
 
     /**
      * A Method instance for {@linkplain Pattern}. This isn't available from PainlessLookup because we intentionally don't add it
@@ -116,9 +110,6 @@ public final class WriterConstants {
 
     public static final Method DEF_TO_STRING_IMPLICIT = getAsmMethod(String.class, "defToStringImplicit", Object.class);
     public static final Method DEF_TO_STRING_EXPLICIT = getAsmMethod(String.class, "defToStringExplicit", Object.class);
-
-    // TODO: remove this when the transition from Joda to Java datetimes is completed
-    public static final Method DEF_TO_ZONEDDATETIME = getAsmMethod(ZonedDateTime.class, "defToZonedDateTime", Object.class);
 
     /** invokedynamic bootstrap for lambda expression/method references */
     public static final MethodType LAMBDA_BOOTSTRAP_TYPE =

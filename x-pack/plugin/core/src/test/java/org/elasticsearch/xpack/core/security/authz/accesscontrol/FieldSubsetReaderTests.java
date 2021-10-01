@@ -473,7 +473,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         SortedDocValues values = segmentReader.getSortedDocValues("fieldA");
         assertNotNull(values);
         assertTrue(values.advanceExact(0));
-        assertEquals(new BytesRef("testA"), values.binaryValue());
+        assertEquals(new BytesRef("testA"), values.lookupOrd(values.ordValue()));
         assertNull(segmentReader.getSortedDocValues("fieldB"));
 
         TestUtil.checkReader(ir);

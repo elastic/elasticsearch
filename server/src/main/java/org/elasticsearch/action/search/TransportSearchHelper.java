@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.store.RAMOutputStream;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -30,7 +30,8 @@ final class TransportSearchHelper {
     }
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
-        try (RAMOutputStream out = new RAMOutputStream()) {
+        try {
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeString(INCLUDE_CONTEXT_UUID);
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
@@ -45,9 +46,7 @@ final class TransportSearchHelper {
                     out.writeString(searchShardTarget.getNodeId());
                 }
             }
-            byte[] bytes = new byte[(int) out.getFilePointer()];
-            out.writeTo(bytes, 0);
-            return Base64.getUrlEncoder().encodeToString(bytes);
+            return Base64.getUrlEncoder().encodeToString(out.copyBytes().array());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

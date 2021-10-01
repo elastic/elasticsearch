@@ -86,7 +86,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
@@ -283,6 +282,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return stats.get(getNonNullFileExt(fileName));
     }
 
+    // only used in tests
+    public void clearStats() {
+        stats.clear();
+    }
+
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
         return files().stream()
             .filter(fileInfo -> fileInfo.physicalName().equals(name))
@@ -427,15 +431,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 );
             }
         } else {
-            return new DirectBlobContainerIndexInput(
-                name,
-                this,
-                fileInfo,
-                context,
-                inputStats,
-                getUncachedChunkSize(),
-                bufferSize(context)
-            );
+            return new DirectBlobContainerIndexInput(name, this, fileInfo, context, inputStats, getUncachedChunkSize());
         }
     }
 

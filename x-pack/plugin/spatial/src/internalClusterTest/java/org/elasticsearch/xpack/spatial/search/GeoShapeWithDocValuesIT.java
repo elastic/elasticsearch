@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -49,10 +50,10 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         return true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77755")
     public void testMappingUpdate() {
         // create index
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
+        Version version = randomSupportedVersion();
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settings(version).build())
             .setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
@@ -65,9 +66,18 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             "  }\n" +
             "}";
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
-            .preparePutMapping("test")
-            .setSource(update, XContentType.JSON).get());
-        assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        if (version.before(Version.V_8_0_0)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
+                .preparePutMapping("test")
+                .setSource(update, XContentType.JSON).get());
+            assertThat(e.getMessage(),
+                containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        } else {
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> client().admin().indices()
+                .preparePutMapping("test")
+                .setSource(update, XContentType.JSON).get());
+            assertThat(e.getMessage(),
+                containsString("using deprecated parameters [strategy] in mapper [shape] of type [geo_shape] is no longer allowed"));
+        }
     }
 }

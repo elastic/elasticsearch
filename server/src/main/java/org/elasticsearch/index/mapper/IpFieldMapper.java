@@ -90,14 +90,19 @@ public class IpFieldMapper extends FieldMapper {
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, indexed, hasDocValues);
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .addValidator(v -> {
-                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                        throw new IllegalArgumentException(
-                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
-                        );
-                    }
-                });
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
         }
 
         Builder nullValue(String nullValue) {

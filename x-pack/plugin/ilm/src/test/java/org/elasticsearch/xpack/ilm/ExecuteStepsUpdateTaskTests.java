@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -250,11 +249,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + mixedPolicyName + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].",
-                exception.getMessage());
-        assertSame(expectedException, exception.getCause());
+        task.onFailure(randomAlphaOfLength(10), expectedException);
     }
 
     public void testClusterActionStepThrowsException() throws IOException {

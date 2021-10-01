@@ -9,16 +9,15 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public final class AutoFollowStats {
 
@@ -43,14 +42,12 @@ public final class AutoFollowStats {
             (Long) args[0],
             (Long) args[1],
             (Long) args[2],
-            new TreeMap<>(
-                ((List<Map.Entry<String, Tuple<Long, ElasticsearchException>>>) args[3])
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-            new TreeMap<>(
-                ((List<Map.Entry<String, AutoFollowedCluster>>) args[4])
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+            ((List<Map.Entry<String, Tuple<Long, ElasticsearchException>>>) args[3])
+                .stream()
+                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
+            ((List<Map.Entry<String, AutoFollowedCluster>>) args[4])
+                .stream()
+                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue))
         ));
 
     static final ConstructingObjectParser<Map.Entry<String, Tuple<Long, ElasticsearchException>>, Void> AUTO_FOLLOW_EXCEPTIONS_PARSER =

@@ -50,8 +50,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
     private void doTestSameNormsAsBM25(boolean discountOverlaps) {
         ScriptedSimilarity sim1 = new ScriptedSimilarity("foobar", null, "foobaz", null, discountOverlaps);
-        BM25Similarity sim2 = new BM25Similarity();
-        sim2.setDiscountOverlaps(discountOverlaps);
+        BM25Similarity sim2 = new BM25Similarity(discountOverlaps);
         for (int iter = 0; iter < 100; ++iter) {
             final int length = TestUtil.nextInt(random(), 1, 100);
             final int position = random().nextInt(length);

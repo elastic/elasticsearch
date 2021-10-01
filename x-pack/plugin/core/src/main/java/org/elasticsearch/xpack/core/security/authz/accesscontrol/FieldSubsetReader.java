@@ -29,12 +29,12 @@ import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
@@ -321,11 +321,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         public void close() throws IOException {
             reader.close();
         }
-
-        @Override
-        public long ramBytesUsed() {
-            return reader.ramBytesUsed();
-        }
     }
 
     /**
@@ -353,7 +348,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
             visitor.stringField(fieldInfo, value);
         }
 

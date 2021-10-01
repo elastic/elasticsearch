@@ -29,7 +29,7 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
-public class RateLimitingFilter extends AbstractFilter  {
+public class RateLimitingFilter extends AbstractFilter {
 
     private volatile boolean useXOpaqueId = true;
 

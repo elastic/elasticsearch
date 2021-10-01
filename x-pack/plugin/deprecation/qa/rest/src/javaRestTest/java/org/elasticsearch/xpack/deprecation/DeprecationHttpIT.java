@@ -100,7 +100,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
 
         }, 30, TimeUnit.SECONDS);
-
     }
 
     /**

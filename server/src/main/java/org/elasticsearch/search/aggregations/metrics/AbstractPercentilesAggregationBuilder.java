@@ -41,7 +41,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     private final ParseField valuesField;
     protected boolean keyed = true;
     protected double[] values;
-    protected Set<String> metricNames;
     private PercentilesConfig percentilesConfig;
 
     public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> createParser(
@@ -129,7 +128,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.values = sortedValues;
         this.percentilesConfig = percentilesConfig;
         this.valuesField = valuesField;
-        this.metricNames = Arrays.stream(values).mapToObj(String::valueOf).collect(Collectors.toSet());
     }
 
     AbstractPercentilesAggregationBuilder(
@@ -371,6 +369,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
 
     @Override
     public Set<String> metricNames() {
-        return metricNames;
+        return Arrays.stream(values).mapToObj(String::valueOf).collect(Collectors.toSet());
     }
 }

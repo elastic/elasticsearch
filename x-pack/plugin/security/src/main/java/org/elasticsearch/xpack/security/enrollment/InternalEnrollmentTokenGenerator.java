@@ -98,7 +98,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             final List<String> httpAddressesList = new ArrayList<>();
             client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
                 for (NodeInfo nodeInfo : response.getNodes()) {
-                    httpAddressesList.add(nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress().getAddress());
+                    httpAddressesList.add(nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress().toString());
                     httpAddressesList.addAll(
                         Arrays.stream(nodeInfo.getInfo(HttpInfo.class).getAddress().boundAddresses())
                             .map(TransportAddress::toString)

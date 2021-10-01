@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -667,6 +669,30 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public String getFeatureName() {
         return "watcher";
+    }
+
+    @Override
+    public void prepareForIndicesUpgrade(ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
+        WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+        serviceRequest.stop();
+        originClient.execute(
+            WatcherServiceAction.INSTANCE,
+            serviceRequest,
+            ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
+        );
+    }
+
+    @Override
+    public void indicesUpgradeComplete(ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
+        WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+        serviceRequest.start();
+        originClient.execute(
+            WatcherServiceAction.INSTANCE,
+            serviceRequest,
+            ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
+        );
     }
 
     @Override

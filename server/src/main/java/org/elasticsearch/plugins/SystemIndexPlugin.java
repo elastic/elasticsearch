@@ -82,4 +82,44 @@ public interface SystemIndexPlugin extends ActionPlugin {
             listener
         );
     }
+
+    /**
+     * A method used to signal that the system indices owned by this plugin are about to be upgraded.
+     *
+     * This method will typically be called once, before any changes are made to the system indices owned by this plugin. However, if there
+     * is a master failover during the upgrade process, this method may be called
+     * @param clusterService The cluster service.
+     * @param client A {@link org.elasticsearch.client.ParentTaskAssigningClient} with the parent task set to the upgrade task. Does not set
+     *               the origin header, so implementors of this method will likely want to wrap it in an
+     *               {@link org.elasticsearch.client.OriginSettingClient}.
+     * @param listener A listener that should have {@code ActionListener.onResponse(true)} called once all necessary preparations for the
+     *                 upgrade of indices owned by this plugin have been completed. Passing {@code false} to the listener will result in a
+     *                 warning.
+     */
+    default void prepareForIndicesUpgrade(ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
+    /**
+     * A method used to signal that the system indices owned by this plugin have been upgraded and all restrictions (i.e. write blocks)
+     * necessary for the upgrade have been lifted from the indices owned by this plugin.
+     *
+     * This method will be called once, after all system indices owned by this plugin have been upgraded. Note that the upgrade may not have
+     * completed successfully, but if not, all write blocks/etc. will have been removed from the indices in question anyway as the upgrade
+     * process tries not to leave anything in an unusable state.
+     *
+     * Note: This method may need additional parameters when we support breaking mapping changes, as in that case we can't assume that
+     * any indices which were not upgraded can still be used (whereas we can assume that while the upgrade process is limited to reindexing,
+     * with no data format changes allowed).
+     *
+     * @param clusterService The cluster service.
+     * @param client A {@link org.elasticsearch.client.ParentTaskAssigningClient} with the parent task set to the upgrade task. Does not set
+     *               the origin header, so implementors of this method will likely want to wrap it in an
+     *               {@link org.elasticsearch.client.OriginSettingClient}.
+     * @param listener A listener that should have {@code ActionListener.onResponse(true)} called once all actions following the upgrade
+     *                 of this plugin's system indices have been completed.
+     */
+    default void indicesUpgradeComplete(ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
 }

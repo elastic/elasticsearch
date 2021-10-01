@@ -529,11 +529,6 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         lastSortValues = searchHit.getSortValues();
                         assert searchHit.getId() != null;
                         try {
-                            final Instant creationTime = getCreationTime(searchHit);
-                            if (creationTime.isAfter(expirationTime)) {
-                                logger.trace("blob store cache entry with id [{}] was created recently, skipping", searchHit.getId());
-                                continue;
-                            }
                             boolean delete = false;
 
                             // See {@link BlobStoreCacheService#generateId}
@@ -553,6 +548,15 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                                 }
                             }
                             if (delete) {
+                                final Instant creationTime = getCreationTime(searchHit);
+                                if (creationTime.isAfter(expirationTime)) {
+                                    logger.trace(
+                                        "blob store cache entry with id [{}] was created recently, skipping deletion",
+                                        searchHit.getId()
+                                    );
+                                    continue;
+                                }
+
                                 final DeleteRequest deleteRequest = new DeleteRequest().index(searchHit.getIndex());
                                 deleteRequest.id(searchHit.getId());
                                 deleteRequest.setIfSeqNo(searchHit.getSeqNo());

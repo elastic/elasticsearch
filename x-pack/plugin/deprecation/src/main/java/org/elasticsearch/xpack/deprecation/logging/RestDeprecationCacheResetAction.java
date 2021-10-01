@@ -21,7 +21,7 @@ public class RestDeprecationCacheResetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_logging/deprecation_cache"));
+        return org.elasticsearch.core.List.of(new Route(DELETE, "/_logging/deprecation_cache"));
     }
 
     @Override

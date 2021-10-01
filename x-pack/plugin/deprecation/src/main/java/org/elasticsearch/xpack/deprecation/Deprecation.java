@@ -36,9 +36,7 @@ import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingTemplateRe
 import org.elasticsearch.xpack.deprecation.logging.RestDeprecationCacheResetAction;
 import org.elasticsearch.xpack.deprecation.logging.TransportDeprecationCacheResetAction;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -51,7 +49,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.unmodifiableList(Arrays.asList(
+        return org.elasticsearch.core.List.of(
                 new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
                 new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
                 new ActionHandler<>(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class));

@@ -68,7 +68,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
             .get();
 
@@ -96,7 +96,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertConcreteMappingsOnAll("test", fieldName);
         }
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
     }
 

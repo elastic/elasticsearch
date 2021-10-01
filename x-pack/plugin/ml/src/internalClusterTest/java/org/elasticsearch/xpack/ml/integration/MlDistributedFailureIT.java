@@ -114,7 +114,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE")
                 .build()).get();
     }
@@ -124,7 +124,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence")
                 .build()).get();
     }

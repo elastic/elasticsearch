@@ -410,7 +410,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         // Run retention every second
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
+        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request r = new Request("PUT", "/_cluster/settings");
@@ -452,7 +452,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         } finally {
             // Unset retention
             ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest();
-            unsetRequest.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
+            unsetRequest.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
             try (XContentBuilder builder = jsonBuilder()) {
                 unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 Request r = new Request("PUT", "/_cluster/settings");
@@ -707,7 +707,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     private void disableSLMMinimumIntervalValidation() throws IOException {
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
+        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request r = new Request("PUT", "/_cluster/settings");

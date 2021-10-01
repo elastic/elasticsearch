@@ -98,15 +98,15 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     private void setClusterDefaultAllowPartialResults(boolean allowPartialResults) {
         String key = SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey();
 
-        Settings transientSettings = Settings.builder().put(key, allowPartialResults).build();
+        Settings persistentSettings = Settings.builder().put(key, allowPartialResults).build();
 
         ClusterUpdateSettingsResponse response1 = client().admin().cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(transientSettings)
+                .setPersistentSettings(persistentSettings)
                 .get();
 
         assertAcked(response1);
-        assertEquals(response1.getTransientSettings().getAsBoolean(key, null), allowPartialResults);
+        assertEquals(response1.getPersistentSettings().getAsBoolean(key, null), allowPartialResults);
     }
 
     private void buildRedIndex(int numShards) throws Exception {
@@ -133,6 +133,6 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())));
+            .setPersistentSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())));
     }
 }

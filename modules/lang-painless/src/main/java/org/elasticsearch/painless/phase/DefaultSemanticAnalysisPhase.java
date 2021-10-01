@@ -18,6 +18,7 @@ import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -69,6 +70,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.DynamicTypeAnnotation;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
@@ -2888,20 +2890,27 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "[" + semanticScope.getDecoration(userPrefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
-        boolean indy = false;
+        boolean dynamic = false;
         PainlessMethod method = null;
 
         if (prefixValueType != null) {
+            Class<?> type = prefixValueType.getValueType();
+            PainlessLookup lookup = semanticScope.getScriptScope().getPainlessLookup();
+
             if (prefixValueType.getValueType() == def.class) {
-                indy = true;
+                dynamic = true;
             } else {
-                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
-                        prefixValueType.getValueType(), false, methodName, userArgumentsSize);
+                method = lookup.lookupPainlessMethod(type, false, methodName, userArgumentsSize);
 
                 if (method == null) {
-                    throw userCallNode.createError(new IllegalArgumentException("member method " +
-                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
-                            "not found"));
+                    dynamic = lookup.lookupPainlessClass(type).annotations.containsKey(DynamicTypeAnnotation.class) &&
+                            lookup.lookupPainlessSubClassesMethod(type, methodName, userArgumentsSize) != null;
+
+                    if (dynamic == false) {
+                        throw userCallNode.createError(new IllegalArgumentException("member method " +
+                                "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + userArgumentsSize + "] " +
+                                "not found"));
+                    }
                 }
             }
         } else if (prefixStaticType != null) {
@@ -2919,7 +2928,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         Class<?> valueType;
 
-        if (indy) {
+        if (dynamic) {
             for (AExpression userArgumentNode : userArgumentNodes) {
                 semanticScope.setCondition(userArgumentNode, Read.class);
                 semanticScope.setCondition(userArgumentNode, Internal.class);

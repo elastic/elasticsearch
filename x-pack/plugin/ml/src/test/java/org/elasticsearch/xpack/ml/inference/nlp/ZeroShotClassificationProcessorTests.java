@@ -43,6 +43,7 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         ZeroShotClassificationProcessor processor = new ZeroShotClassificationProcessor(tokenizer, config);

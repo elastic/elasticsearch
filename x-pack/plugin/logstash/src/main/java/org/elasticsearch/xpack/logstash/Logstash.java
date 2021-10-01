@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIG
 public class Logstash extends Plugin implements SystemIndexPlugin {
 
     public static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
+    public static final String LOGSTASH_INDEX_NAME_PATTERN = LOGSTASH_CONCRETE_INDEX_NAME + "*";
 
     public Logstash() {}
 
@@ -83,7 +84,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             SystemIndexDescriptor.builder()
-                .setIndexPattern(LOGSTASH_CONCRETE_INDEX_NAME)
+                .setIndexPattern(LOGSTASH_INDEX_NAME_PATTERN)
                 .setPrimaryIndex(LOGSTASH_CONCRETE_INDEX_NAME)
                 .setDescription("Contains data for Logstash Central Management")
                 .setMappings(getIndexMappings())

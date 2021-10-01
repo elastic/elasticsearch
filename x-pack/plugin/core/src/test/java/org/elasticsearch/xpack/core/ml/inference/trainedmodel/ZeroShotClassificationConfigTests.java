@@ -55,7 +55,8 @@ public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCa
             randomBoolean() ? null : BertTokenizationTests.createRandom(),
             randomAlphaOfLength(10),
             randomBoolean(),
-            randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10))
+            randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomAlphaOfLength(7)
         );
     }
 }

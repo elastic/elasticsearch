@@ -16,7 +16,7 @@
 source "`dirname "$0"`"/elasticsearch-env
 
 CHECK_KEYSTORE=true
-ATTEMPT_SECURITY_AUTO_CONFIG="${ATTEMPT_SECURITY_AUTO_CONFIG:-true}"
+ATTEMPT_SECURITY_AUTO_CONFIG=true
 DAEMONIZE=false
 for option in "$@"; do
   case "$option" in

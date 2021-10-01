@@ -14,6 +14,7 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessField;
@@ -85,6 +86,7 @@ import org.elasticsearch.painless.symbol.Decorations.CompoundType;
 import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
 import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
 import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.DynamicInvocation;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
@@ -2944,6 +2946,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             TargetType targetType = userCallNode.isNullSafe() ? null : semanticScope.getDecoration(userCallNode, TargetType.class);
             valueType = targetType == null || semanticScope.getCondition(userCallNode, Explicit.class) ?
                     def.class : targetType.getTargetType();
+
+            semanticScope.setCondition(userCallNode, DynamicInvocation.class);
         } else {
             Objects.requireNonNull(method);
             semanticScope.getScriptScope().markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));

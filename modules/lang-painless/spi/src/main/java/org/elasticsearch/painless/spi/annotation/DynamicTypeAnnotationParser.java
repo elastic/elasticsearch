@@ -24,6 +24,6 @@ public class DynamicTypeAnnotationParser implements WhitelistAnnotationParser {
             );
         }
 
-        return DynamicTypeAnnotationParser.INSTANCE;
+        return DynamicTypeAnnotation.INSTANCE;
     }
 }

@@ -222,16 +222,13 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         refreshSystemIndex(true);
         assertThat(numberOfEntriesInCache(), equalTo(nbEntriesInCacheForMountedIndices + nbEntriesInCacheForOtherIndices));
 
-        final int oldDocsInCache;
         if (randomBoolean()) {
-            oldDocsInCache = indexRandomDocsInCache(1, 50, Instant.now().minus(Duration.ofDays(7L)).toEpochMilli());
+            final int oldDocsInCache = indexRandomDocsInCache(1, 50, Instant.now().minus(Duration.ofDays(7L)).toEpochMilli());
             refreshSystemIndex(true);
             assertThat(
                 numberOfEntriesInCache(),
                 equalTo(nbEntriesInCacheForMountedIndices + nbEntriesInCacheForOtherIndices + oldDocsInCache)
             );
-        } else {
-            oldDocsInCache = 0;
         }
 
         // creates a backup of the system index cache to be restored later
@@ -246,7 +243,6 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         assertAcked(client().admin().cluster().prepareDeleteRepository("repo"));
         ensureClusterStateConsistency();
 
-        refreshSystemIndex(false);
         assertThat(numberOfEntriesInCache(), equalTo(0L));
 
         assertAcked(

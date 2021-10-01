@@ -62,7 +62,7 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
     public void testIllegalArguments() {
         CountRequest countRequest = new CountRequest();
         assertNotNull(countRequest.indices());
-        assertNotNull(countRequest.indicesOptions());
+        assertNull(countRequest.indicesOptions());
         assertNotNull(countRequest.types());
 
         Exception e = expectThrows(NullPointerException.class, () -> countRequest.indices((String[]) null));
@@ -122,7 +122,9 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
     private static CountRequest copyRequest(CountRequest countRequest) {
         CountRequest result = new CountRequest();
         result.indices(countRequest.indices());
-        result.indicesOptions(countRequest.indicesOptions());
+        if (result.indicesOptions() != null) {
+            result.indicesOptions(countRequest.indicesOptions());
+        }
         result.types(countRequest.types());
         result.routing(countRequest.routing());
         result.preference(countRequest.preference());

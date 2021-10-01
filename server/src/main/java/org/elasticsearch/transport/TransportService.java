@@ -1042,9 +1042,12 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // callback that an exception happened, but on a different thread since we don't
-        // want handlers to worry about stack overflows
-        threadPool.generic().execute(new AbstractRunnable() {
+        // Callback that an exception happened, but on a different thread since we don't
+        // want handlers to worry about stack overflows.
+        // Execute on the current thread in the special case of a node shut down to notify the listener even when the threadpool has
+        // already been shut down.
+        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+        threadPool.executor(executor).execute(new AbstractRunnable() {
             @Override
             public void doRun() {
                 for (Transport.ResponseContext<?> holderToNotify : pruned) {

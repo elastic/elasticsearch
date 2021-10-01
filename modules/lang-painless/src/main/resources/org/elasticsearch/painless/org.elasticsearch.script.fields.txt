@@ -10,8 +10,8 @@
 
 # API
 class org.elasticsearch.script.field.Field {
-  org.elasticsearch.script.field.Converter BigInteger
-  org.elasticsearch.script.field.Converter Long
+  org.elasticsearch.script.field.Converter BigInteger @augmented[augmented_canonical_class_name="org.elasticsearch.script.field.BigIntegerField"]
+  org.elasticsearch.script.field.Converter Long @augmented[augmented_canonical_class_name="org.elasticsearch.script.field.LongField"]
   String getName()
   boolean isEmpty()
   List getValues()

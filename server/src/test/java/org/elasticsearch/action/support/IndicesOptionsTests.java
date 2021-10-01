@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent.MapParams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -309,7 +310,7 @@ public class IndicesOptionsTests extends ESTestCase {
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
         IndicesOptions fromXContentOptions;
         try (XContentParser parser = type.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, xContentBytes.streamInput())) {
             fromXContentOptions = IndicesOptions.fromXContent(parser);
         }
 

@@ -21,6 +21,8 @@ import java.io.IOException;
 
 public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends ActionRequest implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+
     protected String[] indices;
     private IndicesOptions indicesOptions;
 

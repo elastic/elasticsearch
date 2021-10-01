@@ -12,6 +12,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 
 public class GeoPointField extends Field<GeoPoint> {
 
+    /* ---- Geo Point Field Members ---- */
+
     public GeoPointField(String name, FieldValues<GeoPoint> values) {
         super(name, values);
     }

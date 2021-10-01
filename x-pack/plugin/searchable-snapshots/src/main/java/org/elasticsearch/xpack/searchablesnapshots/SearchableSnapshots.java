@@ -100,6 +100,7 @@ import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.HasFrozenC
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotEnableAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotRepositoryExistsAllocationDecider;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheMaintenanceService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
@@ -208,6 +209,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     );
 
     public static final String SNAPSHOT_BLOB_CACHE_INDEX = ".snapshot-blob-cache";
+    public static final String SNAPSHOT_BLOB_CACHE_INDEX_PATTERN = SNAPSHOT_BLOB_CACHE_INDEX + "*";
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
         new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
@@ -347,10 +349,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 threadPool::absoluteTimeInMillis
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
+            clusterService.addListener(new BlobStoreCacheMaintenanceService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX));
             components.add(blobStoreCacheService);
         } else {
             PersistentCache.cleanUp(settings, nodeEnvironment);
         }
+
+        if (DiscoveryNode.isMasterNode(environment.settings())) {
+            // Tracking usage of searchable snapshots is too costly to do on each individually mounted snapshot.
+            // Instead, we periodically look through the indices and identify if any are searchable snapshots,
+            // then marking the feature as used. We do this on each master node so that if one master fails, the
+            // continue reporting usage state.
+            var usageTracker = new SearchableSnapshotsUsageTracker(getLicenseState(), clusterService::state);
+            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
+        }
+
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
         components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
@@ -389,7 +402,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             SystemIndexDescriptor.builder()
-                .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX)
+                .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX_PATTERN)
                 .setDescription("Contains cached data of blob store repositories")
                 .setPrimaryIndex(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setMappings(getIndexMappings())
@@ -580,7 +593,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_CACHE_INDEX_PREFERENCE)
+            .put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_TIERS_CACHE_INDEX_PREFERENCE)
             .build();
     }
 
@@ -748,4 +761,5 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             assert knownUuids.equals(newUuids) : knownUuids + " vs " + newUuids;
         }
     }
+
 }

@@ -152,7 +152,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void getAsync(
+    final void getAsync(
         final String repository,
         final SnapshotId snapshotId,
         final IndexId indexId,
@@ -167,7 +167,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             return;
         }
         final GetRequest request = new GetRequest(index).id(generateId(repository, snapshotId, indexId, shardId, name, range));
-        client.get(request, new ActionListener<>() {
+        innerGet(request, new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
                 if (response.isExists()) {
@@ -205,6 +205,10 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         });
     }
 
+    protected void innerGet(final GetRequest request, final ActionListener<GetResponse> listener) {
+        client.get(request, listener);
+    }
+
     private static boolean assertDocId(
         final GetResponse response,
         final String repository,
@@ -230,7 +234,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return cause instanceof NodeClosedException || cause instanceof ConnectTransportException;
     }
 
-    public void putAsync(
+    public final void putAsync(
         final String repository,
         final SnapshotId snapshotId,
         final IndexId indexId,
@@ -270,7 +274,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     return;
                 }
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
-                client.index(request, new ActionListener<>() {
+                innerPut(request, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
@@ -293,6 +297,10 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             logger.warn(() -> new ParameterizedMessage("cache fill failure: [{}]", id), e);
             listener.onFailure(e);
         }
+    }
+
+    protected void innerPut(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        client.index(request, listener);
     }
 
     protected static String generateId(

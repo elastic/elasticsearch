@@ -65,7 +65,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
                     index.getName(), dataStream.getName(),
                     LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings()));
-                listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
+                listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }
             rolloverTarget = dataStream.getName();
@@ -83,7 +83,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (indexMetadata.getRolloverInfos().get(rolloverAlias) != null) {
                 logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
                     index.getName(), rolloverAlias);
-                listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
+                listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }
 
@@ -117,7 +117,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                     return;
                 }
 
-                listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
+                listener.onResponse(true, EmptyInfo.INSTANCE);
                 return;
             }
 
@@ -155,7 +155,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         }
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> listener.onResponse(response.getConditionStatus().values().stream().anyMatch(i -> i),
-                new WaitForRolloverReadyStep.EmptyInfo()), listener::onFailure));
+                EmptyInfo.INSTANCE), listener::onFailure));
     }
 
     ByteSizeValue getMaxSize() {
@@ -196,7 +196,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
-    private class EmptyInfo implements ToXContentObject {
+    private static final class EmptyInfo implements ToXContentObject {
+
+        static final EmptyInfo INSTANCE = new EmptyInfo();
+
         private EmptyInfo() {
         }
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;

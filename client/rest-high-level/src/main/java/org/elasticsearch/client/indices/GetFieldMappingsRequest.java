@@ -21,7 +21,7 @@ public class GetFieldMappingsRequest implements Validatable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions;
 
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;

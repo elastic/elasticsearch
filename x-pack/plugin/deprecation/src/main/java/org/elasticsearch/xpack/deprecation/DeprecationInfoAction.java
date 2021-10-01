@@ -211,6 +211,14 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 }
             }
 
+            // WORKAROUND: move transform deprecation issues into cluster_settings
+            List<DeprecationIssue> transformDeprecations = pluginSettingIssues.remove(
+                TransformDeprecationChecker.TRANSFORM_DEPRECATION_KEY
+            );
+            if (transformDeprecations != null) {
+                clusterSettingsIssues.addAll(transformDeprecations);
+            }
+
             return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, pluginSettingIssues);
         }
     }

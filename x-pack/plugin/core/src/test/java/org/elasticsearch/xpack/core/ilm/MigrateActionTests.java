@@ -89,19 +89,19 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         {
             List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(firstStep.getSettings()),
+            assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
                 is(DATA_HOT));
         }
         {
             List<Step> steps = action.toSteps(null, WARM_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(firstStep.getSettings()),
+            assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
                 is(DATA_WARM + "," + DATA_HOT));
         }
         {
             List<Step> steps = action.toSteps(null, COLD_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(firstStep.getSettings()),
+            assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
                 is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
         }
     }

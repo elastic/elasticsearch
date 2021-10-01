@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -553,6 +556,56 @@ public class QueryFolderTests extends ESTestCase {
         AttributeSort as2 = (AttributeSort) sort[1];
         assertEquals("test.int", as2.attribute().qualifiedName());
         assertEquals(Sort.Direction.DESC, as2.direction());
+    }
+
+    public void testFoldGroupByWithNullsOrdering() {
+        for (Tuple<String, MissingOrder> orderDirectiveWithExpectedMissing : Arrays.asList(
+            Tuple.tuple("", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("ASC NULLS LAST", MissingOrder.LAST),
+            Tuple.tuple("DESC", MissingOrder.DEFAULT),
+            Tuple.tuple("DESC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("DESC NULLS LAST", MissingOrder.LAST)
+        )) {
+            PhysicalPlan p = plan(
+                "SELECT MAX(int), keyword FROM test GROUP BY keyword ORDER BY keyword " + orderDirectiveWithExpectedMissing.v1()
+            );
+
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec ee = (EsQueryExec) p;
+
+            assertEquals(
+                "Order directive [" + orderDirectiveWithExpectedMissing.v1() + "]",
+                orderDirectiveWithExpectedMissing.v2(),
+                ee.queryContainer().aggs().groups().get(0).asValueSource().missingOrder()
+            );
+        }
+    }
+
+    public void testFoldGroupByHistogramWithNullsOrdering() {
+        for (Tuple<String, MissingOrder> orderDirectiveWithExpectedMissing : Arrays.asList(
+            Tuple.tuple("", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("ASC NULLS LAST", MissingOrder.LAST),
+            Tuple.tuple("DESC", MissingOrder.DEFAULT),
+            Tuple.tuple("DESC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("DESC NULLS LAST", MissingOrder.LAST)
+        )) {
+            PhysicalPlan p = plan(
+                "SELECT HISTOGRAM(int, 100) h FROM test GROUP BY h ORDER BY h " + orderDirectiveWithExpectedMissing.v1()
+            );
+
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec ee = (EsQueryExec) p;
+
+            assertEquals(
+                "Order directive [" + orderDirectiveWithExpectedMissing.v1() + "]",
+                orderDirectiveWithExpectedMissing.v2(),
+                ee.queryContainer().aggs().groups().get(0).asValueSource().missingOrder()
+            );
+        }
     }
 
     private static String randomOrderByAndLimit(int noOfSelectArgs) {

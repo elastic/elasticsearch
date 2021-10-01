@@ -14,7 +14,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -133,25 +132,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
                     .map(MonitoringTemplateUtils::templateName)
                     .collect(Collectors.toList());
-    }
-
-    private Tuple<String, String> monitoringPipeline(final String pipelineId) {
-        final XContentType json = XContentType.JSON;
-
-        return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
-                Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json)));
-    }
-
-    protected List<Tuple<String, String>> monitoringPipelines() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(this::monitoringPipeline)
-                .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringPipelineNames() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(MonitoringTemplateUtils::pipelineName)
-                .collect(Collectors.toList());
     }
 
     protected List<Tuple<String, String>> monitoringWatches() {

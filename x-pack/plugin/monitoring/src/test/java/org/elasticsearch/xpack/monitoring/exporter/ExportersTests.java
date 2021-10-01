@@ -253,8 +253,8 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
 
         Settings update = Settings.builder()
-                .put("xpack.monitoring.exporters._name0.use_ingest", true)
-                .put("xpack.monitoring.exporters._name1.use_ingest", false)
+                .put("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist", true)
+                .put("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist", false)
                 .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
@@ -262,9 +262,9 @@ public class ExportersTests extends ESTestCase {
         logger.info(settings);
         assertThat(settings.size(), is(4));
         assertEquals(settings.get("xpack.monitoring.exporters._name0.type"), "local");
-        assertEquals(settings.get("xpack.monitoring.exporters._name0.use_ingest"), "true");
+        assertEquals(settings.get("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist"), "true");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
-        assertEquals(settings.get("xpack.monitoring.exporters._name1.use_ingest"), "false");
+        assertEquals(settings.get("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist"), "false");
     }
 
     public void testExporterBlocksOnClusterState() {

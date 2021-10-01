@@ -484,7 +484,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     public void testRegexAcceleration() throws IOException, ParseException {
         // All these expressions should rewrite to a match all with no verification step required at all
-        String superfastRegexes[]= { ".*", "a*", "(foo|bar|.*)", "@"};
+        String superfastRegexes[]= { ".*", "a*", "(foo|bar|.*)", "@", "((foo|bar|b*)|(fob|baz|.*))"};
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             assertTrue(
@@ -495,7 +495,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         
         // Regexes that were previously rewritten to a match all with no verification 
         // but shouldn't have been (See https://github.com/elastic/elasticsearch/issues/78391 )
-        String shouldntMatchAllPatterns[] = { "[a*]a+"};
+        String shouldntMatchAllPatterns[] = { "[a*]a+", "(([a*]a+)|[b*]b+)"};
         for (String pattern : shouldntMatchAllPatterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);

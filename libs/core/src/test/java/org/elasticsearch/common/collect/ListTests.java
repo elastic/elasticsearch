@@ -58,6 +58,25 @@ public class ListTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> copy.add("foo"));
     }
 
+    public void testCopyIsUnmodifiable() {
+        final Collection<String> coll = Arrays.asList("foo", "bar", "baz");
+        final java.util.List<String> copy = List.copyOf(coll);
+        expectThrows(UnsupportedOperationException.class, () -> copy.add("foo"));
+        expectThrows(UnsupportedOperationException.class, () -> copy.addAll(Arrays.asList("foo", "bar")));
+        expectThrows(UnsupportedOperationException.class, () -> copy.addAll(1, Arrays.asList("foo", "bar")));
+        expectThrows(UnsupportedOperationException.class, () -> copy.remove("foo"));
+        expectThrows(UnsupportedOperationException.class, () -> copy.remove(1));
+        expectThrows(UnsupportedOperationException.class, () -> copy.removeAll(Arrays.asList("foo", "bar")));
+        expectThrows(UnsupportedOperationException.class, () -> copy.retainAll(Arrays.asList("foo", "bar")));
+        expectThrows(UnsupportedOperationException.class, () -> copy.retainAll(Arrays.asList("foo", "bar")));
+        expectThrows(UnsupportedOperationException.class, () -> copy.replaceAll(s -> s + "_"));
+        expectThrows(UnsupportedOperationException.class, copy::clear);
+        expectThrows(UnsupportedOperationException.class, () -> copy.sort(String.CASE_INSENSITIVE_ORDER));
+        expectThrows(UnsupportedOperationException.class, () -> copy.set(1, "foo"));
+        expectThrows(UnsupportedOperationException.class, () -> copy.iterator().remove());
+        expectThrows(UnsupportedOperationException.class, () -> copy.listIterator().remove());
+    }
+
     public void doesNotCopyEffectivelyImmutableList() {
         final Collection<String> coll = Arrays.asList("foo", "bar", "baz");
         final java.util.List<String> copy = List.copyOf(coll);

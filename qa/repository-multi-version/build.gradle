@@ -34,13 +34,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     }
   }
 
-  testClusters {
-    "${oldClusterName}" clusterSettings(bwcVersion.toString())
-    "${newClusterName}" clusterSettings(project.version)
-  }
+  testClusters.register(oldClusterName, clusterSettings(bwcVersion.toString()))
+  testClusters.register(newClusterName, clusterSettings(project.version))
 
   tasks.register("${baseName}#Step1OldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${oldClusterName}"
+    useCluster testClusters.named(oldClusterName)
     mustRunAfter("precommit")
     doFirst {
       delete("${buildDir}/cluster/shared/repo/${baseName}")
@@ -49,19 +47,19 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#Step2NewClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${newClusterName}"
+    useCluster testClusters.named(newClusterName)
     dependsOn "${baseName}#Step1OldClusterTest"
     systemProperty 'tests.rest.suite', 'step2'
   }
 
   tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${oldClusterName}"
+    useCluster testClusters.named(oldClusterName)
     dependsOn "${baseName}#Step2NewClusterTest"
     systemProperty 'tests.rest.suite', 'step3'
   }
 
   tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${newClusterName}"
+    useCluster testClusters.named(newClusterName)
     dependsOn "${baseName}#Step3OldClusterTest"
     systemProperty 'tests.rest.suite', 'step4'
   }
@@ -70,8 +68,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${newClusterName}" : "${oldClusterName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${clusterName}".allHttpSocketURI.join(",")}")
-    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${clusterName}".getName()}")
+    it.nonInputProperties.systemProperty('tests.rest.cluster', testClusters.named(clusterName).map(c -> c.allHttpSocketURI.join(",")))
+    it.nonInputProperties.systemProperty('tests.clustername', clusterName)
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

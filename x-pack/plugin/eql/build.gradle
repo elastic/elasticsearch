@@ -31,6 +31,8 @@ dependencies {
   testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
 
   testImplementation 'io.ous:jtoml:2.0.0'
+
+  internalClusterTestImplementation project(":client:rest-high-level")
 }
 
 

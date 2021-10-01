@@ -21,8 +21,10 @@ import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
 import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -132,6 +134,29 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             @Override
             public void remove() {
                 throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    /**
+     * Returns a {@link Set} view of the keys contained in this map.
+     */
+    public Set<KType> keySet() {
+        return new AbstractSet<>() {
+            @Override
+            public Iterator<KType> iterator() {
+                return keysIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean contains(Object o) {
+                return map.containsKey((KType) o);
             }
         };
     }

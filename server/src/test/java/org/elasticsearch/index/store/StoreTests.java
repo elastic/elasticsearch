@@ -16,7 +16,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
@@ -210,10 +209,10 @@ public class StoreTests extends ESTestCase {
             BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
             output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         }
-        output.writeInt(CodecUtil.FOOTER_MAGIC);
-        output.writeInt(0);
+        CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
+        CodecUtil.writeBEInt(output, 0);
         String checksum = Store.digestToString(output.getChecksum());
-        output.writeLong(output.getChecksum() + 1); // write a wrong checksum to the file
+        CodecUtil.writeBELong(output, output.getChecksum() + 1); // write a wrong checksum to the file
         output.close();
 
         IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
@@ -459,8 +458,7 @@ public class StoreTests extends ESTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false &&
-                    IndexFileNames.OLD_SEGMENTS_GEN.equals(file) == false && file.startsWith("extra") == false) {
+            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
                     store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {

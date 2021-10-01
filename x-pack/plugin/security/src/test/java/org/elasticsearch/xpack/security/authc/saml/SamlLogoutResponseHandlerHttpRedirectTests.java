@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.joda.time.DateTime;
+import org.elasticsearch.core.TimeValue;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -71,7 +70,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), credential);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
+        logoutResponse.setIssueInstant(clock.instant());
         logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         logoutResponse.setInResponseTo(requestId);
         logoutResponse.setStatus(buildStatus(StatusCode.SUCCESS));
@@ -88,7 +87,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), credential);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
+        logoutResponse.setIssueInstant(clock.instant());
         logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         logoutResponse.setInResponseTo(requestId);
         logoutResponse.setStatus(buildStatus(randomFrom(StatusCode.REQUESTER, StatusCode.RESPONDER)));
@@ -108,7 +107,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), null);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
         logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
+        logoutResponse.setIssueInstant(clock.instant());
         logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         logoutResponse.setInResponseTo(requestId);
         logoutResponse.setStatus(buildStatus(randomFrom(StatusCode.REQUESTER, StatusCode.RESPONDER)));

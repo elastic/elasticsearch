@@ -10,7 +10,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;

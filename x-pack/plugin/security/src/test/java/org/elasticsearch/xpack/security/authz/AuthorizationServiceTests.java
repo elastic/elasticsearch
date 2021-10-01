@@ -16,6 +16,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -104,6 +105,8 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,6 +164,7 @@ import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
+import org.hamcrest.Description;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
@@ -232,6 +236,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private CompositeRolesStore rolesStore;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private boolean shouldFailOperatorPrivilegesCheck = false;
+    private boolean setFakeOriginatingAction = true;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -264,27 +269,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
         ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
 
+        final Map<Set<String>, Role> roleCache = new HashMap<>();
         doAnswer((i) -> {
             ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
             User user = (User) i.getArguments()[0];
-            Set<String> names = new HashSet<>(Arrays.asList(user.roles()));
-            assertNotNull(names);
-            Set<RoleDescriptor> roleDescriptors = new HashSet<>();
-            for (String name : names) {
-                RoleDescriptor descriptor = roleMap.get(name);
-                if (descriptor != null) {
-                    roleDescriptors.add(descriptor);
-                }
-            }
-
-            if (roleDescriptors.isEmpty()) {
-                callback.onResponse(Role.EMPTY);
-            } else {
-                CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegesStore,
-                    RESTRICTED_INDICES_AUTOMATON, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
-                );
-            }
-            return Void.TYPE;
+            buildRole(user, privilegesStore, fieldPermissionsCache, roleCache, callback);
+            return null;
         }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
@@ -293,7 +283,55 @@ public class AuthorizationServiceTests extends ESTestCase {
             null, Collections.emptySet(), licenseState, TestIndexNameExpressionResolver.newInstance(), operatorPrivilegesService);
     }
 
+    private void buildRole(
+        User user,
+        NativePrivilegeStore privilegesStore,
+        FieldPermissionsCache fieldPermissionsCache,
+        Map<Set<String>, Role> roleCache,
+        ActionListener<Role> listener
+    ) {
+        final Set<String> names = Set.of(user.roles());
+        assertNotNull(names);
+
+        // We need a cache here because CompositeRoleStore has one, and our tests rely on it
+        // (to check that nested calls use the same object)
+        final Role cachedRole = roleCache.get(names);
+        if (cachedRole != null) {
+            listener.onResponse(cachedRole);
+            return;
+        }
+
+        Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+        for (String name : names) {
+            RoleDescriptor descriptor = roleMap.get(name);
+            if (descriptor != null) {
+                roleDescriptors.add(descriptor);
+            }
+        }
+
+        if (roleDescriptors.isEmpty()) {
+            listener.onResponse(Role.EMPTY);
+        } else {
+            CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegesStore,
+                RESTRICTED_INDICES_AUTOMATON, ActionListener.wrap(r -> {
+                    roleCache.put(names, r);
+                    listener.onResponse(r);
+                }, listener::onFailure)
+            );
+        }
+    }
+
     private void authorize(Authentication authentication, String action, TransportRequest request) {
+        authorize(authentication, action, request, true, null);
+    }
+
+    private void authorize(
+        Authentication authentication,
+        String action,
+        TransportRequest request,
+        boolean expectCleanThreadContext,
+        Runnable listenerBody
+    ) {
         PlainActionFuture<Object> done = new PlainActionFuture<>();
         PlainActionFuture<IndicesAccessControl> indicesPermissions = new PlainActionFuture<>();
         PlainActionFuture<Object> originatingAction = new PlainActionFuture<>();
@@ -308,15 +346,19 @@ public class AuthorizationServiceTests extends ESTestCase {
             threadContext.putTransient(INDICES_PERMISSIONS_KEY, mockAccessControlHeader);
         }
         String originatingActionHeader = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-        if (originatingActionHeader == null && randomBoolean()) {
-            originatingActionHeader = randomAlphaOfLength(8);
-            threadContext.putTransient(ORIGINATING_ACTION_KEY, originatingActionHeader);
+        if (this.setFakeOriginatingAction) {
+            if (originatingActionHeader == null && randomBoolean()) {
+                originatingActionHeader = randomAlphaOfLength(8);
+                threadContext.putTransient(ORIGINATING_ACTION_KEY, originatingActionHeader);
+            }
         }
         AuthorizationInfo authorizationInfoHeader = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
-        if (authorizationInfoHeader == null && randomBoolean()) {
-            authorizationInfoHeader = mock(AuthorizationInfo.class);
-            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
-        }
+        if (authorizationInfoHeader == null)
+            // If we have an originating action, we must also have origination authz info
+            if (originatingActionHeader != null || randomBoolean()) {
+                authorizationInfoHeader = mock(AuthorizationInfo.class);
+                threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
+            }
         Mockito.reset(operatorPrivilegesService);
         final AtomicBoolean operatorPrivilegesChecked = new AtomicBoolean(false);
         final ElasticsearchSecurityException operatorPrivilegesException =
@@ -333,8 +375,13 @@ public class AuthorizationServiceTests extends ESTestCase {
             originatingAction.onResponse(threadContext.getTransient(ORIGINATING_ACTION_KEY));
             authorizationInfo.onResponse(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
             indicesPermissions.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-            done.onResponse(threadContext.getTransient(someRandomHeader));
+
             assertNull(verify(operatorPrivilegesService).check(action, request, threadContext));
+
+            if (listenerBody != null) {
+                listenerBody.run();
+            }
+            done.onResponse(threadContext.getTransient(someRandomHeader));
         }, e -> {
             if (shouldFailOperatorPrivilegesCheck && operatorPrivilegesChecked.get()) {
                 assertSame(operatorPrivilegesException, e.getCause());
@@ -361,12 +408,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         } else {
             assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
         }
-        // but the authorization listener observes the authorization-resulting headers, which are different
-        if (mockAccessControlHeader != null) {
-            assertThat(indicesPermissions.actionGet(), not(sameInstance(mockAccessControlHeader)));
-        }
-        if (authorizationInfoHeader != null) {
-            assertThat(authorizationInfo.actionGet(), not(sameInstance(authorizationInfoHeader)));
+        if (expectCleanThreadContext) {
+            // but the authorization listener observes the authorization-resulting headers, which are different
+            if (mockAccessControlHeader != null) {
+                assertThat(indicesPermissions.actionGet(), not(sameInstance(mockAccessControlHeader)));
+            }
+            if (authorizationInfoHeader != null) {
+                assertThat(authorizationInfo.actionGet(), not(sameInstance(authorizationInfoHeader)));
+            }
         }
         // except originating action, which is not overwritten
         if (originatingActionHeader != null) {
@@ -828,6 +877,70 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
+    public void testSearchAgainstIndex() throws Exception {
+        RoleDescriptor role = new RoleDescriptor(
+            "search_index",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final User user = new User("test search user", role.getName());
+        final Authentication authentication = createAuthentication(user);
+
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
+
+        final ClusterState clusterState = mockMetadataWithIndex(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+
+        SearchRequest searchRequest = new SearchRequest(indexName).allowPartialSearchResults(false);
+        final ShardSearchRequest shardRequest = new ShardSearchRequest(
+            new OriginalIndices(searchRequest),
+            searchRequest,
+            new ShardId(indexMetadata.getIndex(), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
+        );
+        this.setFakeOriginatingAction = false;
+        authorize(authentication, SearchAction.NAME, searchRequest, true, () -> {
+            verify(rolesStore).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+            IndicesAccessControl iac = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            // Within the action handler, execute a child action (the query phase of search)
+            authorize(
+                authentication,
+                SearchTransportService.QUERY_ACTION_NAME,
+                shardRequest,
+                false,
+                () -> {
+                    // This child action triggers a second interaction with the role store (which is cached)
+                    verify(rolesStore, times(2)).getRoles(Mockito.same(user), Mockito.same(authentication), Mockito.any());
+                    // But it does not create a new IndicesAccessControl
+                    assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), sameInstance(iac));
+                }
+            );
+        });
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(SearchAction.NAME),
+            eq(searchRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(SearchTransportService.QUERY_ACTION_NAME),
+            eq(shardRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testScrollRelatedRequestsAllowed() {
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1229,13 +1342,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("b").privileges("all").build()}, null);
         boolean indexExists = randomBoolean();
         if (indexExists) {
-            ClusterState state = mock(ClusterState.class);
-            when(clusterService.state()).thenReturn(state);
-            when(state.metadata()).thenReturn(Metadata.builder()
-                .put(new IndexMetadata.Builder("a")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                    .numberOfShards(1).numberOfReplicas(0).build(), true)
-                .build());
+            mockMetadataWithIndex("a");
             roleMap.put("b", bRole);
         } else {
             mockEmptyMetadata();
@@ -1267,13 +1374,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()},
             new String[]{"run as me"});
         roleMap.put("can run as", runAsRole);
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.builder()
-            .put(new IndexMetadata.Builder("b")
-                .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                .numberOfShards(1).numberOfReplicas(0).build(), true)
-            .build());
+        mockMetadataWithIndex("b");
         RoleDescriptor bRole = new RoleDescriptor("b", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("b").privileges("all").build()}, null);
         roleMap.put("b", bRole);
@@ -1292,9 +1393,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("*").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("all_access_user", "all_access"));
         roleMap.put("all_access", role);
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.builder()
+        ClusterState state = mockClusterState(Metadata.builder()
             .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
                 .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                 .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
@@ -1368,9 +1467,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             IndicesPrivileges.builder().indices("*").privileges("monitor").allowRestrictedIndices(true).build()}, null);
         roleMap.put("restricted_monitor", restrictedMonitorRole);
         roleMap.put("unrestricted_monitor", unrestrictedMonitorRole);
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.builder()
+        ClusterState state = mockClusterState(Metadata.builder()
             .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
                 .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                 .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
@@ -1411,9 +1508,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testSuperusersCanExecuteOperationAgainstSecurityIndex() throws IOException {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.builder()
+        ClusterState state = mockClusterState(Metadata.builder()
             .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
                 .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                 .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
@@ -1464,9 +1559,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         final Authentication authentication = createAuthentication(superuser);
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.builder()
+        ClusterState state = mockClusterState(Metadata.builder()
             .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
                 .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                 .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
@@ -1704,9 +1797,21 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private ClusterState mockEmptyMetadata() {
+        return mockClusterState(Metadata.EMPTY_METADATA);
+    }
+
+    private ClusterState mockMetadataWithIndex(String indexName) {
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
+            Settings.builder().put("index.version.created", Version.CURRENT).build()
+        ).numberOfShards(1).numberOfReplicas(0).build();
+        final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+        return mockClusterState(metadata);
+    }
+
+    private ClusterState mockClusterState(Metadata metadata) {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+        when(state.metadata()).thenReturn(metadata);
         return state;
     }
 
@@ -1950,7 +2055,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
             authentication,
             new SearchRequest(),
-            SearchAction.NAME
+            SearchAction.NAME,
+            null
         );
         final AuthorizationService.LoadAuthorizedIndiciesTimeChecker checker = new AuthorizationService.LoadAuthorizedIndiciesTimeChecker(
             now - TimeUnit.MILLISECONDS.toNanos(210),
@@ -2002,6 +2108,11 @@ public class AuthorizationServiceTests extends ESTestCase {
                 return Arrays.equals(wanted, found);
             }
             return false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("RBAC AuthorizationInfo Roles[").appendText(Strings.arrayToCommaDelimitedString(wanted)).appendText("]");
         }
     }
 

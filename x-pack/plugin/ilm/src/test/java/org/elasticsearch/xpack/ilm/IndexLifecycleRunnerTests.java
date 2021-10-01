@@ -633,7 +633,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Mockito.eq("ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\"," +
                 "\"name\":\"cluster_state_action_step\"} => null]"),
                 Mockito.argThat(taskMatcher),
-                Mockito.argThat(taskMatcher),
+                IndexLifecycleRunner.ILM_TASK_CONFIG,
                 any(),
                 Mockito.argThat(taskMatcher)
         );
@@ -658,7 +658,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             Mockito.eq("ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\"," +
                 "\"name\":\"cluster_state_action_step\"} => null]"),
                 Mockito.argThat(taskMatcher),
-                Mockito.argThat(taskMatcher),
+                IndexLifecycleRunner.ILM_TASK_CONFIG,
                 any(),
                 Mockito.argThat(taskMatcher)
         );
@@ -721,7 +721,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-set-step-info {policy [cluster_state_action_policy], index [my_index], currentStep [null]}"),
             Mockito.argThat(taskMatcher),
-            Mockito.argThat(taskMatcher),
+            IndexLifecycleRunner.ILM_TASK_CONFIG,
             any(),
             Mockito.argThat(taskMatcher)
         );

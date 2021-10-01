@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
  * Base class for index lifecycle cluster state update tasks that requires implementing {@code equals} and {@code hashCode} to allow
  * for these tasks to be deduplicated by {@link IndexLifecycleRunner}.
  */
-public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateUpdateTask {
+public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterStateTaskListener {
 
     private final ListenableFuture<Void> listener = new ListenableFuture<>();
 
@@ -41,7 +41,6 @@ public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateU
 
     private boolean executed;
 
-    @Override
     public final ClusterState execute(ClusterState currentState) throws Exception {
         assert executed == false;
         final ClusterState updatedState = doExecute(currentState);
@@ -77,7 +76,7 @@ public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateU
     }
 
     /**
-     * This method is functionally the same as {@link ClusterStateUpdateTask#clusterStateProcessed(String, ClusterState, ClusterState)}
+     * This method is functionally the same as {@link ClusterStateTaskListener#clusterStateProcessed(String, ClusterState, ClusterState)}
      * and implementations can override it as they would override {@code ClusterStateUpdateTask#clusterStateProcessed}.
      * The only difference to  {@code ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ClusterState)}
      * implementation was a noop and returned the input cluster state, then this method will not be invoked. It is therefore guaranteed
@@ -93,8 +92,8 @@ public abstract class IndexLifecycleClusterStateUpdateTask extends ClusterStateU
     public abstract int hashCode();
 
     /**
-     * This method is functionally the same as {@link ClusterStateUpdateTask#onFailure(String, Exception)} and implementations can override
-     * it as they would override {@code ClusterStateUpdateTask#onFailure}.
+     * This method is functionally the same as {@link ClusterStateTaskListener#onFailure(String, Exception)} and implementations can
+     * override it as they would override {@code ClusterStateUpdateTask#onFailure}.
      */
     protected abstract void handleFailure(String source, Exception e);
 }

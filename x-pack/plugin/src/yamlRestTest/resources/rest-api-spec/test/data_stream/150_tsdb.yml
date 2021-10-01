@@ -1,5 +1,7 @@
 setup:
   - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
       features: allowed_warnings
 
   - do:
@@ -67,7 +69,7 @@ setup:
 created the data stream:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.15.0
+      reason: introduced in 8.0.0
 
   - do:
       indices.get_data_stream:
@@ -87,7 +89,7 @@ created the data stream:
 fetch the tsid:
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:
@@ -110,7 +112,7 @@ fetch the tsid:
 "aggregate the tsid":
   - skip:
       version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      reason: introduced in 8.0.0
 
   - do:
       search:

@@ -28,7 +28,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTIUM = "adoptium";
     public static final String VENDOR_OPENJDK = "openjdk";
-    public static final String VENDOR_AZUL = "azul";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
@@ -128,32 +127,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
             }
-        } else if (jdk.getVendor().equals(VENDOR_AZUL)) {
-            repoUrl = "https://cdn.azul.com";
-            // The following is an absolute hack until Adoptium provides Apple aarch64 builds
-            String zuluPathSuffix = jdk.getPlatform().equals("linux") ? "-embedded" : "";
-            switch (jdk.getMajor()) {
-                case "16":
-                    artifactPattern = "zulu"
-                        + zuluPathSuffix
-                        + "/bin/zulu"
-                        + jdk.getMajor()
-                        + ".32.15-ca-jdk16.0.2-"
-                        + azulPlatform(jdk)
-                        + "_[classifier].[ext]";
-                    break;
-                case "11":
-                    artifactPattern = "zulu"
-                        + zuluPathSuffix
-                        + "/bin/zulu"
-                        + jdk.getMajor()
-                        + ".45.27-ca-jdk11.0.10-"
-                        + azulPlatform(jdk)
-                        + "_[classifier].[ext]";
-                    break;
-                default:
-                    throw new GradleException("Unknown Azul JDK major version  [" + jdk.getMajor() + "]");
-            }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");
         }
@@ -167,18 +140,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 repo.patternLayout(layout -> layout.artifact(artifactPattern));
                 repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeGroup(groupName(jdk)));
             });
-        }
-    }
-
-    @NotNull
-    private String azulPlatform(Jdk jdk) {
-        switch (jdk.getPlatform()) {
-            case "linux":
-                return "linux";
-            case "darwin":
-                return "macosx";
-            default:
-                throw new GradleException("Unsupported Azul JDK platform requested version  [" + jdk.getPlatform() + "]");
         }
     }
 

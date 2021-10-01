@@ -16,7 +16,7 @@ dependencies {
   api project(path: ':modules:reindex')
 }
 
-testClusters.all {
+testClusters.configureEach {
   module ':modules:reindex'
 }
 

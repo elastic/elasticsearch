@@ -170,6 +170,10 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient adminClient;
     private static Boolean hasXPack;
+    private static Boolean hasIlm;
+    private static Boolean hasRollups;
+    private static Boolean hasCcr;
+    private static Boolean hasShutdown;
     private static TreeSet<Version> nodeVersions;
 
     @Before
@@ -178,6 +182,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert adminClient == null;
             assert clusterHosts == null;
             assert hasXPack == null;
+            assert hasIlm == null;
+            assert hasRollups == null;
+            assert hasCcr == null;
+            assert hasShutdown == null;
             assert nodeVersions == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
@@ -197,6 +205,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             hasXPack = false;
+            hasIlm = false;
+            hasRollups = false;
+            hasCcr = false;
+            hasShutdown = false;
             nodeVersions = new TreeSet<>();
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
@@ -205,8 +217,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                 nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
                 for (Object module: (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                    final String moduleName = moduleInfo.get("name").toString();
+                    if (moduleName.startsWith("x-pack")) {
                         hasXPack = true;
+                    }
+                    if (moduleName.equals("x-pack-ilm")) {
+                        hasIlm = true;
+                    }
+                    if (moduleName.equals("x-pack-rollup")) {
+                        hasRollups = true;
+                    }
+                    if (moduleName.equals("x-pack-ccr")) {
+                        hasCcr = true;
+                    }
+                    if (moduleName.equals("x-pack-shutdown")) {
+                        hasShutdown = true;
                     }
                 }
             }
@@ -215,6 +240,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert adminClient != null;
         assert clusterHosts != null;
         assert hasXPack != null;
+        assert hasIlm != null;
+        assert hasRollups != null;
+        assert hasCcr != null;
+        assert hasShutdown != null;
         assert nodeVersions != null;
     }
 
@@ -354,6 +383,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             client = null;
             adminClient = null;
             hasXPack = null;
+            hasRollups = null;
+            hasCcr = null;
+            hasShutdown = null;
+            hasIlm = null;
             nodeVersions = null;
         }
     }
@@ -559,7 +592,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
         // for a bulk to finish against a non-existing index (and then fail tests)
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+        if (hasRollups && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
@@ -711,11 +744,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeClusterSettings();
         }
 
-        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
             deleteAllILMPolicies(preserveILMPolicyIds());
         }
 
-        if (hasXPack && false == preserveAutoFollowPatternsUponCompletion()) {
+        if (hasCcr && false == preserveAutoFollowPatternsUponCompletion()) {
             deleteAllAutoFollowPatterns();
         }
 
@@ -729,7 +762,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (hasXPack() == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+        if (hasShutdown == false || minimumNodeVersion().before(Version.V_7_15_0)) {
             // Node shutdown APIs are only present in xpack
             return;
         }

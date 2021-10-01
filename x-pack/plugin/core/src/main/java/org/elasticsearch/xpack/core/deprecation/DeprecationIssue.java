@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -82,8 +81,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         message = in.readString();
         url = in.readString();
         details = in.readOptionalString();
-        resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean();
-        meta = in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readMap() : null;
+        resolveDuringRollingUpgrade = in.readBoolean();
+        meta = in.readMap();
     }
 
     public Level getLevel() {
@@ -123,12 +122,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         out.writeString(message);
         out.writeString(url);
         out.writeOptionalString(details);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeBoolean(resolveDuringRollingUpgrade);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-            out.writeMap(meta);
-        }
+        out.writeBoolean(resolveDuringRollingUpgrade);
+        out.writeMap(meta);
     }
 
     @Override

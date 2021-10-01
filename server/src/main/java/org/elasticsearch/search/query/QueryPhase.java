@@ -12,18 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -31,11 +26,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
@@ -66,8 +57,6 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
  */
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
-    // TODO: remove this property in 8.0
-    public static final boolean SYS_PROP_REWRITE_SORT = Booleans.parseBoolean(System.getProperty("es.search.rewrite_sort", "true"));
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
@@ -156,18 +145,7 @@ public class QueryPhase {
 
                 } else {
                     final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    if (returnsDocsInOrder(query, searchContext.sort())) {
-                        // now this gets interesting: since we sort in index-order, we can directly
-                        // skip to the desired doc
-                        if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
-                                .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
-                                .build();
-                        }
-                        // ... and stop collecting after ${size} matches
-                        searchContext.terminateAfter(searchContext.size());
-                    } else if (canEarlyTerminate(reader, searchContext.sort())) {
+                    if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
@@ -206,11 +184,6 @@ public class QueryPhase {
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
-            }
-
-            if (SYS_PROP_REWRITE_SORT) {
-                optimizeNumericSort(searchContext, searcher.getIndexReader());
-                // TODO: sort leaves according to search sort when Lucene supports sharing bottom sort value between collectors
             }
 
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
@@ -299,52 +272,6 @@ public class QueryPhase {
             ctx.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
-    }
-
-
-    // TODO: remove this after Lucene 9.0, as sort optimization is enabled by default there
-    private static void optimizeNumericSort(SearchContext searchContext, IndexReader reader) {
-        if (searchContext.sort() == null) return;
-        // disable this optimization if index sorting matches the query sort since it's already optimized by index searcher
-        if (canEarlyTerminate(reader, searchContext.sort())) return;
-
-        SortField sortField = searchContext.sort().sort.getSort()[0];
-        SortField.Type sortType = IndexSortConfig.getSortFieldType(sortField);
-        //if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;
-
-        if (sortType != SortField.Type.LONG) return; // for now restrict sort optimization only to long sort
-        String fieldName = sortField.getField();
-        if (fieldName == null) return; // happens when _score or _doc is the 1st sort field
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-        if (fieldType == null) return; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-        if (fieldType.isSearchable() == false) return;
-        if (fieldType.hasDocValues() == false) return;
-
-        // For now restrict sort optimization only to long and date fields
-        // For sort optimization SortField.Type must match with the type of indexed points (Type.LONG and LongPoint)
-        // Some fields there is no match (e.g. integer field uses SortField.Type.LONG, but indexed as IntegerPoint)
-        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldMapper.DateFieldType == false)) return;
-
-        sortField.setCanUsePoints();
-        return;
-    }
-
-    /**
-     * Returns true if the provided <code>query</code> returns docs in index order (internal doc ids).
-     * @param query The query to execute
-     * @param sf The query sort
-     */
-    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
-        if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
-            // sort by score
-            // queries that return constant scores will return docs in index
-            // order since Lucene tie-breaks on the doc id
-            return query.getClass() == ConstantScoreQuery.class
-                || query.getClass() == MatchAllDocsQuery.class;
-        } else {
-            return Sort.INDEXORDER.equals(sf.sort);
-        }
     }
 
     /**

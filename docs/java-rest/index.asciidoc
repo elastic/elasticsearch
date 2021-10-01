@@ -11,6 +11,4 @@ include::low-level/index.asciidoc[]
 
 include::high-level/index.asciidoc[]
 
-include::{elasticsearch-java-root}/docs/index.asciidoc[]
-
 include::redirects.asciidoc[]

@@ -69,7 +69,9 @@ public class LogConfigurator {
     private static final StatusListener ERROR_LISTENER = new StatusConsoleListener(Level.ERROR) {
         @Override
         public void log(StatusData data) {
-            error.set(true);
+            if (data.getMessage().getFormattedMessage().startsWith("No Log4j 2 configuration file found") == false) {
+                error.set(true);
+            }
             super.log(data);
         }
     };

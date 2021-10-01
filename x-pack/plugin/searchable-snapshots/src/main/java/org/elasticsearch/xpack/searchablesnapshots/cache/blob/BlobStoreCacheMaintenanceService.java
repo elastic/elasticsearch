@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -58,6 +59,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -415,7 +417,9 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         private final AtomicLong total = new AtomicLong();
 
         private volatile Map<String, Set<String>> existingSnapshots;
+        private volatile Set<String> existingRepositories;
         private volatile SearchResponse searchResponse;
+        private volatile Instant expirationTime;
         private volatile String pointIntTimeId;
         private volatile Object[] searchAfter;
 
@@ -459,8 +463,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                 if (searchResponse == null) {
                     final SearchSourceBuilder searchSource = new SearchSourceBuilder();
+                    searchSource.fetchField(CachedBlob.CREATION_TIME_FIELD);
+                    searchSource.fetchSource(false);
                     searchSource.trackScores(false);
-                    searchSource.sort("_shard_doc");
+                    searchSource.sort(ShardDocSortField.NAME);
                     searchSource.size(batchSize);
                     if (searchAfter != null) {
                         searchSource.searchAfter(searchAfter);
@@ -476,7 +482,9 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(SearchResponse response) {
-                            maintenanceTask.total.compareAndSet(0L, response.getHits().getTotalHits().value);
+                            if (searchAfter == null) {
+                                maintenanceTask.total.compareAndSet(0L, response.getHits().getTotalHits().value);
+                            }
                             maintenanceTask.searchResponse = response;
                             maintenanceTask.searchAfter = null;
                             executeNext(maintenanceTask);
@@ -492,36 +500,37 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                 final SearchHit[] searchHits = searchResponse.getHits().getHits();
                 if (searchHits != null && searchHits.length > 0) {
-                    final ClusterState state = clusterService.state();
-                    final BulkRequest bulkRequest = new BulkRequest();
+                    if (expirationTime == null) {
+                        final TimeValue retention = periodicTaskRetention;
+                        expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
+                            .minus(retention.duration(), retention.timeUnit().toChronoUnit());
 
-                    final TimeValue retention = periodicTaskRetention;
-                    final Instant expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
-                        .minus(retention.duration(), retention.timeUnit().toChronoUnit());
-
-                    // compute the list of existing searchable snapshots once
-                    Map<String, Set<String>> knownSnapshots = existingSnapshots;
-                    if (knownSnapshots == null) {
-                        knownSnapshots = listSearchableSnapshots(state);
-                        existingSnapshots = knownSnapshots;
+                        final ClusterState state = clusterService.state();
+                        // compute the list of existing searchable snapshots and repositories once
+                        existingSnapshots = listSearchableSnapshots(state);
+                        existingRepositories = state.metadata()
+                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                            .repositories()
+                            .stream()
+                            .map(RepositoryMetadata::name)
+                            .collect(Collectors.toSet());
                     }
 
-                    final Set<String> knownRepositories = state.metadata()
-                        .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
-                        .repositories()
-                        .stream()
-                        .map(RepositoryMetadata::name)
-                        .collect(Collectors.toSet());
+                    final BulkRequest bulkRequest = new BulkRequest();
+                    final Map<String, Set<String>> knownSnapshots = existingSnapshots;
+                    assert knownSnapshots != null;
+                    final Set<String> knownRepositories = existingRepositories;
+                    assert knownRepositories != null;
+                    final Instant expirationTime = this.expirationTime;
+                    assert expirationTime != null;
 
                     Object[] lastSortValues = null;
                     for (SearchHit searchHit : searchHits) {
                         lastSortValues = searchHit.getSortValues();
                         assert searchHit.getId() != null;
-                        assert searchHit.hasSource();
-
                         try {
-                            final CachedBlob cachedBlob = CachedBlob.fromSource(searchHit.getSourceAsMap());
-                            if (cachedBlob.creationTime().isAfter(expirationTime)) {
+                            final Instant creationTime = getCreationTime(searchHit);
+                            if (creationTime.isAfter(expirationTime)) {
                                 logger.trace("blob store cache entry with id [{}] was created recently, skipping", searchHit.getId());
                                 continue;
                             }
@@ -683,5 +692,14 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 Releasables.close(releasable);
             }
         }
+    }
+
+    private static Instant getCreationTime(SearchHit searchHit) {
+        final DocumentField creationTimeField = searchHit.field(CachedBlob.CREATION_TIME_FIELD);
+        assert creationTimeField != null;
+        final Object creationTimeValue = creationTimeField.getValue();
+        assert creationTimeValue != null;
+        assert creationTimeValue instanceof String : "expect a java.lang.String but got " + creationTimeValue.getClass();
+        return Instant.ofEpochMilli(Long.parseLong(creationTimeField.getValue()));
     }
 }

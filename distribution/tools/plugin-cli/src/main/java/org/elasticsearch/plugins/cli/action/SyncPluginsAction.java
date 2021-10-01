@@ -9,7 +9,9 @@
 package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.SyncPluginsProvider;
@@ -29,6 +31,13 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+/**
+ * This action compares the contents of a configuration files, {@code elasticsearch-plugins.yml}, with the currently
+ * installed plugins, and ensures that plugins are installed or removed accordingly.
+ * <p>
+ * This action cannot be called from the command line. It is used exclusively by Elasticsearch on startup, but only
+ * if the config file exists and the distribution type allows it.
+ */
 public class SyncPluginsAction implements SyncPluginsProvider {
     private final Terminal terminal;
     private final Environment env;
@@ -38,6 +47,30 @@ public class SyncPluginsAction implements SyncPluginsProvider {
         this.env = env;
     }
 
+    /**
+     * Ensures that the plugin config file does <b>not</b> exist.
+     * @param env the environment to check
+     * @throws UserException if a plugins config file is found.
+     */
+    public static void ensureNoConfigFile(Environment env) throws UserException {
+        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
+        if (Files.exists(pluginsConfig)) {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Plugins config ["
+                    + pluginsConfig
+                    + "] exists, which is used by Elasticsearch on startup to ensure the correct plugins "
+                    + "are installed. Instead of using this tool, you need to update this config file and restart Elasticsearch."
+            );
+        }
+    }
+
+    /**
+     * Synchronises plugins from the config file to the plugins dir.
+     *
+     * @throws Exception if anything goes wrong
+     */
+    @Override
     public void execute() throws Exception {
         final Path configPath = this.env.configFile().resolve("elasticsearch-plugins.yml");
         final Path previousConfigPath = this.env.configFile().resolve(".elasticsearch-plugins.yml.cache");
@@ -102,18 +135,24 @@ public class SyncPluginsAction implements SyncPluginsProvider {
 
         final RemovePluginAction removePluginAction = new RemovePluginAction(terminal, env, true);
         final InstallPluginAction installPluginAction = new InstallPluginAction(terminal, env, true);
+        installPluginAction.setProxy(proxy);
 
         // Remove any plugins that are not in the config file
-        removePluginAction.execute(changes.remove);
+        if (changes.remove.isEmpty() == false) {
+            removePluginAction.execute(changes.remove);
+        }
 
         // Add any plugins that are in the config file but missing from disk
-        installPluginAction.setProxy(proxy);
-        installPluginAction.execute(changes.install);
+        if (changes.install.isEmpty() == false) {
+            installPluginAction.execute(changes.install);
+        }
 
         // Upgrade plugins
-        removePluginAction.setPurge(false);
-        removePluginAction.execute(changes.upgrade);
-        installPluginAction.execute(changes.upgrade);
+        if (changes.upgrade.isEmpty() == false) {
+            removePluginAction.setPurge(false);
+            removePluginAction.execute(changes.upgrade);
+            installPluginAction.execute(changes.upgrade);
+        }
     }
 
     private List<PluginDescriptor> getPluginsToUpgrade(

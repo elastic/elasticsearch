@@ -12,15 +12,12 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.cli.action.PluginDescriptor;
 import org.elasticsearch.plugins.cli.action.RemovePluginAction;
+import org.elasticsearch.plugins.cli.action.SyncPluginsAction;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,13 +37,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
-        if (Files.exists(pluginsConfig)) {
-            throw new UserException(
-                ExitCodes.USAGE,
-                "Plugins config [" + pluginsConfig + "] exists, please use [elasticsearch-plugin sync] instead"
-            );
-        }
+        SyncPluginsAction.ensureNoConfigFile(env);
 
         final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
 

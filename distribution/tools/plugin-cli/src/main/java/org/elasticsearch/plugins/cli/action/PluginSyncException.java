@@ -8,6 +8,9 @@
 
 package org.elasticsearch.plugins.cli.action;
 
+/**
+ * Thrown when a problem occurs synchronising plugins.
+ */
 class PluginSyncException extends Exception {
 
     PluginSyncException(String message) {

@@ -27,6 +27,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Contains methods for displaying extended plugin permissions to the user, and confirming that
+ * plugin installation can proceed.
+ */
 public class PluginSecurity {
 
     /**

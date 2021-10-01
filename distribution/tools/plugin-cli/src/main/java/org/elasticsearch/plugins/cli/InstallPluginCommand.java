@@ -12,16 +12,13 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.cli.action.InstallPluginAction;
 import org.elasticsearch.plugins.cli.action.PluginDescriptor;
+import org.elasticsearch.plugins.cli.action.SyncPluginsAction;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -81,18 +78,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
-        if (Files.exists(pluginsConfig)) {
-            throw new UserException(
-                ExitCodes.USAGE,
-                "Plugins config [" + pluginsConfig + "] exists, please use [elasticsearch-plugin sync] instead"
-            );
-        }
+        SyncPluginsAction.ensureNoConfigFile(env);
 
         List<PluginDescriptor> plugins = arguments.values(options)
             .stream()
             // We only have one piece of data, which could be an ID or could be a location, so we use it for both
-            .map(id -> new PluginDescriptor(id, id))
+            .map(idOrLocation -> new PluginDescriptor(idOrLocation, idOrLocation))
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
 

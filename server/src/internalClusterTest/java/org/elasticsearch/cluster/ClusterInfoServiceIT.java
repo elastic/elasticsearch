@@ -84,7 +84,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return singletonList(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "Test system index"));
+            return singletonList(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "Test system index"));
         }
 
         @Override

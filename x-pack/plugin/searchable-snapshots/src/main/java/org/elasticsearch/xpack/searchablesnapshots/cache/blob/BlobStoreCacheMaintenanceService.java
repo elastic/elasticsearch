@@ -462,14 +462,17 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     searchSource.trackScores(false);
                     searchSource.sort("_shard_doc");
                     searchSource.size(batchSize);
-                    final PointInTimeBuilder pointInTime = new PointInTimeBuilder(pitId);
-                    searchSource.pointInTimeBuilder(pointInTime);
-                    pointInTime.setKeepAlive(keepAlive);
-                    final SearchRequest searchRequest = new SearchRequest();
-                    searchRequest.source(searchSource);
                     if (searchAfter != null) {
                         searchSource.searchAfter(searchAfter);
+                        searchSource.trackTotalHits(false);
+                    } else {
+                        searchSource.trackTotalHits(true);
                     }
+                    final PointInTimeBuilder pointInTime = new PointInTimeBuilder(pitId);
+                    pointInTime.setKeepAlive(keepAlive);
+                    searchSource.pointInTimeBuilder(pointInTime);
+                    final SearchRequest searchRequest = new SearchRequest();
+                    searchRequest.source(searchSource);
                     clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(SearchResponse response) {

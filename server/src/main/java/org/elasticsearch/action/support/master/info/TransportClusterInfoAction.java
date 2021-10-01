@@ -39,11 +39,6 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
-        return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-    }
-
-    @Override
     protected final void masterOperation(Task task, final Request request, final ClusterState state,
                                          final ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);

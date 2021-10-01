@@ -613,10 +613,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                     indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
             }
 
-            @Override
-            protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
-                return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-            }
         };
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -657,10 +653,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                     indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request));
             }
 
-            @Override
-            protected ClusterBlockException checkGlobalBlock(ClusterState clusterState) {
-                return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-            }
         };
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();

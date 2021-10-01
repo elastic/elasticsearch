@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -25,6 +26,9 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class NerProcessor implements NlpTask.Processor {
 
@@ -71,11 +75,15 @@ public class NerProcessor implements NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
     private final IobTag[] iobMap;
+    private final String resultsField;
+    private final boolean ignoreCase;
 
     NerProcessor(NlpTokenizer tokenizer, NerConfig config) {
         validate(config.getClassificationLabels());
         this.iobMap = buildIobMap(config.getClassificationLabels());
         this.requestBuilder = tokenizer.requestBuilder();
+        this.resultsField = config.getResultsField();
+        this.ignoreCase = config.getTokenization().doLowerCase();
     }
 
     /**
@@ -112,7 +120,7 @@ public class NerProcessor implements NlpTask.Processor {
         }
 
         IobTag[] map = new IobTag[classificationLabels.size()];
-        for (int i=0; i<classificationLabels.size(); i++) {
+        for (int i = 0; i < classificationLabels.size(); i++) {
             map[i] = IobTag.valueOf(classificationLabels.get(i));
         }
 
@@ -131,21 +139,29 @@ public class NerProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        return new NerResultProcessor(iobMap);
+        if (config instanceof NerConfig) {
+            NerConfig nerConfig = (NerConfig) config;
+            return new NerResultProcessor(iobMap, nerConfig.getResultsField(), ignoreCase);
+        }
+        return new NerResultProcessor(iobMap, resultsField, ignoreCase);
     }
 
     static class NerResultProcessor implements NlpTask.ResultProcessor {
         private final IobTag[] iobMap;
+        private final String resultsField;
+        private final boolean ignoreCase;
 
-        NerResultProcessor(IobTag[] iobMap) {
+        NerResultProcessor(IobTag[] iobMap, String resultsField, boolean ignoreCase) {
             this.iobMap = iobMap;
+            this.resultsField = Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD);
+            this.ignoreCase = ignoreCase;
         }
 
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
             if (tokenization.getTokenizations().isEmpty() ||
                 tokenization.getTokenizations().get(0).getTokens().length == 0) {
-                return new NerResults(Collections.emptyList());
+                return new WarningInferenceResults("no valid tokens to build result");
             }
             // TODO - process all results in the batch
 
@@ -157,8 +173,37 @@ public class NerProcessor implements NlpTask.Processor {
             // which could easily be close to 1.
             double[][] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0]);
             List<TaggedToken> taggedTokens = tagTokens(tokenization.getTokenizations().get(0), normalizedScores, iobMap);
-            List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
-            return new NerResults(entities);
+
+            List<NerResults.EntityGroup> entities = groupTaggedTokens(
+                taggedTokens,
+                ignoreCase ?
+                    tokenization.getTokenizations().get(0).getInput().toLowerCase(Locale.ROOT) :
+                    tokenization.getTokenizations().get(0).getInput(),
+                resultsField + "_entity"
+            );
+            StringBuilder annotatedResultBuilder = new StringBuilder();
+            String seq = tokenization.getTokenizations().get(0).getInput();
+            int curPos = 0;
+            for (var entity : entities) {
+                if (entity.getStartPos() == -1) {
+                    continue;
+                }
+                if (entity.getStartPos() == curPos) {
+                    annotatedResultBuilder.append("[");
+                    annotatedResultBuilder.append(seq, entity.getStartPos(), entity.getEndPos());
+                    annotatedResultBuilder.append("]");
+                    annotatedResultBuilder.append("(").append(entity.getLabel()).append(")");
+                    curPos += entity.getEndPos();
+                    continue;
+                }
+                annotatedResultBuilder.append(seq, curPos, entity.getStartPos());
+                annotatedResultBuilder.append("[");
+                annotatedResultBuilder.append(seq, entity.getStartPos(), entity.getEndPos());
+                annotatedResultBuilder.append("]");
+                annotatedResultBuilder.append("(").append(entity.getLabel()).append(")");
+                curPos += entity.getEndPos();
+            }
+            return new NerResults(resultsField, entities.isEmpty() ? seq : annotatedResultBuilder.toString(), entities);
         }
 
         /**
@@ -167,9 +212,7 @@ public class NerProcessor implements NlpTask.Processor {
          * in the original input replacing them with a single token that
          * gets labelled based on the average score of all its sub-tokens.
          */
-        static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization,
-                                           double[][] scores,
-                                           IobTag[] iobMap) {
+        static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization, double[][] scores, IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
             while (startTokenIndex < tokenization.getTokens().length) {
@@ -219,12 +262,13 @@ public class NerProcessor implements NlpTask.Processor {
          * When multiple tokens are grouped together, the entity score is the
          * mean score of the tokens.
          */
-        static List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens) {
+        static List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens, String inputSeq, String resultsField) {
             if (tokens.isEmpty()) {
                 return Collections.emptyList();
             }
             List<NerResults.EntityGroup> entities = new ArrayList<>();
             int startTokenIndex = 0;
+            int startFindInSeq = 0;
             while (startTokenIndex < tokens.size()) {
                 TaggedToken token = tokens.get(startTokenIndex);
                 if (token.tag.getEntity() == Entity.NONE) {
@@ -246,9 +290,20 @@ public class NerProcessor implements NlpTask.Processor {
                     scoreSum += endToken.score;
                     endTokenIndex++;
                 }
-                entities.add(new NerResults.EntityGroup(token.tag.getEntity().toString(),
-                    scoreSum / (endTokenIndex - startTokenIndex), entityWord.toString()));
+                String entity = entityWord.toString();
+                int i = inputSeq.indexOf(entity, startFindInSeq);
+                entities.add(
+                    new NerResults.EntityGroup(
+                        entity,
+                        token.tag.getEntity().toString(),
+                        resultsField,
+                        scoreSum / (endTokenIndex - startTokenIndex),
+                        i,
+                        i == -1 ? -1 : i + entity.length()
+                    )
+                );
                 startTokenIndex = endTokenIndex;
+                startFindInSeq = i;
             }
 
             return entities;

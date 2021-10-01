@@ -133,6 +133,8 @@ class IndicesAndAliasesResolver {
                     + "] is not allowed"
             );
         }
+
+        // TODO: Shard level requests have wildcard expanded already and do not need go through this check
         final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).collect(Collectors.toList());
         if (wildcards.isEmpty() == false) {
             throw new IllegalArgumentException(
@@ -150,11 +152,11 @@ class IndicesAndAliasesResolver {
         //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
         //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
         // shard level requests.
-        final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
+        final ArrayList<String> localIndices = new ArrayList<>(indices.length);
         for (String name : indices) {
-            resolvedIndicesBuilder.addLocal(nameExpressionResolver.resolveDateMathExpression(name));
+            localIndices.add(nameExpressionResolver.resolveDateMathExpression(name));
         }
-        return resolvedIndicesBuilder.build();
+        return new ResolvedIndices(localIndices, List.of());
     }
 
     ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest, Metadata metadata,

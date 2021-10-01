@@ -475,6 +475,7 @@ public class IndexNameExpressionResolver {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true, getSystemIndexAccessLevel(),
             getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate());
         String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction, context);
+
         return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }
 
@@ -484,6 +485,9 @@ public class IndexNameExpressionResolver {
     public String resolveDateMathExpression(String dateExpression) {
         // The data math expression resolver doesn't rely on cluster state or indices options, because
         // it just resolves the date math to an actual date.
+        if (false == DateMathExpressionResolver.isDateMathExpression(dateExpression)) {
+            return dateExpression;
+        }
         return DateMathExpressionResolver.resolveExpression(dateExpression,
             new Context(null, null, getSystemIndexAccessLevel(), getSystemIndexAccessPredicate(), getNetNewSystemIndexPredicate()));
     }
@@ -1239,9 +1243,13 @@ public class IndexNameExpressionResolver {
             return result;
         }
 
+        static boolean isDateMathExpression(String expression) {
+            return expression.startsWith(EXPRESSION_LEFT_BOUND) && expression.endsWith(EXPRESSION_RIGHT_BOUND);
+        }
+
         @SuppressWarnings("fallthrough")
         static String resolveExpression(String expression, final Context context) {
-            if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
+            if (false == DateMathExpressionResolver.isDateMathExpression(expression)) {
                 return expression;
             }
 

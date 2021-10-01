@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
@@ -34,9 +32,6 @@ artifacts {
 
 testClusters.configureEach {
   module ':modules:mapper-extras'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
 }
 
 tasks.named("test").configure {enabled = false }

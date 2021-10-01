@@ -110,7 +110,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                 // no index metadata is exposed yet, but checkBlock depends on an index, so keep trying until the cluster forms
                 assert GatewayService.STATE_NOT_RECOVERED_BLOCK.contains(ClusterBlockLevel.METADATA_READ);
-                assert state.blocks().global().stream().allMatch(ClusterBlock::retryable);
+                assert state.blocks().global(ClusterBlockLevel.METADATA_READ).stream().allMatch(ClusterBlock::retryable);
                 return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
             } else {
                 throw e;

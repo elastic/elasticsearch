@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -96,7 +95,6 @@ public class CertGenCliTests extends PackagingTestCase {
         final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
         final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
-
 
         // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
         final List<String> tlsConfig = List.of(

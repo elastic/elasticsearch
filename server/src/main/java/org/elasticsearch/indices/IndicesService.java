@@ -1531,7 +1531,7 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         String[] aliases = onlyFiltering ? indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions)
             : indexNameExpressionResolver.indexAliases(state, index, aliasMetadata -> true,
-                dataStreamAlias -> true, true, resolvedExpressions);
+                dataStreamAlias -> true, false, resolvedExpressions);
         if (aliases == null) {
             return AliasFilter.EMPTY;
         }

@@ -12,13 +12,10 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.cli.action.InstallPluginAction;
-import org.elasticsearch.plugins.cli.action.InstallPluginException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -59,16 +56,6 @@ public class InstallPluginCommand extends EnvironmentAwareCommand {
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 
-    // exit codes for install
-    /**
-     * A plugin with the same name is already installed.
-     */
-    static final int PLUGIN_EXISTS = 1;
-    /**
-     * The plugin zip is not properly structured.
-     */
-    static final int PLUGIN_MALFORMED = 2;
-
     InstallPluginCommand() {
         super("Install a plugin");
         this.batchOption = parser.acceptsAll(
@@ -95,55 +82,7 @@ public class InstallPluginCommand extends EnvironmentAwareCommand {
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
 
-        if (plugins.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "at least one plugin ID is required");
-        }
-
         InstallPluginAction action = new InstallPluginAction(terminal, env, isBatch);
-        try {
-            action.execute(plugins);
-        } catch (InstallPluginException e) {
-            int exitCode;
-
-            switch (e.getProblem()) {
-                case DUPLICATE_PLUGIN_ID:
-                case UNKNOWN_PLUGIN:
-                default:
-                    exitCode = ExitCodes.USAGE;
-                    break;
-
-                case NO_XPACK:
-                case RELEASE_SNAPSHOT_MISMATCH:
-                    exitCode = ExitCodes.CONFIG;
-                    break;
-
-                case INVALID_CHECKSUM:
-                case MISSING_CHECKSUM:
-                    exitCode = ExitCodes.IO_ERROR;
-                    break;
-
-                case INVALID_SIGNATURE:
-                    exitCode = ExitCodes.DATA_ERROR;
-                    break;
-
-                case PLUGIN_MALFORMED:
-                    exitCode = PLUGIN_MALFORMED;
-                    break;
-
-                case PLUGIN_EXISTS:
-                    exitCode = PLUGIN_EXISTS;
-                    break;
-
-                case INCOMPATIBLE_LICENSE:
-                    exitCode = ExitCodes.NOPERM;
-                    break;
-
-                case INSTALLATION_FAILED:
-                    exitCode = 1;
-                    break;
-            }
-
-            throw new UserException(exitCode, e.getMessage(), e);
-        }
+        action.execute(plugins);
     }
 }

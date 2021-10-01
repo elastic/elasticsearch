@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.bootstrap.plugins;
+package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.cli.SuppressForbidden;
 import org.hamcrest.Description;

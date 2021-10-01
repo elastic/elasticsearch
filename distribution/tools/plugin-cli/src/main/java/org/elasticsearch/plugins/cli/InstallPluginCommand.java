@@ -96,7 +96,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
 
-        InstallPluginAction action = new InstallPluginAction(terminal, env, isBatch);
-        action.execute(plugins);
+        try (InstallPluginAction action = new InstallPluginAction(terminal, env, isBatch)) {
+            action.execute(plugins);
+        }
     }
 }

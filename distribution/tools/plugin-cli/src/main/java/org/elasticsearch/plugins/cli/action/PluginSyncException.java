@@ -6,14 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.plugins.cli.action;
 
-import java.net.Proxy;
-import java.util.List;
+class PluginSyncException extends Exception {
 
-public interface InstallPluginProvider {
+    PluginSyncException(String message) {
+        super(message);
+    }
 
-    void setProxy(Proxy proxy);
-
-    void execute(List<PluginDescriptor> plugins) throws Exception;
+    PluginSyncException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

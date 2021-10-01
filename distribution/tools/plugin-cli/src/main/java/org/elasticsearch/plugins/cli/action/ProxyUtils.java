@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.bootstrap.plugins;
+package org.elasticsearch.plugins.cli.action;
 
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.cli.UserException;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -27,18 +29,18 @@ class ProxyUtils {
      * @return a proxy or null
      */
     @SuppressForbidden(reason = "Proxy constructor requires a SocketAddress")
-    static Proxy buildProxy(String proxy) throws PluginSyncException {
+    static Proxy buildProxy(String proxy) throws UserException {
         if (proxy == null) {
             return null;
         }
 
         final String[] parts = proxy.split(":");
         if (parts.length != 2) {
-            throw new PluginSyncException("Malformed [proxy], expected [host:port]");
+            throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port]");
         }
 
         if (validateProxy(parts[0], parts[1]) == false) {
-            throw new PluginSyncException("Malformed [proxy], expected [host:port]");
+            throw new UserException(ExitCodes.CONFIG, "Malformed [proxy], expected [host:port]");
         }
 
         return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(parts[0], Integer.parseUnsignedInt(parts[1])));

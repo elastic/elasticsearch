@@ -15,7 +15,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.RemovePluginProvider;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -36,7 +35,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
-public class RemovePluginAction implements RemovePluginProvider {
+public class RemovePluginAction {
 
     // exit codes for remove
     /** A plugin cannot be removed because it is extended by another plugin. */
@@ -59,7 +58,6 @@ public class RemovePluginAction implements RemovePluginProvider {
         this.purge = purge;
     }
 
-    @Override
     public void setPurge(boolean purge) {
         this.purge = purge;
     }
@@ -73,7 +71,6 @@ public class RemovePluginAction implements RemovePluginProvider {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    @Override
     public void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");

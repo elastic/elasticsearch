@@ -325,8 +325,7 @@ final class Bootstrap {
             if (PluginsManager.configExists(environment)) {
                 if (System.getProperty("es.distribution.type", "unknown").equals("docker")) {
                     try {
-                        PluginsManager pluginsManager = new PluginsManager(environment);
-                        pluginsManager.synchronizePlugins();
+                        PluginsManager.syncPlugins(environment);
                     } catch (Exception e) {
                         throw new BootstrapException(e);
                     }

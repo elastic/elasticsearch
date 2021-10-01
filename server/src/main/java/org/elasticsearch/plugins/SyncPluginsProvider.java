@@ -8,10 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import java.util.List;
-
-public interface RemovePluginProvider {
-    void execute(List<PluginDescriptor> plugins) throws Exception;
-
-    void setPurge(boolean purge);
+public interface SyncPluginsProvider {
+    void execute() throws Exception;
 }

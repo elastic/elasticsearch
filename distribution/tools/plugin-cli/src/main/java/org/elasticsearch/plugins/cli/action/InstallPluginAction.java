@@ -38,7 +38,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.plugins.InstallPluginProvider;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginInfo;
@@ -119,7 +118,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-public class InstallPluginAction implements Closeable, InstallPluginProvider {
+public class InstallPluginAction implements Closeable {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
@@ -194,7 +193,6 @@ public class InstallPluginAction implements Closeable, InstallPluginProvider {
         this.batch = batch;
     }
 
-    @Override
     public void setProxy(Proxy proxy) {
         this.proxy = proxy;
     }

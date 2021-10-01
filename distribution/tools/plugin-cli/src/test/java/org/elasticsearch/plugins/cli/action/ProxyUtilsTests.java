@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.bootstrap.plugins;
+package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -14,29 +14,29 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.Proxy.Type;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.bootstrap.plugins.ProxyMatcher.matchesProxy;
-import static org.elasticsearch.bootstrap.plugins.ProxyUtils.buildProxy;
+import static org.elasticsearch.plugins.cli.action.ProxyMatcher.matchesProxy;
+import static org.elasticsearch.plugins.cli.action.ProxyUtils.buildProxy;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ProxyUtilsTests extends ESTestCase {
     /**
      * Check that building a proxy with just a hostname and port succeeds.
      */
-    public void testBuildProxy_withHostPort() throws PluginSyncException {
+    public void testBuildProxy_withHostPort() throws Exception {
         assertThat(buildProxy("host:1234"), matchesProxy(Type.HTTP, "host", 1234));
     }
 
     /**
      * Check that building a proxy with a hostname with domain and a port succeeds.
      */
-    public void testBuildProxy_withHostDomainPort() throws PluginSyncException {
+    public void testBuildProxy_withHostDomainPort() throws Exception {
         assertThat(buildProxy("host.localhost:1234"), matchesProxy(Type.HTTP, "host.localhost", 1234));
     }
 
     /**
      * Check that building a proxy with a null value succeeds, returning a pass-through (direct) proxy.
      */
-    public void testBuildProxy_withNullValue() throws PluginSyncException {
+    public void testBuildProxy_withNullValue() throws Exception {
         assertThat(buildProxy(null), matchesProxy(Type.DIRECT));
     }
 
@@ -64,7 +64,7 @@ public class ProxyUtilsTests extends ESTestCase {
      * Check that building a proxy with a null input but with system {@code http.*} properties set returns the correct proxy.
      */
     @SuppressForbidden(reason = "Sets http proxy properties")
-    public void testBuildProxy_withNullValueAndSystemHttpProxy() throws PluginSyncException {
+    public void testBuildProxy_withNullValueAndSystemHttpProxy() throws Exception {
         String prevHost = null;
         String prevPort = null;
 
@@ -85,7 +85,7 @@ public class ProxyUtilsTests extends ESTestCase {
      * Check that building a proxy with a null input but with system {@code https.*} properties set returns the correct proxy.
      */
     @SuppressForbidden(reason = "Sets https proxy properties")
-    public void testBuildProxy_withNullValueAndSystemHttpsProxy() throws PluginSyncException {
+    public void testBuildProxy_withNullValueAndSystemHttpsProxy() throws Exception {
         String prevHost = null;
         String prevPort = null;
 
@@ -106,7 +106,7 @@ public class ProxyUtilsTests extends ESTestCase {
      * Check that building a proxy with a null input but with system {@code socks.*} properties set returns the correct proxy.
      */
     @SuppressForbidden(reason = "Sets socks proxy properties")
-    public void testBuildProxy_withNullValueAndSystemSocksProxy() throws PluginSyncException {
+    public void testBuildProxy_withNullValueAndSystemSocksProxy() throws Exception {
         String prevHost = null;
         String prevPort = null;
 

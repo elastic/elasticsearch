@@ -182,7 +182,12 @@ public class OsProbe {
         } else if (Constants.LINUX) {
             try {
                 final String procLoadAvg = readProcLoadavg();
-                assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
+                try {
+                	assert procLoadAvg.matches("(\\d+\\.\\d+\\s+){3}\\d+/\\d+\\s+\\d+");
+                } catch (AssertionError ae) {
+                	//Catch exception and log the error
+                	logger.error("Assertion Error caught", ae);
+                }
                 final String[] fields = procLoadAvg.split("\\s+");
                 return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
             } catch (final IOException e) {
@@ -233,7 +238,12 @@ public class OsProbe {
      */
     private String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
-        assert lines.size() == 1 : String.join("\n", lines);
+        try {
+        	assert lines.size() == 1 : String.join("\n", lines);
+        } catch (AssertionError ae) {
+        	//Catch exception and log the error
+        	logger.error("Assertion Error caught", ae);
+        }
         return lines.get(0);
     }
 
@@ -252,29 +262,33 @@ public class OsProbe {
         final List<String> lines = readProcSelfCgroup();
         final Map<String, String> controllerMap = new HashMap<>();
         for (final String line : lines) {
-            /*
-             * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
-             * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
-             * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
-             * version 2 hierarchy. For cgroups version 1
-             */
-            final String[] fields = line.split(":");
-            assert fields.length == 3;
-            final String[] controllers = fields[1].split(",");
-            for (final String controller : controllers) {
-                final String controlGroupPath;
-                if (CONTROL_GROUPS_HIERARCHY_OVERRIDE != null) {
-                    /*
-                     * Docker violates the relationship between /proc/self/cgroup and the /sys/fs/cgroup hierarchy. It's possible that this
-                     * will be fixed in future versions of Docker with cgroup namespaces, but this requires modern kernels. Thus, we provide
-                     * an undocumented hack for overriding the control group path. Do not rely on this hack, it will be removed.
-                     */
-                    controlGroupPath = CONTROL_GROUPS_HIERARCHY_OVERRIDE;
-                } else {
-                    controlGroupPath = fields[2];
+            try {
+            	/*
+                 * The virtual file /proc/self/cgroup lists the control groups that the Elasticsearch process is a member of. Each line contains
+                 * three colon-separated fields of the form hierarchy-ID:subsystem-list:cgroup-path. For cgroups version 1 hierarchies, the
+                 * subsystem-list is a comma-separated list of subsystems. The subsystem-list can be empty if the hierarchy represents a cgroups
+                 * version 2 hierarchy. For cgroups version 1
+                 */
+                final String[] fields = line.split(":");
+                assert fields.length == 3;
+                final String[] controllers = fields[1].split(",");
+                for (final String controller : controllers) {
+                    final String controlGroupPath;
+                    if (CONTROL_GROUPS_HIERARCHY_OVERRIDE != null) {
+                        /*
+                         * Docker violates the relationship between /proc/self/cgroup and the /sys/fs/cgroup hierarchy. It's possible that this
+                         * will be fixed in future versions of Docker with cgroup namespaces, but this requires modern kernels. Thus, we provide
+                         * an undocumented hack for overriding the control group path. Do not rely on this hack, it will be removed.
+                         */
+                        controlGroupPath = CONTROL_GROUPS_HIERARCHY_OVERRIDE;
+                    } else {
+                        controlGroupPath = fields[2];
+                    }
+                    final String previous = controllerMap.put(controller, controlGroupPath);
+                    assert previous == null;
                 }
-                final String previous = controllerMap.put(controller, controlGroupPath);
-                assert previous == null;
+            } catch (AssertionError ae) {
+            	logger.error("Assertion Exception caught", ae);
             }
         }
         return controllerMap;
@@ -295,7 +309,12 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
-        assert lines != null && lines.isEmpty() == false;
+        try {
+        	assert lines != null && lines.isEmpty() == false;
+        } catch(AssertionError ae) {
+        	//Catch the exception and log results
+        	logger.error("Assertion Error caught", ae);
+        }
         return lines;
     }
 
@@ -327,7 +346,11 @@ public class OsProbe {
     private long[] getCgroupV2CpuLimit(String controlGroup) throws IOException {
         String entry = readCgroupV2CpuLimit(controlGroup);
         String[] parts = entry.split("\\s+");
-        assert parts.length == 2 : "Expected 2 fields in [cpu.max]";
+        try {
+        	assert parts.length == 2 : "Expected 2 fields in [cpu.max]";
+        } catch (AssertionError ae) {
+        	logger.error("Assertion Error caught", ae);
+        }
 
         long[] values = new long[2];
 
@@ -419,9 +442,13 @@ public class OsProbe {
                     break;
             }
         }
-        assert numberOfPeriods != -1;
-        assert numberOfTimesThrottled != -1;
-        assert timeThrottledNanos != -1;
+        try {
+        	assert numberOfPeriods != -1;
+            assert numberOfTimesThrottled != -1;
+            assert timeThrottledNanos != -1;
+        } catch (AssertionError ae) {
+        	logger.error("Assertion Expection caught", ae);
+        }
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
@@ -444,7 +471,11 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        try {
+        	assert lines != null && lines.size() == 3;
+        } catch (AssertionError ae) {
+        	logger.error("Assertion Error caught", ae);
+        }
         return lines;
     }
 
@@ -599,25 +630,29 @@ public class OsProbe {
         final List<String> lines = readCgroupV2CpuStats(controlGroup);
         final Map<String, Long> stats = new HashMap<>();
 
-        for (String line : lines) {
-            String[] parts = line.split("\\s+");
-            assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
-            stats.put(parts[0], Long.parseLong(parts[1]));
-        }
-
-        final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
-        expectedKeys.forEach(key -> {
-            assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
-            assert stats.get(key) != -1 : stats.get(key);
-        });
-
-        final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
-        optionalKeys.forEach(key -> {
-            if (stats.containsKey(key) == false) {
-                stats.put(key, 0L);
+        try {
+        	for (String line : lines) {
+                String[] parts = line.split("\\s+");
+                assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
+                stats.put(parts[0], Long.parseLong(parts[1]));
             }
-            assert stats.get(key) != -1L : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
-        });
+
+            final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
+            expectedKeys.forEach(key -> {
+                assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
+                assert stats.get(key) != -1 : stats.get(key);
+            });
+
+            final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
+            optionalKeys.forEach(key -> {
+                if (stats.containsKey(key) == false) {
+                    stats.put(key, 0L);
+                }
+                assert stats.get(key) != -1L : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
+            });
+        } catch  (AssertionError ae) {
+        	logger.error("Assertion Exception caught", ae);
+        }
 
         return stats;
     }
@@ -639,7 +674,11 @@ public class OsProbe {
             }
 
             final Map<String, String> controllerMap = getControlGroups();
-            assert controllerMap.isEmpty() == false;
+            try {
+            	assert controllerMap.isEmpty() == false;
+            } catch (AssertionError ae) {
+            	logger.error("Assertion Exception caught", ae);
+            }
 
             final String cpuAcctControlGroup;
             final long cgroupCpuAcctUsageNanos;
@@ -744,34 +783,39 @@ public class OsProbe {
     private String getPrettyName() throws IOException {
         // TODO: return a prettier name on non-Linux OS
         if (Constants.LINUX) {
-            /*
-             * We read the lines from /etc/os-release (or /usr/lib/os-release) to extract the PRETTY_NAME. The format of this file is
-             * newline-separated key-value pairs. The key and value are separated by an equals symbol (=). The value can unquoted, or
-             * wrapped in single- or double-quotes.
-             */
-            final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines = etcOsReleaseLines.stream()
-                .filter(line -> line.startsWith("PRETTY_NAME"))
-                .collect(Collectors.toList());
-            assert prettyNameLines.size() <= 1 : prettyNameLines;
-            final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
-                ? Optional.of(prettyNameLines.get(0))
-                : Optional.empty();
-            if (maybePrettyNameLine.isPresent()) {
-                // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
-                final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
-                final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
-                final boolean matches = matcher.matches();
-                assert matches : trimmedPrettyNameLine;
-                assert matcher.groupCount() == 2 : trimmedPrettyNameLine;
-                return matcher.group(2);
-            } else {
-                return Constants.OS_NAME;
+            try {
+            	/*
+                 * We read the lines from /etc/os-release (or /usr/lib/os-release) to extract the PRETTY_NAME. The format of this file is
+                 * newline-separated key-value pairs. The key and value are separated by an equals symbol (=). The value can unquoted, or
+                 * wrapped in single- or double-quotes.
+                 */
+                final List<String> etcOsReleaseLines = readOsRelease();
+                final List<String> prettyNameLines = etcOsReleaseLines.stream()
+                    .filter(line -> line.startsWith("PRETTY_NAME"))
+                    .collect(Collectors.toList());
+                assert prettyNameLines.size() <= 1 : prettyNameLines;
+                final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
+                    ? Optional.of(prettyNameLines.get(0))
+                    : Optional.empty();
+                if (maybePrettyNameLine.isPresent()) {
+                    // we trim since some OS contain trailing space, for example, Oracle Linux Server 6.9 has a trailing space after the quote
+                    final String trimmedPrettyNameLine = maybePrettyNameLine.get().trim();
+                    final Matcher matcher = Pattern.compile("PRETTY_NAME=(\"?|'?)?([^\"']+)\\1").matcher(trimmedPrettyNameLine);
+                    final boolean matches = matcher.matches();
+                    assert matches : trimmedPrettyNameLine;
+                    assert matcher.groupCount() == 2 : trimmedPrettyNameLine;
+                    return matcher.group(2);
+                } else {
+                    return Constants.OS_NAME;
+                }
+            } catch (AssertionError ae) {
+            	logger.error("Assertion Eception caught", ae);
             }
 
         } else {
             return Constants.OS_NAME;
         }
+        return Constants.OS_NAME;
     }
 
     /**
@@ -786,22 +830,27 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /etc/os-release or /usr/lib/os-release or /etc/system-release")
     List<String> readOsRelease() throws IOException {
         final List<String> lines;
-        if (Files.exists(PathUtils.get("/etc/os-release"))) {
-            lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
-            assert lines != null && lines.isEmpty() == false;
-            return lines;
-        } else if (Files.exists(PathUtils.get("/usr/lib/os-release"))) {
-            lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
-            assert lines != null && lines.isEmpty() == false;
-            return lines;
-        } else if (Files.exists(PathUtils.get("/etc/system-release"))) {
-            // fallback for older Red Hat-like OS
-            lines = Files.readAllLines(PathUtils.get("/etc/system-release"));
-            assert lines != null && lines.size() == 1;
-            return Collections.singletonList("PRETTY_NAME=\"" + lines.get(0) + "\"");
-        } else {
-            return Collections.emptyList();
+        try {
+        	if (Files.exists(PathUtils.get("/etc/os-release"))) {
+                lines = Files.readAllLines(PathUtils.get("/etc/os-release"));
+                assert lines != null && lines.isEmpty() == false;
+                return lines;
+            } else if (Files.exists(PathUtils.get("/usr/lib/os-release"))) {
+                lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
+                assert lines != null && lines.isEmpty() == false;
+                return lines;
+            } else if (Files.exists(PathUtils.get("/etc/system-release"))) {
+                // fallback for older Red Hat-like OS
+                lines = Files.readAllLines(PathUtils.get("/etc/system-release"));
+                assert lines != null && lines.size() == 1;
+                return Collections.singletonList("PRETTY_NAME=\"" + lines.get(0) + "\"");
+            } else {
+                return Collections.emptyList();
+            }
+        } catch (AssertionError ae) {
+        	logger.error("Assertion error caught", ae);
         }
+        return Collections.emptyList();
     }
 
     /**
@@ -813,7 +862,11 @@ public class OsProbe {
         final List<String> lines;
         if (Files.exists(PathUtils.get("/proc/meminfo"))) {
             lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
-            assert lines != null && lines.isEmpty() == false;
+            try {
+            	assert lines != null && lines.isEmpty() == false;
+            } catch (AssertionError ae) {
+            	logger.error("Assertion Exception caught", ae);
+            }
             return lines;
         } else {
             return Collections.emptyList();
@@ -826,7 +879,11 @@ public class OsProbe {
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
         final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
-        assert memTotalLines.size() <= 1 : memTotalLines;
+        try {
+        	assert memTotalLines.size() <= 1 : memTotalLines;
+        } catch (AssertionError ae) {
+        	logger.error("Assertion Expeption caught", ae);
+        }
         if (memTotalLines.size() == 1) {
             final String memTotalLine = memTotalLines.get(0);
             int beginIdx = memTotalLine.indexOf("MemTotal:");

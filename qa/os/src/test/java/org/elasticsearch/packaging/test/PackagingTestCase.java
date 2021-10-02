@@ -77,7 +77,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.Installation.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
@@ -597,14 +596,11 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
         final List<String> configLines;
         if (es.distribution.isArchive()) {
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
+            // We chown the installation on Windows to Administrators so that we can auto-configure it.
+            String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
+            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
-                .forEach(
-                    file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
-                        FileMatcher.file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)
-                    )
-                );
+                .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         } else if (es.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));

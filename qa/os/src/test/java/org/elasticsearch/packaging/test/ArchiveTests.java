@@ -183,6 +183,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
+        assumeTrue("selectively mute to see if the rest of them work", distribution.platform != Distribution.Platform.WINDOWS);
         Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
@@ -251,8 +252,21 @@ public class ArchiveTests extends PackagingTestCase {
         );
     }
 
-    public void test60StartAndStop() throws Exception {
+    public void test52AutoConfiguration() throws Exception {
+        assumeTrue(
+            "run this in place of test51AutoConfigurationWithPasswordProtectedKeystore on windows",
+            distribution.platform == Distribution.Platform.WINDOWS
+        );
+        sh.chown(installation.config, installation.getOwner());
+        FileUtils.assertPathsDoNotExist(installation.data);
 
+        startElasticsearch();
+        verifySecurityAutoConfigured(installation);
+        stopElasticsearch();
+        sh.chown(installation.config);
+    }
+
+    public void test60StartAndStop() throws Exception {
         startElasticsearch();
 
         assertThat(installation.logs.resolve("gc.log"), fileExists());

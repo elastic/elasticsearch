@@ -26,6 +26,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.startsWith;
@@ -439,6 +441,23 @@ public class NodeEnvironmentTests extends ESTestCase {
         verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
     }
 
+    public void testBlocksDowngradeToVersionWithMultipleNodesInDataPath() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        for (int i = 0; i < 2; i++) { // ensure the file gets created again if missing
+            try (NodeEnvironment env = newNodeEnvironment(settings)) {
+                final Path nodesPath = env.nodeDataPath().resolve("nodes");
+                assertTrue(Files.isRegularFile(nodesPath));
+                assertThat(
+                    Files.readString(nodesPath, StandardCharsets.UTF_8),
+                    allOf(
+                        containsString("written by Elasticsearch"),
+                        containsString("prevent a downgrade"),
+                        containsString("data loss")));
+                Files.delete(nodesPath);
+            }
+        }
+    }
+
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
         IllegalStateException ex = expectThrows(IllegalStateException.class,
             "Must fail creating NodeEnvironment on a data path that has shard data if node does not have data role",
@@ -457,17 +476,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertThat(ex.getMessage(),
             containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
         assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
-    }
-
-    /**
-     * Converts an array of Strings to an array of Paths, adding an additional child if specified
-     */
-    private Path[] stringsToPaths(String[] strings, String additional) {
-        Path[] locations = new Path[strings.length];
-        for (int i = 0; i < strings.length; i++) {
-            locations[i] = PathUtils.get(strings[i], additional);
-        }
-        return locations;
     }
 
     @Override

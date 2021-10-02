@@ -55,10 +55,12 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -269,6 +271,16 @@ public final class NodeEnvironment  implements Closeable {
                 assertCanWrite();
             }
 
+            // versions 7.x and earlier put their data under ${path.data}/nodes/; leave a file at that location to prevent downgrades
+            final Path legacyNodesPath = environment.dataFile().resolve("nodes");
+            if (Files.isRegularFile(legacyNodesPath) == false) {
+                final String content = "written by Elasticsearch v" + Version.CURRENT +
+                    " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
+                Files.write(legacyNodesPath, content.getBytes(StandardCharsets.UTF_8));
+                IOUtils.fsync(legacyNodesPath, false);
+                IOUtils.fsync(environment.dataFile(), true);
+            }
+
             if (DiscoveryNode.canContainData(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
                     ensureNoIndexMetadata(nodePath);
@@ -347,7 +359,6 @@ public final class NodeEnvironment  implements Closeable {
 
         // move contents from legacy path to new path
         try {
-            final List<CheckedRunnable<IOException>> upgradeActions = new ArrayList<>();
             final NodePath legacyNodePath = legacyNodeLock.getNodePath();
             final NodePath nodePath = nodeLock.getNodePath();
 
@@ -398,22 +409,14 @@ public final class NodeEnvironment  implements Closeable {
             assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
                 "expected indices and/or state dir folder but was " + folderNames;
 
-            upgradeActions.add(() -> {
-                for (String folderName : folderNames) {
-                    final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
-                    final Path targetSubFolderPath = nodePath.path.resolve(folderName);
-                    Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
-                    logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
-                }
-                IOUtils.fsync(nodePath.path, true);
-            });
-
-            // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
-            // intermediate state would be pretty disastrous
-            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePath());
-            for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
-                upgradeAction.run();
+            // now do the actual upgrade
+            for (String folderName : folderNames) {
+                final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
+                final Path targetSubFolderPath = nodePath.path.resolve(folderName);
+                Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
+                logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
             }
+            IOUtils.fsync(nodePath.path, true);
         } finally {
             legacyNodeLock.close();
         }

@@ -302,9 +302,18 @@ public class ServerUtils {
         if (shouldRetryOnAuthNFailure == false) {
             final String url;
             if (index == null) {
-                url = (caCert != null ? "https" : "http") + "://localhost:9200/_cluster/health?wait_for_status=" + status + "&timeout=60s" + "&pretty";
+                url = (caCert != null ? "https" : "http")
+                    + "://localhost:9200/_cluster/health?wait_for_status="
+                    + status
+                    + "&timeout=60s"
+                    + "&pretty";
             } else {
-                url = (caCert != null ? "https" : "http") + "://localhost:9200/_cluster/health/" + index + "?wait_for_status=" + status + "&timeout=60s&pretty";
+                url = (caCert != null ? "https" : "http")
+                    + "://localhost:9200/_cluster/health/"
+                    + index
+                    + "?wait_for_status="
+                    + status
+                    + "&timeout=60s&pretty";
             }
 
             final String body = makeRequest(Request.Get(url), username, password, caCert);

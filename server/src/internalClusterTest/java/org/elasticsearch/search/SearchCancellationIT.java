@@ -192,6 +192,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     public void testCancellationDuringAggregation() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        // This test is only meaningful with at least 2 shards to trigger reduce
+        int numberOfShards = between(2, 5);
+        createIndex("test", Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
         indexTestData();
 
         logger.info("Executing search");

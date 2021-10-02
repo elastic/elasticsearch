@@ -11,7 +11,9 @@ package org.elasticsearch.packaging.util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -73,6 +75,18 @@ public class Cleanup {
         });
         // when we run es as a role user on windows, add the equivalent here
         // delete files that may still exist
+        Platforms.onWindows(() -> {
+            // TEMP LOGGING
+            logger.info("Attempting to remove all of the following files: ");
+            Files.find(getRootTempDir(), 999, (p, bfa) -> bfa.isRegularFile()).forEach(f -> {
+                try {
+                    logger.info(f + " owned by " + Files.getOwner(f, LinkOption.NOFOLLOW_LINKS));
+                } catch (IOException e) {
+                    logger.info("Failed to determine owner of file " + f);
+                }
+            });
+        });
+
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting

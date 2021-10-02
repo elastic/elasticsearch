@@ -85,6 +85,7 @@ public class Shell {
     }
 
     public void chown(Path path, String newOwner) throws Exception {
+        logger.info("Chowning " + path + " to " + newOwner);
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
         Platforms.onWindows(
             () -> run(

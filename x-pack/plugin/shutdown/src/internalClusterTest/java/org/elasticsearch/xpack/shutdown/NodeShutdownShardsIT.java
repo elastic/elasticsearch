@@ -27,7 +27,6 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
@@ -146,7 +145,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
-    //GWB> RENAME THIS TEST AND ALSO ADD JAVADOC
+    // GWB> RENAME THIS TEST AND ALSO ADD JAVADOC
     public void testTwoNodeClusterBug() throws Exception {
         final String firstNodeName = internalCluster().startNode();
         final String secondNodeName = internalCluster().startNode();

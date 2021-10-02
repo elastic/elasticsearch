@@ -73,20 +73,16 @@ import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
-import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.Installation.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
-import static org.elasticsearch.packaging.util.docker.Docker.sh;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -594,19 +590,21 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    /**
+     * Validates that the installation {@code es} has been auto-configured. This applies to archives and docker only,
+     * packages have nuances that justify their own version.
+     * @param es the {@link Installation} to check
+     */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
         Optional<String> autoConfigDirName = getAutoConfigDirName(es);
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
         final List<String> configLines;
-        if (installation.distribution.isDocker() == false) {
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, ARCHIVE_OWNER, ARCHIVE_OWNER, p750));
+        if (es.distribution.isArchive()) {
+            // We chown the installation on Windows to Administrators so that we can auto-configure it.
+            String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
+            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
-                .forEach(
-                    file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
-                        FileMatcher.file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)
-                    )
-                );
+                .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         } else {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
@@ -648,11 +646,16 @@ public abstract class PackagingTestCase extends Assert {
             configLines,
             hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
         );
-        if (installation.distribution.isDocker() == false) {
+        if (es.distribution.isDocker() == false) {
             assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
         }
     }
 
+    /**
+     * Validates that the installation {@code es} has not been auto-configured. This applies to archives and docker only,
+     * packages have nuances that justify their own version.
+     * @param es the {@link Installation} to check
+     */
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));

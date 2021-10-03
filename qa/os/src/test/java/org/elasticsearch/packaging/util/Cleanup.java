@@ -73,7 +73,6 @@ public class Cleanup {
         });
         // when we run es as a role user on windows, add the equivalent here
         // delete files that may still exist
-        Platforms.onWindows(() -> sh.chown(getRootTempDir()));
 
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;

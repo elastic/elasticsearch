@@ -922,36 +922,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if ("_all".equals(repository)) {
             return snapshotsInProgress.asStream().collect(Collectors.toUnmodifiableList());
         }
-        if (snapshotsInProgress.count() == 1) {
-            // Most likely scenario - one snapshot is currently running
-            // Check this snapshot against the query
-            List<SnapshotsInProgress.Entry> inRepo = snapshotsInProgress.forRepo(repository);
-            if (inRepo.isEmpty()) {
-                return Collections.emptyList();
-            }
-            if (snapshots.isEmpty()) {
-                return inRepo;
-            } else {
-                final SnapshotsInProgress.Entry entry = inRepo.get(0);
-                for (String snapshot : snapshots) {
-                    if (entry.snapshot().getSnapshotId().getName().equals(snapshot)) {
-                        return inRepo;
-                    }
-                }
-                return Collections.emptyList();
-            }
+        if (snapshots.isEmpty()) {
+            return snapshotsInProgress.forRepo(repository);
         }
         List<SnapshotsInProgress.Entry> builder = new ArrayList<>();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repository)) {
-            if (snapshots.isEmpty() == false) {
-                for (String snapshot : snapshots) {
-                    if (entry.snapshot().getSnapshotId().getName().equals(snapshot)) {
-                        builder.add(entry);
-                        break;
-                    }
+            for (String snapshot : snapshots) {
+                if (entry.snapshot().getSnapshotId().getName().equals(snapshot)) {
+                    builder.add(entry);
+                    break;
                 }
-            } else {
-                builder.add(entry);
             }
         }
         return unmodifiableList(builder);
@@ -2993,23 +2973,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private final ClusterState currentState;
 
         // updates outstanding to be applied to existing snapshot entries
-        private final Map<String, List<ShardSnapshotUpdate>> unconsumedUpdates;
+        private final Map<String, List<ShardSnapshotUpdate>> updatesByRepo;
 
         // updates that were used to update an existing in-progress shard snapshot
         private final Set<ShardSnapshotUpdate> executedUpdates = new HashSet<>();
 
         SnapshotShardsUpdateContext(ClusterState currentState, List<ShardSnapshotUpdate> updates) {
             this.currentState = currentState;
-            unconsumedUpdates = new HashMap<>();
+            updatesByRepo = new HashMap<>();
             for (ShardSnapshotUpdate update : updates) {
-                unconsumedUpdates.computeIfAbsent(update.snapshot.getRepository(), r -> new ArrayList<>()).add(update);
+                updatesByRepo.computeIfAbsent(update.snapshot.getRepository(), r -> new ArrayList<>()).add(update);
             }
         }
 
         ClusterState computeUpdatedState() {
             final SnapshotsInProgress existing = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
             SnapshotsInProgress updated = existing;
-            for (Map.Entry<String, List<ShardSnapshotUpdate>> updates : unconsumedUpdates.entrySet()) {
+            for (Map.Entry<String, List<ShardSnapshotUpdate>> updates : updatesByRepo.entrySet()) {
                 final String repoName = updates.getKey();
                 final List<SnapshotsInProgress.Entry> oldEntries = existing.forRepo(repoName);
                 if (oldEntries.isEmpty()) {

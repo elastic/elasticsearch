@@ -74,7 +74,7 @@ public class Cleanup {
         // when we run es as a role user on windows, add the equivalent here
         // delete files that may still exist
 
-        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
+        lsGlob(getRootTempDir(), "elasticsearch*").forEach(Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm);
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
         Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;

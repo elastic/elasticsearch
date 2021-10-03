@@ -236,7 +236,10 @@ public class PackageTests extends PackagingTestCase {
         try {
             install();
             assertInstalled(distribution());
-
+            Result result = sh.run(
+                installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
+            );
+            assumeTrue(result.isSuccess());
             startElasticsearch();
             restartElasticsearch(sh, installation);
             runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));

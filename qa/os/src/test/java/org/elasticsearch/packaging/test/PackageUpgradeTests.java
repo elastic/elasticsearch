@@ -84,12 +84,12 @@ public class PackageUpgradeTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution, sh);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }
 
     private void assertDocsExist() throws Exception {
-        // TODO handle this as part of https://github.com/elastic/elasticsearch/issues/75940
         String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"), "elastic", "keystore_seed", null);
         assertThat(response1, containsString("Elasticsearch"));
         String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"), "elastic", "keystore_seed", null);

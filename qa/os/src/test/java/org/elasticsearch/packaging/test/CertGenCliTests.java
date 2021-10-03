@@ -118,6 +118,7 @@ public class CertGenCliTests extends PackagingTestCase {
             .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
             .filter(l -> l.startsWith("xpack.security.enabled") == false)
             .filter(l -> l.startsWith("http.host") == false)
+            .filter(l -> l.startsWith("cluster.initial_master_nodes") == false)
             .collect(Collectors.toList());
         newConfig.addAll(newTlsConfig);
 

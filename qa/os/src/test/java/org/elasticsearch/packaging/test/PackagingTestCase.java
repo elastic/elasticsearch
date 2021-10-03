@@ -626,7 +626,7 @@ public abstract class PackagingTestCase extends Assert {
                         FileMatcher.file(File, "root", "elasticsearch", p660)
                     )
                 );
-            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfig.password_hash"));
+            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         }
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
@@ -661,7 +661,10 @@ public abstract class PackagingTestCase extends Assert {
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         if (es.distribution.isPackage()) {
-            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, not(Matchers.containsString("autoconfig.password_hash")));
+            assertThat(
+                sh.run(es.executables().keystoreTool + " list").stdout,
+                not(Matchers.containsString("autoconfiguration.password_hash"))
+            );
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(

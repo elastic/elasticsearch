@@ -12,6 +12,7 @@ import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Packages;
+import org.elasticsearch.packaging.util.ServerUtils;
 
 import java.nio.file.Paths;
 
@@ -32,6 +33,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
+        // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
+        // maybe as part of https://github.com/elastic/elasticsearch/pull/76879
+        ServerUtils.disableSecurityFeatures(installation);
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -84,17 +88,16 @@ public class PackageUpgradeTests extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution, sh);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }
 
     private void assertDocsExist() throws Exception {
-        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"), "elastic", "keystore_seed", null);
+        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
         assertThat(response1, containsString("Elasticsearch"));
-        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"), "elastic", "keystore_seed", null);
+        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
         assertThat(response2, containsString("World"));
-        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"), "elastic", "keystore_seed", null);
+        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
         assertThat(response3, containsString("Darkness"));
     }
 }

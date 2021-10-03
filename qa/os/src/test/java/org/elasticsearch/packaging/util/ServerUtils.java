@@ -64,7 +64,7 @@ public class ServerUtils {
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(30);
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
-    private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(15);
+    private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(25);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
         final boolean securityEnabled;

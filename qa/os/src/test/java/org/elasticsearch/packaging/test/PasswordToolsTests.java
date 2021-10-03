@@ -39,10 +39,12 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test010Install() throws Exception {
         install();
-        // Enable security for this test only where it is necessary, until we can enable it for all
-        ServerUtils.enableSecurityFeatures(installation);
-        // Disable auto-configuration so that we can run setup-passwords
+        // Disable auto-configuration for archives so that we can run setup-passwords
         ServerUtils.disableSecurityAutoConfiguration(installation);
+        // For packaged installations, auto-configuration happens on install time. Disable TLS to simulate it not happening
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "http.host");
+        ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
+        ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.transport.ssl.enabled", "false");
     }
 
     public void test20GeneratePasswords() throws Exception {

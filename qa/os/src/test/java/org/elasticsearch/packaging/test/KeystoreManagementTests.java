@@ -69,7 +69,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
         // Add a user for tests to use.
-        // TODO: Possibly capture autoconfigured password from running the node the first time
         Shell.Result result = sh.run(
             installation.executables().usersTool
                 + " useradd "
@@ -95,6 +94,17 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        // Add a user for tests to use.
+        Shell.Result result = sh.run(
+            installation.executables().usersTool
+                + " useradd "
+                + FILE_REALM_SUPERUSER
+                + " -p "
+                + FILE_REALM_SUPERUSER_PASSWORD
+                + " -r "
+                + "superuser"
+        );
+        assumeTrue(result.isSuccess());
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");

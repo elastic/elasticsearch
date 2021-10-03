@@ -103,8 +103,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    private static final boolean ES_REQUEST_TIMEOUT_200 = Boolean.parseBoolean(System.getProperty(
-        "es.cluster_health.request_timeout_200", "false"));
+    private static final boolean ES_REQUEST_TIMEOUT_408 = Boolean.parseBoolean(System.getProperty(
+        "es.cluster_health.request_timeout_408", "false"));
 
     static {
         // ClusterStateHealth fields
@@ -306,13 +306,19 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
-        if (RestApiVersion.current() == RestApiVersion.V_7 && isTimedOut() && ES_REQUEST_TIMEOUT_200 == false) {
-            deprecationLogger.critical(DeprecationCategory.API, "cluster_health_request_timeout",
-                "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a future major version." +
-                    "Set the `es.cluster_health.request_timeout_200` property to `true` to opt-in for the new behaviour.");
-            return RestStatus.REQUEST_TIMEOUT;
+        if (isTimedOut() == false) {
+            return RestStatus.OK;
         }
-        return RestStatus.OK;
+        if (RestApiVersion.current() == RestApiVersion.V_7) {
+            if (ES_REQUEST_TIMEOUT_408 == false) {
+                deprecationLogger.critical(DeprecationCategory.API, "cluster_health_request_timeout",
+                    "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a future major version." +
+                        "Set the `es.cluster_health.request_timeout_408` property to `true` to present the current behaviour.");
+            }
+            return RestStatus.REQUEST_TIMEOUT;
+        } else {
+            return ES_REQUEST_TIMEOUT_408 ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
+        }
     }
 
     @Override

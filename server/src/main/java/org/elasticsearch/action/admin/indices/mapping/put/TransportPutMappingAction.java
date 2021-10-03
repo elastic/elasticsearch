@@ -134,7 +134,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final PutMappingClusterStateUpdateRequest updateRequest;
         try {
             updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
-                .indices(concreteIndices)
+                .indices(concreteIndices).type(request.type())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
         } catch (IOException e) {
             wrappedListener.onFailure(e);

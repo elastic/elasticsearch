@@ -294,15 +294,20 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         for (Map.Entry<String, List<Entry>> repoEntries : entries.entrySet()) {
             final Set<Tuple<String, Integer>> assignedShards = new HashSet<>();
             final Set<Tuple<String, Integer>> queuedShards = new HashSet<>();
-            for (Entry entry : repoEntries.getValue()) {
+            final List<Entry> entriesForRepository = repoEntries.getValue();
+            final String repository = repoEntries.getKey();
+            assert entriesForRepository.isEmpty() == false
+                : "found empty list of snapshots for " + repository + " in " + entries;
+            for (Entry entry : entriesForRepository) {
+                assert entry.repository().equals(repository) : "mismatched repository " + entry + " tracked under " + repository;
                 for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId()) {
                     final RepositoryShardId sid = shard.key;
-                    assert assertShardStateConsistent(repoEntries.getValue(),
+                    assert assertShardStateConsistent(entriesForRepository,
                         assignedShards, queuedShards, sid.indexName(), sid.shardId(), shard.value);
                 }
             }
             // make sure in-flight-shard-states can be built cleanly for the entries without tripping assertions
-            InFlightShardSnapshotStates.forEntries(repoEntries.getValue());
+            InFlightShardSnapshotStates.forEntries(entriesForRepository);
         }
         return true;
     }

@@ -61,13 +61,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // keyed by repository name
     private final Map<String, List<Entry>> entries;
 
-    public static SnapshotsInProgress of(Map<String, List<Entry>> entries) {
-        if (entries.isEmpty()) {
-            return EMPTY;
-        }
-        return new SnapshotsInProgress(entries);
-    }
-
     public SnapshotsInProgress(StreamInput in) throws IOException {
         this(collectByRepo(in));
     }
@@ -100,10 +93,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         final Map<String, List<Entry>> copy = new HashMap<>(this.entries);
         if (updatedEntries.isEmpty()) {
             copy.remove(repository);
+            if (copy.isEmpty()) {
+                return EMPTY;
+            }
         } else {
             copy.put(repository, List.copyOf(updatedEntries));
         }
-        return SnapshotsInProgress.of(copy);
+        return new SnapshotsInProgress(copy);
     }
 
     public SnapshotsInProgress withAddedEntry(Entry entry) {

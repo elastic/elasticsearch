@@ -51,12 +51,11 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     @Override
     protected Custom createTestInstance() {
         int numberOfSnapshots = randomInt(10);
-        Map<String, List<Entry>> entries = new HashMap<>();
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY;
         for (int i = 0; i < numberOfSnapshots; i++) {
-            final SnapshotsInProgress.Entry randomEntry = randomSnapshot();
-            entries.computeIfAbsent(randomEntry.repository(), r -> new ArrayList<>()).add(randomEntry);
+            snapshotsInProgress.withAddedEntry(randomSnapshot());
         }
-        return SnapshotsInProgress.of(entries);
+        return snapshotsInProgress;
     }
 
     private Entry randomSnapshot() {

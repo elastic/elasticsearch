@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.commons.io.FileUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,14 +56,16 @@ public class Cleanup {
             sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
-        Platforms.onWindows(() -> {
-            // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-            sh.runIgnoreExitCode(
-                "Get-WmiObject Win32_Process | "
-                    + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
-                    + "ForEach-Object { $_.Terminate() }"
-            );
-        });
+        Platforms.onWindows(
+            () -> {
+                // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
+                sh.runIgnoreExitCode(
+                    "Get-WmiObject Win32_Process | "
+                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                        + "ForEach-Object { $_.Terminate() }"
+                );
+            }
+        );
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 
@@ -73,10 +76,14 @@ public class Cleanup {
         });
         // when we run es as a role user on windows, add the equivalent here
         // delete files that may still exist
-        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
+        for (Path path : lsGlob(getRootTempDir(), "elasticsearch*")) {
+            FileUtils.deleteDirectory(path.toFile());
+        }
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
-        Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
+        Consumer<? super Path> rm = Platforms.WINDOWS
+            ? org.elasticsearch.packaging.util.FileUtils::rmWithRetries
+            : org.elasticsearch.packaging.util.FileUtils::rm;
         filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);
     }
 

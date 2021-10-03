@@ -86,6 +86,8 @@ public class PackageUpgradeTests extends PackagingTestCase {
         }
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        // Upgrade overwrites the configuration file because we run with --force-confnew so we need to disable security again
+        ServerUtils.disableSecurityFeatures(installation);
     }
 
     public void test21CheckUpgradedVersion() throws Exception {

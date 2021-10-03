@@ -111,8 +111,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         Predicate<String> p2 = output -> output.contains("Authentication and Authorization are enabled.");
         Predicate<String> p3 = output -> output.contains("You can use elasticsearch-reset-elastic-password to set a password");
         Predicate<String> p4 = output -> output.contains("for the elastic user.");
-        Predicate<String> p5 = output -> output.contains("See <link_here> for instructions on how to configure TLS manually.");
-        return p1.and(p2).and(p3).and(p4).and(p5);
+        return p1.and(p2).and(p3).and(p4);
     }
 
 }

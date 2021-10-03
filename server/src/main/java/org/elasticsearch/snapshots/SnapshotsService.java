@@ -2139,19 +2139,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return currentState;
                 }
 
-                final Set<SnapshotId> activeCloneSources = snapshotsInProgress.entries()
-                    .stream()
-                    .filter(SnapshotsInProgress.Entry::isClone)
-                    .map(SnapshotsInProgress.Entry::source)
-                    .collect(Collectors.toSet());
-                for (SnapshotId snapshotId : snapshotIds) {
-                    if (activeCloneSources.contains(snapshotId)) {
-                        throw new ConcurrentSnapshotExecutionException(
-                            new Snapshot(repositoryName, snapshotId),
-                            "cannot delete snapshot while it is being cloned"
-                        );
-                    }
-                }
+                ensureNoCloningInProgress(snapshotIds, snapshotsInProgress);
 
                 ensureNoCleanupInProgress(
                     currentState,
@@ -2170,14 +2158,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // otherwise we could end up deleting a snapshot that is being restored
                 // and the files the restore depends on would all be gone
 
-                for (RestoreInProgress.Entry entry : restoreInProgress) {
-                    if (repositoryName.equals(entry.snapshot().getRepository()) && snapshotIds.contains(entry.snapshot().getSnapshotId())) {
-                        throw new ConcurrentSnapshotExecutionException(
-                            new Snapshot(repositoryName, snapshotIds.stream().findFirst().get()),
-                            "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]"
-                        );
-                    }
-                }
+                ensureNoRestoreInProgress(snapshotIds, restoreInProgress);
                 // Snapshot ids that will have to be physically deleted from the repository
                 final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);
                 final SnapshotsInProgress updatedSnapshots = SnapshotsInProgress.of(snapshotsInProgress.entries().stream().map(existing -> {
@@ -2247,6 +2228,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     (replacedEntry == null ? deletionsInProgress : deletionsInProgress.withRemovedEntry(replacedEntry.uuid()))
                         .withAddedEntry(newDelete)
                 );
+            }
+
+            private void ensureNoRestoreInProgress(Set<SnapshotId> snapshotIds, RestoreInProgress restoreInProgress) {
+                for (RestoreInProgress.Entry entry : restoreInProgress) {
+                    if (repositoryName.equals(entry.snapshot().getRepository()) && snapshotIds.contains(entry.snapshot().getSnapshotId())) {
+                        throw new ConcurrentSnapshotExecutionException(
+                            new Snapshot(repositoryName, snapshotIds.stream().findFirst().get()),
+                            "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]"
+                        );
+                    }
+                }
+            }
+
+            private void ensureNoCloningInProgress(Set<SnapshotId> snapshotIds, SnapshotsInProgress snapshotsInProgress) {
+                final Set<SnapshotId> activeCloneSources = snapshotsInProgress.entries()
+                    .stream()
+                    .filter(SnapshotsInProgress.Entry::isClone)
+                    .map(SnapshotsInProgress.Entry::source)
+                    .collect(Collectors.toSet());
+                for (SnapshotId snapshotId : snapshotIds) {
+                    if (activeCloneSources.contains(snapshotId)) {
+                        throw new ConcurrentSnapshotExecutionException(
+                            new Snapshot(repositoryName, snapshotId),
+                            "cannot delete snapshot while it is being cloned"
+                        );
+                    }
+                }
             }
 
             @Override

@@ -101,9 +101,11 @@ public class Archives {
         assertThat("only the intended installation exists", installations, hasSize(1));
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
-        Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
-
-        sh.chown(fullInstallPath);
+        Platforms.onLinux(() -> {
+            setupArchiveUsersLinux(fullInstallPath);
+            sh.chown(fullInstallPath);
+        });
+        Platforms.onWindows(() -> { sh.chown(fullInstallPath, "BUILTIN\\Administrators"); });
 
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);

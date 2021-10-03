@@ -33,6 +33,8 @@ import java.util.Set;
  */
 public final class InFlightShardSnapshotStates {
 
+    private static final InFlightShardSnapshotStates EMPTY = new InFlightShardSnapshotStates(Map.of(), Map.of());
+
     /**
      * Compute information about all shard ids that currently have in-flight state for the given repository.
      *
@@ -40,9 +42,12 @@ public final class InFlightShardSnapshotStates {
      * @return in flight shard states for all snapshot operations
      */
     public static InFlightShardSnapshotStates forEntries(List<SnapshotsInProgress.Entry> snapshots) {
+        if (snapshots.isEmpty()) {
+            return EMPTY;
+        }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
-        assert snapshots.isEmpty() || snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
+        assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
             for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot

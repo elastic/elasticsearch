@@ -20,12 +20,13 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesRequest {
 
-    private final ShardId[] shardIds;
+    private final List<ShardId> shardIds;
     private final String[] fields;
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
@@ -34,7 +35,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
-        shardIds = in.readArray(ShardId::new, ShardId[]::new);
+        shardIds = in.readList(ShardId::new);
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -42,14 +43,14 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         runtimeFields = in.readMap();
     }
 
-    FieldCapabilitiesNodeRequest(ShardId[] shardIds,
+    FieldCapabilitiesNodeRequest(List<ShardId> shardIds,
                                  String[] fields,
                                  OriginalIndices originalIndices,
                                  QueryBuilder indexFilter,
                                  long nowInMillis,
                                  Map<String, Object> runtimeFields) {
+        this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
-        this.shardIds = shardIds;
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
@@ -82,7 +83,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         return runtimeFields;
     }
 
-    public ShardId[] shardIds() {
+    public List<ShardId> shardIds() {
         return shardIds;
     }
 
@@ -93,7 +94,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray(shardIds);
+        out.writeList(shardIds);
         out.writeStringArray(fields);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         out.writeOptionalNamedWriteable(indexFilter);
@@ -111,7 +112,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesNodeRequest that = (FieldCapabilitiesNodeRequest) o;
-        return nowInMillis == that.nowInMillis && Arrays.equals(shardIds, that.shardIds)
+        return nowInMillis == that.nowInMillis && shardIds.equals(that.shardIds)
             && Arrays.equals(fields, that.fields) && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter) && Objects.equals(runtimeFields, that.runtimeFields);
     }
@@ -119,7 +120,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public int hashCode() {
         int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields);
-        result = 31 * result + Arrays.hashCode(shardIds);
+        result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         return result;
     }

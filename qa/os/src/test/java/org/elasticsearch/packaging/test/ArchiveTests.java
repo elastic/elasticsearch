@@ -136,41 +136,53 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
+        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
         // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
         // we don't trigger false negatives for the auto-configuration process
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
+        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
+        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
+        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "xpack.security.http.ssl.enabled");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
@@ -199,6 +211,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
+        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
         Files.move(
@@ -211,6 +225,7 @@ public class ArchiveTests extends PackagingTestCase {
             tempDir.resolve("bcprov-jdk15on-1.64.jar"),
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar")
         );
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
     }
 
@@ -242,16 +257,18 @@ public class ArchiveTests extends PackagingTestCase {
         );
     }
 
-    public void test52AutoConfigurationOnWindows() throws Exception {
+    public void test52AutoConfiguration() throws Exception {
         assumeTrue(
             "run this in place of test51AutoConfigurationWithPasswordProtectedKeystore on windows",
             distribution.platform == Distribution.Platform.WINDOWS
         );
+        sh.chown(installation.config, installation.getOwner());
         FileUtils.assertPathsDoNotExist(installation.data);
 
         startElasticsearch();
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
+        sh.chown(installation.config);
     }
 
     public void test60StartAndStop() throws Exception {

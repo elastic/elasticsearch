@@ -13,7 +13,6 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.expressions.js.VariableContext;
 import org.apache.lucene.search.DoubleValuesSource;
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -232,7 +231,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
-                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (vars != null && vars.containsKey(variable)) {
                     bindFromParams(vars, bindings, variable);
@@ -283,7 +282,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
-                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
                     specialValue = new ReplaceableConstDoubleValueSource();
@@ -355,7 +354,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
-                    bindings.add(new SortField("_score", SortField.Type.SCORE));
+                    bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
                     specialValue = new ReplaceableConstDoubleValueSource();

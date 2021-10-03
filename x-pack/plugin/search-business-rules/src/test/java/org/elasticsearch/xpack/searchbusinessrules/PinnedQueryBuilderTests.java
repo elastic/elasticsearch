@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
-import org.apache.lucene.search.CappedScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;

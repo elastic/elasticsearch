@@ -95,7 +95,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected NodeCachesStatsResponse newNodeResponse(StreamInput in) throws IOException {
+    protected NodeCachesStatsResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeCachesStatsResponse(in);
     }
 

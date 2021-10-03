@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -96,11 +97,11 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 final BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
                 assertTrue(boolQueryBuilder.filter().isEmpty());
                 assertTrue(boolQueryBuilder.mustNot().isEmpty());
-                assertThat(boolQueryBuilder.must().size(), equalTo(1));
+                assertThat(boolQueryBuilder.must(), hasSize(1));
                 final QueryBuilder mustQueryBuilder = boolQueryBuilder.must().get(0);
                 assertThat(mustQueryBuilder.getClass(), is(TermsQueryBuilder.class));
                 assertThat(((TermsQueryBuilder) mustQueryBuilder).fieldName(), equalTo("name"));
-                assertThat(boolQueryBuilder.should().size(), equalTo(1));
+                assertThat(boolQueryBuilder.should(), hasSize(1));
                 final QueryBuilder shouldQueryBuilder = boolQueryBuilder.should().get(0);
                 assertThat(shouldQueryBuilder.getClass(), is(PrefixQueryBuilder.class));
                 assertThat(((PrefixQueryBuilder) shouldQueryBuilder).fieldName(), equalTo("metadata.environ"));
@@ -144,7 +145,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 assertThat(queryApiKeyRequest.getFrom(), equalTo(42));
                 assertThat(queryApiKeyRequest.getSize(), equalTo(20));
                 final List<FieldSortBuilder> fieldSortBuilders = queryApiKeyRequest.getFieldSortBuilders();
-                assertThat(fieldSortBuilders.size(), equalTo(3));
+                assertThat(fieldSortBuilders, hasSize(3));
 
                 assertThat(fieldSortBuilders.get(0), equalTo(new FieldSortBuilder("name")));
                 assertThat(

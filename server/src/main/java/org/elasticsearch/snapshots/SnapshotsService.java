@@ -2676,7 +2676,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         : "Missing assignment for [" + sid + "]";
                                     updatedAssignmentsBuilder.put(sid, ShardSnapshotStatus.MISSING);
                                 } else {
-                                    markShardReassigned(shardId, reassignedShardIds);
+                                    if (updated.isActive()) {
+                                        markShardReassigned(shardId, reassignedShardIds);
+                                    }
                                     updatedAssignmentsBuilder.put(sid, updated);
                                 }
                             }

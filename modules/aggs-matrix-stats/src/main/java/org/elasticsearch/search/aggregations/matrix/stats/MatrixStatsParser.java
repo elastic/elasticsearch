@@ -10,14 +10,14 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.matrix.ArrayValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
+import static org.elasticsearch.search.aggregations.matrix.ArrayValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
 
 public class MatrixStatsParser extends NumericValuesSourceParser {
 

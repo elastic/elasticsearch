@@ -80,7 +80,7 @@ public final class CorruptionUtils {
                 input.seek(input.length() - CodecUtil.footerLength());
                 checksumAfterCorruption = input.getChecksum();
                 input.seek(input.length() - 8);
-                actualChecksumAfterCorruption = input.readLong();
+                actualChecksumAfterCorruption = CodecUtil.readBELong(input);
             }
             // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
             // in the checksum which is ok though....

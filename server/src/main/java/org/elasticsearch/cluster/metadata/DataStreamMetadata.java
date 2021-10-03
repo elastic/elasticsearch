@@ -64,8 +64,6 @@ public class DataStreamMetadata implements Metadata.Custom {
         }, DATA_STREAM_ALIASES);
     }
 
-    public static final Version DATA_STREAM_ALIAS_VERSION = Version.V_7_14_0;
-
     private final Map<String, DataStream> dataStreams;
     private final Map<String, DataStreamAlias> dataStreamAliases;
 
@@ -76,8 +74,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, DataStream::new), in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION) ?
-            in.readMap(StreamInput::readString, DataStreamAlias::new) : Map.of());
+        this(in.readMap(StreamInput::readString, DataStream::new), in.readMap(StreamInput::readString, DataStreamAlias::new));
     }
 
     public Map<String, DataStream> dataStreams() {
@@ -115,9 +112,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.dataStreams, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
-        if (out.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
-            out.writeMap(this.dataStreamAliases, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
-        }
+        out.writeMap(this.dataStreamAliases, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
 
     public static DataStreamMetadata fromXContent(XContentParser parser) throws IOException {
@@ -177,12 +172,8 @@ public class DataStreamMetadata implements Metadata.Custom {
         DataStreamMetadataDiff(StreamInput in) throws IOException {
             this.dataStreamDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
                 DataStream::new, DataStream::readDiffFrom);
-            if (in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
-                this.dataStreamAliasDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                    DataStreamAlias::new, DataStreamAlias::readDiffFrom);
-            } else {
-                this.dataStreamAliasDiff = null;
-            }
+            this.dataStreamAliasDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                DataStreamAlias::new, DataStreamAlias::readDiffFrom);
         }
 
         @Override
@@ -196,9 +187,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             dataStreamDiff.writeTo(out);
-            if (out.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
-                dataStreamAliasDiff.writeTo(out);
-            }
+            dataStreamAliasDiff.writeTo(out);
         }
 
         @Override

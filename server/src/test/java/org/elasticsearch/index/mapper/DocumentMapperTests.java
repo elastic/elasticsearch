@@ -340,7 +340,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             for (int i = 0; i <= max; i++) {
                 b.startObject("field" + i)
                     .field("type", randomFrom("ip", "keyword", "long", "integer", "byte", "short"))
-                    .field("dimension", true)
+                    .field("time_series_dimension", true)
                     .endObject();
             }
         })));

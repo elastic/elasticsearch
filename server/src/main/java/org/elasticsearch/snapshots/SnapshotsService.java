@@ -616,12 +616,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) {
                 final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final String repoName = cloneEntry.repository();
-                final List<SnapshotsInProgress.Entry> updatedEntries = new ArrayList<>(snapshotsInProgress.forRepo(repoName));
-                boolean changed = false;
+                final List<SnapshotsInProgress.Entry> existingEntries = snapshotsInProgress.forRepo(repoName);
+                final List<SnapshotsInProgress.Entry> updatedEntries = new ArrayList<>(existingEntries.size());
                 final String localNodeId = currentState.nodes().getLocalNodeId();
                 final ShardGenerations shardGenerations = repoData.shardGenerations();
-                for (int i = 0; i < updatedEntries.size(); i++) {
-                    if (cloneEntry.snapshot().getSnapshotId().equals(updatedEntries.get(i).snapshot().getSnapshotId())) {
+                for (SnapshotsInProgress.Entry existing : existingEntries) {
+                    if (cloneEntry.snapshot().getSnapshotId().equals(existing.snapshot().getSnapshotId())) {
                         final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = ImmutableOpenMap.builder();
                         final boolean readyToExecute = currentState.custom(
                             SnapshotDeletionsInProgress.TYPE,
@@ -652,20 +652,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                         updatedEntry = cloneEntry.withClones(clonesBuilder.build());
-                        // Move the now ready to execute clone operation to the back of the snapshot operations order because its
-                        // shard snapshot state was based on all previous existing operations in progress
-                        // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
-                        updatedEntries.remove(i);
-                        updatedEntries.add(updatedEntry);
-                        changed = true;
-                        break;
+                    } else {
+                        updatedEntries.add(existing);
                     }
                 }
-                return updateWithSnapshots(
-                    currentState,
-                    changed ? snapshotsInProgress.withUpdatedEntriesForRepo(repoName, updatedEntries) : null,
-                    null
-                );
+                if (updatedEntry != null) {
+                    // Move the now ready to execute clone operation to the back of the snapshot operations order because its
+                    // shard snapshot state was based on all previous existing operations in progress
+                    // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
+                    updatedEntries.add(updatedEntry);
+                    return updateWithSnapshots(currentState, snapshotsInProgress.withUpdatedEntriesForRepo(repoName, updatedEntries), null);
+                }
+                return currentState;
             }
 
             @Override

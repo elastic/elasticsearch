@@ -124,7 +124,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             if (previousSnapshots.equals(currentSnapshots) == false) {
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
-                    for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo().values()) {
+                    for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo()) {
                         startNewSnapshots(snapshots);
                     }
                 }
@@ -136,7 +136,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // Clear request deduplicator since we need to send all requests that were potentially not handled by the previous
                 // master again
                 remoteFailedRequestDeduplicator.clear();
-                for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo().values()) {
+                for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo()) {
                     syncShardStatsOnNewMaster(snapshots);
                 }
             }

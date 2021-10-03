@@ -124,8 +124,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return count;
     }
 
-    public Map<String, List<Entry>> entriesByRepo() {
-        return entries;
+    public Collection<List<Entry>> entriesByRepo() {
+        return entries.values();
     }
 
     public Stream<Entry> asStream() {

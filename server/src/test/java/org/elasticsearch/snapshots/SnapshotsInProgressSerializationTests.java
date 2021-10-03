@@ -126,7 +126,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         if (randomBoolean() && snapshots.count() > 1) {
             // remove some elements
             int leaveElements = randomIntBetween(0, snapshots.count() - 1);
-            for (List<Entry> entriesForRepo : snapshots.entriesByRepo().values()) {
+            for (List<Entry> entriesForRepo : snapshots.entriesByRepo()) {
                 for (Entry entry : entriesForRepo) {
                     if (updatedInstance.count() == leaveElements) {
                         break;
@@ -146,15 +146,15 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         }
         if (randomBoolean()) {
             // modify some elements
-            for (Map.Entry<String, List<Entry>> perRepoEntry : updatedInstance.entriesByRepo().entrySet()) {
-                final List<Entry> entries = new ArrayList<>(perRepoEntry.getValue());
+            for (List<Entry> perRepoEntries : updatedInstance.entriesByRepo()) {
+                final List<Entry> entries = new ArrayList<>(perRepoEntries);
                 for (int i = 0; i < entries.size(); i++) {
                     if (randomBoolean()) {
                         final Entry entry = entries.get(i);
                         entries.set(i, mutateEntry(entry));
                     }
                 }
-                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntry.getKey(), entries);
+                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).repository(), entries);
             }
         }
         return updatedInstance;
@@ -178,7 +178,9 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             return snapshotsInProgress.withAddedEntry(randomSnapshot());
         } else {
             // mutate an entry
-            final String repo = randomFrom(snapshotsInProgress.entriesByRepo().keySet());
+            final String repo = randomFrom(
+                snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::repository).collect(Collectors.toSet())
+            );
             final List<Entry> forRepo = snapshotsInProgress.forRepo(repo);
             int index = randomIntBetween(0, forRepo.size() - 1);
             Entry entry = forRepo.get(index);

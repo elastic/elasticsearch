@@ -1013,7 +1013,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
             .map(SnapshotDeletionsInProgress.Entry::repository)
             .collect(Collectors.toSet());
-        for (List<SnapshotsInProgress.Entry> repoEntry : snapshotsInProgress.entriesByRepo().values()) {
+        for (List<SnapshotsInProgress.Entry> repoEntry : snapshotsInProgress.entriesByRepo()) {
             final SnapshotsInProgress.Entry entry = repoEntry.get(0);
             for (ObjectCursor<ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
                 if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
@@ -1082,12 +1082,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // We should refactor it to ideally also go through #SHARD_STATE_EXECUTOR by hand-crafting shard state updates
                     // that encapsulate nodes leaving or indices having been deleted and passing them to the executor instead.
                     SnapshotsInProgress updated = snapshots;
-                    for (final Map.Entry<String, List<SnapshotsInProgress.Entry>> snapshotsInRepo : snapshots.entriesByRepo().entrySet()) {
+                    for (final List<SnapshotsInProgress.Entry> snapshotsInRepo : snapshots.entriesByRepo()) {
                         boolean changed = false;
                         final List<SnapshotsInProgress.Entry> updatedEntriesForRepo = new ArrayList<>();
                         final Map<RepositoryShardId, ShardSnapshotStatus> knownFailures = new HashMap<>();
-                        final String repository = snapshotsInRepo.getKey();
-                        for (SnapshotsInProgress.Entry snapshot : snapshotsInRepo.getValue()) {
+                        final String repository = snapshotsInRepo.get(0).repository();
+                        for (SnapshotsInProgress.Entry snapshot : snapshotsInRepo) {
                             if (statesToUpdate.contains(snapshot.state())) {
                                 if (snapshot.isClone()) {
                                     if (snapshot.shardsByRepoShardId().isEmpty()) {
@@ -1339,7 +1339,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
-        for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo().values()) {
+        for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (entry.state() == State.STARTED && entry.isClone() == false) {
                     for (ObjectObjectCursor<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardsByRepoShardId()) {
@@ -2847,8 +2847,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
         for (List<SnapshotsInProgress.Entry> snapshotsInRepo : currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-            .entriesByRepo()
-            .values()) {
+            .entriesByRepo()) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
@@ -3356,7 +3355,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, @Nullable String repoName) {
         if (repoName == null) {
-            for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo().values()) {
+            for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
                 startExecutableClones(entries);
             }
         } else {

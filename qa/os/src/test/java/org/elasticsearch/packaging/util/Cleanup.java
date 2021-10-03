@@ -8,9 +8,9 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.commons.io.FileUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,16 +56,14 @@ public class Cleanup {
             sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
-        Platforms.onWindows(
-            () -> {
-                // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-                sh.runIgnoreExitCode(
-                    "Get-WmiObject Win32_Process | "
-                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
-                        + "ForEach-Object { $_.Terminate() }"
-                );
-            }
-        );
+        Platforms.onWindows(() -> {
+            // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
+            sh.runIgnoreExitCode(
+                "Get-WmiObject Win32_Process | "
+                    + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                    + "ForEach-Object { $_.Terminate() }"
+            );
+        });
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 

@@ -374,10 +374,48 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"centroid\" }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+            assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+            assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+            assertFeatureType(tile, AGGS_LAYER, VectorTile.Tile.GeomType.POINT);
+        }
+        {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
             mvtRequest.setJsonEntity("{\"grid_type\": \"invalid_type\" }");
             final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
         }
+    }
+
+    public void testInvalidAggName() {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity(
+            "{\"size\" : 0,"
+                + "  \"aggs\": {\n"
+                + "    \"_mvt_name\": {\n"
+                + "      \"min\": {\n"
+                + "         \"field\": \"value1\"\n"
+                + "        }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}"
+        );
+        ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
+        // the prefix '_mvt_' is reserved for internal aggregations
+        assertThat(ex.getMessage(), Matchers.containsString("Invalid aggregation name [_mvt_name]"));
+    }
+
+    public void testCentroidGridTypeOnPolygon() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + (z + 2) + "/" + 4 * x + "/" + 4 * y);
+        mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_type\": \"centroid\",  \"grid_precision\": 2}");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(2));
+        assertLayer(tile, AGGS_LAYER, 4096, 4 * 4, 1);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        assertFeatureType(tile, AGGS_LAYER, VectorTile.Tile.GeomType.POINT);
     }
 
     public void testTrackTotalHitsAsBoolean() throws Exception {

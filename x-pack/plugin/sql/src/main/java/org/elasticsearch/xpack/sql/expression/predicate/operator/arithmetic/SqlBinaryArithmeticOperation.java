@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics.NumericArithmetic;
@@ -38,8 +37,6 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
         if (l instanceof IntervalDayTime && r instanceof IntervalDayTime) {
             return ((IntervalDayTime) l).add((IntervalDayTime) r);
         }
-        l = unwrapJodaTime(l);
-        r = unwrapJodaTime(r);
         if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalYearMonth) {
             return IntervalArithmetics.add((Temporal) l, ((IntervalYearMonth) r).interval());
         }
@@ -66,8 +63,6 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
         if (l instanceof IntervalDayTime && r instanceof IntervalDayTime) {
             return ((IntervalDayTime) l).sub((IntervalDayTime) r);
         }
-        l = unwrapJodaTime(l);
-        r = unwrapJodaTime(r);
         if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalYearMonth) {
             return IntervalArithmetics.sub((Temporal) l, ((IntervalYearMonth) r).interval());
         }
@@ -85,8 +80,6 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
         if (l instanceof Number && r instanceof Number) {
             return Arithmetics.mul((Number) l, (Number) r);
         }
-        l = unwrapJodaTime(l);
-        r = unwrapJodaTime(r);
         if (l instanceof Number && r instanceof IntervalYearMonth) {
             return ((IntervalYearMonth) r).mul(((Number) l).intValue());
         }
@@ -147,9 +140,5 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
 
     public static SqlBinaryArithmeticOperation read(StreamInput in) throws IOException {
         return in.readEnum(SqlBinaryArithmeticOperation.class);
-    }
-
-    private static Object unwrapJodaTime(Object o) {
-        return o instanceof JodaCompatibleZonedDateTime ? ((JodaCompatibleZonedDateTime) o).getZonedDateTime() : o;
     }
 }

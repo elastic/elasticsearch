@@ -482,7 +482,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
-
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce
             int toReduceSize = aggs.size();
@@ -490,7 +489,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> toReduce = aggs.subList(0, r);
             InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(
-                context.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
+                context.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY, () -> false);
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
             aggs.add(reduced);
@@ -500,7 +499,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-            context.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines);
+            context.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines, () -> false);
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
@@ -626,7 +625,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 context.bigArrays(),
                 getMockScriptService(),
                 context.multiBucketConsumer(),
-                builder.buildPipelineTree()
+                builder.buildPipelineTree(),
+                () -> false
             )
         );
         @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok

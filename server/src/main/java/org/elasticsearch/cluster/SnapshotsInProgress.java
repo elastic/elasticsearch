@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -59,6 +58,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public static final String ABORTED_FAILURE_TEXT = "Snapshot was aborted by deletion";
 
+    // keyed by repository name
     private final Map<String, List<Entry>> entries;
 
     public static SnapshotsInProgress of(Map<String, List<Entry>> entries) {
@@ -227,12 +227,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotsInProgress[");
-        final List<SnapshotsInProgress.Entry> entryList = asStream().collect(Collectors.toList());
-        for (int i = 0; i < entryList.size(); i++) {
-            builder.append(entryList.get(i).snapshot().getSnapshotId().getName());
-            if (i + 1 < entryList.size()) {
+        final Iterator<SnapshotsInProgress.Entry> entryList = asStream().iterator();
+        boolean firstEntry = true;
+        while (entryList.hasNext()) {
+            if (firstEntry == false) {
                 builder.append(",");
             }
+            builder.append(entryList.next().snapshot().getSnapshotId().getName());
+            firstEntry = false;
         }
         return builder.append("]").toString();
     }
@@ -304,7 +306,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
             }
             // make sure in-flight-shard-states can be built cleanly for the entries without tripping assertions
-            InFlightShardSnapshotStates.forValues(repoEntries.getValue());
+            InFlightShardSnapshotStates.forEntries(repoEntries.getValue());
         }
         return true;
     }
@@ -314,9 +316,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                                       String indexName, int shardId, ShardSnapshotStatus shardSnapshotStatus) {
         if (shardSnapshotStatus.isActive()) {
             Tuple<String, Integer> plainShardId = Tuple.tuple(indexName, shardId);
-            assert assignedShards.add(plainShardId) : "Found duplicate shard assignments in " + entries;
-            assert queuedShards.contains(plainShardId) == false
-                    : "Found active shard assignments after queued shard assignments in " + entries;
+            assert assignedShards.add(plainShardId) : plainShardId + " is assigned twice in " + entries;
+            assert queuedShards.contains(plainShardId) == false:
+                plainShardId + " is queued then assigned in " + entries;
         } else if (shardSnapshotStatus.state() == ShardState.QUEUED) {
             queuedShards.add(Tuple.tuple(indexName, shardId));
         }

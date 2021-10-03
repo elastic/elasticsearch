@@ -39,7 +39,7 @@ public final class InFlightShardSnapshotStates {
      * @param snapshots snapshots in progress for a single repository
      * @return in flight shard states for all snapshot operations
      */
-    public static InFlightShardSnapshotStates forValues(List<SnapshotsInProgress.Entry> snapshots) {
+    public static InFlightShardSnapshotStates forEntries(List<SnapshotsInProgress.Entry> snapshots) {
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
         assert snapshots.isEmpty() || snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1

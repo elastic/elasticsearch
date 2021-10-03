@@ -58,11 +58,18 @@ public class PackageTests extends PackagingTestCase {
         assumeTrue("rpm or deb", distribution.isPackage());
     }
 
+    private static String superuser = "test_superuser";
+    private static String superuserPassword = "test_superuser";
+
     public void test10InstallPackage() throws Exception {
         assertRemoved(distribution());
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        Result result = sh.run(
+            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
+        );
+        assumeTrue(result.isSuccess());
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -86,7 +93,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
-            runElasticsearchTests("elastic", installation.getElasticPassword(), ServerUtils.getCaCert(installation));
+            runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
             stopElasticsearch();
         } finally {
             Files.write(installation.envFile, originalEnvFile);
@@ -113,7 +120,7 @@ public class PackageTests extends PackagingTestCase {
 
         try {
             startElasticsearch();
-            runElasticsearchTests("elastic", installation.getElasticPassword(), ServerUtils.getCaCert(installation));
+            runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
             stopElasticsearch();
         } finally {
             if (Files.exists(Paths.get(backupPath))) {
@@ -129,8 +136,8 @@ public class PackageTests extends PackagingTestCase {
 
         final String nodesResponse = makeRequest(
             Request.Get("https://localhost:9200/_nodes"),
-            "elastic",
-            installation.getElasticPassword(),
+            superuser,
+            superuserPassword,
             ServerUtils.getCaCert(installation)
         );
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
@@ -150,7 +157,7 @@ public class PackageTests extends PackagingTestCase {
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
         assertPathsExist(installation.logs.resolve("elasticsearch_server.json"));
 
-        runElasticsearchTests("elastic", installation.getElasticPassword(), ServerUtils.getCaCert(installation));
+        runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
     }
@@ -232,7 +239,7 @@ public class PackageTests extends PackagingTestCase {
 
             startElasticsearch();
             restartElasticsearch(sh, installation);
-            runElasticsearchTests("elastic", installation.getElasticPassword(), ServerUtils.getCaCert(installation));
+            runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
             stopElasticsearch();
         } finally {
             cleanup();
@@ -296,8 +303,8 @@ public class PackageTests extends PackagingTestCase {
 
             final String nodesResponse = makeRequest(
                 Request.Get("https://localhost:9200/_nodes"),
-                "elastic",
-                installation.getElasticPassword(),
+                superuser,
+                superuserPassword,
                 ServerUtils.getCaCert(installation)
             );
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));

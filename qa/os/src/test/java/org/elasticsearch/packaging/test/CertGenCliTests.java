@@ -116,7 +116,8 @@ public class CertGenCliTests extends PackagingTestCase {
             .filter(l -> l.startsWith("node.name:") == false)
             .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
             .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
-            .filter(l -> l.startsWith("xpack.security.enabled.") == false)
+            .filter(l -> l.startsWith("xpack.security.enabled") == false)
+            .filter(l -> l.startsWith("http.host") == false)
             .collect(Collectors.toList());
         newConfig.addAll(newTlsConfig);
 
@@ -130,13 +131,8 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        if (installation.distribution.isPackage()) {
-            // We have captured the elastic password on installation time, no need to do a reset here.
-            return installation.getElasticPassword();
-        } else {
-            Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
-            return result.stdout;
-        }
+        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
+        return result.stdout;
     }
 
 }

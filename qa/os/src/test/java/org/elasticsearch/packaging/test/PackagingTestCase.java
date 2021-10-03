@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -527,6 +528,17 @@ public abstract class PackagingTestCase extends Assert {
             sh.getEnv().remove("ES_PATH_CONF");
         }
         IOUtils.rm(tempDir);
+    }
+
+    public void withCustomConfigOwner(String tempOwner, Predicate<Distribution.Platform> predicate, CheckedRunnable<Exception> action)
+        throws Exception {
+        if (predicate.test(installation.distribution.platform)) {
+            sh.chown(installation.config, tempOwner);
+            action.run();
+            sh.chown(installation.config);
+        } else {
+            action.run();
+        }
     }
 
     /**

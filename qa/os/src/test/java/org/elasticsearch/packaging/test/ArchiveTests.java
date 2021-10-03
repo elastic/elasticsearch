@@ -136,7 +136,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
-        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
         // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
         // we don't trigger false negatives for the auto-configuration process
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
@@ -151,7 +150,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
-        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
+        // we don't trigger false negatives for the auto-configuration process
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
@@ -163,7 +163,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
-        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
+        // we don't trigger false negatives for the auto-configuration process
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
@@ -175,7 +176,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
-        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
+        // we don't trigger false negatives for the auto-configuration process
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
@@ -211,7 +213,8 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
-        assumeTrue("check if chowing is the issue", distribution.platform != Distribution.Platform.WINDOWS);
+        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
+        // we don't trigger false negatives for the auto-configuration process
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
@@ -257,7 +260,7 @@ public class ArchiveTests extends PackagingTestCase {
         );
     }
 
-    public void test52AutoConfiguration() throws Exception {
+    public void test52AutoConfigurationOnWindows() throws Exception {
         assumeTrue(
             "run this in place of test51AutoConfigurationWithPasswordProtectedKeystore on windows",
             distribution.platform == Distribution.Platform.WINDOWS

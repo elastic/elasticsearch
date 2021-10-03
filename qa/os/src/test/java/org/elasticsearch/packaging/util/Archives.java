@@ -50,7 +50,7 @@ public class Archives {
     protected static final Logger logger = LogManager.getLogger(Archives.class);
 
     // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
@@ -105,7 +105,7 @@ public class Archives {
             setupArchiveUsersLinux(fullInstallPath);
             sh.chown(fullInstallPath);
         });
-        Platforms.onWindows(() -> { sh.chown(fullInstallPath, "BUILTIN\\Administrators"); });
+        Platforms.onWindows(() -> { sh.chown(fullInstallPath, ARCHIVE_OWNER); });
 
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);

@@ -98,7 +98,7 @@ public class CertGenCliTests extends PackagingTestCase {
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
 
         // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
-        // (we do disable autoconiguration above but for packaged installations TLS autoconfig happens on installation time and is
+        // (we do disable auto-configuration above but for packaged installations TLS auto-config happens on installation time and is
         // not affected by this setting
         final List<String> newTlsConfig = List.of(
             "node.name: mynode",
@@ -116,6 +116,7 @@ public class CertGenCliTests extends PackagingTestCase {
             .filter(l -> l.startsWith("node.name:") == false)
             .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
             .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
+            .filter(l -> l.startsWith("xpack.security.enabled.") == false)
             .collect(Collectors.toList());
         newConfig.addAll(newTlsConfig);
 
@@ -129,8 +130,13 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
-        return result.stdout;
+        if (installation.distribution.isPackage()) {
+            // We have captured the elastic password on installation time, no need to do a reset here.
+            return installation.getElasticPassword();
+        } else {
+            Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
+            return result.stdout;
+        }
     }
 
 }

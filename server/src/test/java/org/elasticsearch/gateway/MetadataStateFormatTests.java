@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -34,17 +35,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetadataStateFormatTests extends ESTestCase {
@@ -349,17 +346,10 @@ public class MetadataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, paths);
     }
 
-    private Path makeMockTempDirPathHelper() {
-        Path realPath = createTempDir();
-        Path result = spy(realPath);
-
-        return result;
-    }
-
     public void testInconsistentMultiPathState() throws IOException {
         Path paths[] = new Path[3];
         for (int i = 0; i < paths.length; i++) {
-            paths[i] = makeMockTempDirPathHelper();
+            paths[i] = createTempDir();
         }
         Format format = new Format("foo-");
 
@@ -377,17 +367,76 @@ public class MetadataStateFormatTests extends ESTestCase {
         assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
 
         Path badPath = paths[paths.length-1];
-        Format mockFormat = spy(format);
-        Directory mockDirectory = spy(mockFormat.newDirectory(badPath));
 
-        doThrow(new IOException("Disk temporarily inaccessible")).when(mockDirectory).rename(anyString(), anyString());
-        doCallRealMethod().doCallRealMethod().doReturn(mockDirectory).when(mockFormat).newDirectory(any());
+        format.failOnPaths(badPath.resolve(MetadataStateFormat.STATE_DIR_NAME));
+        format.failOnMethods(Format.FAIL_RENAME_TMP_FILE);
 
-        expectThrows(WriteStateException.class, () -> mockFormat.write(state, paths));
+        expectThrows(WriteStateException.class, () -> format.write(state, paths));
         long firstPathId = format.findMaxGenerationId("foo-", paths[0]);
         assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[1]));
         assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[2]));
         assertEquals(genId, firstPathId);
+    }
+
+    public void testDeleteMetaState() throws IOException {
+        Path paths[] = new Path[3];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+        Format format = new Format("foo-");
+
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        long genId = format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
+
+        for (Path path : paths) {
+            assertEquals(genId, format.findMaxGenerationId("foo-", path));
+        }
+        assertEquals(0, format.findStateFilesByGeneration(-1, paths).size());
+        assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
+
+        Format.deleteMetaState(paths);
+
+        assertEquals(0, format.findStateFilesByGeneration(genId, paths).size());
+
+        for (Path path : paths) {
+            assertEquals(false, Files.exists(path.resolve(MetadataStateFormat.STATE_DIR_NAME)));
+        }
+    }
+
+    public void testDeleteMetaStateWithErrorPath() throws IOException {
+        Path paths[] = new Path[3];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+        Format format = new Format("foo-");
+
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        long genId = format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
+
+        for (Path path : paths) {
+            assertEquals(genId, format.findMaxGenerationId("foo-", path));
+        }
+        assertEquals(0, format.findStateFilesByGeneration(-1, paths).size());
+        assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
+
+        List<Path> stateFiles = format.findStateFilesByGeneration(genId, paths);
+
+        format.failOnPaths(paths[1].resolve(MetadataStateFormat.STATE_DIR_NAME));
+        format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
+
+        // Ensure clean-up old files doesn't fail with one bad dir
+        format.cleanupOldFiles(1, paths);
+
+        corruptFile(stateFiles.get(1), logger);
+
+        // Ensure we find the corrupted metadata without the leader first state path
+        expectThrows(ElasticsearchException.class, () -> format.loadLatestStateWithGeneration(logger, xContentRegistry(), paths));
     }
 
     private static class Format extends MetadataStateFormat<DummyState> {
@@ -399,6 +448,7 @@ public class MetadataStateFormatTests extends ESTestCase {
 
         private FailureMode failureMode;
         private String[] failureMethods;
+        private Path[] failurePaths;
 
         static final String FAIL_CREATE_OUTPUT_FILE = "createOutput";
         static final String FAIL_WRITE_TO_OUTPUT_FILE = "writeBytes";
@@ -407,6 +457,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         static final String FAIL_FSYNC_STATE_DIRECTORY = "syncMetaData";
         static final String FAIL_DELETE_TMP_FILE = "deleteFile";
         static final String FAIL_OPEN_STATE_FILE_WHEN_COPYING = "openInput";
+        static final String FAIL_LIST_ALL = "listAll";
 
         /**
          * Constructs a MetadataStateFormat object for storing/retrieving DummyState.
@@ -438,8 +489,24 @@ public class MetadataStateFormatTests extends ESTestCase {
             this.failureMethods = failureMethods;
         }
 
+        public void failOnPaths(Path... paths) {
+            this.failurePaths = paths;
+        }
+
         public void failRandomly() {
             this.failureMode = FailureMode.FAIL_RANDOMLY;
+        }
+
+        private void throwDirectoryExceptionCheckPaths(Path dir) throws MockDirectoryWrapper.FakeIOException {
+            if (failurePaths != null && failurePaths.length > 0) {
+                for (Path p : failurePaths) {
+                    if (p.equals(dir)) {
+                        throw new MockDirectoryWrapper.FakeIOException();
+                    }
+                }
+            } else {
+                throw new MockDirectoryWrapper.FakeIOException();
+            }
         }
 
         @Override
@@ -449,10 +516,10 @@ public class MetadataStateFormatTests extends ESTestCase {
                 final String failMethod = randomFrom(failureMethods);
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override
-                    public void eval(MockDirectoryWrapper dir) throws IOException {
+                    public void eval(MockDirectoryWrapper directory) throws IOException {
                         for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
                             if (failMethod.equals(e.getMethodName())) {
-                                throw new MockDirectoryWrapper.FakeIOException();
+                                throwDirectoryExceptionCheckPaths(dir);
                             }
                         }
                     }
@@ -461,9 +528,9 @@ public class MetadataStateFormatTests extends ESTestCase {
             } else if (failureMode == FailureMode.FAIL_RANDOMLY) {
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override
-                    public void eval(MockDirectoryWrapper dir) throws IOException {
+                    public void eval(MockDirectoryWrapper directory) throws IOException {
                         if (randomIntBetween(0, 20) == 0) {
-                            throw new MockDirectoryWrapper.FakeIOException();
+                            throwDirectoryExceptionCheckPaths(dir);
                         }
                     }
                 };

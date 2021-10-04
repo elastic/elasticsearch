@@ -430,6 +430,9 @@ public abstract class MetadataStateFormat<T> {
         long generation = findMaxGenerationId(prefix, dataLocations);
         T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
 
+        // It may not be possible to get into this state, if there's a bad state file the above
+        // call will throw ElasticsearchException. If there are no state files, we won't find a
+        // generation.
         if (generation > -1 && state == null) {
             throw new IllegalStateException("unable to find state files with generation id " + generation +
                     " returned by findMaxGenerationId function, in data folders [" +

@@ -103,16 +103,14 @@ public final class EnrichCache {
             });
             cacheEntry.whenComplete((response, throwable) -> {
                 if (throwable != null) {
-                    scheduleClearFailure(cacheKey, cacheEntry);
+                    // Don't cache failures
+                    cache.invalidate(cacheKey, cacheEntry);
                     if (throwable instanceof Exception) {
                         callBack.accept(response, (Exception) throwable);
                         return;
-                    } else {
-                        // Let ElasticsearchUncaughtExceptionHandler handle this, should it deem it non-fatal let's still trigger the
-                        // callback to ensure proper clean up.
-                        callBack.accept(response, new Exception("Throwable was raised '" + throwable.getMessage() + "'"));
-                        throw (Error) throwable;
                     }
+                    // Let ElasticsearchUncaughtExceptionHandler handle this, which should halt Elasticsearch
+                    throw (Error) throwable;
                 }
                 callBack.accept(response, null);
             });
@@ -125,11 +123,6 @@ public final class EnrichCache {
         String alias = searchRequest.indices()[0];
         IndexAbstraction ia = metadata.getIndicesLookup().get(alias);
         return ia.getIndices().get(0).getIndex().getName();
-    }
-
-    private void scheduleClearFailure(CacheKey cacheKey, CompletableFuture<SearchResponse> cacheEntry) {
-        // For now, we schedule immediately. But perhaps we find a reason to cache failures as well.
-        cache.invalidate(cacheKey, cacheEntry);
     }
 
     private static class CacheKey {

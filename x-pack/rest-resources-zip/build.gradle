@@ -9,6 +9,7 @@ apply plugin: 'base'
 
 configurations {
   apis
+  compatApis
   freeTests
   freeCompatTests
   platinumTests
@@ -18,6 +19,8 @@ configurations {
 dependencies {
   apis project(path: ':rest-api-spec', configuration: 'restSpecs')
   freeTests project(path: ':rest-api-spec', configuration: 'restTests')
+  compatApis project(path: ':rest-api-spec', configuration: 'restCompatSpecs')
+  compatApis project(path: ':x-pack:plugin', configuration: 'restCompatSpecs')
   freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
   platinumCompatTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
@@ -29,6 +32,10 @@ def restResourcesZip = tasks.register('restResourcesZip', Zip) {
   destinationDirectory = layout.buildDirectory.dir('distributions')
   from(configurations.apis) {
     into 'rest-api-spec/api'
+  }
+  from(configurations.compatApis) {
+    into 'rest-api-spec/compatApi'
+    duplicatesStrategy = 'exclude'
   }
   from(configurations.freeTests) {
     into 'rest-api-spec/test/free'

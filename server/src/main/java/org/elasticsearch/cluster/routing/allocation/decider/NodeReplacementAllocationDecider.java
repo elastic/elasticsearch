@@ -61,11 +61,6 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         }
     }
 
-    /**
-     * See the comment in the else branch of {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}
-     * for a reason why we allow allocation that may potentially allocate to the source of a node
-     * replacement shutdown.
-     */
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
         if (replacementOngoing(allocation.metadata()) == false) {

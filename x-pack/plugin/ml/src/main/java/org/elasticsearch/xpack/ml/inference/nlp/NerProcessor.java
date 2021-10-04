@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class NerProcessor implements NlpTask.Processor {
 
     public enum Entity implements Writeable {
-        NONE, MISC, PERSON, ORG, LOC;
+        NONE, MISC, PER, ORG, LOC;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -48,15 +48,15 @@ public class NerProcessor implements NlpTask.Processor {
 
     // Inside-Outside-Beginning (IOB) tag
     enum IobTag {
-        O(Entity.NONE),                 // Outside of a named entity
-        B_MISC(Entity.MISC),            // Beginning of a miscellaneous entity right after another miscellaneous entity
-        I_MISC(Entity.MISC),            // Miscellaneous entity
-        B_PER(Entity.PERSON),           // Beginning of a person's name right after another person's name
-        I_PER(Entity.PERSON),           // Person's name
-        B_ORG(Entity.ORG),     // Beginning of an organisation right after another organisation
-        I_ORG(Entity.ORG),     // Organisation
-        B_LOC(Entity.LOC),         // Beginning of a location right after another location
-        I_LOC(Entity.LOC);         // Location
+        O(Entity.NONE),      // Outside a named entity
+        B_MISC(Entity.MISC), // Beginning of a miscellaneous entity right after another miscellaneous entity
+        I_MISC(Entity.MISC), // Miscellaneous entity
+        B_PER(Entity.PER),   // Beginning of a person's name right after another person's name
+        I_PER(Entity.PER),   // Person's name
+        B_ORG(Entity.ORG),   // Beginning of an organisation right after another organisation
+        I_ORG(Entity.ORG),   // Organisation
+        B_LOC(Entity.LOC),   // Beginning of a location right after another location
+        I_LOC(Entity.LOC);   // Location
 
         private final Entity entity;
 

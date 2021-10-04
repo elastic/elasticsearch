@@ -177,7 +177,7 @@ public class NerProcessorTests extends ESTestCase {
             "Hi Sarah Jessica, I live in Manchester and work for Elastic"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("PERSON"));
+        assertThat(entityGroups.get(0).getLabel(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Sarah Jessica"));
         assertThat(entityGroups.get(1).getLabel(), equalTo("LOC"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("Manchester"));
@@ -207,11 +207,11 @@ public class NerProcessorTests extends ESTestCase {
             "Rita, Sue, and Bob too"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("PERSON"));
+        assertThat(entityGroups.get(0).getLabel(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Rita"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("PERSON"));
+        assertThat(entityGroups.get(1).getLabel(), equalTo("PER"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("Sue"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("PERSON"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("PER"));
         assertThat(entityGroups.get(2).getEntity(), equalTo("Bob"));
     }
 
@@ -228,9 +228,9 @@ public class NerProcessorTests extends ESTestCase {
             "FirstName SecondName, NextPerson NextPersonSecondName. something_else"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("PERSON"));
+        assertThat(entityGroups.get(0).getLabel(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("FirstName SecondName"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("PERSON"));
+        assertThat(entityGroups.get(1).getLabel(), equalTo("PER"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("NextPerson NextPersonSecondName"));
         assertThat(entityGroups.get(2).getLabel(), equalTo("ORG"));
     }
@@ -240,14 +240,14 @@ public class NerProcessorTests extends ESTestCase {
         List<NerResults.EntityGroup> entities = List.of(
             new NerResults.EntityGroup(
                 "alexander",
-                "PERSON",
+                "PER",
                 0.9963429980065166,
                 0,
                 9
             ),
             new NerResults.EntityGroup(
                 "benjamin trent",
-                "PERSON",
+                "PER",
                 0.9972042749283819,
                 22,
                36
@@ -263,8 +263,8 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(
             NerProcessor.buildAnnotatedText(input, entities),
             equalTo(
-                "[Alexander](PERSON&Alexander), "
-                    + "my name is [Benjamin Trent](PERSON&Benjamin+Trent), "
+                "[Alexander](PER&Alexander), "
+                    + "my name is [Benjamin Trent](PER&Benjamin+Trent), "
                     + "I work at [Acme Inc](ORG&Acme+Inc)."
             )
         );

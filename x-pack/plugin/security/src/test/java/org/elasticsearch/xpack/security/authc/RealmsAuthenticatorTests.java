@@ -204,15 +204,15 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final Realm authRealm = randomFrom(realm1, realm2);
         final Authentication authentication =
             new Authentication(user, new Authentication.RealmRef(authRealm.name(), authRealm.type(), nodeName), null);
-        final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), authentication, future);
-        final Tuple<User, Realm> tuple = future.actionGet();
+        final Tuple<User, Authentication.RealmRef> tuple = future.actionGet();
         assertThat(tuple.v1(), equalTo(new User(runAsUsername)));
-        assertThat(tuple.v2(), is(lookupByRealm1 ? realm1 : realm2));
+        assertThat(tuple.v2().getName(), is(lookupByRealm1 ? realm1.name() : realm2.name()));
     }
 
     public void testNullRunAsUser() {
-        final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), mock(Authentication.class), future);
         assertThat(future.actionGet(), nullValue());
     }
@@ -222,7 +222,7 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         final Realm authRealm = randomFrom(realm1, realm2);
         final Authentication authentication =
             new Authentication(user, new Authentication.RealmRef(authRealm.name(), authRealm.type(), nodeName), null);
-        final PlainActionFuture<Tuple<User, Realm>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<User, Authentication.RealmRef>> future = new PlainActionFuture<>();
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(request.runAsDenied(any(), any())).thenReturn(e);
         realmsAuthenticator.lookupRunAsUser(createAuthenticatorContext(), authentication, future);

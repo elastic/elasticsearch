@@ -37,7 +37,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(Context context, ActionListener<Authenticator.Result> listener) {
-        final AuthenticationToken authenticationToken = context.getAuthenticationToken();
+        final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         if (false == authenticationToken instanceof BearerToken) {
             listener.onResponse(Authenticator.Result.notHandled());
             return;
@@ -47,7 +47,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
             if (userToken != null) {
                 listener.onResponse(Authenticator.Result.success(userToken.getAuthentication()));
             } else {
-                listener.onResponse(Authenticator.Result.unsuccessful("invalid oauth token", null));
+                listener.onResponse(Authenticator.Result.unsuccessful("invalid token", null));
             }
         }, e -> {
             logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);

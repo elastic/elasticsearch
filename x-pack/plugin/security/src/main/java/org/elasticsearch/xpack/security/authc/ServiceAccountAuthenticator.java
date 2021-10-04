@@ -43,7 +43,7 @@ class ServiceAccountAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(Context context, ActionListener<Authenticator.Result> listener) {
-        final AuthenticationToken authenticationToken = context.getAuthenticationToken();
+        final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         if (false == authenticationToken instanceof ServiceAccountToken) {
             listener.onResponse(Authenticator.Result.notHandled());
             return;

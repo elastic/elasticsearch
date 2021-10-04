@@ -75,9 +75,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         oAuth2TokenAuthenticator = mock(OAuth2TokenAuthenticator.class);
         apiKeyAuthenticator = mock(ApiKeyAuthenticator.class);
         realmsAuthenticator = mock(RealmsAuthenticator.class);
-        when(serviceAccountAuthenticator.canFollowedByNullTokenHandler()).thenReturn(true);
-        when(oAuth2TokenAuthenticator.canFollowedByNullTokenHandler()).thenReturn(true);
-        when(apiKeyAuthenticator.canFollowedByNullTokenHandler()).thenReturn(true);
+        when(serviceAccountAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
+        when(oAuth2TokenAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
+        when(apiKeyAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(realmsAuthenticator.canBeFollowedByNullTokenHandler()).thenCallRealMethod();
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
@@ -263,7 +263,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         authenticatorChain.authenticateAsync(context, future);
         final ElasticsearchSecurityException e =
             expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("unable to authenticate anonymously"));
+        assertThat(e.getMessage(), containsString("unable to authenticate as the anonymous user"));
         assertThat(e.getMetadata("es.additional_unsuccessful_credentials"),
             hasItem(containsString(unsuccessfulApiKey ? "unsuccessful api key" : "unsuccessful bearer token")));
     }

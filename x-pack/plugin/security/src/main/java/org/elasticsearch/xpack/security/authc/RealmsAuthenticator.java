@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -73,7 +75,12 @@ class RealmsAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(Context context, ActionListener<Result> listener) {
-        assert context.getAuthenticationToken() != null : "null token should be handled by fallback authenticator";
+        if (context.getMostRecentAuthenticationToken() == null) {
+            listener.onFailure(new ElasticsearchSecurityException(
+                "authentication token must present for realms authentication", RestStatus.UNAUTHORIZED));
+            return;
+        }
+        assert context.getMostRecentAuthenticationToken() != null : "null token should be handled by fallback authenticator";
         consumeToken(context, listener);
     }
 
@@ -117,9 +124,10 @@ class RealmsAuthenticator implements Authenticator {
      * is used to create authentication if no exception was caught while trying to authenticate the token
      */
     private void consumeToken(Context context, ActionListener<Result> listener) {
-        final List<Realm> realmsList = getRealmList(context, context.getAuthenticationToken().principal());
+        final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
+        final List<Realm> realmsList = getRealmList(context, authenticationToken.principal());
         logger.trace("Checking token of type [{}] against [{}] realm(s)",
-            context.getAuthenticationToken().getClass().getName(), realmsList.size());
+            authenticationToken.getClass().getName(), realmsList.size());
 
         final long startInvalidation = numInvalidation.get();
         final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
@@ -128,38 +136,38 @@ class RealmsAuthenticator implements Authenticator {
         final AtomicReference<AuthenticationResult> authenticationResultRef = new AtomicReference<>();
 
         final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
-            if (realm.supports(context.getAuthenticationToken())) {
+            if (realm.supports(authenticationToken)) {
                 logger.trace("Trying to authenticate [{}] using realm [{}] with token [{}] ",
-                    context.getAuthenticationToken().principal(),
+                    authenticationToken.principal(),
                     realm,
-                    context.getAuthenticationToken().getClass().getName());
-                realm.authenticate(context.getAuthenticationToken(), ActionListener.wrap(result -> {
+                    authenticationToken.getClass().getName());
+                realm.authenticate(authenticationToken, ActionListener.wrap(result -> {
                     assert result != null : "Realm " + realm + " produced a null authentication result";
                     logger.debug("Authentication of [{}] using realm [{}] with token [{}] was [{}]",
-                        context.getAuthenticationToken().principal(),
+                        authenticationToken.principal(),
                         realm,
-                        context.getAuthenticationToken().getClass().getSimpleName(),
+                        authenticationToken.getClass().getSimpleName(),
                         result);
                     if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                         // user was authenticated, populate the authenticated by information
                         authenticatedByRef.set(new Authentication.RealmRef(realm.name(), realm.type(), nodeName));
                         authenticationResultRef.set(result);
                         if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
-                            lastSuccessfulAuthCache.put(context.getAuthenticationToken().principal(), realm);
+                            lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
                         }
                         userListener.onResponse(result.getUser());
                     } else {
                         // the user was not authenticated, call this so we can audit the correct event
-                        context.getRequest().realmAuthenticationFailed(context.getAuthenticationToken(), realm.name());
+                        context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                             if (result.getException() != null) {
                                 logger.info(new ParameterizedMessage("Authentication of [{}] was terminated by realm [{}] - {}",
-                                    context.getAuthenticationToken().principal(),
+                                    authenticationToken.principal(),
                                     realm.name(),
                                     result.getMessage()), result.getException());
                             } else {
                                 logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
-                                    context.getAuthenticationToken().principal(),
+                                    authenticationToken.principal(),
                                     realm.name(),
                                     result.getMessage());
                             }
@@ -173,7 +181,7 @@ class RealmsAuthenticator implements Authenticator {
                     }
                 }, (ex) -> {
                     logger.warn(new ParameterizedMessage("An error occurred while attempting to authenticate [{}] against realm [{}]",
-                        context.getAuthenticationToken().principal(),
+                        authenticationToken.principal(),
                         realm.name()), ex);
                     userListener.onFailure(ex);
                 }));
@@ -197,9 +205,9 @@ class RealmsAuthenticator implements Authenticator {
                 },
                 e -> {
                     if (e != null) {
-                        listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getAuthenticationToken()));
+                        listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
                     } else {
-                        listener.onFailure(context.getRequest().authenticationFailed(context.getAuthenticationToken()));
+                        listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
                     }
                 }), context.getThreadContext()), realmAuthenticatingConsumer, realmsList, context.getThreadContext());
         try {
@@ -207,13 +215,16 @@ class RealmsAuthenticator implements Authenticator {
         } catch (Exception e) {
             logger.debug(
                 new ParameterizedMessage("Authentication of [{}] with token [{}] failed",
-                    context.getAuthenticationToken().principal(),
-                    context.getAuthenticationToken().getClass().getName()),
+                    authenticationToken.principal(),
+                    authenticationToken.getClass().getName()),
                 e);
-            listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getAuthenticationToken()));
+            listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
         }
     }
 
+    // This method assumes the RealmsAuthenticator is the last one in the chain and the whole chain fails if
+    // the request cannot be authenticated with the realms. If this is not true in the future, the method
+    // needs to be updated as well.
     private void consumeNullUser(
         Context context,
         Map<Realm, Tuple<String, Exception>> messages,
@@ -231,7 +242,7 @@ class RealmsAuthenticator implements Authenticator {
                 Strings.collectionToCommaDelimitedString(context.getUnlicensedRealms()));
         }
         logger.trace("Failed to authenticate request [{}]", context.getRequest());
-        listener.onFailure(context.getRequest().authenticationFailed(context.getAuthenticationToken()));
+        listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
     }
 
     /**
@@ -242,7 +253,7 @@ class RealmsAuthenticator implements Authenticator {
     public void lookupRunAsUser(
         Context context,
         Authentication authentication,
-        ActionListener<Tuple<User, Realm>> listener
+        ActionListener<Tuple<User, Authentication.RealmRef>> listener
     ) {
         assert authentication.getLookedUpBy() == null : "authentication already has a lookup realm";
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
@@ -264,16 +275,17 @@ class RealmsAuthenticator implements Authenticator {
                         lastSuccessfulAuthCache.computeIfAbsent(runAsUsername, s -> realm);
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
-                    listener.onResponse(tuple);
+                    listener.onResponse(
+                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName)));
                 }
-            }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getAuthenticationToken()))));
+            }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {
             logger.debug("user [{}] attempted to runAs with an empty username", authentication.getUser().principal());
             listener.onFailure(context.getRequest().runAsDenied(
                 new Authentication(new User(runAsUsername, null, authentication.getUser()), authentication.getAuthenticatedBy(), null),
-                context.getAuthenticationToken()));
+                context.getMostRecentAuthenticationToken()));
         }
     }
 

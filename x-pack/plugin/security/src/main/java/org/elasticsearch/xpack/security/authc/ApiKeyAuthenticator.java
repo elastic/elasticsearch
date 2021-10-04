@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 
 class ApiKeyAuthenticator implements Authenticator {
 
@@ -40,12 +41,12 @@ class ApiKeyAuthenticator implements Authenticator {
 
     @Override
     public void authenticate(Context context, ActionListener<Result> listener) {
-        final AuthenticationToken authenticationToken = context.getAuthenticationToken();
-        if (false == authenticationToken instanceof ApiKeyService.ApiKeyCredentials) {
+        final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
+        if (false == authenticationToken instanceof ApiKeyCredentials) {
             listener.onResponse(Authenticator.Result.notHandled());
             return;
         }
-        ApiKeyService.ApiKeyCredentials apiKeyCredentials = (ApiKeyService.ApiKeyCredentials) authenticationToken;
+        ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
         apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
                 final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);

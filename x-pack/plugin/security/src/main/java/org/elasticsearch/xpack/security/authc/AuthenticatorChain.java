@@ -45,7 +45,6 @@ class AuthenticatorChain {
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
     private final List<Authenticator> allAuthenticators;
-    private final List<Authenticator> existingCredentialsAuthenticators;
 
     AuthenticatorChain(
         Settings settings,
@@ -70,7 +69,6 @@ class AuthenticatorChain {
             apiKeyAuthenticator,
             realmsAuthenticator
         );
-        this.existingCredentialsAuthenticators = List.of(realmsAuthenticator);
     }
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
@@ -86,7 +84,7 @@ class AuthenticatorChain {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
             listener.onResponse(authentication);
         } else {
-            doAuthenticate(context, allAuthenticators, true, ActionListener.runBefore(listener, context::close));
+            doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
         }
     }
 
@@ -99,17 +97,20 @@ class AuthenticatorChain {
     void authenticateAsyncWithExistingCredentials(
         Authenticator.Context context,
         ActionListener<Authentication> listener) {
-        assert context.getAuthenticationToken() != null : "existing authentication token must not be null";
+        assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
         context.setHandleNullToken(false);  // already has a token, should not try null token
-        doAuthenticate(context, existingCredentialsAuthenticators, false, listener);
+        doAuthenticate(context, false, listener);
     }
 
     private void doAuthenticate(
         Authenticator.Context context,
-        List<Authenticator> authenticators,
         boolean shouldExtractCredentials,
         ActionListener<Authentication> listener
     ) {
+        // The iterating listener walks through the list of Authenticators and attempts to authenticate using
+        // each Authenticator (and optionally asks it to extract the authenticationToken).
+        // Depending on the authentication result from each Authenticator, the iteration may stop earlier
+        // because of either a successful authentication or a not-continuable failure.
         final IteratingActionListener<Authenticator.Result, Authenticator> iteratingActionListener = new IteratingActionListener<>(
             ActionListener.wrap(result -> {
                 if (result.getStatus() == Authenticator.Status.SUCCESS) {
@@ -123,7 +124,7 @@ class AuthenticatorChain {
                 }
             }, listener::onFailure),
             getAuthenticatorConsumer(context, shouldExtractCredentials),
-            authenticators,
+            allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
             result -> result.getStatus() == Authenticator.Status.UNSUCCESSFUL || result.getStatus() == Authenticator.Status.NOT_HANDLED);
@@ -154,7 +155,7 @@ class AuthenticatorChain {
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
-            context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canFollowedByNullTokenHandler());
+            context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
             authenticator.authenticate(context, ActionListener.wrap(result -> {
                 if (result.getStatus() == Authenticator.Status.UNSUCCESSFUL) {
                     context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
@@ -196,7 +197,7 @@ class AuthenticatorChain {
             listener.onFailure(context.getRequest()
                 .runAsDenied(new Authentication(new User(runAsUsername, null, user),
                     authentication.getAuthenticatedBy(),
-                    null), context.getAuthenticationToken()));
+                    null), context.getMostRecentAuthenticationToken()));
             return;
         }
 
@@ -208,8 +209,7 @@ class AuthenticatorChain {
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
                 finalAuth = new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null);
             } else {
-                finalAuth = new Authentication(new User(tuple.v1(), user), authentication.getAuthenticatedBy(),
-                    new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName));
+                finalAuth = new Authentication(new User(tuple.v1(), user), authentication.getAuthenticatedBy(), tuple.v2());
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));
@@ -294,7 +294,7 @@ class AuthenticatorChain {
                 logger.debug("Authenticating with null credentials is unsuccessful in request [{}]" +
                     " after unsuccessful attempts of other credentials", context.getRequest());
                 final ElasticsearchSecurityException eseWithPreviousCredentials =
-                    new ElasticsearchSecurityException("unable to authenticate anonymously", ese.status(), ese.getCause());
+                    new ElasticsearchSecurityException("unable to authenticate as the anonymous user", ese.status(), ese.getCause());
                 ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);
@@ -313,7 +313,7 @@ class AuthenticatorChain {
         if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
             logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
-            listener.onFailure(context.getRequest().authenticationFailed(context.getAuthenticationToken()));
+            listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
         } else {
             writeAuthToContext(context, authentication, listener);
         }
@@ -334,7 +334,8 @@ class AuthenticatorChain {
             logger.debug(new ParameterizedMessage("Failed to store authentication [{}] for request [{}]",
                 authentication,
                 context.getRequest()), e);
-            final ElasticsearchSecurityException ese = context.getRequest().exceptionProcessingRequest(e, context.getAuthenticationToken());
+            final ElasticsearchSecurityException ese = context.getRequest().exceptionProcessingRequest(
+                e, context.getMostRecentAuthenticationToken());
             addMetadata(context, ese);
             listener.onFailure(ese);
             return;

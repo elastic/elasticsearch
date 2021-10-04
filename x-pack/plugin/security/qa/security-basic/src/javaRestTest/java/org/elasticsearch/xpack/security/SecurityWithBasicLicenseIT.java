@@ -200,7 +200,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         } else {
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(e.getMessage(), containsString("unable to authenticate anonymously"));
+            assertThat(e.getMessage(), containsString("unable to authenticate as the anonymous user"));
         }
     }
 

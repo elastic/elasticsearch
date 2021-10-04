@@ -726,10 +726,9 @@ public class ApiKeyService {
         if (false == isEnabled()) {
             return null;
         }
-        String header = threadContext.getHeader("Authorization");
-        if (Strings.hasText(header) && header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length())
-            && header.length() > "ApiKey ".length()) {
-            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(header.substring("ApiKey ".length()));
+        final SecureString apiKeyString = Authenticator.extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+        if (apiKeyString != null) {
+            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
             try {
                 apiKeyCredChars = CharArrays.utf8BytesToChars(decodedApiKeyCredBytes);

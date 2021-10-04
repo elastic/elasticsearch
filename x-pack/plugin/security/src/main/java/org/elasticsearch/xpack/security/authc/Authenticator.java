@@ -23,40 +23,67 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * The Authenticator interface represents an authentication mechanism or a group of similar authentication mechanisms.
+ */
 public interface Authenticator {
 
+    /**
+     * A descriptive name of the authenticator.
+     */
     String name();
 
+    /**
+     * Attempt to Extract an {@link AuthenticationToken} from the given {@link Context}.
+     * @param context The context object encapsulating current request and other information relevant for authentication.
+     *
+     * @return An {@link AuthenticationToken} if one can be extracted or null if this Authenticator cannot
+     *         extract one.
+     */
+    @Nullable
     AuthenticationToken extractCredentials(Context context);
 
     /**
-     * Whether authentication can proceed to authenticate as anonymous or fallback user
-     * if this authenticator can extract a credentials.
+     * Whether authentication with anonymous or fallback user is allowed after this authenticator.
      */
     default boolean canBeFollowedByNullTokenHandler() {
         return true;
     }
 
+    /**
+     * Attempt to authenticate current request encapsulated by the {@link Context} object.
+     * @param context The context object encapsulating current request and other information relevant for authentication.
+     * @param listener The listener accepts a {@link Result} object indicating the outcome of authentication.
+     */
     void authenticate(Context context, ActionListener<Result> listener);
+
+    static SecureString extractCredentialFromAuthorizationHeader(ThreadContext threadContext, String prefix) {
+        String header = threadContext.getHeader("Authorization");
+        final String prefixWithSpace = prefix + " ";
+        if (Strings.hasText(header)
+            && header.regionMatches(true, 0, prefixWithSpace, 0, prefixWithSpace.length())
+            && header.length() > prefixWithSpace.length()) {
+            char[] chars = new char[header.length() - prefixWithSpace.length()];
+            header.getChars(prefixWithSpace.length(), header.length(), chars, 0);
+            return new SecureString(chars);
+        }
+        return null;
+    }
 
     /**
      * Gets the token from the <code>Authorization</code> header if the header begins with
      * <code>Bearer </code>
      */
     static SecureString extractBearerTokenFromHeader(ThreadContext threadContext) {
-        String header = threadContext.getHeader("Authorization");
-        if (Strings.hasText(header) && header.regionMatches(true,
-            0,
-            "Bearer ",
-            0,
-            "Bearer ".length()) && header.length() > "Bearer ".length()) {
-            char[] chars = new char[header.length() - "Bearer ".length()];
-            header.getChars("Bearer ".length(), header.length(), chars, 0);
-            return new SecureString(chars);
-        }
-        return null;
+        return extractCredentialFromAuthorizationHeader(threadContext, "Bearer");
     }
 
+    /**
+     * This class is a container to encapsulate the current request and other necessary information (mostly configuration related)
+     * required for authentication.
+     * It is instantiated for every incoming request and passed around to {@link AuthenticatorChain} and subsequently all
+     * {@link Authenticator}.
+     */
     class Context implements Closeable {
         private final ThreadContext threadContext;
         private final AuthenticationService.AuditableRequest request;
@@ -116,7 +143,7 @@ public interface Authenticator {
             authenticationTokens.add(authenticationToken);
         }
 
-        public AuthenticationToken getAuthenticationToken() {
+        public AuthenticationToken getMostRecentAuthenticationToken() {
             return authenticationTokens.isEmpty() ? null : authenticationTokens.get(authenticationTokens.size() - 1);
         }
 

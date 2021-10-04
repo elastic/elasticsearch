@@ -389,6 +389,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
+    private final boolean isHidden;
 
     private final IndexLongFieldRange timestampRange;
 
@@ -417,6 +418,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
+            final boolean isHidden,
             final IndexLongFieldRange timestampRange) {
 
         this.index = index;
@@ -449,6 +451,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
+        assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
+        this.isHidden = isHidden;
         this.timestampRange = timestampRange;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -930,6 +934,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isSystem;
     }
 
+    public boolean isHidden() {
+        return isHidden;
+    }
+
     public static Builder builder(String index) {
         return new Builder(index);
     }
@@ -1309,7 +1317,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
-                timestampRange);
+                    INDEX_HIDDEN_SETTING.get(settings),
+                    timestampRange);
         }
 
         @SuppressWarnings("unchecked")

@@ -479,6 +479,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             indicesToCloseList.add(indexName);
                         } else {
                             indicesToDeleteList.add(indexName);
+                            indices.get(indexName).shardCount = snapshotShardCount;
                         }
                     } else {
                         restoreSpecificIndicesTmp = true;

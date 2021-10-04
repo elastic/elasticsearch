@@ -75,10 +75,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         // assert index does not exist
         assertBusy(() -> {
-            try{
+            try {
                 client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
             } catch (ResponseException e) {
-                if(e.getResponse().getStatusLine().getStatusCode() == 404) {
+                if (e.getResponse().getStatusLine().getStatusCode() == 404) {
                     return;
                 }
             }

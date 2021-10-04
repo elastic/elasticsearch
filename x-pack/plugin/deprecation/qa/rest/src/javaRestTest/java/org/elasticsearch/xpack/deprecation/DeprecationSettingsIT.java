@@ -41,7 +41,6 @@ public class DeprecationSettingsIT extends ESRestTestCase {
      */
     private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
 
-
     /**
      * Check that configuring deprecation settings causes a warning to be added to the
      * response headers.
@@ -105,7 +104,7 @@ public class DeprecationSettingsIT extends ESRestTestCase {
         }
 
         assertBusy(() -> {
-            try{
+            try {
                 client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
                 Response getResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
                 assertOK(getResponse);
@@ -115,7 +114,7 @@ public class DeprecationSettingsIT extends ESRestTestCase {
 
                 final int hits = jsonNode.at("/hits/total/value").intValue();
                 assertThat(hits, equalTo(2));
-            }catch (Exception e) {
+            } catch (Exception e) {
                 throw new AssertionError(e);
             }
 

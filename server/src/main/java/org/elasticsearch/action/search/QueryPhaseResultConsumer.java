@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
@@ -73,6 +74,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                                     Executor executor,
                                     CircuitBreaker circuitBreaker,
                                     SearchPhaseController controller,
+                                    Supplier<Boolean> isCanceled,
                                     SearchProgressListener progressListener,
                                     int expectedResultSize,
                                     Consumer<Exception> onPartialMergeFailure) {
@@ -81,7 +83,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.circuitBreaker = circuitBreaker;
         this.controller = controller;
         this.progressListener = progressListener;
-        this.aggReduceContextBuilder = controller.getReduceContext(request);
+        this.aggReduceContextBuilder = controller.getReduceContext(isCanceled, request);
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;

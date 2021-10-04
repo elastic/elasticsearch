@@ -99,3 +99,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
 }
+
+testClusters.configureEach {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}

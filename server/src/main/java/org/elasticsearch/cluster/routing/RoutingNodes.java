@@ -16,7 +16,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -67,8 +66,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
 
-    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
-
     private final boolean readOnly;
 
     private int inactivePrimaryCount = 0;
@@ -87,7 +84,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
-        nodeShutdowns = clusterState.metadata().nodeShutdowns();
 
         Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes

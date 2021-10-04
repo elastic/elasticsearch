@@ -22,4 +22,29 @@ scripts. Any use of `getDayOfWeek` expecting a return value of `int` will result
 in a compilation error or runtime error and may not allow the upgraded node to
 start.
 ====
+
+.Empty scripts/templates are no longer allowed as stored scripts.
+[%collapsible]
+====
+*Details* +
+Empty scripts/templates cannot be specified as the source of a
+PutStoredScript action.
+
+*Impact* +
+Before upgrading, remove stored scripts/templates that are empty. Otherwise,
+these scripts will be dropped, and may not align with the scripts on older
+nodes.
+====
+
+.The `code` field can no longer be specified as part of a stored script/template.
+[%collapsible]
+====
+*Details* +
+The `code` field is replaced by the `source` as the only way to specify the
+source of a script.
+
+*Impact* +
+Before upgrading, any calls to PutStoredScript should use `source` instead
+of `code`.
+====
 // end::notable-breaking-changes[]

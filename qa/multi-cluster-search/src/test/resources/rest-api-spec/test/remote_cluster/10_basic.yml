@@ -2,6 +2,8 @@
 "Index data and search on the remote cluster":
   - skip:
       features: allowed_warnings
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/78598"
 
   - do:
       indices.create:
@@ -156,8 +158,8 @@
 ---
 tsdb:
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/78598"
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
 
   - do:
       indices.create:

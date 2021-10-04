@@ -43,6 +43,8 @@ public class StoreFileMetadata implements Writeable {
 
     private final BytesRef writerUuid;
 
+    private final boolean hashEqualsContents;
+
     public StoreFileMetadata(String name, long length, String checksum, String writtenBy) {
         this(name, length, checksum, writtenBy, null, UNAVAILABLE_WRITER_UUID);
     }
@@ -57,6 +59,7 @@ public class StoreFileMetadata implements Writeable {
 
         assert writerUuid != null && (writerUuid.length > 0 || writerUuid == UNAVAILABLE_WRITER_UUID);
         this.writerUuid = Objects.requireNonNull(writerUuid, "writerUuid must not be null");
+        this.hashEqualsContents = computeHashEqualContents();
     }
 
     /**
@@ -73,6 +76,7 @@ public class StoreFileMetadata implements Writeable {
         } else {
             writerUuid = UNAVAILABLE_WRITER_UUID;
         }
+        this.hashEqualsContents = computeHashEqualContents();
     }
 
     @Override
@@ -115,6 +119,10 @@ public class StoreFileMetadata implements Writeable {
      * @return {@code true} iff {@link #hash()} will return the actual file contents
      */
     public boolean hashEqualsContents() {
+        return hashEqualsContents;
+    }
+
+    private boolean computeHashEqualContents() {
         if (hash.length == length) {
             try {
                 final boolean checksumsMatch = Store.digestToString(CodecUtil.retrieveChecksum(

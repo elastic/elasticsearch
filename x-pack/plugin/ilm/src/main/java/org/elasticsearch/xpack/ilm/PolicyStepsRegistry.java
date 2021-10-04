@@ -117,7 +117,7 @@ public class PolicyStepsRegistry {
                     throw new UnsupportedOperationException("should never be called");
                 }
             });
-        DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
+        DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff = (DiffableUtils.MapDiff) diff;
 
         for (String deletedPolicyName : mapDiff.getDeletes()) {
             lifecyclePolicyMap.remove(deletedPolicyName);

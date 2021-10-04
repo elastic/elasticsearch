@@ -210,6 +210,8 @@ public final class Settings implements ToXContentFragment {
         if (prefix.isEmpty()) {
             return this;
         }
+        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // below
         char[] toPrefixCharArr = prefix.toCharArray();
         toPrefixCharArr[toPrefixCharArr.length - 1]++;
         String toPrefix = new String(toPrefixCharArr);
@@ -1300,9 +1302,9 @@ public final class Settings implements ToXContentFragment {
             this.filter = filter;
             this.prefix = prefix;
             if (filter == null) {
-                size = delegate.size();
+                this.size = delegate.size();
             } else {
-                size = -1;
+                this.size = -1;
             }
         }
 

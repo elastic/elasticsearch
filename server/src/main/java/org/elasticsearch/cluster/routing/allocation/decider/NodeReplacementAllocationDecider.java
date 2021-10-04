@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+import java.util.Optional;
+
 public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_replacement";
@@ -153,14 +155,12 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             .anyMatch(shutdown -> shutdown.getTargetNodeName().equals(nodeName));
     }
 
-    private static String getReplacementName(Metadata metadata, String nodeBeingReplaced) {
-        if (nodeBeingReplaced == null || replacementOngoing(metadata) == false) {
+    private static String getReplacementName(Metadata metadata, String nodeIdBeingReplaced) {
+        if (nodeIdBeingReplaced == null || replacementOngoing(metadata) == false) {
             return null;
         }
-        return metadata.nodeShutdowns().values().stream()
+        return Optional.ofNullable(metadata.nodeShutdowns().get(nodeIdBeingReplaced))
             .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
-            .filter(shutdown -> shutdown.getNodeId().equals(nodeBeingReplaced))
-            .findFirst()
             .map(SingleNodeShutdownMetadata::getTargetNodeName)
             .orElse(null);
     }

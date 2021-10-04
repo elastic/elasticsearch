@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -103,5 +104,12 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
                 "Index " + indexName + " expected not to be hidden but was",
                 settings.getAsBoolean(SETTING_INDEX_HIDDEN, false), is(equalTo(false)));
         }
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            .put(IndexMetadata.SETTING_DATA_PATH, (String) null)
+            .build();
     }
 }

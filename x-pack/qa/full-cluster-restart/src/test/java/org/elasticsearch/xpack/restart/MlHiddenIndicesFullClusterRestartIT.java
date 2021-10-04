@@ -74,19 +74,6 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
             }));
             Response getAliasesResponse = client().performRequest(getAliasesRequest);
             Map<String, Object> aliasesMap = contentAsMap(getAliasesResponse);
-            List<Tuple<String, String>> expected =
-                List.of(
-                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
-                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME),
-                    Tuple.tuple(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                );
-            for (Tuple<String, String> indexAndAlias : expected) {
-                assertThat(
-                    indexAndAlias + " should not be hidden",
-                    XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
-                    is(nullValue()));
-            }
-
             if (getOldClusterVersion().before(Version.V_7_7_0)) {
                 Map<String, Object> indexSettings = contentAsMap(getMlIndicesSettings());
                 for (Map.Entry<String, Object> e : indexSettings.entrySet()) {
@@ -96,6 +83,19 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     assertThat(settings, is(notNullValue()));
                     assertThat("Index " + indexName + " expected not to be hidden but was",
                         XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
+                        is(nullValue()));
+                }
+
+                List<Tuple<String, String>> expected =
+                    List.of(
+                        Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
+                        Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME),
+                        Tuple.tuple(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                    );
+                for (Tuple<String, String> indexAndAlias : expected) {
+                    assertThat(
+                        indexAndAlias + " should not be hidden",
+                        XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
                         is(nullValue()));
                 }
             }

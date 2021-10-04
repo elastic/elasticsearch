@@ -33,7 +33,8 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * moving the _cluster/settings test with deprecated setting to separate testcase because it was affecting other tests
+ *  _cluster/settings request with deprecated setting is emitting the deprecation warning
+ *  and has to be in a separate testcase because it is affecting other tests
  */
 public class DeprecationSettingsIT extends ESRestTestCase {
     /**

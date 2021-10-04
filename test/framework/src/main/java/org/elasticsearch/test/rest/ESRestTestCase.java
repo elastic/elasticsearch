@@ -493,7 +493,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Determines if data streams are preserved upon completion of this test. The default implementation does not wipe data streams.
+     * Determines if data streams are preserved upon completion of this test. The default implementation does wipe data streams.
      *
      * @return whether or not to preserve data streams
      */

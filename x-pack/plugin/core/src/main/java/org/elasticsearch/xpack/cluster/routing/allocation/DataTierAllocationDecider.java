@@ -211,13 +211,10 @@ public class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
             "tier " + singleTier + " is an invalid tier name";
-        if (nodes.getDataNodes().isEmpty() == false) {
-            return true;
-        }
         for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
             for (DiscoveryNodeRole discoveryNodeRole : node.value.getRoles()) {
                 String s = discoveryNodeRole.roleName();
-                if (s.equals(singleTier)) {
+                if (s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier)) {
                     return true;
                 }
             }

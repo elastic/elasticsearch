@@ -17,6 +17,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
@@ -60,7 +61,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class DeprecationHttpIT extends ESRestTestCase {
 
     @Before
-    public void assertIndexingIsEnabled() throws IOException {
+    public void assertIndexingIsEnabled() throws Exception {
         // make sure the deprecation logs indexing is enabled by default
         Response response = client().performRequest(new Request("GET", "/_cluster/settings?include_defaults=true&flat_settings=true"));
         assertOK(response);
@@ -71,6 +72,18 @@ public class DeprecationHttpIT extends ESRestTestCase {
         // value can be changed by tests
         final boolean transientValue = jsonNode.at("/transient/cluster.deprecation_indexing.enabled").asBoolean();
         assertTrue(defaultValue || transientValue);
+
+        // assert index does not exist
+        assertBusy(() -> {
+            try{
+                client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
+            } catch (ResponseException e) {
+                if(e.getResponse().getStatusLine().getStatusCode() == 404) {
+                    return;
+                }
+            }
+            fail("Index should be remove on startup");
+        });
     }
 
     @After
@@ -91,68 +104,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
      * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
      */
     private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
-
-    /**
-     * Check that configuring deprecation settings causes a warning to be added to the
-     * response headers.
-     */
-    public void testDeprecatedSettingsReturnWarnings() throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder()
-            .startObject()
-            .startObject("transient")
-            .field(
-                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
-                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
-            )
-            .field(
-                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(),
-                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY) == false
-            )
-            // There should be no warning for this field
-            .field(
-                TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(),
-                TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY) == false
-            )
-            .endObject()
-            .endObject();
-
-        final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity(Strings.toString(builder));
-        final Response response = client().performRequest(request);
-
-        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
-        final List<Matcher<String>> headerMatchers = new ArrayList<>(2);
-
-        for (Setting<Boolean> setting : List.of(
-            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
-            TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2
-        )) {
-            headerMatchers.add(
-                equalTo(
-                    "["
-                        + setting.getKey()
-                        + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                        + "See the breaking changes documentation for the next major version."
-                )
-            );
-        }
-
-        assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
-        for (final String deprecatedWarning : deprecatedWarnings) {
-            assertThat(
-                "Header does not conform to expected pattern",
-                deprecatedWarning,
-                matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())
-            );
-        }
-
-        final List<String> actualWarningValues = deprecatedWarnings.stream()
-            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-            .collect(Collectors.toList());
-        for (Matcher<String> headerMatcher : headerMatchers) {
-            assertThat(actualWarningValues, hasItem(headerMatcher));
-        }
-    }
 
     /**
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.

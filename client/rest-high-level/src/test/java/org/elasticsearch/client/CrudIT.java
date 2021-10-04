@@ -925,7 +925,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testUrlEncode() throws IOException {
         String indexPattern = "<logstash-{now/M}>";
         String expectedIndex = "logstash-" +
-            DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1).with(LocalTime.MIN));
+            DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                .format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1).with(LocalTime.MIN));
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern).id("id#1");
             indexRequest.source("field", "value");

@@ -11,7 +11,7 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.BreakIteratorBoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
+import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FieldFragList;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.FragListBuilder;

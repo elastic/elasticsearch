@@ -311,8 +311,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             return RestStatus.OK;
         }
         deprecationLogger.compatibleCritical("cluster_health_request_timeout",
-            "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a future major version." +
-                "Set the `es.cluster_health.request_timeout_408` property to `true` to present the current behaviour.");
+            "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a 8.0.0. " +
+                "Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.");
         return RestStatus.REQUEST_TIMEOUT;
     }
 

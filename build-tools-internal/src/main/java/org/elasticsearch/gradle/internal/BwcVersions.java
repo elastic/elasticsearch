@@ -7,12 +7,9 @@
  */
 package org.elasticsearch.gradle.internal;
 
-import groovy.lang.Closure;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.gradle.api.Action;
-import shadow.org.apache.logging.log4j.util.TriConsumer;
 
 import java.util.ArrayList;
 import java.util.Collection;

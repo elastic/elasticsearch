@@ -45,7 +45,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             nodePath = nodeEnvironment.nodeDataPath();
             nodeId = nodeEnvironment.nodeId();
 
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePath, nodeId,
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(new Path[] { nodePath }, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
@@ -57,10 +57,10 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     @After
     public void checkClusterStateIntact() throws IOException {
-        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePath, nodeId,
+        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(new Path[] { nodePath }, nodeId,
             xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L)
-            .loadOnDiskState().metadata.persistentSettings()));
+            .loadBestOnDiskState().metadata.persistentSettings()));
     }
 
     public void testFailsOnEmptyPath() {

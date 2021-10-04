@@ -106,7 +106,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(dataPath, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
+        return new PersistedClusterStateService(new Path[] { dataPath }, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
     }
 
@@ -119,7 +119,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     public static Tuple<Long, ClusterState> loadTermAndClusterState(PersistedClusterStateService psf,
                                                                     Environment env) throws IOException {
-        final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadOnDiskState();
+        final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
         if (bestOnDiskState.empty()) {
             throw new ElasticsearchException(CS_MISSING_MSG);
         }

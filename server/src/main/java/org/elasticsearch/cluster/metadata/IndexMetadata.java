@@ -389,6 +389,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
+    private final boolean isHidden;
 
     private final IndexLongFieldRange timestampRange;
 
@@ -421,6 +422,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
+            final boolean isHidden,
             final IndexLongFieldRange timestampRange,
             final int priority,
             final long creationDate) {
@@ -455,6 +457,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
+        assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
+        this.isHidden = isHidden;
         this.timestampRange = timestampRange;
         this.priority = priority;
         this.creationDate = creationDate;
@@ -938,6 +942,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isSystem;
     }
 
+    public boolean isHidden() {
+        return isHidden;
+    }
+
     public int priority() {
         return priority;
     }
@@ -1318,6 +1326,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
+                    INDEX_HIDDEN_SETTING.get(settings),
                     timestampRange,
                     IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                     settings.getAsLong(SETTING_CREATION_DATE, -1L)

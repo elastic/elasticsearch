@@ -218,6 +218,10 @@ testClusters.configureEach {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile serviceTokens.name, serviceTokens
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

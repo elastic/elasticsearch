@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;

@@ -143,7 +143,7 @@ JavaScript::
     See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
 PHP::
-    See https://www.elastic.co/guide/en/elasticsearch/client/php-api/current/indexing_documents.html#_bulk_indexing[`Bulk indexing`]
+    See https://www.elastic.co/guide/en/elasticsearch/client/php-api/current/indexing_documents.html#_bulk_indexing[Bulk indexing]
 
 [discrete]
 [[bulk-curl]]

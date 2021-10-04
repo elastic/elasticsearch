@@ -101,12 +101,14 @@ public class BasicTokenizer {
 
             // At this point text has been tokenized by whitespace
             // but one of the special never split tokens could be adjacent
-            // to a punctuation character.
-            int indexBeforePunctuation = findIndexBeforePunctuation(token);
-            if (indexBeforePunctuation > 0 && neverSplit.contains(token.substring(0, indexBeforePunctuation + 1))) {
-                processedTokens.add(token.substring(0, indexBeforePunctuation + 1));
-                processedTokens.addAll(splitOnPunctuation(token.substring(indexBeforePunctuation + 1)));
-                continue;
+            // to one or more punctuation characters.
+            if (isCommonPunctuation(token.codePointAt(token.length() -1))) {
+                int lastNonPunctuationIndex = findLastNonPunctuationIndex(token);
+                if (lastNonPunctuationIndex >= 0 && neverSplit.contains(token.substring(0, lastNonPunctuationIndex + 1))) {
+                    processedTokens.add(token.substring(0, lastNonPunctuationIndex + 1));
+                    processedTokens.addAll(splitOnPunctuation(token.substring(lastNonPunctuationIndex + 1)));
+                    continue;
+                }
             }
 
             if (isLowerCase) {
@@ -121,15 +123,15 @@ public class BasicTokenizer {
         return processedTokens;
     }
 
-    private int findIndexBeforePunctuation(String token) {
+    private int findLastNonPunctuationIndex(String token) {
         int i = token.length() - 1;
-        while (i > 0) {
+        while (i >= 0) {
             if (isCommonPunctuation(token.codePointAt(i)) == false) {
-                return i;
+                break;
             }
             i--;
         }
-        return -1;
+        return i;
     }
 
     public boolean isLowerCase() {

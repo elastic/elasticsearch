@@ -31,7 +31,9 @@ import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
-public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, BoxplotAggregationBuilder> {
+public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
+    ValuesSource,
+    BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
     public static final ValuesSourceRegistry.RegistryKey<BoxplotAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -77,6 +79,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
+    }
+
+    @Override
+    public Set<String> metricNames() {
+        return InternalBoxplot.METRIC_NAMES;
     }
 
     @Override

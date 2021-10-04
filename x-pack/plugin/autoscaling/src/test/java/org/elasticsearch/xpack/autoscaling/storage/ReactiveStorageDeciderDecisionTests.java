@@ -310,7 +310,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         overrideSetting(
             imd,
             builder,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING,
+            DataTierAllocationDecider.TIER_PREFERENCE_SETTING,
             randomFrom(DataTier.DATA_COLD, DataTier.DATA_COLD + "," + DataTier.DATA_HOT)
         );
         return IndexMetadata.builder(imd).settings(builder).build();
@@ -625,7 +625,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         String[] tierSettingNames = new String[] {
             DataTierAllocationDecider.INDEX_ROUTING_REQUIRE,
             DataTierAllocationDecider.INDEX_ROUTING_INCLUDE,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER };
+            DataTierAllocationDecider.TIER_PREFERENCE };
         int shards = randomIntBetween(minShards, 20);
         Metadata.Builder builder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

@@ -38,9 +38,9 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
-        DeprecationInfoAction.Response> {
+    DeprecationInfoAction.Response> {
     private static final List<DeprecationChecker> PLUGIN_CHECKERS =
-        Arrays.asList(new MlDeprecationChecker(), new CcrAutoFollowedSystemIndicesChecker());
+        Arrays.asList(new MlDeprecationChecker(), new CcrAutoFollowedSystemIndicesChecker(), new TransformDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;

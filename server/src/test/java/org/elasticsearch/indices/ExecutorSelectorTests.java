@@ -26,7 +26,7 @@ public class ExecutorSelectorTests extends ESTestCase {
             Map.of(
                 "normal system index",
                 new SystemIndices.Feature( "normal", "normal system index",
-                    Collections.singletonList(new SystemIndexDescriptor( ".non-critical-system-index", "test index"))
+                    Collections.singletonList(new SystemIndexDescriptor( ".non-critical-system-index*", "test index"))
                 )
             )
         ));

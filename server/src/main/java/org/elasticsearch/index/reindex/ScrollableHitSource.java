@@ -77,7 +77,7 @@ public abstract class ScrollableHitSource {
     }
 
     // package private for tests.
-    final void startNextScroll(TimeValue extraKeepAlive) {
+    public final void startNextScroll(TimeValue extraKeepAlive) {
         startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
     }
     private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {

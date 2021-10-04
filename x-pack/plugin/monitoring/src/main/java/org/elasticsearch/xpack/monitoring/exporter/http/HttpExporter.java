@@ -389,7 +389,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).

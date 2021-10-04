@@ -25,7 +25,7 @@ public final class SearchableSnapshotsSettings {
     private SearchableSnapshotsSettings() {}
 
     public static boolean isSearchableSnapshotStore(Settings indexSettings) {
-        return SEARCHABLE_SNAPSHOT_STORE_TYPE.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
+        return SEARCHABLE_SNAPSHOT_STORE_TYPE.equals(indexSettings.get(INDEX_STORE_TYPE_SETTING.getKey()));
     }
 
     public static boolean isPartialSearchableSnapshotIndex(Settings indexSettings) {

@@ -321,7 +321,21 @@ public final class Settings implements ToXContentFragment {
      * returns the default value provided.
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
-        return Booleans.parseBoolean(get(setting), defaultValue);
+        final Object found = settings.get(setting);
+        if (found == null) {
+            return defaultValue;
+        }
+        if (found instanceof Boolean) {
+            return (Boolean) found;
+        }
+        final String asString = found.toString();
+        switch (asString) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+        }
+        return Booleans.parseBoolean(asString, defaultValue);
     }
 
     /**

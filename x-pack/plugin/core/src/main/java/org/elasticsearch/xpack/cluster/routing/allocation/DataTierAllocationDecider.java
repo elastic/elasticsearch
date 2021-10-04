@@ -53,12 +53,13 @@ public class DataTierAllocationDecider extends AllocationDecider {
         DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Property.Dynamic, Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
-        if (Strings.hasText(setting)) {
-            for (String s : setting.split(",")) {
-                if (DataTier.validTierName(s) == false) {
-                    throw new IllegalArgumentException(
-                        "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
-                }
+        if (DataTier.validTierName(setting)) {
+            return;
+        }
+        for (String s : parseTierList(setting)) {
+            if (DataTier.validTierName(s) == false) {
+                throw new IllegalArgumentException(
+                    "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
             }
         }
     }
@@ -140,6 +141,9 @@ public class DataTierAllocationDecider extends AllocationDecider {
         Optional<String> apply(String tierPreference, DiscoveryNodes nodes);
     }
 
+    private static final Decision YES_NODE_PASSES_PREFERENCE_FILTERS =
+        Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
+
     public Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles,
                                  PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Decision decision = shouldIndexPreferTier(indexMd, roles, preferredTierFunction, allocation);
@@ -147,7 +151,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
             return decision;
         }
 
-        return allocation.decision(Decision.YES, NAME, "node passes tier preference filters");
+        return YES_NODE_PASSES_PREFERENCE_FILTERS;
     }
 
     private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
@@ -181,9 +185,15 @@ public class DataTierAllocationDecider extends AllocationDecider {
      * {@code Optional<String>}.
      */
     public static Optional<String> preferredAvailableTier(String prioritizedTiers, DiscoveryNodes nodes) {
-        for (String tier : parseTierList(prioritizedTiers)) {
-            if (tierNodesPresent(tier, nodes)) {
-                return Optional.of(tier);
+        if (DataTier.validTierName(prioritizedTiers)) {
+            if (tierNodesPresent(prioritizedTiers, nodes)) {
+                return Optional.of(prioritizedTiers);
+            }
+        } else {
+            for (String tier : parseTierList(prioritizedTiers)) {
+                if (tierNodesPresent(tier, nodes)) {
+                    return Optional.of(tier);
+                }
             }
         }
         return Optional.empty();
@@ -201,10 +211,13 @@ public class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
             "tier " + singleTier + " is an invalid tier name";
+        if (nodes.getDataNodes().isEmpty() == false) {
+            return true;
+        }
         for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
             for (DiscoveryNodeRole discoveryNodeRole : node.value.getRoles()) {
                 String s = discoveryNodeRole.roleName();
-                if (s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier)) {
+                if (s.equals(singleTier)) {
                     return true;
                 }
             }

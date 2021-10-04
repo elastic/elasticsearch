@@ -257,7 +257,7 @@ public final class IndexSettings {
      * TODO: Remove this setting in 9.0.
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", settings -> "-1", Property.Dynamic, Property.IndexScope);
+        Setting.byteSizeSetting("index.translog.retention.size", ByteSizeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.

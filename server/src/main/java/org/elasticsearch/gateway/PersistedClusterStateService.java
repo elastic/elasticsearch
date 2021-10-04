@@ -382,9 +382,9 @@ public class PersistedClusterStateService {
                         if (bestOnDiskState.empty()
                             || acceptedTerm > maxAcceptedTerm
                             || (acceptedTerm == maxAcceptedTerm
-                            && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
-                            || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
-                            && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
+                                && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
+                                    || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
+                                        && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
                             bestOnDiskState = onDiskState;
                         }
                     }

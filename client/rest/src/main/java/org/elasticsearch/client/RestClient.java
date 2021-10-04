@@ -103,11 +103,6 @@ import static java.util.Collections.singletonList;
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  */
 public class RestClient implements Closeable {
-    /**
-     * Environment variable determining whether to send the 7.x compatibility header
-     */
-    public static final String API_VERSIONING_ENV_VARIABLE = "ELASTIC_CLIENT_APIVERSIONING";
-
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     private final CloseableHttpAsyncClient client;
@@ -120,7 +115,6 @@ public class RestClient implements Closeable {
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
-    private volatile boolean useCompatibility = false;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
 
@@ -134,9 +128,6 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
-        if ("true".equals(System.getenv(API_VERSIONING_ENV_VARIABLE))) {
-            this.useCompatibility = true;
-        }
         setNodes(nodes);
     }
 
@@ -230,19 +221,6 @@ public class RestClient implements Closeable {
         this.nodeTuple = new NodeTuple<>(
                 Collections.unmodifiableList(new ArrayList<>(nodesByHost.values())), authCache);
         this.blacklist.clear();
-    }
-
-    /**
-     * Configure whether to automatically add version compatibility headers to requests.
-     * Defaults to off (false) unless the "ELASTIC_CLIENT_APIVERSIONING"
-     * environment variable has been set to "true".
-     */
-    public void setApiCompatibilityMode(boolean enabled) {
-        this.useCompatibility = enabled;
-    }
-
-    public boolean getApiCompatibilityMode() {
-        return this.useCompatibility;
     }
 
     /**
@@ -754,77 +732,6 @@ public class RestClient implements Closeable {
         }
     }
 
-    private enum EntityType {
-        JSON() {
-            @Override
-            public String header() {
-                return "application/json";
-            }
-            @Override
-            public String compatibleHeader() {
-                return "application/vnd.elasticsearch+json; compatible-with=7";
-            }
-        },
-        NDJSON() {
-            @Override
-            public String header() {
-                return "application/x-ndjson";
-            }
-            @Override
-            public String compatibleHeader() {
-                return "application/vnd.elasticsearch+x-ndjson; compatible-with=7";
-            }
-        },
-        STAR() {
-            @Override
-            public String header() {
-                return "application/*";
-            }
-            @Override
-            public String compatibleHeader() {
-                return "application/vnd.elasticsearch+json; compatible-with=7";
-            }
-        },
-        YAML() {
-            @Override
-            public String header() {
-                return "application/yaml";
-            }
-            @Override
-            public String compatibleHeader() {
-                return "application/vnd.elasticsearch+yaml; compatible-with=7";
-            }
-        },
-        SMILE() {
-            @Override
-            public String header() {
-                return "application/smile";
-            }
-            @Override
-            public String compatibleHeader() {
-                return "application/vnd.elasticsearch+smile; compatible-with=7";
-            }
-        },
-        CBOR() {
-            @Override
-            public String header() {
-                return "application/cbor";
-            }
-            @Override
-            public String compatibleHeader() {
-                return "application/vnd.elasticsearch+cbor; compatible-with=7";
-            }
-        };
-
-        public abstract String header();
-        public abstract String compatibleHeader();
-
-        @Override
-        public String toString() {
-            return header();
-        }
-    }
-
     private class InternalRequest {
         private final Request request;
         private final Set<Integer> ignoreErrorCodes;
@@ -842,14 +749,13 @@ public class RestClient implements Closeable {
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
             this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
             this.cancellable = Cancellable.fromRequest(httpRequest);
-            HttpEntity requestEntity = request.getEntity();
-            setHeaders(httpRequest, requestEntity == null ? null : requestEntity.getContentType(), request.getOptions().getHeaders());
+            setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
             this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
                 RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
         }
 
-        private void setHeaders(HttpRequest req, Header entityHeader, Collection<Header> requestHeaders) {
+        private void setHeaders(HttpRequest req, Collection<Header> requestHeaders) {
             // request headers override default headers, so we don't add default headers if they exist as request headers
             final Set<String> requestNames = new HashSet<>(requestHeaders.size());
             for (Header requestHeader : requestHeaders) {
@@ -861,56 +767,9 @@ public class RestClient implements Closeable {
                     req.addHeader(defaultHeader);
                 }
             }
-            // Add compatibility request headers if compatibility mode has been enabled
-            if (useCompatibility) {
-                addCompatibilityFor(req, entityHeader, "Content-Type");
-                if (req.containsHeader("Accept")) {
-                    addCompatibilityFor(req, entityHeader, "Accept");
-                } else {
-                    // There is no entity, and no existing accept header, but we still need one
-                    // with compatibility, so use the compatible JSON (default output) format
-                    req.addHeader("Accept", EntityType.JSON.compatibleHeader());
-                }
-            }
             if (compressionEnabled) {
                 req.addHeader("Accept-Encoding", "gzip");
             }
-        }
-
-        /**
-         * Go through all the request's existing headers, looking for {@code headerName} headers and if they exist,
-         * changing them to use version compatibility. If no request headers are changed, modify the entity type header if appropriate
-         */
-        private boolean addCompatibilityFor(HttpRequest req, Header entityHeader, String headerName) {
-            // Modify any existing "Content-Type" headers on the request to use the version compatibility, if available
-            boolean contentTypeModified = false;
-            for (Header header : req.getHeaders(headerName)) {
-                contentTypeModified = contentTypeModified || modifyHeader(req, header, headerName);
-            }
-
-            // If there were no request-specific headers, modify the request entity's header to be compatible
-            if (entityHeader != null && contentTypeModified == false) {
-                contentTypeModified = modifyHeader(req, entityHeader, headerName);
-            }
-
-            return contentTypeModified;
-        }
-
-        /**
-         * Modify the given header to be version compatible, if necessary.
-         * Returns true if a modification was made, false otherwise.
-         */
-        private boolean modifyHeader(HttpRequest req, Header header, String headerName) {
-            for (EntityType type : EntityType.values()) {
-                final String headerValue = header.getValue();
-                if (headerValue.startsWith(type.header())) {
-                    String newHeaderValue = headerValue.replace(type.header(), type.compatibleHeader());
-                    req.removeHeader(header);
-                    req.addHeader(headerName, newHeaderValue);
-                    return true;
-                }
-            }
-            return false;
         }
 
         private void setRequestConfig(HttpRequestBase requestBase, RequestConfig requestConfig) {

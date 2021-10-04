@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -78,6 +80,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             throw new IllegalArgumentException("es.autoscaling_feature_flag_registered is no longer supported");
         }
     }
+
+    static final LicensedFeature.Momentary AUTOSCALING_FEATURE = LicensedFeature.momentary(
+        null,
+        "autoscaling",
+        License.OperationMode.ENTERPRISE
+    );
 
     private final List<AutoscalingExtension> autoscalingExtensions;
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();

@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -10,9 +9,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String bwcVersionString = bwcVersion.toString()
-  String baseName = "v" + bwcVersionString
+BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
   def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
@@ -22,7 +19,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
   testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
-    versions = [bwcVersionString, project.version]
+    versions = [bwcVersion.toString(), project.version]
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'xpack.security.enabled', 'false'
@@ -34,7 +31,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
     useCluster baseLeaderCluster
     useCluster baseFollowerCluster
-    systemProperty 'tests.upgrade_from_version', bwcVersionString.replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
 
     doFirst {
       def baseCluster = testClusters.named("${baseName}-${kindExt}").get()

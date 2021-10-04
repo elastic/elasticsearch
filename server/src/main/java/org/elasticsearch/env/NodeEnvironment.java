@@ -25,21 +25,21 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -55,7 +55,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -270,16 +269,6 @@ public final class NodeEnvironment  implements Closeable {
                 assertCanWrite();
             }
 
-            // versions 7.x and earlier put their data under ${path.data}/nodes/; leave a file at that location to prevent downgrades
-            final Path legacyNodesPath = environment.dataFile().resolve("nodes");
-            if (Files.isRegularFile(legacyNodesPath) == false) {
-                final String content = "written by Elasticsearch v" + Version.CURRENT +
-                    " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
-                Files.write(legacyNodesPath, content.getBytes(StandardCharsets.UTF_8));
-                IOUtils.fsync(legacyNodesPath, false);
-                IOUtils.fsync(environment.dataFile(), true);
-            }
-
             if (DiscoveryNode.canContainData(settings) == false) {
                 if (DiscoveryNode.isMasterNode(settings) == false) {
                     ensureNoIndexMetadata(nodePath);
@@ -419,11 +408,12 @@ public final class NodeEnvironment  implements Closeable {
                 IOUtils.fsync(nodePath.path, true);
             });
 
-            // now do the actual upgrade
+            // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
+            // intermediate state would be pretty disastrous
+            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePath());
             for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
                 upgradeAction.run();
             }
-
         } finally {
             legacyNodeLock.close();
         }

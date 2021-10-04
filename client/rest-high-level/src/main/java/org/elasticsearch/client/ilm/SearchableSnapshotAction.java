@@ -59,6 +59,10 @@ public class SearchableSnapshotAction implements LifecycleAction, ToXContentObje
         return forceMergeIndex;
     }
 
+    public String getSnapshotRepository() {
+        return snapshotRepository;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();

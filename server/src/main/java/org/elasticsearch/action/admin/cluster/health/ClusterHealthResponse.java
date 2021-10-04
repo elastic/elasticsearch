@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -103,8 +101,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    private static final boolean ES_REQUEST_TIMEOUT_408 = Boolean.parseBoolean(System.getProperty(
-        "es.cluster_health.request_timeout_408", "false"));
+    private static final boolean ES_REQUEST_TIMEOUT_200 = Boolean.parseBoolean(System.getProperty(
+        "es.cluster_health.request_timeout_200", "false"));
 
     static {
         // ClusterStateHealth fields
@@ -309,16 +307,13 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (RestApiVersion.current() == RestApiVersion.V_7) {
-            if (ES_REQUEST_TIMEOUT_408 == false) {
-                deprecationLogger.critical(DeprecationCategory.API, "cluster_health_request_timeout",
-                    "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a future major version." +
-                        "Set the `es.cluster_health.request_timeout_408` property to `true` to present the current behaviour.");
-            }
-            return RestStatus.REQUEST_TIMEOUT;
-        } else {
-            return ES_REQUEST_TIMEOUT_408 ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
+        if (ES_REQUEST_TIMEOUT_200) {
+            return RestStatus.OK;
         }
+        deprecationLogger.compatibleCritical("cluster_health_request_timeout",
+            "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a future major version." +
+                "Set the `es.cluster_health.request_timeout_408` property to `true` to present the current behaviour.");
+        return RestStatus.REQUEST_TIMEOUT;
     }
 
     @Override

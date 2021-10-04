@@ -906,6 +906,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         ResponseException ex = expectThrows(ResponseException.class, () ->
             createNewSingletonPolicy(client(), policy, phaseName, new SearchableSnapshotAction(repo)));
         assertThat(ex.getMessage(), containsString("no such repository"));
+        assertThat(ex.getMessage(), containsString("the snapshot repository referenced by the [searchable_snapshot] action " +
+            "in the [cold] phase must exist before it can be referenced by an ILM policy"));
     }
 
     public void testWaitForSnapshotRequiresSLMPolicyToExist() throws IOException {
@@ -914,6 +916,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         ResponseException ex = expectThrows(ResponseException.class, () ->
             createNewSingletonPolicy(client(), policy, phaseName, new WaitForSnapshotAction(slmPolicy)));
         assertThat(ex.getMessage(), containsString("no such snapshot lifecycle policy"));
+        assertThat(ex.getMessage(), containsString("the snapshot lifecycle policy referenced by the [wait_for_snapshot] action " +
+            "in the [delete] phase must exist before it can be referenced by an ILM policy"));
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own

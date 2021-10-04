@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -134,34 +134,39 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * @param state The cluster state
      */
     private void validatePrerequisites(LifecyclePolicy policy, ClusterState state) {
-        List<SearchableSnapshotAction> searchableSnapshotActions = policy.getPhases().values().stream()
-            .map(phase -> (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME))
-            .filter(Objects::nonNull)
+        List<Phase> phasesWithSearchableSnapshotActions = policy.getPhases().values().stream()
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
             .collect(Collectors.toList());
         // check license level for searchable snapshots
-        if (searchableSnapshotActions.isEmpty() == false && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+        if (phasesWithSearchableSnapshotActions.isEmpty() == false &&
+            SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
             throw new IllegalArgumentException("policy [" + policy.getName() + "] defines the [" +
                 SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
         }
         // make sure any referenced snapshot repositories exist
-        for (SearchableSnapshotAction action : searchableSnapshotActions) {
+        for (Phase phase : phasesWithSearchableSnapshotActions) {
+            SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
             String repository = action.getSnapshotRepository();
             if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
                 .repository(repository) == null) {
-                throw new IllegalArgumentException("no such repository [" + repository + "]");
+                throw new IllegalArgumentException("no such repository [" + repository + "], the snapshot repository " +
+                    "referenced by the [" + SearchableSnapshotAction.NAME + "] action in the [" + phase.getName() + "] phase " +
+                    "must exist before it can be referenced by an ILM policy");
             }
         }
 
-        List<WaitForSnapshotAction> waitForSnapshotActions = policy.getPhases().values().stream()
-            .map(phase -> (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME))
-            .filter(Objects::nonNull)
+        List<Phase> phasesWithWaitForSnapshotActions = policy.getPhases().values().stream()
+            .filter(phase -> phase.getActions().containsKey(WaitForSnapshotAction.NAME))
             .collect(Collectors.toList());
         // make sure any referenced snapshot lifecycle policies exist
-        for (WaitForSnapshotAction action : waitForSnapshotActions) {
+        for (Phase phase : phasesWithWaitForSnapshotActions) {
+            WaitForSnapshotAction action = (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME);
             String slmPolicy = action.getPolicy();
             if (state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
                 .getSnapshotConfigurations().get(slmPolicy) == null) {
-                throw new IllegalArgumentException("no such snapshot lifecycle policy [" + slmPolicy + "]");
+                throw new IllegalArgumentException("no such snapshot lifecycle policy [" + slmPolicy + "], the snapshot lifecycle policy " +
+                    "referenced by the [" + WaitForSnapshotAction.NAME + "] action in the [" + phase.getName() + "] phase " +
+                    "must exist before it can be referenced by an ILM policy");
             }
         }
     }

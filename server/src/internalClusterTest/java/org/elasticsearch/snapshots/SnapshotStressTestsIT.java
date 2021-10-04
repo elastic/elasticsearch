@@ -659,16 +659,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             return;
                         }
 
-                        final List<String> indexNames = new ArrayList<>();
-                        while (indexNames.isEmpty()) {
-                            for (String indexName : cloneableIndices) {
-                                if (randomBoolean()) {
-                                    indexNames.add(indexName);
-                                }
-                            }
-                        }
-
-                        getIndicesStep.onResponse(indexNames);
+                        getIndicesStep.onResponse(randomSubsetOf(between(1, cloneableIndices.size()), cloneableIndices));
                     }));
 
                     getIndicesStep.addListener(mustSucceed(indexNames -> {

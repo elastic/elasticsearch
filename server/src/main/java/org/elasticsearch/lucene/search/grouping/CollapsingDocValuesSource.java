@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.search.grouping;
+package org.elasticsearch.lucene.search.grouping;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
@@ -17,6 +17,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.grouping.GroupSelector;
+import org.apache.lucene.search.grouping.SearchGroup;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;

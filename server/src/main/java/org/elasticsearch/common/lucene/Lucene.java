@@ -68,7 +68,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;

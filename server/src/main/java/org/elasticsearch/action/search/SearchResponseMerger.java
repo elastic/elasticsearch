@@ -14,7 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;

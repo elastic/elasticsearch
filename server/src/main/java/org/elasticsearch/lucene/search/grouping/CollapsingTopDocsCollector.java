@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.search.grouping;
+package org.elasticsearch.lucene.search.grouping;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldComparator;
@@ -16,10 +16,19 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.grouping.CollectedSearchGroup;
+import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
+import org.apache.lucene.search.grouping.GroupSelector;
+import org.apache.lucene.search.grouping.SearchGroup;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collection;
 import java.util.Iterator;
 
@@ -91,7 +100,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
             if (scorePos != -1) {
                 score = (float) group.sortValues[scorePos];
             }
-            docs[pos] = new FieldDoc(col.topDoc, score, group.sortValues);
+            docs[pos] = new FieldDoc(getTopDoc(col), score, group.sortValues);
             collapseValues[pos] = group.groupValue;
             pos++;
         }
@@ -172,4 +181,24 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseFieldType),
                 collapseField, sort, topN, after);
     }
+
+    private int getTopDoc(CollectedSearchGroup<T> collectedSearchGroup) {
+        return (int)TOP_DOC.get(collectedSearchGroup);
+    }
+
+    private static final VarHandle TOP_DOC;
+
+    static {
+        try {
+            PrivilegedExceptionAction<VarHandle> pa = (PrivilegedExceptionAction<VarHandle>) () -> {
+                MethodHandles.Lookup l = MethodHandles.privateLookupIn(CollectedSearchGroup.class, MethodHandles.lookup());
+                return l.findVarHandle(CollectedSearchGroup.class, "topDoc", int.class);
+            };
+            TOP_DOC = AccessController.doPrivileged(pa);
+        } catch (PrivilegedActionException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+
+    }
+
 }

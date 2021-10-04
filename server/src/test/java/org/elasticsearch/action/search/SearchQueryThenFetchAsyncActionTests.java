@@ -12,7 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;

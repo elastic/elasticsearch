@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.search.grouping;
+package org.elasticsearch.lucene.search.grouping;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;

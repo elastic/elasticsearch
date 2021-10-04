@@ -268,14 +268,8 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
-    'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
-    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
-    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
-
-    // Joda should own its own packages! This should be a simple move.
-    'org.joda.time.format.StrictISODateTimeFormat',
+  // Joda should own its own packages! This should be a simple move.
+  ignoreClasses 'org.joda.time.format.StrictISODateTimeFormat',
 
     // xcontent should not have common, all it's common packages should be renamed to xcontent
     'org.elasticsearch.common.xcontent.*',

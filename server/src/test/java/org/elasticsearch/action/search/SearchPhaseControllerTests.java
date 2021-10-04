@@ -17,7 +17,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.elasticsearch.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;

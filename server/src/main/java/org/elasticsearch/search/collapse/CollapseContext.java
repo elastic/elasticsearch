@@ -9,7 +9,7 @@ package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
+import org.elasticsearch.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;

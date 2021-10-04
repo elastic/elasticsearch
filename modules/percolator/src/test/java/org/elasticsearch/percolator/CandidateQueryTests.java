@@ -74,7 +74,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentParserContext;

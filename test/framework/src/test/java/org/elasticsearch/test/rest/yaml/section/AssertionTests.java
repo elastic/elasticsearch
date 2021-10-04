@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;

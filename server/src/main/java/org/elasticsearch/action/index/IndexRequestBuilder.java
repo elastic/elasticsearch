@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 
 import java.util.Map;
@@ -83,7 +83,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document source to index.
      * <p>
-     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[], XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {

@@ -9,8 +9,8 @@ package org.elasticsearch.common.geo.parsers;
 
 import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

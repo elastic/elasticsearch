@@ -8,7 +8,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

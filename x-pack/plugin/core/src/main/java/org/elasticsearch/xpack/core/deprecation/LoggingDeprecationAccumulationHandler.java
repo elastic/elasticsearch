@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Very similar to {@link org.elasticsearch.common.xcontent.LoggingDeprecationHandler} main differences are:
+ * Very similar to {@link LoggingDeprecationHandler} main differences are:
  * 1. Is not a Singleton
  * 2. Accumulates all deprecation warnings into a list that can be retrieved
  *    with {@link LoggingDeprecationAccumulationHandler#getDeprecations()}

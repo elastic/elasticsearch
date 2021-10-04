@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class NerProcessor implements NlpTask.Processor {
 
     public enum Entity implements Writeable {
-        NONE, MISC, PERSON, ORGANIZATION, LOCATION;
+        NONE, MISC, PERSON, ORG, LOC;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -42,7 +42,7 @@ public class NerProcessor implements NlpTask.Processor {
 
         @Override
         public String toString() {
-            return name().toLowerCase(Locale.ROOT);
+            return name().toUpperCase(Locale.ROOT);
         }
     }
 
@@ -53,10 +53,10 @@ public class NerProcessor implements NlpTask.Processor {
         I_MISC(Entity.MISC),            // Miscellaneous entity
         B_PER(Entity.PERSON),           // Beginning of a person's name right after another person's name
         I_PER(Entity.PERSON),           // Person's name
-        B_ORG(Entity.ORGANIZATION),     // Beginning of an organisation right after another organisation
-        I_ORG(Entity.ORGANIZATION),     // Organisation
-        B_LOC(Entity.LOCATION),         // Beginning of a location right after another location
-        I_LOC(Entity.LOCATION);         // Location
+        B_ORG(Entity.ORG),     // Beginning of an organisation right after another organisation
+        I_ORG(Entity.ORG),     // Organisation
+        B_LOC(Entity.LOC),         // Beginning of a location right after another location
+        I_LOC(Entity.LOC);         // Location
 
         private final Entity entity;
 
@@ -146,6 +146,47 @@ public class NerProcessor implements NlpTask.Processor {
         return new NerResultProcessor(iobMap, resultsField, ignoreCase);
     }
 
+    static String buildAnnotatedText(String seq, List<NerResults.EntityGroup> entities) {
+        if (entities.isEmpty()) {
+            return seq;
+        }
+        StringBuilder annotatedResultBuilder = new StringBuilder();
+        int curPos = 0;
+        for (var entity : entities) {
+            if (entity.getStartPos() == -1) {
+                continue;
+            }
+            if (entity.getStartPos() == curPos) {
+                String entitySeq = seq.substring(entity.getStartPos(), entity.getEndPos());
+                annotatedResultBuilder.append("[")
+                    .append(entitySeq)
+                    .append("]")
+                    .append("(")
+                    .append(entity.getLabel())
+                    .append("&")
+                    .append(entitySeq.replace(" ", "+"))
+                    .append(")");
+                curPos = entity.getEndPos();
+                continue;
+            }
+            annotatedResultBuilder.append(seq, curPos, entity.getStartPos());
+            String entitySeq = seq.substring(entity.getStartPos(), entity.getEndPos());
+            annotatedResultBuilder.append("[")
+                .append(entitySeq)
+                .append("]")
+                .append("(")
+                .append(entity.getLabel())
+                .append("&")
+                .append(entitySeq.replace(" ", "+"))
+                .append(")");
+            curPos = entity.getEndPos();
+        }
+        if (curPos < seq.length()) {
+            annotatedResultBuilder.append(seq, curPos, seq.length());
+        }
+        return annotatedResultBuilder.toString();
+    }
+
     static class NerResultProcessor implements NlpTask.ResultProcessor {
         private final IobTag[] iobMap;
         private final String resultsField;
@@ -178,32 +219,9 @@ public class NerProcessor implements NlpTask.Processor {
                 taggedTokens,
                 ignoreCase ?
                     tokenization.getTokenizations().get(0).getInput().toLowerCase(Locale.ROOT) :
-                    tokenization.getTokenizations().get(0).getInput(),
-                resultsField + "_entity"
+                    tokenization.getTokenizations().get(0).getInput()
             );
-            StringBuilder annotatedResultBuilder = new StringBuilder();
-            String seq = tokenization.getTokenizations().get(0).getInput();
-            int curPos = 0;
-            for (var entity : entities) {
-                if (entity.getStartPos() == -1) {
-                    continue;
-                }
-                if (entity.getStartPos() == curPos) {
-                    annotatedResultBuilder.append("[");
-                    annotatedResultBuilder.append(seq, entity.getStartPos(), entity.getEndPos());
-                    annotatedResultBuilder.append("]");
-                    annotatedResultBuilder.append("(").append(entity.getLabel()).append(")");
-                    curPos += entity.getEndPos();
-                    continue;
-                }
-                annotatedResultBuilder.append(seq, curPos, entity.getStartPos());
-                annotatedResultBuilder.append("[");
-                annotatedResultBuilder.append(seq, entity.getStartPos(), entity.getEndPos());
-                annotatedResultBuilder.append("]");
-                annotatedResultBuilder.append("(").append(entity.getLabel()).append(")");
-                curPos += entity.getEndPos();
-            }
-            return new NerResults(resultsField, entities.isEmpty() ? seq : annotatedResultBuilder.toString(), entities);
+            return new NerResults(resultsField, buildAnnotatedText(tokenization.getTokenizations().get(0).getInput(), entities), entities);
         }
 
         /**
@@ -262,7 +280,7 @@ public class NerProcessor implements NlpTask.Processor {
          * When multiple tokens are grouped together, the entity score is the
          * mean score of the tokens.
          */
-        static List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens, String inputSeq, String resultsField) {
+        static List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens, String inputSeq) {
             if (tokens.isEmpty()) {
                 return Collections.emptyList();
             }
@@ -296,7 +314,6 @@ public class NerProcessor implements NlpTask.Processor {
                     new NerResults.EntityGroup(
                         entity,
                         token.tag.getEntity().toString(),
-                        resultsField,
                         scoreSum / (endTokenIndex - startTokenIndex),
                         i,
                         i == -1 ? -1 : i + entity.length()

@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.PREDICTION_PROBABILITY;
 import static org.elasticsearch.xpack.core.ml.inference.results.NerResults.ENTITY_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,7 +34,6 @@ public class NerResultsTests extends AbstractWireSerializingTestCase<NerResults>
             randomAlphaOfLength(10),
             Stream.generate(
                 () -> new NerResults.EntityGroup(
-                    randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
                     randomDouble(),
@@ -59,15 +57,15 @@ public class NerResultsTests extends AbstractWireSerializingTestCase<NerResults>
         for (int i = 0; i < testInstance.getEntityGroups().size(); i++) {
             NerResults.EntityGroup entity = testInstance.getEntityGroups().get(i);
             Map<String, Object> map = resultList.get(i);
-            assertThat(map.get(entity.getResultsField()), equalTo(entity.getLabel()));
+            assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getLabel()));
             assertThat(map.get("entity"), equalTo(entity.getEntity()));
-            assertThat(map.get(PREDICTION_PROBABILITY), equalTo(entity.getResultsProbability()));
+            assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getResultsProbability()));
             Integer startPos = (Integer)map.get(NerResults.EntityGroup.START_POS);
             Integer endPos = (Integer)map.get(NerResults.EntityGroup.END_POS);
-            if (startPos > -1) {
+            if (startPos != null) {
                 assertThat(startPos, equalTo(entity.getStartPos()));
             }
-            if (endPos > -1) {
+            if (endPos != null) {
                 assertThat(endPos, equalTo(entity.getEndPos()));
             }
         }

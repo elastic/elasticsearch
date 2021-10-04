@@ -108,12 +108,13 @@ public class NerResults implements InferenceResults {
 
     public static class EntityGroup implements ToXContentObject, Writeable {
 
+        static final String CLASS_NAME = "class_name";
+        static final String CLASS_PROBABILITY = "class_probability";
         static final String START_POS = "start_pos";
         static final String END_POS = "end_pos";
 
         private final String entity;
         private final String label;
-        private final String resultsField;
         private final double resultsProbability;
         private final int startPos;
         private final int endPos;
@@ -121,14 +122,12 @@ public class NerResults implements InferenceResults {
         public EntityGroup(
             String entity,
             String label,
-            String resultsField,
             double resultsProbability,
             int startPos,
             int endPos
         ) {
             this.entity = entity;
             this.label = label;
-            this.resultsField = resultsField;
             this.resultsProbability = resultsProbability;
             this.startPos = startPos;
             this.endPos = endPos;
@@ -140,7 +139,6 @@ public class NerResults implements InferenceResults {
         public EntityGroup(StreamInput in) throws IOException {
             this.entity = in.readString();
             this.label = in.readString();
-            this.resultsField = in.readString();
             this.resultsProbability = in.readDouble();
             this.startPos = in.readInt();
             this.endPos = in.readInt();
@@ -150,7 +148,6 @@ public class NerResults implements InferenceResults {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(entity);
             out.writeString(label);
-            out.writeString(resultsField);
             out.writeDouble(resultsProbability);
             out.writeInt(startPos);
             out.writeInt(endPos);
@@ -160,8 +157,8 @@ public class NerResults implements InferenceResults {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("entity", entity);
-            builder.field(resultsField, label);
-            builder.field(PREDICTION_PROBABILITY, resultsProbability);
+            builder.field(CLASS_NAME, label);
+            builder.field(CLASS_PROBABILITY, resultsProbability);
             if (startPos >= 0) {
                 builder.field(START_POS, startPos);
             }
@@ -175,8 +172,8 @@ public class NerResults implements InferenceResults {
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("entity", entity);
-            map.put(resultsField, label);
-            map.put(PREDICTION_PROBABILITY, resultsProbability);
+            map.put(CLASS_NAME, label);
+            map.put(CLASS_PROBABILITY, resultsProbability);
             if (startPos >= 0) {
                 map.put(START_POS, startPos);
             }
@@ -198,10 +195,6 @@ public class NerResults implements InferenceResults {
             return resultsProbability;
         }
 
-        public String getResultsField() {
-            return resultsField;
-        }
-
         public int getStartPos() {
             return startPos;
         }
@@ -218,13 +211,12 @@ public class NerResults implements InferenceResults {
             return Double.compare(that.resultsProbability, resultsProbability) == 0
                 && startPos == that.startPos
                 && endPos == that.endPos
-                && Objects.equals(entity, that.entity)
-                && Objects.equals(resultsField, that.resultsField);
+                && Objects.equals(entity, that.entity);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(entity, resultsField, resultsProbability, startPos, endPos);
+            return Objects.hash(entity, resultsProbability, startPos, endPos);
         }
     }
 }

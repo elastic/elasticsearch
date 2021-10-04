@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,12 +113,12 @@ public class NerProcessorTests extends ESTestCase {
             } };
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
-        assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](organization) in [London](location)"));
+        assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORG.toString()));
         assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
+        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOC.toString()));
     }
 
     public void testProcessResults_withIobMap() {
@@ -151,12 +150,12 @@ public class NerProcessorTests extends ESTestCase {
             } };
         NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchResult("1", scores, 1L, null));
 
-        assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](organization) in [London](location)"));
+        assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANIZATION.toString()));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORG.toString()));
         assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
+        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOC.toString()));
     }
 
     public void testGroupTaggedTokens() {
@@ -175,15 +174,14 @@ public class NerProcessorTests extends ESTestCase {
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(
             tokens,
-            "Hi Sarah Jessica, I live in Manchester and work for Elastic",
-            DEFAULT_RESULTS_FIELD + "_entity"
+            "Hi Sarah Jessica, I live in Manchester and work for Elastic"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("person"));
+        assertThat(entityGroups.get(0).getLabel(), equalTo("PERSON"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Sarah Jessica"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("location"));
+        assertThat(entityGroups.get(1).getLabel(), equalTo("LOC"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("Manchester"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("ORG"));
         assertThat(entityGroups.get(2).getEntity(), equalTo("Elastic"));
     }
 
@@ -192,11 +190,7 @@ public class NerProcessorTests extends ESTestCase {
         tokens.add(new NerProcessor.NerResultProcessor.TaggedToken("Hi", NerProcessor.IobTag.O, 1.0));
         tokens.add(new NerProcessor.NerResultProcessor.TaggedToken("there", NerProcessor.IobTag.O, 1.0));
 
-        List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(
-            tokens,
-            "Hi there",
-            DEFAULT_RESULTS_FIELD + "_entity"
-        );
+        List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(tokens, "Hi there");
         assertThat(entityGroups, is(empty()));
     }
 
@@ -210,15 +204,14 @@ public class NerProcessorTests extends ESTestCase {
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(
             tokens,
-            "Rita, Sue, and Bob too",
-            DEFAULT_RESULTS_FIELD + "_entity"
+            "Rita, Sue, and Bob too"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("person"));
+        assertThat(entityGroups.get(0).getLabel(), equalTo("PERSON"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Rita"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("person"));
+        assertThat(entityGroups.get(1).getLabel(), equalTo("PERSON"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("Sue"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("person"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("PERSON"));
         assertThat(entityGroups.get(2).getEntity(), equalTo("Bob"));
     }
 
@@ -232,15 +225,55 @@ public class NerProcessorTests extends ESTestCase {
 
         List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(
             tokens,
-            "FirstName SecondName, NextPerson NextPersonSecondName. something_else",
-            DEFAULT_RESULTS_FIELD + "_entity"
+            "FirstName SecondName, NextPerson NextPersonSecondName. something_else"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("person"));
+        assertThat(entityGroups.get(0).getLabel(), equalTo("PERSON"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("FirstName SecondName"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("person"));
+        assertThat(entityGroups.get(1).getLabel(), equalTo("PERSON"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("NextPerson NextPersonSecondName"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("organization"));
+        assertThat(entityGroups.get(2).getLabel(), equalTo("ORG"));
+    }
+
+    public void testAnnotatedTextBuilder() {
+        String input = "Alexander, my name is Benjamin Trent, I work at Acme Inc.";
+        List<NerResults.EntityGroup> entities = List.of(
+            new NerResults.EntityGroup(
+                "alexander",
+                "PERSON",
+                0.9963429980065166,
+                0,
+                9
+            ),
+            new NerResults.EntityGroup(
+                "benjamin trent",
+                "PERSON",
+                0.9972042749283819,
+                22,
+               36
+            ),
+            new NerResults.EntityGroup(
+                "acme inc",
+                "ORG",
+                0.9982026600781208,
+                48,
+               56
+            )
+        );
+        assertThat(
+            NerProcessor.buildAnnotatedText(input, entities),
+            equalTo(
+                "[Alexander](PERSON&Alexander), "
+                    + "my name is [Benjamin Trent](PERSON&Benjamin+Trent), "
+                    + "I work at [Acme Inc](ORG&Acme+Inc)."
+            )
+        );
+    }
+
+    public void testAnnotatedTextBuilder_empty() {
+        String input = "There are no entities";
+        List<NerResults.EntityGroup> entities = List.of();
+        assertThat(NerProcessor.buildAnnotatedText(input, entities), equalTo(input));
     }
 
     private static TokenizationResult tokenize(List<String> vocab, String input) {

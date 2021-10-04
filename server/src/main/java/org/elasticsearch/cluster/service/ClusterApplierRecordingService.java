@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Releasable;
@@ -19,23 +20,23 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public final class ClusterApplierRecordingService {
 
-    private final Map<String, MeanMetric> recordedActions = new ConcurrentHashMap<>();
+    private final Map<String, MeanMetric> recordedActions = new HashMap<>();
 
     synchronized Stats getStats() {
         return new Stats(
             recordedActions.entrySet().stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new Recording(e.getValue().count(), e.getValue().sum())))
+                .sorted(Comparator.<Map.Entry<String, MeanMetric>>comparingLong(o -> o.getValue().sum()).reversed())
+                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, e -> new Recording(e.getValue().count(), e.getValue().sum())))
         );
     }
 
@@ -97,27 +98,17 @@ public final class ClusterApplierRecordingService {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("cluster_applier_stats");
             builder.startArray("recordings");
-            toXContentTimeSpent(builder, recordings);
+            for (Map.Entry<String, Recording> entry : recordings.entrySet()) {
+                builder.startObject();
+                builder.field("name", entry.getKey());
+                String name = "cumulative_execution";
+                builder.field(name + "_count", entry.getValue().count);
+                builder.humanReadableField(name + "_time_millis", name + "_time", TimeValue.timeValueMillis(entry.getValue().sum));
+                builder.endObject();
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
-        }
-
-        private static void toXContentTimeSpent(XContentBuilder builder, Map<String, Recording> timeSpentPerListener) throws IOException {
-            timeSpentPerListener.entrySet().stream()
-                .sorted((o1, o2) -> -Long.compare(o1.getValue().sum, o2.getValue().sum))
-                .forEach(entry -> {
-                    try {
-                        builder.startObject();
-                        builder.field("name", entry.getKey());
-                        String name = "cumulative_execution";
-                        builder.field(name + "_count", entry.getValue().count);
-                        builder.humanReadableField(name + "_time_millis", name + "_time", TimeValue.timeValueMillis(entry.getValue().sum));
-                        builder.endObject();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            builder.endArray();
         }
 
         @Override

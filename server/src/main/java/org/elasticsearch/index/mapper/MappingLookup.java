@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -387,6 +388,19 @@ public final class MappingLookup {
     public boolean isDataStreamTimestampFieldEnabled() {
         DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
         return dtfm != null && dtfm.isEnabled();
+    }
+
+    /**
+     * Returns if this mapping contains a timestamp field that is of type date and indexed
+     * @return {@code true} if contains an indexed timestamp field of type date, {@code false} otherwise.
+     */
+    public boolean hasTimestampField() {
+        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+            return mappedFieldType.isSearchable();
+        } else {
+            return false;
+        }
     }
 
     /**

@@ -186,7 +186,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.metadata.DataStream.DATASTREAM_LEAF_READERS_SORTER;
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -285,7 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-    private final boolean isDataStreamIndex; // if a shard is a part of data stream
+    private final boolean isTimeseriesIndex;
 
     public IndexShard(
             final ShardRouting shardRouting,
@@ -390,7 +390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        this.isTimeseriesIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
     }
 
     public ThreadPool getThreadPool() {
@@ -2928,7 +2928,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
                 snapshotCommitSupplier,
-                isDataStreamIndex ? DATASTREAM_LEAF_READERS_SORTER : null);
+                isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null);
     }
 
     /**

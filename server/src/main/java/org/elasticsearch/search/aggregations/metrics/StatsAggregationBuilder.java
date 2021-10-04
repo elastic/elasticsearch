@@ -28,7 +28,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregationBuilder> {
+public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
+    ValuesSource.Numeric,
+    StatsAggregationBuilder> {
     public static final String NAME = "stats";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -66,6 +68,11 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
      */
     public StatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public Set<String> metricNames() {
+        return InternalStats.METRIC_NAMES;
     }
 
     @Override

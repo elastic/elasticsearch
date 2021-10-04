@@ -54,10 +54,11 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -230,7 +231,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             offset = randomFrom(DistanceUnit.values()).toString(randomDouble());
             break;
         case DATE_FIELD_NAME:
-            origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
+            origin = ZonedDateTime.ofInstant(
+                Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)), ZoneOffset.UTC).toString();
             scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
             offset = randomPositiveTimeValue();
             break;

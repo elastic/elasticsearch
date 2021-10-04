@@ -39,23 +39,27 @@ public class MetadataDataStreamsService {
 
     public void updateBackingIndices(final ModifyDataStreamRequest request,
                                      final ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("update-backing-indices",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return modifyDataStream(
-                        currentState,
-                        request.actions(),
-                        indexMetadata -> {
-                            try {
-                                return indicesService.createIndexMapperService(indexMetadata);
-                            } catch (IOException e) {
-                                throw new IllegalStateException(e);
+        if (request.actions().size() == 0) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        } else {
+            clusterService.submitStateUpdateTask("update-backing-indices",
+                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return modifyDataStream(
+                            currentState,
+                            request.actions(),
+                            indexMetadata -> {
+                                try {
+                                    return indicesService.createIndexMapperService(indexMetadata);
+                                } catch (IOException e) {
+                                    throw new IllegalStateException(e);
+                                }
                             }
-                        }
-                    );
-                }
-            });
+                        );
+                    }
+                });
+        }
     }
 
     /**

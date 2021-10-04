@@ -145,10 +145,12 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
-    // GWB> RENAME THIS TEST AND ALSO ADD JAVADOC
-    public void testTwoNodeClusterBug() throws Exception {
-        final String firstNodeName = internalCluster().startNode();
-        final String secondNodeName = internalCluster().startNode();
+    /**
+     * Checks that, if we get to a situation where a shard can't move because all other nodes already have a copy of that shard,
+     * we'll still return COMPLETE instead of STALLED.
+     */
+    public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() throws Exception {
+        internalCluster().startNodes(2);
 
         final String indexName = "test";
         prepareCreate(indexName).setSettings(

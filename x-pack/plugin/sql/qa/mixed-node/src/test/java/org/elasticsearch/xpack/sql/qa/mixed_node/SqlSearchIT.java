@@ -286,23 +286,28 @@ public class SqlSearchIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
 
+            String intervalYearMonth = "INTERVAL '150' YEAR AS interval_year, ";
+            String intervalDayTime = "INTERVAL '163' MINUTE AS interval_minute, ";
             // get all fields names from the expected response built earlier, skipping the intervals as they execute locally
             // and not taken from the index itself
-            String fieldsList = columns.stream().map(m -> (String) m.get("name")).filter(str -> str.startsWith("interval") == false)
-                .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
-            String query = "SELECT INTERVAL '150' YEAR AS interval_year, INTERVAL '163' MINUTE AS interval_minute, "
-                + fieldsList + " FROM " + index + " ORDER BY id";
+            String fieldsList = columns.stream()
+                .map(m -> (String) m.get("name"))
+                .filter(str -> str.startsWith("interval") == false)
+                .collect(Collectors.toList())
+                .stream()
+                .collect(Collectors.joining(", "));
+            String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
+
             Request request = new Request("POST", "_sql");
             request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
             assertBusy(() -> {
-                Map<String, Object> actualResponse = dropDisplaySizes(runSql(client, request));
-                assertResponse(expectedResponse, actualResponse);
+                assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request)));
             });
         }
     }
 
     private Map<String, Object> dropDisplaySizes(Map<String, Object> response) {
-        // if JDBC mode is used, display_size will also be part of the response, remove it because it's not part of the expected response
+        // in JDBC mode, display_size will be part of the response, so remove it because it's not part of the expected response
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
         List<Map<String, Object>> columnsWithoutDisplaySizes = columns.stream()

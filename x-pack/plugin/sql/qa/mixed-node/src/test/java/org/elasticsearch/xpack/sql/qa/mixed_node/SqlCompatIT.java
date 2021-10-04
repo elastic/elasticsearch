@@ -145,6 +145,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             // a bug previous to 7.12 caused a NullPointerException when accessing displaySize in ColumnInfo. The bug has been addressed in
             // https://github.com/elastic/elasticsearch/pull/68802/files
             // #diff-2faa4e2df98a4636300a19d9d890a1bd7174e9b20dd3a8589d2c78a3d9e5cbc0L110
+            // as a workaround, use JDBC (driver) mode in versions prior to 7.12
             json.field("mode", "jdbc");
             json.field("binary_format", false);
             json.field("version", bwcVersion.toString());

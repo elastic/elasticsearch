@@ -333,6 +333,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
+                        "_type" : "_doc",
                         "_id" : "1",
                         "_score" : null,
                         "_source" : {
@@ -359,6 +360,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
+                        "_type" : "_doc",
                         "_id" : "2",
                         "_score" : null,
                         "_source" : {
@@ -394,6 +396,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
+                        "_type" : "_doc",
                         "_id" : "4",
                         "_score" : null,
                         "_source" : {
@@ -420,6 +423,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
+                        "_type" : "_doc",
                         "_id" : "6",
                         "_score" : null,
                         "_source" : {
@@ -446,6 +450,7 @@ POST log-messages/_search?filter_path=aggregations
                     "hits" : [
                       {
                         "_index" : "log-messages",
+                        "_type" : "_doc",
                         "_id" : "5",
                         "_score" : null,
                         "_source" : {

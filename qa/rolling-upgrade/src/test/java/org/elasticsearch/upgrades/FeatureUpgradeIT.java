@@ -24,33 +24,43 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
     @SuppressWarnings("unchecked")
     public void testGetFeatureUpgradeStatus() throws Exception {
 
-        final String systemIndexWarning = "this request accesses system indices: [.watches], but in a future major version, direct " +
+        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
             "access to system indices will be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // setup - put something in the watcher index
-            Request createWatch = new Request("PUT", "/_watcher/watch/1");
-            createWatch.addParameter("active", "false");
-            createWatch.setJsonEntity("{\n" +
-                "  \"trigger\" : {\n" +
-                "    \"schedule\" : { \"interval\" : \"10s\" } \n" +
-                "  },\n" +
-                "  \"input\" : {\n" +
-                "    \"search\" : {\n" +
-                "      \"request\" : {\n" +
-                "        \"indices\" : [ \"logs\" ],\n" +
-                "        \"body\" : {\n" +
-                "          \"query\" : {\n" +
-                "            \"match\" : { \"message\": \"error\" }\n" +
-                "          }\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}");
+            // create index
+            Request createTestIndex = new Request("PUT", "/test_index_old");
+            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            client().performRequest(createTestIndex);
 
-            client().performRequest(createWatch);
+            Request bulk = new Request("POST", "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
+                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            client().performRequest(bulk);
 
-            Request getTasksIndex = new Request("GET", "/.watches");
+            // start a async reindex job
+            Request reindex = new Request("POST", "/_reindex");
+            reindex.setJsonEntity(
+                "{\n" +
+                    "  \"source\":{\n" +
+                    "    \"index\":\"test_index_old\"\n" +
+                    "  },\n" +
+                    "  \"dest\":{\n" +
+                    "    \"index\":\"test_index_reindex\"\n" +
+                    "  }\n" +
+                    "}");
+            reindex.addParameter("wait_for_completion", "false");
+            Map<String, Object> response = entityAsMap(client().performRequest(reindex));
+            String taskId = (String) response.get("task");
+
+            // wait for task
+            Request getTask = new Request("GET", "/_tasks/" + taskId);
+            getTask.addParameter("wait_for_completion", "true");
+            client().performRequest(getTask);
+
+            // make sure .tasks index exists
+            Request getTasksIndex = new Request("GET", "/.tasks");
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
@@ -65,7 +75,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
                 } catch (ResponseException e) {
-                    throw new AssertionError(".watcher index does not exist yet");
+                    throw new AssertionError(".tasks index does not exist yet");
                 }
             });
 
@@ -78,7 +88,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 List<Map<String, Object>> features = view.get("features");
                 Map<String, Object> feature = features.stream()
-                    .filter(e -> "watcher".equals(e.get("feature_name")))
+                    .filter(e -> "tasks".equals(e.get("feature_name")))
                     .findFirst()
                     .orElse(Collections.emptyMap());
 

@@ -70,7 +70,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
      * @throws IOException if any exceptions occur
      */
     @Override
-    public ClusterState execute(final ClusterState currentState) throws IOException {
+    public ClusterState doExecute(final ClusterState currentState) throws IOException {
         Step currentStep = startStep;
         IndexMetadata indexMetadata = currentState.metadata().index(index);
         if (indexMetadata == null) {
@@ -172,25 +172,23 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     @Override
     public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (oldState.equals(newState) == false) {
-            IndexMetadata indexMetadata = newState.metadata().index(index);
-            if (indexMetadata != null) {
+        IndexMetadata indexMetadata = newState.metadata().index(index);
+        if (indexMetadata != null) {
 
-                LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-                if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
-                    lifecycleRunner.registerFailedOperation(indexMetadata, failure);
-                } else {
-                    lifecycleRunner.registerSuccessfulOperation(indexMetadata);
-                }
+            LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
+                lifecycleRunner.registerFailedOperation(indexMetadata, failure);
+            } else {
+                lifecycleRunner.registerSuccessfulOperation(indexMetadata);
+            }
 
-                if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {
-                    logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
+            if (nextStepKey != null && nextStepKey != TerminalPolicyStep.KEY) {
+                logger.trace("[{}] step sequence starting with {} has completed, running next step {} if it is an async action",
                         index.getName(), startStep.getKey(), nextStepKey);
-                    // After the cluster state has been processed and we have moved
-                    // to a new step, we need to conditionally execute the step iff
-                    // it is an `AsyncAction` so that it is executed exactly once.
-                    lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
-                }
+                // After the cluster state has been processed and we have moved
+                // to a new step, we need to conditionally execute the step iff
+                // it is an `AsyncAction` so that it is executed exactly once.
+                lifecycleRunner.maybeRunAsyncAction(newState, indexMetadata, policy, nextStepKey);
             }
         }
     }

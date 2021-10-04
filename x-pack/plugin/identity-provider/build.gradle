@@ -13,9 +13,7 @@ archivesBaseName = 'x-pack-identity-provider'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  // So that we can extend LocalStateCompositeXPackPlugin
-  testImplementation(testArtifact(project(xpackModule('security'))))
+
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:${versions.opensaml}"
   api "org.opensaml:opensaml-saml-api:${versions.opensaml}"
@@ -52,6 +50,12 @@ dependencies {
 
   testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  // So that we can extend LocalStateCompositeXPackPlugin
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(':modules:lang-mustache')
+  internalClusterTestImplementation project(":modules:analysis-common")
+
 }
 
 tasks.named("dependencyLicenses").configure {

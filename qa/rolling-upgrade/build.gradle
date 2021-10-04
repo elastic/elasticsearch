@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -15,7 +14,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
   /*
    * The goal here is to:
    * <ul>
@@ -30,11 +29,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
    * </ul>
    */
 
-  String bwcVersionString = bwcVersion.toString()
-  String baseName = "v" + bwcVersionString
-
   def baseCluster = testClusters.register(baseName) {
-    versions = [bwcVersionString, project.version]
+    versions = [bwcVersion.toString(), project.version]
     numberOfNodes = 3
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
@@ -97,5 +93,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#upgradedClusterTest")
+  }
+}
+
+testClusters.configureEach {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

@@ -1,4 +1,4 @@
-[discreet]
+[discrete]
 [[breaking_80_monitoring_changes]]
 === Monitoring changes
 

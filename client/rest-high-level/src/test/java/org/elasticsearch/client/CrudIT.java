@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -924,7 +925,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testUrlEncode() throws IOException {
         String indexPattern = "<logstash-{now/M}>";
         String expectedIndex = "logstash-" +
-            DateTimeFormatter.ofPattern("uuuu.MM.dd").format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1).with(LocalTime.MIN));
+            DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1).with(LocalTime.MIN));
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern).id("id#1");
             indexRequest.source("field", "value");

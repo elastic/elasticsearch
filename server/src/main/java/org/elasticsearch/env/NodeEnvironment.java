@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.SuppressForbidden;
@@ -346,9 +347,10 @@ public final class NodeEnvironment  implements Closeable {
 
     private static String readFileContents(Path nodesPath) throws IOException {
         final int maxBytes = 256;
+
         try (FileChannel fileChannel = FileChannel.open(nodesPath, StandardOpenOption.READ)) {
             final ByteBuffer byteBuffer = ByteBuffer.allocate(maxBytes);
-            final int len = fileChannel.read(byteBuffer);
+            final int len = Channels.readFromFileChannel(fileChannel, 0, byteBuffer);
             byteBuffer.flip();
 
             final CharsetDecoder charsetDecoder = StandardCharsets.UTF_8

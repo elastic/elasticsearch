@@ -323,7 +323,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         indexSpec.array("routing_path", new String[] {"metricset", "k8s.pod.uid"});
         indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
-        client().performRequest(createIndex);
+        assertEquals(client().performRequest(createIndex).getEntity().toString(), "ADSFADSF");
     }
 
     private void tsdbBulk(StringBuilder bulk, String dim, long timeStart, long timeEnd, double rate) throws IOException {

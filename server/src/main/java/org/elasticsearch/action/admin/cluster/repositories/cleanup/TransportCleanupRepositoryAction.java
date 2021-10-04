@@ -201,7 +201,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             );
                         }
                         SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                        if (snapshots.entries().isEmpty() == false) {
+                        if (snapshots.isEmpty() == false) {
                             throw new IllegalStateException(
                                 "Cannot cleanup [" + repositoryName + "] - a snapshot is currently running in [" + snapshots + "]"
                             );

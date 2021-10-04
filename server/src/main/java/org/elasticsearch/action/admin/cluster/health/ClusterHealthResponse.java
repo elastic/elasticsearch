@@ -101,8 +101,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    private static final boolean ES_REQUEST_TIMEOUT_200 = Boolean.parseBoolean(System.getProperty(
-        "es.cluster_health.request_timeout_200", "false"));
+    static final String CLUSTER_HEALTH_TIMEOUT_DEPRECATION_MSG = "HTTP status code for an internal cluster health timeout will be changed " +
+        "from 408 to 200 in 8.0.0. Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.";
 
     static {
         // ClusterStateHealth fields
@@ -136,7 +136,15 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
 
-    public ClusterHealthResponse() {}
+    private boolean esRequestTimeout200 = Boolean.parseBoolean(System.getProperty(
+        "es.cluster_health.request_timeout_200", "false"));
+
+    public ClusterHealthResponse() {
+    }
+
+    public ClusterHealthResponse(boolean esRequestTimeout200) {
+        this.esRequestTimeout200 = esRequestTimeout200;
+    }
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
@@ -149,6 +157,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         delayedUnassignedShards = in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
     }
+
+
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
@@ -307,13 +317,12 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (ES_REQUEST_TIMEOUT_200) {
+        if (esRequestTimeout200) {
             return RestStatus.OK;
+        } else {
+            deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_TIMEOUT_DEPRECATION_MSG);
+            return RestStatus.REQUEST_TIMEOUT;
         }
-        deprecationLogger.compatibleCritical("cluster_health_request_timeout",
-            "HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in a 8.0.0. " +
-                "Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.");
-        return RestStatus.REQUEST_TIMEOUT;
     }
 
     @Override

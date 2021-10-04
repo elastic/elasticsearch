@@ -137,9 +137,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (nodeId == null || replacementOngoing(metadata) == false) {
             return false;
         }
-        return metadata.nodeShutdowns().values().stream()
-            .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
-            .anyMatch(shutdown -> shutdown.getNodeId().equals(nodeId));
+        return metadata.nodeShutdowns().containsKey(nodeId) &&
+            metadata.nodeShutdowns().get(nodeId).getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
     }
 
     /**

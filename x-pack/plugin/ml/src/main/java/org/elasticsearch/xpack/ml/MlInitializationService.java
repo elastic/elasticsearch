@@ -6,16 +6,28 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -25,12 +37,16 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class MlInitializationService implements ClusterStateListener {
 
@@ -128,32 +144,111 @@ public class MlInitializationService implements ClusterStateListener {
 
     private void makeMlIndicesHidden() {
         String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
-        GetSettingsResponse getSettingsResponse =
-            client.admin().indices().prepareGetSettings()
-                .setIndices(mlHiddenIndexPatterns)
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .get();
-        String[] nonHiddenIndices =
-            getSettingsResponse.getIndexToSettings().stream()
-                .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
-                .map(Map.Entry::getKey)
-                .toArray(String[]::new);
-        if (nonHiddenIndices.length == 0) {
-            logger.debug("There are no ML internal indices that need to be made hidden, " + getSettingsResponse);
-            return;
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        LatchedActionListener<Boolean> listener = new LatchedActionListener<>(
+            ActionListener.wrap(
+                result -> logger.info("All the ML internal indices and aliases were successfully made hidden"),
+                e -> logger.error("An error occurred while making ML indices and aliases hidden", e)
+            ),
+            latch
+        );
+
+        ActionListener<AcknowledgedResponse> updateAliasesListener = ActionListener.wrap(
+            updateAliasesResponse -> {
+                if (updateAliasesResponse.isAcknowledged() == false) {
+                    logger.error("One or more of the following ML aliases could not be made hidden: {}", "sraka");
+                }
+                listener.onResponse(updateAliasesResponse.isAcknowledged());
+            },
+            listener::onFailure
+        );
+
+        ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(
+            getAliasesResponse -> {
+                IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+                for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
+                    String index = entry.key;
+                    String[] nonHiddenAliases = entry.value.stream()
+                        .filter(metadata -> metadata.isHidden() == null || metadata.isHidden() == false)
+                        .map(AliasMetadata::alias)
+                        .toArray(String[]::new);
+                    if (nonHiddenAliases.length == 0) {
+                        continue;
+                    }
+                    indicesAliasesRequest.addAliasAction(
+                        IndicesAliasesRequest.AliasActions.add()
+                            .index(index)
+                            .aliases(entry.value.stream().map(AliasMetadata::alias).toArray(String[]::new))
+                            .isHidden(true));
+                }
+                if (indicesAliasesRequest.getAliasActions().isEmpty()) {
+                    logger.debug("There are no ML internal aliases that need to be made hidden, " + getAliasesResponse.getAliases());
+                    listener.onResponse(true);
+                    return;
+                }
+                String indicesWithNonHiddenAliasesString =
+                    indicesAliasesRequest.getAliasActions().stream()
+                        .map(aa -> aa.indices()[0] + "/" + String.join(",", aa.aliases()))
+                        .collect(Collectors.joining(", "));
+                logger.debug("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
+                executeAsyncWithOrigin(client, ML_ORIGIN, IndicesAliasesAction.INSTANCE, indicesAliasesRequest, updateAliasesListener);
+            },
+            listener::onFailure
+        );
+
+        ActionListener<AcknowledgedResponse> updateSettingsListener = ActionListener.wrap(
+            updateSettingsResponse -> {
+                if (updateSettingsResponse.isAcknowledged() == false) {
+                    logger.error("One or more of the ML internal indices could not be made hidden.");
+                    listener.onResponse(false);
+                    return;
+                }
+                GetAliasesRequest getAliasesRequest = new GetAliasesRequest()
+                    .indices(mlHiddenIndexPatterns)
+                    .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+                executeAsyncWithOrigin(client, ML_ORIGIN, GetAliasesAction.INSTANCE, getAliasesRequest, getAliasesResponseListener);
+            },
+            listener::onFailure
+        );
+
+        ActionListener<GetSettingsResponse> getSettingsListener = ActionListener.wrap(
+            getSettingsResponse -> {
+                String[] nonHiddenIndices =
+                    getSettingsResponse.getIndexToSettings().stream()
+                        .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
+                        .map(Map.Entry::getKey)
+                        .toArray(String[]::new);
+                if (nonHiddenIndices.length == 0) {
+                    logger.debug("There are no ML internal indices that need to be made hidden, " + getSettingsResponse);
+                    listener.onResponse(true);
+                    return;
+                }
+                String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
+                logger.debug("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
+                UpdateSettingsRequest updateSettingsRequest =
+                    new UpdateSettingsRequest()
+                        .indices(nonHiddenIndices)
+                        .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                        .settings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true));
+                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateSettingsAction.INSTANCE, updateSettingsRequest, updateSettingsListener);
+            },
+            listener::onFailure
+        );
+
+        GetSettingsRequest getSettingsRequest =
+            new GetSettingsRequest()
+                .indices(mlHiddenIndexPatterns)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        getSettingsListener.onResponse(client.admin().indices().getSettings(getSettingsRequest).actionGet());
+//        executeAsyncWithOrigin(client, ML_ORIGIN, GetSettingsAction.INSTANCE, getSettingsRequest, getSettingsListener);
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            logger.error("Interrupted while making ML indices and aliases hidden", e);
         }
-        String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
-        logger.info("The following ML internal indices will now be made hidden: {}", nonHiddenIndicesString);
-        AcknowledgedResponse updateSettingsResponse =
-            client.admin().indices().prepareUpdateSettings()
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .setIndices(nonHiddenIndices)
-                .setSettings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true))
-                .get();
-        if (updateSettingsResponse.isAcknowledged() == false) {
-            logger.error("One or more of the following ML internal indices could not be made hidden: {}", nonHiddenIndicesString);
-        }
-        // TODO: Make aliases hidden
     }
 }
 

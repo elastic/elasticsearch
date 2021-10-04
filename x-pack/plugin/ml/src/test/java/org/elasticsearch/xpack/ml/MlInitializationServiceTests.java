@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -62,8 +61,11 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
 
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetSettingsResponse> getSettingsResponseActionFuture = mock(ActionFuture.class);
+        when(getSettingsResponseActionFuture.actionGet()).thenReturn(new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of()));
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(indicesAdminClient.prepareGetSettings()).thenReturn(new GetSettingsRequestBuilder(client, GetSettingsAction.INSTANCE));
+        when(indicesAdminClient.getSettings(any())).thenReturn(getSettingsResponseActionFuture);
         AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);

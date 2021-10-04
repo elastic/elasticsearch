@@ -16,7 +16,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -24,6 +28,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +66,26 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
             assertThatNoMlIndicesExist();
             // trigger ML indices creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
+            openAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
+
+            Request getAliasesRequest = new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+            getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(systemAliasWarning);
+                v.compatible(systemAliasWarning);
+            }));
+            Response getAliasesResponse = client().performRequest(getAliasesRequest);
+            Map<String, Object> aliasesMap = contentAsMap(getAliasesResponse);
+            List<Tuple<String, String>> expected =
+                List.of(
+                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
+                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME),
+                    Tuple.tuple(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
+            for (Tuple<String, String> indexAndAlias : expected) {
+                assertThat(
+                    indexAndAlias + " should not be hidden",
+                    XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
+                    is(nullValue()));
+            }
 
             if (getOldClusterVersion().before(Version.V_7_7_0)) {
                 Map<String, Object> indexSettings = contentAsMap(getMlIndicesSettings());
@@ -89,14 +114,38 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
                     is(equalTo("true")));
             }
+
+            Request getAliasesRequest = new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+            getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(systemAliasWarning);
+                v.compatible(systemAliasWarning);
+            }));
+            Response getAliasesResponse = client().performRequest(getAliasesRequest);
+            Map<String, Object> aliasesMap = contentAsMap(getAliasesResponse);
+            // TODO: Include all the ML aliases
+            List<Tuple<String, String>> expected =
+                List.of(
+                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
+                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
+                );
+            for (Tuple<String, String> indexAndAlias : expected) {
+                assertThat(
+                    indexAndAlias + " should be hidden, " + aliasesMap,
+                    XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
+                    is(true));
+            }
         }
     }
+
+    private static final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
+        "access to system indices will be prevented by default";
+
+    private static final String systemAliasWarning = "this request accesses aliases with names reserved for system indices: [.security], " +
+        "but in a future major version, direct access to system indices and their aliases will not be allowed";
 
     private Response getMlIndicesSettings() throws IOException {
         Request getSettingsRequest = new Request("GET", ".ml-*/_settings");
         getSettingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
-                "access to system indices will be prevented by default";
             v.current(systemIndexWarning);
             v.compatible(systemIndexWarning);
         }));
@@ -136,5 +185,11 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         putJobRequest.setJsonEntity(jobConfig);
         Response putJobResponse = client().performRequest(putJobRequest);
         assertThat(putJobResponse.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    private void openAnomalyDetectorJob(String jobId) throws IOException {
+        Request openJobRequest = new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_open");
+        Response openJobResponse = client().performRequest(openJobRequest);
+        assertThat(openJobResponse.getStatusLine().getStatusCode(), equalTo(200));
     }
 }

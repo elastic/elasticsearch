@@ -161,7 +161,8 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 }
 
 subprojects {
-  apply plugin:'elasticsearch.base'
+  apply plugin: 'elasticsearch.base'
+}
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see

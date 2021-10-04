@@ -41,9 +41,9 @@ import static org.elasticsearch.action.ActionListener.wrap;
  * current enrich index the enrich alias of an policy refers to. It would require checking
  * all cached entries on each cluster state update)
  */
-public final class EnrichCache {
+public class EnrichCache {
 
-    private final Cache<CacheKey, CompletableFuture<SearchResponse>> cache;
+    protected final Cache<CacheKey, CompletableFuture<SearchResponse>> cache;
     private volatile Metadata metadata;
 
     EnrichCache(long maxSize) {
@@ -57,9 +57,7 @@ public final class EnrichCache {
      * @return the cached value or null
      */
     CompletableFuture<SearchResponse> get(SearchRequest searchRequest) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
-
+        CacheKey cacheKey = toKey(searchRequest);
         return cache.get(cacheKey);
     }
 
@@ -93,8 +91,7 @@ public final class EnrichCache {
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchDispatcher,
         BiConsumer<SearchResponse, Exception> callBack
     ) {
-        String enrichIndex = getEnrichIndexKey(searchRequest);
-        CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
+        CacheKey cacheKey = toKey(searchRequest);
         try {
             CompletableFuture<SearchResponse> cacheEntry = cache.computeIfAbsent(cacheKey, request -> {
                 CompletableFuture<SearchResponse> completableFuture = new CompletableFuture<>();
@@ -117,6 +114,11 @@ public final class EnrichCache {
         } catch (ExecutionException e) {
             callBack.accept(null, e);
         }
+    }
+
+    protected CacheKey toKey(SearchRequest searchRequest) {
+        String enrichIndex = getEnrichIndexKey(searchRequest);
+        return new CacheKey(enrichIndex, searchRequest);
     }
 
     private String getEnrichIndexKey(SearchRequest searchRequest) {

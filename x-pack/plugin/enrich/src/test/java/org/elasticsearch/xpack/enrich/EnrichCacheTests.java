@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -93,16 +94,20 @@ public class EnrichCacheTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
 
-        var enrichCache = new EnrichCache(3);
+        var enrichCache = new EnrichCache(3) {
+            void warmCache(SearchRequest searchRequest, SearchResponse entry) {
+                this.cache.put(toKey(searchRequest), CompletableFuture.completedFuture(entry));
+            }
+        };
         enrichCache.setMetadata(metadata);
         // warming the cache means there's a miss
-        warmCache(enrichCache, searchRequest1, searchResponse);
-        warmCache(enrichCache, searchRequest2, searchResponse);
-        warmCache(enrichCache, searchRequest3, searchResponse);
+        enrichCache.warmCache(searchRequest1, searchResponse);
+        enrichCache.warmCache(searchRequest2, searchResponse);
+        enrichCache.warmCache(searchRequest3, searchResponse);
         var cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(0L));
-        assertThat(cacheStats.getMisses(), equalTo(3L));
+        assertThat(cacheStats.getMisses(), equalTo(0L));
         assertThat(cacheStats.getEvictions(), equalTo(0L));
 
         assertThat(enrichCache.get(searchRequest1), notNullValue());
@@ -112,14 +117,14 @@ public class EnrichCacheTests extends ESTestCase {
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(4L));
+        assertThat(cacheStats.getMisses(), equalTo(1L));
         assertThat(cacheStats.getEvictions(), equalTo(0L));
 
-        warmCache(enrichCache, searchRequest4, searchResponse);
+        enrichCache.warmCache(searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(3L));
-        assertThat(cacheStats.getMisses(), equalTo(5L));
+        assertThat(cacheStats.getMisses(), equalTo(1L));
         assertThat(cacheStats.getEvictions(), equalTo(1L));
 
         // Simulate enrich policy execution, which should make current cache entries unused.
@@ -148,9 +153,9 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(searchRequest4), nullValue());
 
         // Add new entries using new enrich index name as key
-        warmCache(enrichCache, searchRequest1, searchResponse);
-        warmCache(enrichCache, searchRequest2, searchResponse);
-        warmCache(enrichCache, searchRequest3, searchResponse);
+        enrichCache.warmCache(searchRequest1, searchResponse);
+        enrichCache.warmCache(searchRequest2, searchResponse);
+        enrichCache.warmCache(searchRequest3, searchResponse);
 
         // Entries can now be served:
         assertThat(enrichCache.get(searchRequest1), notNullValue());
@@ -160,12 +165,8 @@ public class EnrichCacheTests extends ESTestCase {
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(6L));
-        assertThat(cacheStats.getMisses(), equalTo(13L));
+        assertThat(cacheStats.getMisses(), equalTo(6L));
         assertThat(cacheStats.getEvictions(), equalTo(4L));
-    }
-
-    private void warmCache(EnrichCache enrichCache, SearchRequest key, SearchResponse entry) {
-        enrichCache.resolveOrDispatchSearch(key, (req, handler) -> handler.onResponse(entry), (value, exception) -> {});
     }
 
     public void testNonblocking() throws ExecutionException {

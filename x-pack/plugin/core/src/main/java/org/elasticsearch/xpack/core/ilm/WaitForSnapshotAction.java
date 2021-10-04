@@ -53,6 +53,10 @@ public class WaitForSnapshotAction implements LifecycleAction {
         this(in.readString());
     }
 
+    public String getPolicy() {
+        return policy;
+    }
+
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey waitForSnapshotKey = new StepKey(phase, NAME, WaitForSnapshotStep.NAME);

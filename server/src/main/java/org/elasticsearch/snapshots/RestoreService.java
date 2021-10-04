@@ -1545,7 +1545,7 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private void ensureValidIndexName(ClusterState currentState, IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
-        final boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(snapshotIndexMetadata.getSettings());
+        final boolean isHidden = snapshotIndexMetadata.isHidden();
         createIndexService.validateIndexName(renamedIndexName, currentState);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);

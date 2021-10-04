@@ -26,8 +26,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
     ValuesSource.Numeric,
     ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
@@ -73,6 +74,11 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     public ExtendedStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         sigma = in.readDouble();
+    }
+
+    @Override
+    public Set<String> metricNames() {
+        return InternalExtendedStats.METRIC_NAMES;
     }
 
     @Override

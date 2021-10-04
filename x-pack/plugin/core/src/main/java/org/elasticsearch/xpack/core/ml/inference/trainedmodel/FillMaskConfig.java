@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
@@ -25,23 +25,23 @@ import java.util.Optional;
 public class FillMaskConfig implements NlpConfig {
 
     public static final String NAME = "fill_mask";
+    public static final int DEFAULT_NUM_RESULTS = 5;
 
     public static FillMaskConfig fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null);
+        return STRICT_PARSER.apply(parser, null).build();
     }
 
     public static FillMaskConfig fromXContentLenient(XContentParser parser) {
-        return LENIENT_PARSER.apply(parser, null);
+        return LENIENT_PARSER.apply(parser, null).build();
     }
 
-    private static final ConstructingObjectParser<FillMaskConfig, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<FillMaskConfig, Void> LENIENT_PARSER = createParser(true);
+    private static final ObjectParser<FillMaskConfig.Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<FillMaskConfig.Builder, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<FillMaskConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<FillMaskConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new FillMaskConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
+    private static ObjectParser<FillMaskConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<FillMaskConfig.Builder, Void> parser = new ObjectParser<>(NAME, ignoreUnknownFields, Builder::new);
         parser.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
+            Builder::setVocabularyConfig,
             (p, c) -> {
                 if (ignoreUnknownFields == false) {
                     throw ExceptionsHelper.badRequestException(
@@ -54,24 +54,35 @@ public class FillMaskConfig implements NlpConfig {
             VOCABULARY
         );
         parser.declareNamedObject(
-            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
+            Builder::setTokenization, (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
                 TOKENIZATION
         );
+        parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
+        parser.declareString(Builder::setResultsField, RESULTS_FIELD);
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
+    private final int numTopClasses;
+    private final String resultsField;
 
-    public FillMaskConfig(@Nullable VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
+    public FillMaskConfig(@Nullable VocabularyConfig vocabularyConfig,
+                          @Nullable Tokenization tokenization,
+                          @Nullable Integer numTopClasses,
+                          @Nullable String resultsField) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
+        this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_RESULTS : numTopClasses;
+        this.resultsField = resultsField;
     }
 
     public FillMaskConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
+        numTopClasses = in.readInt();
+        resultsField = in.readOptionalString();
     }
 
     @Override
@@ -79,6 +90,10 @@ public class FillMaskConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
+        builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
         builder.endObject();
         return builder;
     }
@@ -92,6 +107,8 @@ public class FillMaskConfig implements NlpConfig {
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
+        out.writeInt(numTopClasses);
+        out.writeOptionalString(resultsField);
     }
 
     @Override
@@ -116,12 +133,14 @@ public class FillMaskConfig implements NlpConfig {
 
         FillMaskConfig that = (FillMaskConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
-            && Objects.equals(tokenization, that.tokenization);
+            && Objects.equals(tokenization, that.tokenization)
+            && Objects.equals(resultsField, that.resultsField)
+            && numTopClasses == that.numTopClasses;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization);
+        return Objects.hash(vocabularyConfig, tokenization, numTopClasses, resultsField);
     }
 
     @Override
@@ -134,8 +153,60 @@ public class FillMaskConfig implements NlpConfig {
         return tokenization;
     }
 
+    public int getNumTopClasses() {
+        return numTopClasses;
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
+    }
+
     @Override
     public boolean isAllocateOnly() {
         return true;
+    }
+
+    public static class Builder {
+        private VocabularyConfig vocabularyConfig;
+        private Tokenization tokenization;
+        private int numTopClasses;
+        private String resultsField;
+
+        Builder() {}
+
+        Builder(FillMaskConfig config) {
+            this.vocabularyConfig = config.vocabularyConfig;
+            this.tokenization = config.tokenization;
+            this.numTopClasses = config.numTopClasses;
+            this.resultsField = config.resultsField;
+        }
+
+        public FillMaskConfig.Builder setVocabularyConfig(VocabularyConfig vocabularyConfig) {
+            this.vocabularyConfig = vocabularyConfig;
+            return this;
+        }
+
+        public FillMaskConfig.Builder setTokenization(Tokenization tokenization) {
+            this.tokenization = tokenization;
+            return this;
+        }
+
+        public FillMaskConfig.Builder setNumTopClasses(Integer numTopClasses) {
+            this.numTopClasses = numTopClasses;
+            return this;
+        }
+
+        public FillMaskConfig.Builder setResultsField(String resultsField) {
+            this.resultsField = resultsField;
+            return this;
+        }
+
+        public FillMaskConfig build() {
+            return new FillMaskConfig(vocabularyConfig,
+                tokenization,
+                numTopClasses,
+                resultsField);
+        }
     }
 }

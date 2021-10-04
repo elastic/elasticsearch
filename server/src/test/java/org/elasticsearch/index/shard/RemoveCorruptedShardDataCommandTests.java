@@ -131,7 +131,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
             final NodeEnvironment.NodePath dataPath = lock.getNodePath();
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(dataPath.path, nodeId,
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(new Path[] { dataPath.path }, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, clusterState);

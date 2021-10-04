@@ -16,9 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterApplierRecordingServiceTests extends ESTestCase {
 

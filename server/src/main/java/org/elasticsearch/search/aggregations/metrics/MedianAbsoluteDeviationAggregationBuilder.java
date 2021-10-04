@@ -20,7 +20,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.LeafOnly;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -30,7 +30,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSource.Numeric, MedianAbsoluteDeviationAggregationBuilder> {
+public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggregationBuilder<
+    ValuesSource.Numeric,
+    MedianAbsoluteDeviationAggregationBuilder> {
 
     public static final String NAME = "median_absolute_deviation";
     public static final ValuesSourceRegistry.RegistryKey<MedianAbsoluteDeviationAggregatorSupplier> REGISTRY_KEY =

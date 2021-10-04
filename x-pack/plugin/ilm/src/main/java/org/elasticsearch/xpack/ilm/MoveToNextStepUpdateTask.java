@@ -42,7 +42,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) {
+    public ClusterState doExecute(ClusterState currentState) {
         IndexMetadata indexMetadata = currentState.getMetadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
@@ -64,9 +64,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
 
     @Override
     public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (oldState.equals(newState) == false) {
-            stateChangeConsumer.accept(newState);
-        }
+        stateChangeConsumer.accept(newState);
     }
 
     @Override

@@ -26,7 +26,9 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.LongSupplier;
 
 public final class ClusterApplierRecordingService {
 
@@ -36,7 +38,7 @@ public final class ClusterApplierRecordingService {
         return new Stats(
             recordedActions.entrySet().stream()
                 .sorted(Comparator.<Map.Entry<String, MeanMetric>>comparingLong(o -> o.getValue().sum()).reversed())
-                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, e -> new Recording(e.getValue().count(), e.getValue().sum())))
+                .collect(Maps.toUnmodifiableOrderedMap(Map.Entry::getKey, v -> new Recording(v.getValue().count(), v.getValue().sum())))
         );
     }
 
@@ -56,9 +58,14 @@ public final class ClusterApplierRecordingService {
     static final class Recorder {
 
         private String currentAction;
-        private long startTimeNS;
+        private long startTimeMS;
         private boolean recording;
         private final List<Tuple<String, Long>> recordings = new LinkedList<>();
+        private final LongSupplier currentTimeSupplier;
+
+        Recorder(LongSupplier currentTimeSupplier) {
+            this.currentTimeSupplier = currentTimeSupplier;
+        }
 
         Releasable record(String action) {
             if (recording) {
@@ -67,13 +74,13 @@ public final class ClusterApplierRecordingService {
 
             this.recording = true;
             this.currentAction = action;
-            this.startTimeNS = System.nanoTime();
+            this.startTimeMS = currentTimeSupplier.getAsLong();
             return this::stop;
         }
 
         void stop() {
             recording = false;
-            long timeSpentMS = TimeValue.nsecToMSec(System.nanoTime() - this.startTimeNS);
+            long timeSpentMS = currentTimeSupplier.getAsLong() - this.startTimeMS;
             recordings.add(new Tuple<>(currentAction, timeSpentMS));
         }
 
@@ -90,8 +97,12 @@ public final class ClusterApplierRecordingService {
             this.recordings = recordings;
         }
 
+        public Map<String, Recording> getRecordings() {
+            return recordings;
+        }
+
         public Stats(StreamInput in) throws IOException {
-            this(in.readMap(StreamInput::readString, Recording::new));
+            this(in.readOrderedMap(StreamInput::readString, Recording::new));
         }
 
         @Override
@@ -116,6 +127,19 @@ public final class ClusterApplierRecordingService {
             out.writeMap(recordings, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats stats = (Stats) o;
+            return Objects.equals(recordings, stats.recordings);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(recordings);
+        }
+
         public static class Recording implements Writeable {
 
             private final long count;
@@ -134,6 +158,27 @@ public final class ClusterApplierRecordingService {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeVLong(count);
                 out.writeVLong(sum);
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Recording recording = (Recording) o;
+                return count == recording.count && sum == recording.sum;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(count, sum);
+            }
+
+            @Override
+            public String toString() {
+                return "Recording{" +
+                    "count=" + count +
+                    ", sum=" + sum +
+                    '}';
             }
         }
     }

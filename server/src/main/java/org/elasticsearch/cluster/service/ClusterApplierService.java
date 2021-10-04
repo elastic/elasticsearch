@@ -391,7 +391,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ClusterState previousClusterState = state.get();
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
-        final Recorder stopWatch = new Recorder();
+        final Recorder stopWatch = new Recorder(threadPool::rawRelativeTimeInMillis);
         final ClusterState newClusterState;
         try {
             try (Releasable ignored = stopWatch.record("running task [" + source + ']')) {

@@ -26,17 +26,17 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     private final PendingClusterStateStats queueStats;
     private final PublishClusterStateStats publishStats;
     private final ClusterStateUpdateStats clusterStateUpdateStats;
-    private final ClusterApplierRecordingService.Stats timeTrackerStats;
+    private final ClusterApplierRecordingService.Stats applierRecordingStats;
 
     public DiscoveryStats(
         PendingClusterStateStats queueStats,
         PublishClusterStateStats publishStats,
         ClusterStateUpdateStats clusterStateUpdateStats,
-        ClusterApplierRecordingService.Stats timeTrackerStats) {
+        ClusterApplierRecordingService.Stats applierRecordingStats) {
         this.queueStats = queueStats;
         this.publishStats = publishStats;
         this.clusterStateUpdateStats = clusterStateUpdateStats;
-        this.timeTrackerStats = timeTrackerStats;
+        this.applierRecordingStats = applierRecordingStats;
     }
 
     public DiscoveryStats(StreamInput in) throws IOException {
@@ -48,9 +48,9 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
             clusterStateUpdateStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            timeTrackerStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
+            applierRecordingStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
         } else {
-            timeTrackerStats = null;
+            applierRecordingStats = null;
         }
     }
 
@@ -62,7 +62,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(clusterStateUpdateStats);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(timeTrackerStats);
+            out.writeOptionalWriteable(applierRecordingStats);
         }
     }
 
@@ -78,8 +78,8 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         if (clusterStateUpdateStats != null) {
             clusterStateUpdateStats.toXContent(builder, params);
         }
-        if (timeTrackerStats != null) {
-            timeTrackerStats.toXContent(builder, params);
+        if (applierRecordingStats != null) {
+            applierRecordingStats.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -101,7 +101,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         return publishStats;
     }
 
-    public ClusterApplierRecordingService.Stats getTimeTrackerStats() {
-        return timeTrackerStats;
+    public ClusterApplierRecordingService.Stats getApplierRecordingStats() {
+        return applierRecordingStats;
     }
 }

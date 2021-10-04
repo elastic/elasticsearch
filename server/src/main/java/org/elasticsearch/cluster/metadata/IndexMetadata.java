@@ -393,6 +393,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final IndexLongFieldRange timestampRange;
 
+    private final int priority;
+
+    private final long creationDate;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -419,7 +423,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
             final boolean isHidden,
-            final IndexLongFieldRange timestampRange) {
+            final IndexLongFieldRange timestampRange,
+            final int priority,
+            final long creationDate) {
 
         this.index = index;
         this.version = version;
@@ -454,6 +460,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
         this.isHidden = isHidden;
         this.timestampRange = timestampRange;
+        this.priority = priority;
+        this.creationDate = creationDate;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -513,7 +521,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public long getCreationDate() {
-        return settings.getAsLong(SETTING_CREATION_DATE, -1L);
+        return creationDate;
     }
 
     public State getState() {
@@ -938,6 +946,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isHidden;
     }
 
+    public int priority() {
+        return priority;
+    }
+
     public static Builder builder(String index) {
         return new Builder(index);
     }
@@ -1214,9 +1226,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public IndexMetadata build() {
-            ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
-            Settings tmpSettings = settings;
-
             /*
              * We expect that the metadata has been properly built to set the number of shards and the number of replicas, and do not rely
              * on the default values here. Those must have been set upstream.
@@ -1302,9 +1311,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     state,
                     numberOfShards,
                     numberOfReplicas,
-                    tmpSettings,
+                    settings,
                     mappings.build(),
-                    tmpAliases.build(),
+                    aliases.build(),
                     customMetadata.build(),
                     filledInSyncAllocationIds.build(),
                     requireFilters,
@@ -1318,7 +1327,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     rolloverInfos.build(),
                     isSystem,
                     INDEX_HIDDEN_SETTING.get(settings),
-                    timestampRange);
+                    timestampRange,
+                    IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
+                    settings.getAsLong(SETTING_CREATION_DATE, -1L)
+            );
         }
 
         @SuppressWarnings("unchecked")

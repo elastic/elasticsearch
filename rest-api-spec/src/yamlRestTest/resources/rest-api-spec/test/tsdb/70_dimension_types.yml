@@ -1,0 +1,137 @@
+keyword dimension:
+  - skip:
+      features: close_to
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                uid:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.6}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.1}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.6}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.1}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.3}'
+  - is_false: errors
+
+  # TODO aggregate on tsid
+
+---
+long dimension:
+  - skip:
+      features: close_to
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                id:
+                  type: long
+                  time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "id": 1, "voltage": 7.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "id": "1", "voltage": 7.6}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "id": 1.0, "voltage": 7.1}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "id": "001", "voltage": 7.3}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "id": 2, "voltage": 3.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "id": 2, "voltage": 3.6}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "id": 2, "voltage": 3.1}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "id": 2, "voltage": 3.3}'
+
+  # TODO aggregate on tsid
+
+---
+ip dimension:
+  - skip:
+      features: close_to
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                ip:
+                  type: ip
+                  time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "ip": "10.10.1.1", "voltage": 7.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "ip": "10.10.1.1", "voltage": 7.6}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "ip": "10.10.1.1", "voltage": 7.1}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "ip": "::ffff:10.10.1.1", "voltage": 7.3}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334", "voltage": 3.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "ip": "2001:0db8:85a3:0:0:8a2e:0370:7334", "voltage": 3.6}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "ip": "2001:0db8:85a3::8a2e:0370:7334", "voltage": 3.1}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "ip": "2001:0db8:85a3::8a2e:0370:7334", "voltage": 3.3}'
+
+  # TODO aggregate on tsid

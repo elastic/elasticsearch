@@ -28,7 +28,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         final Metadata metadata = allocation.metadata();
         if (replacementOngoing(metadata) == false) {
             return NO_REPLACEMENTS;
-        } else if (replacementFromSourceToTarget(metadata, shardRouting.currentNodeId(), node.nodeId())) {
+        } else if (replacementFromSourceToTarget(metadata, shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(Decision.Type.YES, NAME,
                 "node [%s] is replacing node [%s], and may receive shards from it", shardRouting.currentNodeId(), node.nodeId());
         } else if (isReplacementSource(metadata, shardRouting.currentNodeId())) {
@@ -95,7 +95,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canForceDuringVacate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (replacementFromSourceToTarget(allocation.metadata(), shardRouting.currentNodeId(), node.nodeId())) {
+        if (replacementFromSourceToTarget(allocation.metadata(), shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(Decision.Type.YES, NAME,
                 "node [%s] is being replaced by node [%s], and can be force vacated to the target",
                 shardRouting.currentNodeId(), node.nodeId());
@@ -116,17 +116,18 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     /**
      * Returns true if there is a replacement currently ongoing from the source to the target node id
      */
-    private static boolean replacementFromSourceToTarget(Metadata metadata, String sourceNodeId, String targetNodeId) {
+    private static boolean replacementFromSourceToTarget(Metadata metadata, String sourceNodeId, String targetNodeName) {
         if (replacementOngoing(metadata) == false) {
             return false;
         }
-        if (sourceNodeId == null || targetNodeId == null) {
+        if (sourceNodeId == null || targetNodeName == null) {
             return false;
         }
-        return metadata.nodeShutdowns().values().stream()
-            .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
-            .filter(shutdown -> shutdown.getNodeId().equals(sourceNodeId))
-            .anyMatch(shutdown -> shutdown.getTargetNodeName().equals(targetNodeId));
+        final SingleNodeShutdownMetadata shutdown = metadata.nodeShutdowns().get(sourceNodeId);
+        return shutdown != null &&
+            shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE) &&
+            shutdown.getNodeId().equals(sourceNodeId) &&
+            shutdown.getTargetNodeName().equals(targetNodeName);
     }
 
     /**

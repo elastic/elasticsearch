@@ -12,7 +12,7 @@ import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
+import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;

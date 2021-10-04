@@ -269,9 +269,7 @@ tasks.named("licenseHeaders").configure {
 
 tasks.named('splitPackagesAudit').configure {
     // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.apache.lucene.queries.BlendedTermQuery',
-    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
-    'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
+  ignoreClasses 'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
     'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
     'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
     'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',

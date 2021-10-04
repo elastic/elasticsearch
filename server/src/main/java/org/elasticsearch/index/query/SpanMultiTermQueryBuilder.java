@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;

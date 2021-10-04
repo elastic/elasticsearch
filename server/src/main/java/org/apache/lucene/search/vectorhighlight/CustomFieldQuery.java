@@ -10,7 +10,7 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
+import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BoostQuery;

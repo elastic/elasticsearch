@@ -40,8 +40,8 @@ nodes.
 [%collapsible]
 ====
 *Details* +
-The `code` field is replaced by the `source` as the only way to specify the
-source of a script.
+The `code` field is replaced by the `source` field as the only way to specify
+the source of a script.
 
 *Impact* +
 Before upgrading, any calls to PutStoredScript should use `source` instead

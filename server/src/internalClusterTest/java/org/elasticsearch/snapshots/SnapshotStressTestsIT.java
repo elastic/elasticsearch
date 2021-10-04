@@ -188,7 +188,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
      *
      * - indexing docs, deleting and re-creating the indices
      * - restarting nodes
-     * - removing and adding repositores
+     * - removing and adding repositories
      * - taking snapshots (sometimes partial), cloning them, and deleting them
      *
      * It ensures that these operations should succeed via a system of shared/exclusive locks implemented via permits: acquiring a single
@@ -315,35 +315,35 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             assertTrue(shouldStop.compareAndSet(false, true));
             final long permitDeadlineMillis = threadPool.relativeTimeInMillis() + TimeUnit.SECONDS.toMillis(30);
 
-            final List<String> failedPermitAcquistions = new ArrayList<>();
+            final List<String> failedPermitAcquisitions = new ArrayList<>();
             acquirePermitsAtEnd(
                 repositories.values().stream().map(n -> Tuple.tuple(n.repositoryName, n.permits)),
-                failedPermitAcquistions,
+                failedPermitAcquisitions,
                 permitDeadlineMillis
             );
             acquirePermitsAtEnd(
                 snapshots.values().stream().map(n -> Tuple.tuple(n.snapshotName, n.permits)),
-                failedPermitAcquistions,
+                failedPermitAcquisitions,
                 permitDeadlineMillis
             );
             acquirePermitsAtEnd(
                 indices.values().stream().map(n -> Tuple.tuple(n.indexName, n.permits)),
-                failedPermitAcquistions,
+                failedPermitAcquisitions,
                 permitDeadlineMillis
             );
             acquirePermitsAtEnd(
                 nodes.values().stream().map(n -> Tuple.tuple(n.nodeName, n.permits)),
-                failedPermitAcquistions,
+                failedPermitAcquisitions,
                 permitDeadlineMillis
             );
 
-            if (failedPermitAcquistions.isEmpty() == false) {
-                logger.warn("--> failed to acquire all permits: {}", failedPermitAcquistions);
+            if (failedPermitAcquisitions.isEmpty() == false) {
+                logger.warn("--> failed to acquire all permits: {}", failedPermitAcquisitions);
                 logger.info(
                     "--> current cluster state:\n{}",
                     Strings.toString(client().admin().cluster().prepareState().get().getState(), true, true)
                 );
-                fail("failed to acquire all permits: " + failedPermitAcquistions);
+                fail("failed to acquire all permits: " + failedPermitAcquisitions);
             }
             logger.info("--> acquired all permits");
 
@@ -358,7 +358,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
         private void acquirePermitsAtEnd(
             Stream<Tuple<String, Semaphore>> labelledPermits,
-            List<String> failedPermitAcquistions,
+            List<String> failedPermitAcquisitions,
             long permitDeadlineMillis
         ) {
             labelledPermits.forEach(labelledPermit -> {
@@ -387,7 +387,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                 .map(NodeHotThreads::getHotThreads)
                                 .collect(Collectors.joining("\n"))
                         );
-                        failedPermitAcquistions.add(label);
+                        failedPermitAcquisitions.add(label);
                     }
                 } catch (InterruptedException e) {
                     logger.warn("--> interrupted while acquiring permit [{}]", label);

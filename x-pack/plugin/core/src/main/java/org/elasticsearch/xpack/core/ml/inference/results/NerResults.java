@@ -83,6 +83,7 @@ public class NerResults implements InferenceResults {
         return entityGroups;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }

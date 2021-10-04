@@ -1557,7 +1557,7 @@ public class IngestServiceTests extends ESTestCase {
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         request.setVersionedUpdate(true);
         request.setVersion(version);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> IngestService.innerPut(request, clusterState));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
             e.getMessage(),
             equalTo(String.format(
@@ -1585,7 +1585,7 @@ public class IngestServiceTests extends ESTestCase {
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         request.setVersionedUpdate(true);
         request.setVersion(requestedVersion);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> IngestService.innerPut(request, clusterState));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
             e.getMessage(),
             equalTo(String.format(
@@ -1613,7 +1613,7 @@ public class IngestServiceTests extends ESTestCase {
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         request.setVersionedUpdate(true);
         request.setVersion(version);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> IngestService.innerPut(request, clusterState));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
             e.getMessage(),
             equalTo(String.format(

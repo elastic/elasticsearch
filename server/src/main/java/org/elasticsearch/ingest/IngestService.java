@@ -446,7 +446,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (request.isVersionedUpdate()) {
             var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
             if (currentPipeline == null) {
-                throw new IllegalStateException(String.format(
+                throw new IllegalArgumentException(String.format(
                     Locale.ROOT,
                     "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
                     request.getVersion(),
@@ -456,7 +456,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             final Integer currentVersion = currentPipeline.getVersion();
             if (Objects.equals(request.getVersion(), currentVersion) == false) {
-                throw new IllegalStateException(String.format(
+                throw new IllegalArgumentException(String.format(
                     Locale.ROOT,
                     "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
                     request.getVersion(),
@@ -468,7 +468,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
             if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
-                throw new IllegalStateException(String.format(
+                throw new IllegalArgumentException(String.format(
                     Locale.ROOT,
                     "cannot update pipeline [%s] with the same version [%s]",
                     request.getId(),

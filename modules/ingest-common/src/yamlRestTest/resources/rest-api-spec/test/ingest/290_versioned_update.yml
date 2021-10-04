@@ -47,7 +47,7 @@
 
   # required version does not match specified version
   - do:
-      catch: /.*version conflict, required version \[99\] for pipeline \[my_pipeline\] but current version is \[1\].*/
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         if_version: 99
@@ -66,7 +66,7 @@
 
   # may not update to same version
   - do:
-      catch: /.*cannot update pipeline \[my_pipeline\] with the same version \[1\].*/
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         if_version: 1
@@ -86,7 +86,7 @@
 
   # cannot conditionally update non-existent pipeline
   - do:
-      catch: /.*version conflict, required version \[1\] for pipeline \[my_pipeline2\] but no pipeline was found.*/
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline2"
         if_version: 1

@@ -69,7 +69,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
@@ -87,7 +86,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static Set<String> nodeNames(ImmutableOpenMap<String, DiscoveryNode> nodesMap) {
-        return StreamSupport.stream(nodesMap.values().spliterator(), false).map(c -> c.value.getName()).collect(Collectors.toSet());
+        return nodesMap.stream().map(c -> c.getValue().getName()).collect(Collectors.toSet());
     }
 
     /**

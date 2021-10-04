@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterApplier;
 
@@ -19,7 +20,7 @@ public class NoOpClusterApplier implements ClusterApplier {
     }
 
     @Override
-    public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
-        listener.onSuccess();
+    public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 }

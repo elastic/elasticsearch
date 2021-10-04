@@ -41,6 +41,8 @@ public class PasswordToolsTests extends PackagingTestCase {
         install();
         // Enable security for this test only where it is necessary, until we can enable it for all
         ServerUtils.enableSecurityFeatures(installation);
+        // Disable auto-configuration so that we can run setup-passwords
+        ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
     public void test20GeneratePasswords() throws Exception {

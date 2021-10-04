@@ -15,8 +15,8 @@ public class ExampleWhitelistedInstance {
         this.value = value;
     }
 
-    public int addValue(int value) {
-        return this.value + value;
+    public int addValue(int valueToAdd) {
+        return this.value + valueToAdd;
     }
 
     public int getValue() {

@@ -46,6 +46,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -77,7 +78,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         builder.register(
             REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
-            (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, precision, boundingBox, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
@@ -89,6 +90,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                     DocValueFormat.GEOTILE,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -106,6 +108,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                             LongUnaryOperator.identity(),
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -191,7 +194,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), order());
+            .apply(config, precision, geoBoundingBox(), name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 
 }

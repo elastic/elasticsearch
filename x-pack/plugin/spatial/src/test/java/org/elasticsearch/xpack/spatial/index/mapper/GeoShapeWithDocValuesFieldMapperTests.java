@@ -227,6 +227,44 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(ignoreMalformed, equalTo(false));
     }
 
+    public void testIgnoreMalformedValues() throws IOException {
+
+        DocumentMapper ignoreMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            b.field("ignore_malformed", true);
+        }));
+        DocumentMapper failMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            b.field("ignore_malformed", false);
+        }));
+
+        {
+            BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "Bad shape")
+                .endObject()
+            );
+            SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+            ParsedDocument document = ignoreMapper.parse(sourceToParse);
+            assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
+            MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
+            assertThat(exception.getCause().getMessage(), containsString("Unknown geometry type: bad"));
+        }
+        {
+            BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869037, 18.9401790919517 " +
+                    "-33.9681188869037, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))")
+                .endObject()
+            );
+            SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+            ParsedDocument document = ignoreMapper.parse(sourceToParse);
+            assertThat(document.docs().get(0).getFields("field").length, equalTo(0));
+            MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
+            assertThat(exception.getCause().getMessage(), containsString("Cannot determine orientation"));
+        }
+    }
+
     /**
      * Test that doc_values parameter correctly parses
      */
@@ -281,6 +319,33 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(),
             containsString("using deprecated parameters [strategy] " +
                 "in mapper [field] of type [geo_shape] is no longer allowed"));
+    }
+
+    public void testGeoShapeLegacyMerge() throws Exception {
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape")));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
+
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
+        assertFieldWarnings("strategy");
+
+        MapperService lm = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
+        assertThat(e.getMessage(),
+            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
+        assertFieldWarnings("strategy");
+    }
+
+    private void assertFieldWarnings(String... fieldNames) {
+        String[] warnings = new String[fieldNames.length];
+        for (int i = 0; i < fieldNames.length; ++i) {
+            warnings[i] = "Parameter [" + fieldNames[i] + "] "
+                + "is deprecated and will be removed in a future version";
+        }
+        assertWarnings(warnings);
     }
 
     public void testSerializeDefaults() throws Exception {

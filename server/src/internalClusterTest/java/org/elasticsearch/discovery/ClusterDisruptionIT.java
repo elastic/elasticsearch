@@ -16,19 +16,22 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -40,6 +43,8 @@ import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,6 +64,11 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -494,4 +504,63 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
+    public void testRejoinWhileBeingRemoved() {
+        final String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
+            .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .build());
+        final String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
+            .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+            .build());
+
+        final ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNode);
+        final PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
+        masterClusterService.addListener(clusterChangedEvent -> {
+            if (removedNode.isDone() == false && clusterChangedEvent.state().nodes().getDataNodes().isEmpty()) {
+                removedNode.onResponse(null);
+            }
+        });
+
+        final ClusterService dataClusterService = internalCluster().getInstance(ClusterService.class, dataNode);
+        final PlainActionFuture<Void> failedLeader = new PlainActionFuture<>() {
+            @Override
+            protected boolean blockingAllowed() {
+                // we're deliberately blocking the cluster applier on the master until the data node starts to rejoin
+                return true;
+            }
+        };
+        final AtomicBoolean dataNodeHasMaster = new AtomicBoolean(true);
+        dataClusterService.addListener(clusterChangedEvent -> {
+            dataNodeHasMaster.set(clusterChangedEvent.state().nodes().getMasterNode() != null);
+            if (failedLeader.isDone() == false && dataNodeHasMaster.get() == false) {
+                failedLeader.onResponse(null);
+            }
+        });
+
+        masterClusterService.addHighPriorityApplier(event -> {
+            failedLeader.actionGet();
+            if (dataNodeHasMaster.get() == false) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            }
+        });
+
+        final MockTransportService dataTransportService
+            = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode);
+        dataTransportService.addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
+            if (removedNode.isDone() == false) {
+                channel.sendResponse(new ElasticsearchException("simulated check failure"));
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+
+        removedNode.actionGet(10, TimeUnit.SECONDS);
+        ensureStableCluster(2);
+    }
 }

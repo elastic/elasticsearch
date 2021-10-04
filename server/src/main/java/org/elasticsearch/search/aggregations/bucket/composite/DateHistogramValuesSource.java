@@ -26,10 +26,21 @@ public class DateHistogramValuesSource extends LongValuesSource implements Sized
         RoundingValuesSource roundingValuesSource,
         DocValueFormat format,
         boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, fieldType, roundingValuesSource::longValues, roundingValuesSource::round, format, missingBucket, size, reverseMul);
+        super(
+            bigArrays,
+            fieldType,
+            roundingValuesSource::longValues,
+            roundingValuesSource::round,
+            format,
+            missingBucket,
+            missingOrder,
+            size,
+            reverseMul
+        );
         this.preparedRounding = roundingValuesSource;
     }
 

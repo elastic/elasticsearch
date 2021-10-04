@@ -462,6 +462,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withPath("/internal/stats_test")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                 .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
             HttpStats httpStats = transport.stats();
@@ -478,6 +479,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .withPath("/internal/stats_test2")
                 .withHeaders(Map.of(Task.X_OPAQUE_ID.toUpperCase(Locale.ROOT), Collections.singletonList(opaqueId)))
                 .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(2));
@@ -532,6 +534,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withPath("/internal/stats_test")
                     .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
 
             // HTTP client stats should default to enabled
@@ -556,6 +559,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withPath("/internal/stats_test")
                     .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(0));
@@ -573,6 +577,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withPath("/internal/stats_test")
                     .withHeaders(Map.of(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
                     .build();
+            transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));

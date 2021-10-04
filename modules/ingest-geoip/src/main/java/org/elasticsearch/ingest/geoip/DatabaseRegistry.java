@@ -308,12 +308,13 @@ public final class DatabaseRegistry implements Closeable {
 
     void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
         try {
-            LOGGER.info("database file changed [{}], reload database...", file);
+            LOGGER.debug("starting reload of changed geoip database file [{}]", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
             }
+            LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }

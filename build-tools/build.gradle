@@ -46,6 +46,10 @@ gradlePlugin {
             id = 'elasticsearch.esplugin'
             implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
         }
+        javaRestTest {
+            id = 'elasticsearch.java-rest-test'
+            implementationClass = 'org.elasticsearch.gradle.test.JavaRestTestPlugin'
+        }
         testclusters {
             id = 'elasticsearch.testclusters'
             implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'

@@ -450,8 +450,22 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     /**
+     * @return a map of metadata fields for this hit
+     */
+    public Map<String, DocumentField> getMetadataFields() {
+        return Collections.unmodifiableMap(metaFields);
+    }
+
+    /**
+     * @return a map of non-metadata fields requested for this hit
+     */
+    public Map<String, DocumentField> getDocumentFields() {
+        return Collections.unmodifiableMap(documentFields);
+    }
+
+    /**
      * A map of hit fields (from field name to hit fields) if additional fields
-     * were required to be loaded.
+     * were required to be loaded. Includes both document and metadata fields.
      */
     public Map<String, DocumentField> getFields() {
         if (metaFields.size() > 0 || documentFields.size() > 0) {

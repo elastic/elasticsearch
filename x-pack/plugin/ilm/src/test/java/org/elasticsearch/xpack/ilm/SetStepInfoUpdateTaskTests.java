@@ -31,8 +31,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,7 +57,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
-    public void testExecuteSuccessfullySet() throws IOException {
+    public void testExecuteSuccessfullySet() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(currentStepKey);
@@ -90,7 +88,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         };
     }
 
-    public void testExecuteNoopDifferentStep() throws IOException {
+    public void testExecuteNoopDifferentStep() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         ToXContentObject stepInfo = getRandomStepInfo();
@@ -100,7 +98,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         assertThat(newState, sameInstance(clusterState));
     }
 
-    public void testExecuteNoopDifferentPolicy() throws IOException {
+    public void testExecuteNoopDifferentPolicy() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         ToXContentObject stepInfo = getRandomStepInfo();
         setStateToKey(currentStepKey);
@@ -126,7 +124,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
                         "warning",
                         SetStepInfoUpdateTask.class.getCanonicalName(),
                         Level.WARN,
-                        "*policy [" + policy + "] for index [" + index.getName() + "] failed trying to set step info for step ["
+                        "*policy [" + policy + "] for index [" + index + "] failed trying to set step info for step ["
                                 + currentStepKey + "]."));
 
         final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);

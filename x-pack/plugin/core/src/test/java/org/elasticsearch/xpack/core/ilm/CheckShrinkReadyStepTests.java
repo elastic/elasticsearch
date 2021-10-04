@@ -356,15 +356,21 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
             indexMetadata);
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder()
                 .indices(indices.build())
                 .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
                     SingleNodeShutdownMetadata.builder()
-                        .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
+                        .setType(type)
                         .setStartedAtMillis(randomNonNegativeLong())
                         .setReason("test")
                         .setNodeId("node1")
+                        .setTargetNodeName(targetNodeName)
                         .build()))))
             .nodes(DiscoveryNodes.builder()
                 .add(DiscoveryNode.createLocal(Settings.builder().put(node1Settings.build())
@@ -407,15 +413,21 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
             indexMetadata);
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder()
                 .indices(indices.build())
             .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
                 SingleNodeShutdownMetadata.builder()
-                    .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
+                    .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setReason("test")
                     .setNodeId("node1")
+                    .setTargetNodeName(targetNodeName)
                     .build()))))
             .nodes(DiscoveryNodes.builder()
                 .add(DiscoveryNode.createLocal(Settings.builder().put(node1Settings.build())

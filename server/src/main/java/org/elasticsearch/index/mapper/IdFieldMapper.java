@@ -154,7 +154,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     IndexFieldDataCache cache,
                     CircuitBreakerService breakerService
                 ) {
-                    deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
                         breakerService);
                     return new IndexFieldData<>() {

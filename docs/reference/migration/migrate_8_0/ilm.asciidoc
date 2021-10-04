@@ -38,4 +38,16 @@ renamed to `ilm` to match the package rename inside the {es} code.
 Update your workflow and applications to use the `ilm` package in place of
 `indexlifecycle`.
 ====
+
+[[ilm-freeze-noop]]
+.The ILM `freeze` action is now a no-op.
+[%collapsible]
+====
+*Details* +
+The ILM freeze action is now a no-op and performs no action on the index, as the freeze API endpoint
+has been removed in 8.0.
+
+*Impact* +
+Update your ILM policies to remove the `freeze` action from the `cold` phase.
+====
 // end::notable-breaking-changes[]

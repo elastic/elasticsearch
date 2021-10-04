@@ -401,7 +401,9 @@ final class RequestConverters {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
-        params.withIndicesOptions(searchRequest.indicesOptions());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(searchRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(searchRequest.indicesOptions());
+        }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         if (searchRequest.isCcsMinimizeRoundtrips() != SearchRequest.defaultCcsMinimizeRoundtrips(searchRequest)) {
             params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
@@ -437,7 +439,9 @@ final class RequestConverters {
     static Request openPointInTime(OpenPointInTimeRequest openRequest) {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(openRequest.indices(), "_pit"));
         Params params = new Params();
-        params.withIndicesOptions(openRequest.indicesOptions());
+        if (OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS.equals(openRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(openRequest.indicesOptions());
+        }
         params.withRouting(openRequest.routing());
         params.withPreference(openRequest.preference());
         params.putParam("keep_alive", openRequest.keepAlive());
@@ -539,7 +543,9 @@ final class RequestConverters {
 
         Params params = new Params();
         params.withFields(fieldCapabilitiesRequest.fields());
-        params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+        if (FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+        }
         request.addParameters(params.asMap());
         if (fieldCapabilitiesRequest.indexFilter() != null) {
             request.setEntity(createEntity(fieldCapabilitiesRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -551,7 +557,9 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval"));
 
         Params params = new Params();
-        params.withIndicesOptions(rankEvalRequest.indicesOptions());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(rankEvalRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(rankEvalRequest.indicesOptions());
+        }
         params.putParam("search_type", rankEvalRequest.searchType().name().toLowerCase(Locale.ROOT));
         request.addParameters(params.asMap());
         request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
@@ -613,9 +621,13 @@ final class RequestConverters {
             .withTimeout(deleteByQueryRequest.getTimeout())
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(deleteByQueryRequest.indicesOptions())
             .withWaitForCompletion(waitForCompletion)
             .withSlices(deleteByQueryRequest.getSlices());
+
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(deleteByQueryRequest.indicesOptions()) == false) {
+            params = params.withIndicesOptions(deleteByQueryRequest.indicesOptions());
+        }
+
         if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }
@@ -644,9 +656,11 @@ final class RequestConverters {
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(updateByQueryRequest.indicesOptions())
             .withWaitForCompletion(waitForCompletion)
             .withSlices(updateByQueryRequest.getSlices());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(updateByQueryRequest.indicesOptions()) == false) {
+            params = params.withIndicesOptions(updateByQueryRequest.indicesOptions());
+        }
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }

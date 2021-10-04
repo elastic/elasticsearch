@@ -31,6 +31,8 @@ import java.util.Arrays;
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
+
     private QueryBuilder query = new MatchAllQueryBuilder();
 
     private boolean explain;
@@ -65,7 +67,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
      */
     public ValidateQueryRequest(String... indices) {
         super(indices);
-        indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+        indicesOptions(DEFAULT_INDICES_OPTIONS);
     }
 
     @Override

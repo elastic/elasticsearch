@@ -665,13 +665,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         OpenIndexRequest lenientOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         lenientOpenIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         OpenIndexResponse lenientOpenIndexResponse = execute(lenientOpenIndexRequest, highLevelClient().indices()::open,
-                highLevelClient().indices()::openAsync);
+                highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING);
         assertThat(lenientOpenIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexRequest strictOpenIndexRequest = new OpenIndexRequest(nonExistentIndex);
         strictOpenIndexRequest.indicesOptions(IndicesOptions.strictExpandOpen());
         ElasticsearchException strictException = expectThrows(ElasticsearchException.class,
-                () -> execute(openIndexRequest, highLevelClient().indices()::open, highLevelClient().indices()::openAsync));
+                () -> execute(openIndexRequest, highLevelClient().indices()::open,
+                    highLevelClient().indices()::openAsync, IGNORE_THROTTLED_WARNING));
         assertEquals(RestStatus.NOT_FOUND, strictException.status());
     }
 

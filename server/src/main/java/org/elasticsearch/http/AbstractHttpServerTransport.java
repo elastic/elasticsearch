@@ -81,12 +81,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
-    private final RefCounted refCounted = new AbstractRefCounted("abstract-http-server-transport") {
-        @Override
-        protected void closeInternal() {
-            allClientsClosedListener.onResponse(null);
-        }
-    };
+    private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final HttpClientStatsTracker httpClientStatsTracker;
 

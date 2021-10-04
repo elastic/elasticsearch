@@ -40,6 +40,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/77329")
     public void testGetIndicesToQuery() {
         LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp");
 

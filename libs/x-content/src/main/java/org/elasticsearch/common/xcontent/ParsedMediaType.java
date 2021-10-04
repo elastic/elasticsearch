@@ -120,16 +120,16 @@ public class ParsedMediaType {
      * @return a MediaType instance or null if no media type could be found or if a known parameter do not passes validation
      */
     public  <T extends MediaType> T toMediaType(MediaTypeRegistry<T> mediaTypeRegistry) {
-        T type = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
-        if (type != null) {
+        T someType = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
 
+        if (someType != null) {
             Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mediaTypeWithoutParameters());
             for (Map.Entry<String, String> givenParamEntry : parameters.entrySet()) {
                 if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
                     return null;
                 }
             }
-            return type;
+            return someType;
         }
         return null;
     }
@@ -153,12 +153,12 @@ public class ParsedMediaType {
     }
 
     //used in testing
-    public String responseContentTypeHeader(Map<String,String> parameters) {
-        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    public String responseContentTypeHeader(Map<String,String> params) {
+        return mediaTypeWithoutParameters() + formatParameters(params);
     }
 
-    private String formatParameters(Map<String, String> parameters) {
-        String joined = parameters.entrySet().stream()
+    private String formatParameters(Map<String, String> params) {
+        String joined = params.entrySet().stream()
             .map(e -> e.getKey() + "=" + e.getValue())
             .collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;

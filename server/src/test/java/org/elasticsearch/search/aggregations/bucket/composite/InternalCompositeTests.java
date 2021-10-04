@@ -47,6 +47,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     private List<String> sourceNames;
     private List<DocValueFormat> formats;
     private int[] reverseMuls;
+    private MissingOrder[] missingOrders;
     private int[] types;
     private int size;
 
@@ -76,10 +77,12 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         sourceNames = new ArrayList<>();
         formats = new ArrayList<>();
         reverseMuls = new int[numFields];
+        missingOrders = new MissingOrder[numFields];
         types = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             sourceNames.add("field_" + i);
             reverseMuls[i] = randomBoolean() ? 1 : -1;
+            missingOrders[i] = randomFrom(MissingOrder.values());
             int type = randomIntBetween(0, 2);
             types[i] = type;
             formats.add(randomDocValueFormat(type == 0));
@@ -93,6 +96,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         sourceNames = null;
         formats = null;
         reverseMuls = null;
+        missingOrders = null;
         types = null;
     }
 
@@ -158,6 +162,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 formats,
                 key,
                 reverseMuls,
+                missingOrders,
                 1L,
                 aggregations
             );
@@ -165,7 +170,18 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size() - 1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(), metadata);
+        return new InternalComposite(
+            name,
+            size,
+            sourceNames,
+            formats,
+            buckets,
+            lastBucket,
+            reverseMuls,
+            missingOrders,
+            randomBoolean(),
+            metadata
+        );
     }
 
     @Override
@@ -190,6 +206,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                         formats,
                         createCompositeKey(),
                         reverseMuls,
+                        missingOrders,
                         randomLongBetween(1, 100),
                         InternalAggregations.EMPTY
                     )
@@ -215,6 +232,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             buckets,
             lastBucket,
             reverseMuls,
+            missingOrders,
             randomBoolean(),
             metadata
         );
@@ -271,6 +289,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             emptyList(),
             null,
             reverseMuls,
+            missingOrders,
             true,
             emptyMap()
         );

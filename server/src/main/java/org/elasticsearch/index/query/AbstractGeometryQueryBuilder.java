@@ -522,7 +522,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                                         params.id = parser.text();
                                     } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                                         SHAPE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                        deprecationLogger.compatibleApiWarning("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                                        deprecationLogger.compatibleCritical("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
                                     } else if (SHAPE_INDEX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         params.index = parser.text();
                                     } else if (SHAPE_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

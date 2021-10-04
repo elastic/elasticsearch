@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.CappedScoreQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;

@@ -26,7 +26,7 @@ the {es} package distribution:
 ----
 +
 The `elasticsearch-security-config` tool generates the following security
-certificates and keys in `$ES_PATH_CONF/auto_config_on_<timestamp>`:
+certificates and keys in `config/auto_config_on_<timestamp>`:
 +
 --
 `http_ca.crt`::
@@ -39,12 +39,6 @@ Keystore that contains the key and certificate for the HTTP layer for this node.
 `transport_keystore_all_nodes.p12`::
 Keystore that contains the key and certificate for the transport layer for all the nodes in your cluster.
 --
-+
-NOTE: The `ES_PATH_CONF` variable is the path for the {es}
-configuration files. If you installed {es} using archive distributions
-(`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
-package distributions (Debian or RPM), the variable defaults to
-`/etc/elasticsearch`.
 
 . Start {es}.
 +
@@ -84,7 +78,7 @@ the `elastic` user when prompted:
 +
 [source,shell]
 ----
-curl --cacert $ES_PATH_CONF/auto_config_on_<timestamp>/http_ca.crt \
+curl --cacert config/auto_config_on_<timestamp>/http_ca.crt \
 -u elastic https://localhost:9200
 ----
 // NOTCONSOLE
@@ -158,7 +152,7 @@ When prompted, enter the password for the `kibana_system` user.
 === Encrypt traffic between {kib} and {es}
 
 When you ran the `elasticsearch-security-config` tool, it
-created an `http_ca.crt` file in `$ES_PATH_CONF/auto_config_on_<timestamp>`.
+created an `http_ca.crt` file in `config/auto_config_on_<timestamp>`.
 Use this file to configure {kib} to trust the {es} CA for the HTTP layer.
 
 1. Copy the `http_ca.crt` file to the {kib} configuration directory, as defined

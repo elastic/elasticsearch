@@ -191,7 +191,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     /**
-     * Build a reuce 
+     * Build a reuce
      */
     protected static void expectReduceUsesTooManyBuckets(InternalAggregation agg, int bucketLimit) {
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
@@ -208,7 +208,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));

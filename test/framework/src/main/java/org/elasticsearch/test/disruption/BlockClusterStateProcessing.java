@@ -8,6 +8,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.core.util.Throwables;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
@@ -55,8 +56,16 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
                     }
                 }
             },
-            e -> logger.error("unexpected error during disruption", e)
-        );
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error during disruption", e);
+                }
+            });
         try {
             started.await();
         } catch (InterruptedException e) {

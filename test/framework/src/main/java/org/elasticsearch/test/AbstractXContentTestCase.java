@@ -260,8 +260,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         } else {
             withRandomFields = xContent;
         }
-        XContentParser parserWithRandonFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
-        return BytesReference.bytes(ESTestCase.shuffleXContent(parserWithRandonFields, false, shuffleFieldsExceptions));
+        XContentParser parserWithRandomFields = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
+        return BytesReference.bytes(ESTestCase.shuffleXContent(parserWithRandomFields, false, shuffleFieldsExceptions));
     }
 
 }

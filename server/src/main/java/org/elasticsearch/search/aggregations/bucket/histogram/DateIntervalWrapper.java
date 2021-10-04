@@ -104,7 +104,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
          but immediately adapt it into either fixed or calendar interval.
          */
         parser.declareField((wrapper, interval) -> {
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
             if (interval instanceof Long) {
                 wrapper.fixedInterval(new DateHistogramInterval(interval + "ms"));
             } else {

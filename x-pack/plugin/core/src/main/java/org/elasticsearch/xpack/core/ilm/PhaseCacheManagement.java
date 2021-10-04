@@ -226,6 +226,10 @@ public final class PhaseCacheManagement {
     @Nullable
     public static Set<Step.StepKey> readStepKeys(final NamedXContentRegistry xContentRegistry, final Client client,
                                                  final String phaseDef, final String currentPhase, final XPackLicenseState licenseState) {
+        if (phaseDef == null) {
+            return null;
+        }
+
         final PhaseExecutionInfo phaseExecutionInfo;
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {

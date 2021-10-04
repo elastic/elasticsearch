@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.Map;
@@ -103,11 +104,8 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
             return;
         }
-        // Need to find the first agg name in the buckets path to check its a
-        // multi bucket agg: aggs are split with '>' and can optionally have a
-        // metric name after them by using '.' so need to split on both to get
-        // just the agg name
-        final String firstAgg = bucketsPaths[0].split("[>\\.]")[0];
+        // find the first agg name in the buckets path to check its a multi bucket agg
+        final String firstAgg = AggregationPath.parse(bucketsPaths[0]).getPathElementsAsStringList().get(0);
         Optional<AggregationBuilder> aggBuilder = context.getSiblingAggregations()
             .stream()
             .filter(builder -> builder.getName().equals(firstAgg))

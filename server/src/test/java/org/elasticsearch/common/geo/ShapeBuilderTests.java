@@ -834,9 +834,6 @@ public class ShapeBuilderTests extends ESTestCase {
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
         assertThat(e.getMessage(), not(containsString("NaN")));
-        e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
-        assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
-        assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {

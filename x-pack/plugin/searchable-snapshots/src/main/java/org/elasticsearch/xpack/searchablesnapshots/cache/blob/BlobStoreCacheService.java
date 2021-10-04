@@ -35,8 +35,11 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
@@ -46,7 +49,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -69,17 +71,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
-    private final Supplier<Long> timeSupplier;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index, Supplier<Long> timeSupplier) {
+    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
         this.clusterService = clusterService;
-        this.timeSupplier = timeSupplier;
         this.index = index;
     }
 
@@ -118,12 +118,19 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
-    public CachedBlob get(String repository, String name, String path, long offset) {
+    public CachedBlob get(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range
+    ) {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
             : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
         final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
-        getAsync(repository, name, path, offset, future);
+        getAsync(repository, snapshotId, indexId, shardId, name, range, future);
         try {
             return future.actionGet(5, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
@@ -131,7 +138,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "get from cache index timed out after [5s], retrieving from blob store instead [id={}]",
-                        CachedBlob.generateId(repository, name, path, offset)
+                        generateId(repository, snapshotId, indexId, shardId, name, range)
                     ),
                     e
                 );
@@ -142,14 +149,22 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+    final void getAsync(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range,
+        final ActionListener<CachedBlob> listener
+    ) {
         if (closed.get()) {
             logger.debug("failed to retrieve cached blob from system index [{}], service is closed", index);
             listener.onResponse(CachedBlob.CACHE_NOT_READY);
             return;
         }
-        final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
-        client.get(request, new ActionListener<>() {
+        final GetRequest request = new GetRequest(index).id(generateId(repository, snapshotId, indexId, shardId, name, range));
+        innerGet(request, new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
                 if (response.isExists()) {
@@ -157,8 +172,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     assert response.isSourceEmpty() == false;
 
                     final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
-                    assert response.getId().equals(cachedBlob.generatedId());
-                    listener.onResponse(cachedBlob);
+                    assert assertDocId(response, repository, snapshotId, indexId, shardId, name, range);
+                    if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
+                        // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache
+                        // is changed between versions or through the index setting. In this case we assume it is a cache miss to force the
+                        // blob to be cached again
+                        listener.onResponse(CachedBlob.CACHE_MISS);
+                    } else {
+                        listener.onResponse(cachedBlob);
+                    }
                 } else {
                     logger.debug("cache miss: [{}]", request.id());
                     listener.onResponse(CachedBlob.CACHE_MISS);
@@ -180,6 +202,25 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         });
     }
 
+    protected void innerGet(final GetRequest request, final ActionListener<GetResponse> listener) {
+        client.get(request, listener);
+    }
+
+    private static boolean assertDocId(
+        final GetResponse response,
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range
+    ) {
+        final String expectedId = generateId(repository, snapshotId, indexId, shardId, name, range);
+        assert response.getId().equals(expectedId)
+            : "Expected a cached blob document with id [" + expectedId + "] but got [" + response.getId() + ']';
+        return true;
+    }
+
     private static boolean isExpectedCacheGetException(Exception e) {
         if (TransportActions.isShardNotAvailableException(e)
             || e instanceof ConnectTransportException
@@ -190,18 +231,29 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return cause instanceof NodeClosedException || cause instanceof ConnectTransportException;
     }
 
-    public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {
+    public final void putAsync(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range,
+        final BytesReference bytes,
+        final long timeInEpochMillis,
+        final ActionListener<Void> listener
+    ) {
+        final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(timeSupplier.get()),
+                Instant.ofEpochMilli(timeInEpochMillis),
                 Version.CURRENT,
                 repository,
                 name,
-                path,
-                content,
-                offset
+                generatePath(snapshotId, indexId, shardId),
+                bytes,
+                range.start()
             );
-            final IndexRequest request = new IndexRequest(index).id(cachedBlob.generatedId());
+            final IndexRequest request = new IndexRequest(index).id(id);
             try (XContentBuilder builder = jsonBuilder()) {
                 request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
             }
@@ -220,7 +272,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     return;
                 }
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
-                client.index(request, new ActionListener<>() {
+                innerPut(request, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
@@ -240,9 +292,28 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
+            logger.warn(() -> new ParameterizedMessage("cache fill failure: [{}]", id), e);
             listener.onFailure(e);
         }
+    }
+
+    protected void innerPut(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        client.index(request, listener);
+    }
+
+    protected static String generateId(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range
+    ) {
+        return String.join("/", repository, snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()), name, "@" + range.start());
+    }
+
+    protected static String generatePath(final SnapshotId snapshotId, final IndexId indexId, final ShardId shardId) {
+        return String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
     }
 
     /**

@@ -14,7 +14,6 @@ import org.gradle.testkit.runner.InvalidPluginMetadataException;
 import org.gradle.testkit.runner.InvalidRunnerConfigurationException;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.gradle.testkit.runner.UnexpectedBuildSuccess;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.Writer;
@@ -33,22 +32,26 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withGradleVersion(String gradleVersion) {
-        return delegate.withGradleVersion(gradleVersion);
+        delegate.withGradleVersion(gradleVersion);
+        return this;
     }
 
     @Override
     public GradleRunner withGradleInstallation(File file) {
-        return delegate.withGradleInstallation(file);
+        delegate.withGradleInstallation(file);
+        return this;
     }
 
     @Override
     public GradleRunner withGradleDistribution(URI uri) {
-        return delegate.withGradleDistribution(uri);
+        delegate.withGradleDistribution(uri);
+        return this;
     }
 
     @Override
     public GradleRunner withTestKitDir(File file) {
-        return delegate.withTestKitDir(file);
+        delegate.withTestKitDir(file);
+        return this;
     }
 
     @Override
@@ -58,7 +61,8 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withProjectDir(File projectDir) {
-        return delegate.withProjectDir(projectDir);
+        delegate.withProjectDir(projectDir);
+        return this;
     }
 
     @Override
@@ -70,12 +74,14 @@ public class InternalAwareGradleRunner extends GradleRunner {
     public GradleRunner withArguments(List<String> arguments) {
         List<String> collect = Stream.concat(arguments.stream(), Stream.of("-Dtest.external=true"))
                 .collect(Collectors.toList());
-        return delegate.withArguments(collect);
+        delegate.withArguments(collect);
+        return this;
     }
 
     @Override
     public GradleRunner withArguments(String... arguments) {
-        return withArguments(List.of(arguments));
+        withArguments(List.of(arguments));
+        return this;
     }
 
     @Override
@@ -85,12 +91,14 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withPluginClasspath() throws InvalidPluginMetadataException {
-        return delegate.withPluginClasspath();
+        delegate.withPluginClasspath();
+        return this;
     }
 
     @Override
     public GradleRunner withPluginClasspath(Iterable<? extends File> iterable) {
-        return delegate.withPluginClasspath(iterable);
+        delegate.withPluginClasspath(iterable);
+        return this;
     }
 
     @Override
@@ -100,33 +108,37 @@ public class InternalAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withDebug(boolean b) {
-        return delegate.withDebug(b);
+        delegate.withDebug(b);
+        return this;
     }
 
-    @Nullable
     @Override
     public Map<String, String> getEnvironment() {
         return delegate.getEnvironment();
     }
 
     @Override
-    public GradleRunner withEnvironment(@Nullable Map<String, String> map) {
-        return delegate.withEnvironment(map);
+    public GradleRunner withEnvironment(Map<String, String> map) {
+        delegate.withEnvironment(map);
+        return this;
     }
 
     @Override
     public GradleRunner forwardStdOutput(Writer writer) {
-        return delegate.forwardStdOutput(writer);
+        delegate.forwardStdOutput(writer);
+        return this;
     }
 
     @Override
     public GradleRunner forwardStdError(Writer writer) {
-        return delegate.forwardStdOutput(writer);
+        delegate.forwardStdOutput(writer);
+        return this;
     }
 
     @Override
     public GradleRunner forwardOutput() {
-        return delegate.forwardOutput();
+        delegate.forwardOutput();
+        return this;
     }
 
     @Override

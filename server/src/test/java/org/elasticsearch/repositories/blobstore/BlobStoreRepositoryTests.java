@@ -15,7 +15,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,6 +53,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -198,6 +201,31 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
+    }
+
+    public void testCorruptIndexLatestFile() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        final long generation = randomLong();
+        final byte[] generationBytes = Numbers.longToBytes(generation);
+
+        final byte[] buffer = new byte[16];
+        System.arraycopy(generationBytes, 0, buffer, 0, 8);
+
+        for (int i = 0; i < 16; i++) {
+            repository.blobContainer().writeBlob(BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+            if (i == 8) {
+                assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
+            } else {
+                assertThat(
+                    expectThrows(RepositoryException.class, repository::readSnapshotIndexLatestBlob).getMessage(),
+                    allOf(
+                        containsString("exception reading blob [index.latest]: expected 8 bytes"),
+                        i < 8 ? containsString("blob was " + i + " bytes") : containsString("blob was longer")
+                    )
+                );
+            }
+        }
     }
 
     public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {

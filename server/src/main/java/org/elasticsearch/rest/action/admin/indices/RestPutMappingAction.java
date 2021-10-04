@@ -70,7 +70,7 @@ public class RestPutMappingAction extends BaseRestHandler {
             final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
                 DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-                deprecationLogger.compatibleApiWarning("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.compatibleCritical("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             final String type = request.param("type");
             if (includeTypeName == false &&

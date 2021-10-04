@@ -48,9 +48,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -89,7 +89,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -149,7 +149,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-request-preference
             searchRequest.preference("_local"); // <1>
             // end::search-request-preference
-            assertNotNull(client.search(searchRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.search(searchRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::search-source-basics
@@ -499,15 +499,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults =
+            Map<String, SearchProfileShardResult> profilingResults =
                     searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
+            for (Map.Entry<String, SearchProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
-                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+                SearchProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
             }
             // end::search-request-profiling-get
 
-            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            SearchProfileShardResult profileShardResult = profilingResults.values().iterator().next();
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
@@ -777,7 +777,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             openRequest.preference("_local"); // <1>
             // end::open-point-in-time-preference
 
-            openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
+            openResponse = client.openPointInTime(openRequest, IGNORE_THROTTLED_WARNING);
             pitId = openResponse.getPointInTimeId();
             client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT);
         }
@@ -1119,8 +1119,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::field-caps-request-indicesOptions
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::field-caps-execute
-        FieldCapabilitiesResponse response = client.fieldCaps(request, RequestOptions.DEFAULT);
+        FieldCapabilitiesResponse response = client.fieldCaps(request, requestOptions);
         // end::field-caps-execute
 
         // tag::field-caps-response
@@ -1371,7 +1372,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
                 .preference("_local"); // <4>
             // end::count-request-args
-            assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.count(countRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::count-source-basics

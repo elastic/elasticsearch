@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -43,8 +44,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -200,4 +204,32 @@ public class LicenseServiceTests extends ESTestCase {
             .signature(null)
             .build();
     }
+
+    private void assertExpiryWarning(long adjustment, String msg) {
+        long now = System.currentTimeMillis();
+        long expiration = now + adjustment;
+        String warning = LicenseService.getExpiryWarning(expiration, now);
+        if (msg == null) {
+            assertThat(warning, is(nullValue()));
+        } else {
+            assertThat(warning, Matchers.containsString(msg));
+        }
+    }
+
+    public void testNoExpiryWarning() {
+        assertExpiryWarning(LICENSE_EXPIRATION_WARNING_PERIOD.getMillis(), null);
+    }
+
+    public void testExpiryWarningSoon() {
+        assertExpiryWarning(LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() - 1, "Your license will expire in [6] days");
+    }
+
+    public void testExpiryWarningToday() {
+        assertExpiryWarning(1, "Your license expires today");
+    }
+
+    public void testExpiryWarningExpired() {
+        assertExpiryWarning(0, "Your license expired on");
+    }
+
 }

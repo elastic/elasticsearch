@@ -12,7 +12,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,6 +30,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -469,9 +472,27 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
         request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+
+        // If warning are returned than these must exist in this set:
+        Set<String> expectedWarnings = new HashSet<>();
+        expectedWarnings.add(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", index));
         if (ignoreThrottled != null) {
             request.addParameter("ignore_throttled", ignoreThrottled.toString());
+            expectedWarnings.add(
+                "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. "
+                    + "Consider cold or frozen tiers in place of frozen indices."
+            );
         }
+
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (expectedWarnings.contains(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build();
+        request.setOptions(requestOptions);
 
         final Response response = client().performRequest(request);
         assertThat(

@@ -33,7 +33,7 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         assertOutputContains(result.output, "> Check failed. License header problems were found. Full details: ./build/reports/licenseHeaders/rat.xml")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnknownLicensed.java")
         assertOutputContains(result.output, "./src/main/java/org/acme/UnapprovedLicensed.java")
-        normalized(result.output).contains("./src/main/java/org/acme/DualLicensed.java") == false
+        result.output.contains("./src/main/java/org/acme/DualLicensed.java") == false
     }
 
     def "can filter source files"() {

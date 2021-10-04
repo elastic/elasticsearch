@@ -86,8 +86,10 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      *
      * The parser is strict when parsing config and lenient when parsing cluster state.
      */
-    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-
+    public static CategorizationAnalyzerConfig buildFromXContentFragment(
+        XContentParser parser,
+        boolean ignoreUnknownFields
+    ) throws IOException {
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
 
         XContentParser.Token token = parser.currentToken();
@@ -173,7 +175,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
         return new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter("first_non_blank_line")
+            .addCharFilter("first_line_with_letters")
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()

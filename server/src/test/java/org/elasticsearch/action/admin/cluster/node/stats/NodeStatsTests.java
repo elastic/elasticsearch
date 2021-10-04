@@ -260,6 +260,9 @@ public class NodeStatsTests extends ESTestCase {
 
                         compilations += generatedStats.getCompilations();
                         assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+
+                        assertEquals(generatedStats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+                        assertEquals(generatedStats.getCompilationsHistory(), deserStats.getCompilationsHistory());
                     }
                     assertEquals(evictions, scriptStats.getCacheEvictions());
                     assertEquals(limited, scriptStats.getCompilationLimitTriggered());
@@ -522,6 +525,7 @@ public class NodeStatsTests extends ESTestCase {
             List<HttpStats.ClientStats> clientStats = new ArrayList<>(numClients);
             for (int k = 0; k < numClients; k++) {
                 var cs = new HttpStats.ClientStats(
+                    randomInt(),
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),
@@ -554,11 +558,17 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
+                long compile = randomLongBetween(0, 1024);
+                long eviction = randomLongBetween(0, 1024);
+                String context = randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12));
+                contexts.add(context);
                 stats.add(new ScriptContextStats(
-                    randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    context,
+                    compile,
+                    eviction,
                     randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024))
+                    randomTimeSeries(),
+                    randomTimeSeries())
                 );
             }
             scriptStats = new ScriptStats(stats);
@@ -660,6 +670,17 @@ public class NodeStatsTests extends ESTestCase {
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
                 ingestStats, adaptiveSelectionStats, null);
+    }
+
+    private static ScriptContextStats.TimeSeries randomTimeSeries() {
+        if (randomBoolean()) {
+            long day = randomLongBetween(0, 1024);
+            long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
+            long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
+            return new ScriptContextStats.TimeSeries(five, fifteen, day);
+        } else {
+            return new ScriptContextStats.TimeSeries();
+        }
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

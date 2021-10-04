@@ -508,8 +508,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return indexCreatedVersion;
     }
 
+    /**
+     * Best effort cache to speed up {@link #getCreationDate()} which is used in a hot loop by
+     * {@link org.elasticsearch.gateway.PriorityComparator}.
+     */
+    private Long createDate;
+
     public long getCreationDate() {
-        return settings.getAsLong(SETTING_CREATION_DATE, -1L);
+        Long createDate = this.createDate;
+        if (createDate != null) {
+            return createDate;
+        }
+        createDate = settings.getAsLong(SETTING_CREATION_DATE, -1L);
+        this.createDate = createDate;
+        return createDate;
     }
 
     public State getState() {
@@ -928,6 +940,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isSystem() {
         return isSystem;
+    }
+
+    /**
+     * Best effort cache to speed up {@link #priority()} which is used in a hot loop by
+     * {@link org.elasticsearch.gateway.PriorityComparator}.
+     */
+    private Integer priority;
+
+    public int priority() {
+        Integer priority = this.priority;
+        if (priority != null) {
+            return priority;
+        }
+        priority = IndexMetadata.INDEX_PRIORITY_SETTING.get(settings);
+        this.priority = priority;
+        return priority;
     }
 
     public static Builder builder(String index) {

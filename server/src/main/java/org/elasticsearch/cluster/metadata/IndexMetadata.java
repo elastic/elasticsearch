@@ -392,6 +392,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final IndexLongFieldRange timestampRange;
 
+    private final int priority;
+
+    private final long creationDate;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -417,7 +421,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
-            final IndexLongFieldRange timestampRange) {
+            final IndexLongFieldRange timestampRange,
+            final int priority,
+            final long creationDate) {
 
         this.index = index;
         this.version = version;
@@ -450,6 +456,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         this.timestampRange = timestampRange;
+        this.priority = priority;
+        this.creationDate = creationDate;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -509,7 +517,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public long getCreationDate() {
-        return settings.getAsLong(SETTING_CREATION_DATE, -1L);
+        return creationDate;
     }
 
     public State getState() {
@@ -1007,6 +1015,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return isSystem;
     }
 
+    public int priority() {
+        return priority;
+    }
+
     public static Builder builder(String index) {
         return new Builder(index);
     }
@@ -1279,9 +1291,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public IndexMetadata build() {
-            ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
-            Settings tmpSettings = settings;
-
             // update default mapping on the MappingMetadata
             if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                 MappingMetadata defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
@@ -1375,9 +1384,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     state,
                     numberOfShards,
                     numberOfReplicas,
-                    tmpSettings,
+                    settings,
                     mappings.build(),
-                    tmpAliases.build(),
+                    aliases.build(),
                     customMetadata.build(),
                     filledInSyncAllocationIds.build(),
                     requireFilters,
@@ -1390,7 +1399,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
-                timestampRange);
+                    timestampRange,
+                    IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
+                    settings.getAsLong(SETTING_CREATION_DATE, -1L)
+            );
         }
 
         @SuppressWarnings("unchecked")

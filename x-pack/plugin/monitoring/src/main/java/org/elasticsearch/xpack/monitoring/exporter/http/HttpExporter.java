@@ -383,7 +383,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */

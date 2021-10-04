@@ -22,6 +22,7 @@ public final class PainlessClass {
     public final Map<String, PainlessField> staticFields;
     public final Map<String, PainlessField> fields;
     public final PainlessMethod functionalInterfaceMethod;
+    public final Map<Class<?>, Object> annotations;
 
     public final Map<String, PainlessMethod> runtimeMethods;
     public final Map<String, MethodHandle> getterMethodHandles;
@@ -31,6 +32,7 @@ public final class PainlessClass {
             Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
             Map<String, PainlessField> staticFields, Map<String, PainlessField> fields,
             PainlessMethod functionalInterfaceMethod,
+            Map<Class<?>, Object> annotations,
             Map<String, PainlessMethod> runtimeMethods,
             Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles) {
 
@@ -40,6 +42,7 @@ public final class PainlessClass {
         this.staticFields = CollectionUtils.copyMap(staticFields);
         this.fields = CollectionUtils.copyMap(fields);
         this.functionalInterfaceMethod = functionalInterfaceMethod;
+        this.annotations = annotations;
 
         this.getterMethodHandles = CollectionUtils.copyMap(getterMethodHandles);
         this.setterMethodHandles = CollectionUtils.copyMap(setterMethodHandles);
@@ -63,11 +66,12 @@ public final class PainlessClass {
                 Objects.equals(methods, that.methods) &&
                 Objects.equals(staticFields, that.staticFields) &&
                 Objects.equals(fields, that.fields) &&
-                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod);
+                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod) &&
+                Objects.equals(annotations, that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod);
+        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod, annotations);
     }
 }

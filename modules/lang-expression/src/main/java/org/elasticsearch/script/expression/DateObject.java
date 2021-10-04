@@ -11,7 +11,8 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
-import org.joda.time.ReadableDateTime;
+
+import java.time.ZonedDateTime;
 
 /**
  * Expressions API for date objects (.date)
@@ -63,41 +64,41 @@ final class DateObject {
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case CENTURY_OF_ERA_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getCenturyOfEra);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getCenturyOfEra);
             case DAY_OF_MONTH_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getDayOfMonth);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfMonth);
             case DAY_OF_WEEK_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getDayOfWeek);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfWeek);
             case DAY_OF_YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getDayOfYear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getDayOfYear);
             case ERA_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getEra);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getEra);
             case HOUR_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getHourOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getHourOfDay);
             case MILLIS_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getMillisOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMillisOfDay);
             case MILLIS_OF_SECOND_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getMillisOfSecond);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMillisOfSecond);
             case MINUTE_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getMinuteOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMinuteOfDay);
             case MINUTE_OF_HOUR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getMinuteOfHour);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMinuteOfHour);
             case MONTH_OF_YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getMonthOfYear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getMonthOfYear);
             case SECOND_OF_DAY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getSecondOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getSecondOfDay);
             case SECOND_OF_MINUTE_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getSecondOfMinute);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getSecondOfMinute);
             case WEEK_OF_WEEK_YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getWeekOfWeekyear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getWeekOfWeekyear);
             case WEEK_YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getWeekyear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getWeekyear);
             case YEAR_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getYear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getYear);
             case YEAR_OF_CENTURY_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getYearOfCentury);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getYearOfCentury);
             case YEAR_OF_ERA_VARIABLE:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ReadableDateTime::getYearOfEra);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, variable, ZonedDateTime::getYearOfEra);
             default:
                 throw new IllegalArgumentException("Member variable [" + variable +
                                                    "] does not exist for date object on field [" + fieldName + "].");
@@ -107,41 +108,41 @@ final class DateObject {
     static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
             case GETCENTURY_OF_ERA_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getCenturyOfEra);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getCenturyOfEra);
             case GETDAY_OF_MONTH_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getDayOfMonth);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfMonth);
             case GETDAY_OF_WEEK_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getDayOfWeek);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfWeek);
             case GETDAY_OF_YEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getDayOfYear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getDayOfYear);
             case GETERA_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getEra);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getEra);
             case GETHOUR_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getHourOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getHourOfDay);
             case GETMILLIS_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getMillisOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMillisOfDay);
             case GETMILLIS_OF_SECOND_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getMillisOfSecond);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMillisOfSecond);
             case GETMINUTE_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getMinuteOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMinuteOfDay);
             case GETMINUTE_OF_HOUR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getMinuteOfHour);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMinuteOfHour);
             case GETMONTH_OF_YEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getMonthOfYear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getMonthOfYear);
             case GETSECOND_OF_DAY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getSecondOfDay);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getSecondOfDay);
             case GETSECOND_OF_MINUTE_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getSecondOfMinute);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getSecondOfMinute);
             case GETWEEK_OF_WEEK_YEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getWeekOfWeekyear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getWeekOfWeekyear);
             case GETWEEK_YEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getWeekyear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getWeekyear);
             case GETYEAR_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getYear);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getYear);
             case GETYEAR_OF_CENTURY_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getYearOfCentury);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getYearOfCentury);
             case GETYEAR_OF_ERA_METHOD:
-                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ReadableDateTime::getYearOfEra);
+                return new DateObjectValueSource(fieldData, MultiValueMode.MIN, method, ZonedDateTime::getYearOfEra);
             default:
                 throw new IllegalArgumentException("Member method [" + method +
                                                    "] does not exist for date object on field [" + fieldName + "].");

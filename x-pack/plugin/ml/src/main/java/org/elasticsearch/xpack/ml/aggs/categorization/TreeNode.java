@@ -252,7 +252,7 @@ abstract class TreeNode implements Accountable {
                 return;
             }
             Optional<TreeNode> maybeWildChild = getChild(WILD_CARD_ID).or(() -> {
-                if ((double) smallestChild.peek().count / this.getCount() <= 1.0 / maxChildren) {
+                if (smallestChild.size() > 0 && (double) smallestChild.peek().count / this.getCount() <= 1.0 / maxChildren) {
                     TreeNode tinyChild = children.remove(smallestChild.poll().tokenId);
                     return Optional.of(addChild(WILD_CARD_ID, tinyChild));
                 }
@@ -267,7 +267,7 @@ abstract class TreeNode implements Accountable {
                         smallestChild.add(tinyNode);
                         break;
                     } else {
-                        wildChild.mergeWith(children.remove(tinyNode.count));
+                        wildChild.mergeWith(children.remove(tinyNode.tokenId));
                     }
                 }
             }

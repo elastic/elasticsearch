@@ -99,7 +99,6 @@ public class EnrichCacheTests extends ESTestCase {
             }
         };
         enrichCache.setMetadata(metadata);
-        // warming the cache means there's a miss
         enrichCache.warmCache(searchRequest1, searchResponse);
         enrichCache.warmCache(searchRequest2, searchResponse);
         enrichCache.warmCache(searchRequest3, searchResponse);

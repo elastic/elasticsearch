@@ -168,7 +168,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
         SortedSet<String> filteredSortedStrings = new TreeSet<>();
         for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (!(cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef"))) {
+            if ((cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) == false) {
                 filteredSortedStrings.add(cursor.value);
             }
         }

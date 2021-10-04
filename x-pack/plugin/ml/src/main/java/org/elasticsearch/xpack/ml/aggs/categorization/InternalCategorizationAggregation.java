@@ -29,9 +29,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_REF;
-
 
 public class InternalCategorizationAggregation extends InternalMultiBucketAggregation<
     InternalCategorizationAggregation,
@@ -112,7 +113,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             if (collapsedWildCards.size() == key.length) {
                 return new BucketKey(key);
             }
-            return new BucketKey(collapsedWildCards.toArray(BytesRef[]::new));
+            return new BucketKey(collapsedWildCards.toArray(new BytesRef[0]));
         }
 
         BucketKey(BytesRef[] key) {
@@ -166,12 +167,36 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         @Override
         public int compareTo(BucketKey o) {
-            return Arrays.compare(key, o.key);
+            return compareByteRefArrays(key, o.key);
         }
 
+        static int compareByteRefArrays(BytesRef[] a, BytesRef[] b) {
+            if (a == b) {
+                return 0;
+            }
+            if (a == null || b == null) {
+                return a == null ? -1 : 1;
+            }
+            final OptionalInt compare = IntStream.range(0, Math.min(a.length, b.length)).map(i -> {
+                final BytesRef field = a[i];
+                final BytesRef otherField = b[i];
+                if (field == otherField) {
+                    return 0;
+                }
+                if (field == null || otherField == null) {
+                    return field == null ? -1 : 1;
+                }
+                return field.compareTo(otherField);
+            }).filter(v -> v != 0).findFirst();
+
+            return compare.orElseGet(() -> a.length - b.length);
+        }
     }
 
-    public static class Bucket extends InternalBucket implements MultiBucketsAggregation.Bucket, Comparable<Bucket> {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+        implements
+            MultiBucketsAggregation.Bucket,
+            Comparable<Bucket> {
         // Used on the shard level to keep track of sub aggregations
         long bucketOrd;
 
@@ -209,7 +234,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return builder;
         }
 
-        BucketKey getRawKey()  {
+        BucketKey getRawKey() {
             return key;
         }
 
@@ -356,7 +381,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 similarityThreshold
             );
             // TODO: Could we do a merge sort similar to terms?
-            //  It would require us returning partial reductions sorted by key, not by doc_count
+            // It would require us returning partial reductions sorted by key, not by doc_count
             // First, make sure we have all the counts for equal categorizations
             Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
             for (InternalAggregation aggregation : aggregations) {
@@ -366,13 +391,9 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 }
             }
 
-            reduced.values()
-                .stream()
-                .sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed())
-                .forEach(bucket ->
-                    // Parse tokens takes document count into account and merging on smallest groups
-                    categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount)
-                );
+            reduced.values().stream().sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed()).forEach(bucket ->
+            // Parse tokens takes document count into account and merging on smallest groups
+            categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount));
             categorizationTokenTree.mergeSmallestChildren();
             Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
             for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
@@ -384,13 +405,13 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     );
                 BytesRef[] categoryTokens = hash.getDeeps(group.getCategorization());
 
-                BucketKey key = reduceContext.isFinalReduce() ?
-                    BucketKey.withCollapsedWildcards(categoryTokens) :
-                    new BucketKey(categoryTokens);
+                BucketKey key = reduceContext.isFinalReduce()
+                    ? BucketKey.withCollapsedWildcards(categoryTokens)
+                    : new BucketKey(categoryTokens);
                 mergedBuckets.computeIfAbsent(
-                        key,
-                        k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
-                    ).add(delayedBucket);
+                    key,
+                    k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
+                ).add(delayedBucket);
             }
 
             final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());

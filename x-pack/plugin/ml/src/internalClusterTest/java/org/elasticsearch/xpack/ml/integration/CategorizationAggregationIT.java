@@ -112,7 +112,7 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
 
     private void createSourceData() {
         client().admin().indices().prepareCreate(DATA_INDEX)
-            .setMapping("time", "type=date,format=epoch_millis",
+            .addMapping("_doc", "time", "type=date,format=epoch_millis",
                 "msg", "type=text")
             .get();
 

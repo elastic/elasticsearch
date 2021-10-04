@@ -206,9 +206,11 @@ abstract class TreeNode implements Accountable {
 
         @Override
         public TextCategorization getCategorization(final int[] tokenIds) {
-            return getChild(tokenIds[childrenTokenPos]).or(() -> getChild(WILD_CARD_ID))
-                .map(node -> node.getCategorization(tokenIds))
-                .orElse(null);
+            Optional<TreeNode> maybeChild = getChild(tokenIds[childrenTokenPos]);
+            if (maybeChild.isPresent() == false) {
+                maybeChild = getChild(WILD_CARD_ID);
+            }
+            return maybeChild.map(node -> node.getCategorization(tokenIds)).orElse(null);
         }
 
         @Override
@@ -251,13 +253,13 @@ abstract class TreeNode implements Accountable {
             if (children.size() <= 1) {
                 return;
             }
-            Optional<TreeNode> maybeWildChild = getChild(WILD_CARD_ID).or(() -> {
-                if ((double) smallestChild.peek().count / this.getCount() <= 1.0 / maxChildren) {
+            Optional<TreeNode> maybeWildChild = getChild(WILD_CARD_ID);
+            if(maybeWildChild.isPresent() == false) {
+                if (smallestChild.size() > 0 && (double) smallestChild.peek().count / this.getCount() <= 1.0 / maxChildren) {
                     TreeNode tinyChild = children.remove(smallestChild.poll().tokenId);
-                    return Optional.of(addChild(WILD_CARD_ID, tinyChild));
+                    maybeWildChild = Optional.of(addChild(WILD_CARD_ID, tinyChild));
                 }
-                return Optional.empty();
-            });
+            }
             if (maybeWildChild.isPresent()) {
                 TreeNode wildChild = maybeWildChild.get();
                 NativeIntLongPair tinyNode;
@@ -267,7 +269,7 @@ abstract class TreeNode implements Accountable {
                         smallestChild.add(tinyNode);
                         break;
                     } else {
-                        wildChild.mergeWith(children.remove(tinyNode.count));
+                        wildChild.mergeWith(children.remove(tinyNode.tokenId));
                     }
                 }
             }

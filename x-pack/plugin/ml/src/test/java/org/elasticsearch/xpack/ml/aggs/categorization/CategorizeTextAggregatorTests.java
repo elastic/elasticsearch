@@ -45,13 +45,13 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
             ),
-            List.of(new MachineLearning(Settings.EMPTY, null))
+                org.elasticsearch.core.List.of(new MachineLearning(Settings.EMPTY, null))
         );
     }
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY, null));
+        return org.elasticsearch.core.List.of(new MachineLearning(Settings.EMPTY, null));
     }
 
     private static final String TEXT_FIELD_NAME = "text";

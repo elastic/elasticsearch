@@ -94,7 +94,7 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
                 );
             } else {
                 return new InternalCategorizationAggregation.BucketKey(
-                    XContentParserUtils.parseList(parser, p -> new BytesRef(p.binaryValue())).toArray(BytesRef[]::new)
+                    XContentParserUtils.parseList(parser, p -> new BytesRef(p.binaryValue())).toArray(new BytesRef[0])
                 );
             }
         }

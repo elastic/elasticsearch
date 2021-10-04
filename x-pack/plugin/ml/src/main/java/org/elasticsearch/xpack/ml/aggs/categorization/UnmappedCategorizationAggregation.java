@@ -65,7 +65,7 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
 
     @Override
     public List<Bucket> getBuckets() {
-        return List.of();
+        return org.elasticsearch.core.List.of();
     }
 
 }

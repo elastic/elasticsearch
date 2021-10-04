@@ -412,7 +412,6 @@ public class HttpExporterTests extends ESTestCase {
         verifyNoMoreInteractions(client, listener);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78494")
     public void testCreateResources() {
         final boolean useIngest = randomBoolean();
         final boolean clusterAlertManagement = randomBoolean();

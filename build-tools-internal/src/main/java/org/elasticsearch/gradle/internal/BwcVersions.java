@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.gradle.api.Action;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -338,6 +340,10 @@ public class BwcVersions {
             groupByMajor.get(currentVersion.getMajor()).stream()
         ).collect(Collectors.toList());
         return unmodifiableList(filterSupportedVersions(indexCompatibles));
+    }
+
+    public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
+        getIndexCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
     }
 
     public List<Version> getWireCompatible() {

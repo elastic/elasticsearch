@@ -8,7 +8,9 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
@@ -253,11 +255,16 @@ import static java.util.stream.Collectors.toList;
 public class RestHighLevelClient implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(RestHighLevelClient.class);
+    /**
+     * Environment variable determining whether to send the 7.x compatibility header
+     */
+    public static final String API_VERSIONING_ENV_VARIABLE = "ELASTIC_CLIENT_APIVERSIONING";
 
     // To be called using performClientRequest and performClientRequestAsync to ensure version compatibility check
     private final RestClient client;
     private final NamedXContentRegistry registry;
     private final CheckedConsumer<RestClient, IOException> doClose;
+    private final boolean useAPICompatibility;
 
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
@@ -310,11 +317,28 @@ public class RestHighLevelClient implements Closeable {
      */
     protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this(restClient, doClose, namedXContentEntries, null);
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
+     * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     * This constructor can be called by subclasses in case an externally created low-level REST client needs to be provided.
+     * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
+     * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
+     */
+    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
+                                  List<NamedXContentRegistry.Entry> namedXContentEntries, Boolean useAPICompatibility) {
         this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
         this.registry = new NamedXContentRegistry(
-                Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
-                    .flatMap(Function.identity()).collect(toList()));
+            Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
+                .flatMap(Function.identity()).collect(toList()));
+        if (useAPICompatibility == null && "true".equals(System.getenv(API_VERSIONING_ENV_VARIABLE))) {
+            this.useAPICompatibility = true;
+        } else {
+            this.useAPICompatibility = Boolean.TRUE.equals(useAPICompatibility);
+        }
     }
 
     /**
@@ -2016,7 +2040,82 @@ public class RestHighLevelClient implements Closeable {
         return response.getStatusLine().getStatusCode() == 200;
     }
 
+    private enum EntityType {
+        JSON() {
+            @Override
+            public String header() {
+                return "application/json";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+json; compatible-with=7";
+            }
+        },
+        NDJSON() {
+            @Override
+            public String header() {
+                return "application/x-ndjson";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+x-ndjson; compatible-with=7";
+            }
+        },
+        STAR() {
+            @Override
+            public String header() {
+                return "application/*";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+json; compatible-with=7";
+            }
+        },
+        YAML() {
+            @Override
+            public String header() {
+                return "application/yaml";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+yaml; compatible-with=7";
+            }
+        },
+        SMILE() {
+            @Override
+            public String header() {
+                return "application/smile";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+smile; compatible-with=7";
+            }
+        },
+        CBOR() {
+            @Override
+            public String header() {
+                return "application/cbor";
+            }
+            @Override
+            public String compatibleHeader() {
+                return "application/vnd.elasticsearch+cbor; compatible-with=7";
+            }
+        };
+
+        public abstract String header();
+        public abstract String compatibleHeader();
+
+        @Override
+        public String toString() {
+            return header();
+        }
+    }
+
     private Cancellable performClientRequestAsync(Request request, ResponseListener listener) {
+        // Add compatibility request headers if compatibility mode has been enabled
+        if (this.useAPICompatibility) {
+            modifyRequestForCompatibility(request);
+        }
 
         ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
 
@@ -2068,7 +2167,71 @@ public class RestHighLevelClient implements Closeable {
         return result;
     };
 
+
+    /**
+     * Go through all the request's existing headers, looking for {@code headerName} headers and if they exist,
+     * changing them to use version compatibility. If no request headers are changed, modify the entity type header if appropriate
+     */
+    boolean addCompatibilityFor(RequestOptions.Builder newOptions,  Header entityHeader, String headerName) {
+        // Modify any existing "Content-Type" headers on the request to use the version compatibility, if available
+        boolean contentTypeModified = false;
+        for (Header header : newOptions.getHeaders()) {
+            if (headerName.equals(header.getName()) == false) {
+                continue;
+            }
+            contentTypeModified = contentTypeModified || modifyHeader(newOptions, header, headerName);
+        }
+
+        // If there were no request-specific headers, modify the request entity's header to be compatible
+        if (entityHeader != null && contentTypeModified == false) {
+            contentTypeModified = modifyHeader(newOptions, entityHeader, headerName);
+        }
+
+        return contentTypeModified;
+    }
+
+    /**
+     * Modify the given header to be version compatible, if necessary.
+     * Returns true if a modification was made, false otherwise.
+     */
+    boolean modifyHeader(RequestOptions.Builder newOptions, Header header, String headerName) {
+        for (EntityType type : EntityType.values()) {
+            final String headerValue = header.getValue();
+            if (headerValue.startsWith(type.header())) {
+                String newHeaderValue = headerValue.replace(type.header(), type.compatibleHeader());
+                newOptions.removeHeader(header.getName());
+                newOptions.addHeader(headerName, newHeaderValue);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Make all necessary changes to support API compatibility for the given request. This includes
+     * modifying the "Content-Type" and "Accept" headers if present, or modifying the header based
+     * on the request's entity type.
+     */
+    void modifyRequestForCompatibility(Request request) {
+        final Header entityHeader = request.getEntity() == null ? null : request.getEntity().getContentType();
+        final RequestOptions.Builder newOptions = request.getOptions().toBuilder();
+
+        addCompatibilityFor(newOptions, entityHeader, "Content-Type");
+        if (request.getOptions().containsHeader("Accept")) {
+            addCompatibilityFor(newOptions, entityHeader, "Accept");
+        } else {
+            // There is no entity, and no existing accept header, but we still need one
+            // with compatibility, so use the compatible JSON (default output) format
+            newOptions.addHeader("Accept", EntityType.JSON.compatibleHeader());
+        }
+        request.setOptions(newOptions);
+    }
+
     private Response performClientRequest(Request request) throws IOException {
+        // Add compatibility request headers if compatibility mode has been enabled
+        if (this.useAPICompatibility) {
+            modifyRequestForCompatibility(request);
+        }
 
         Optional<String> versionValidation;
         try {

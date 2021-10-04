@@ -99,7 +99,6 @@ public class RestClientAPICompatTests extends RestClientTestCase {
     private RestClient createClient(boolean apiCompat) {
         InetSocketAddress address = httpServer.getAddress();
         return RestClient.builder(new HttpHost(address.getHostString(), address.getPort(), "http"))
-            .setAPICompatibilityMode(apiCompat)
             .build();
     }
 

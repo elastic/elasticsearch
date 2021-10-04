@@ -65,6 +65,10 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params.estimateMemoryUsageBytes();
     }
 
+    public TaskParams getParams() {
+        return params;
+    }
+
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stopped = true;

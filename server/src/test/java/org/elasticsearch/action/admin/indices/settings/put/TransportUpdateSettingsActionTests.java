@@ -58,7 +58,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         Map.of("test-feature", new SystemIndices.Feature(
             "test-feature",
             "a test feature",
-            List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test"))
+            List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test"))
         ))
     );
 

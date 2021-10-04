@@ -221,7 +221,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest(task, searchRequest, this::searchAsyncAction, listener);
+        executeRequest((SearchTask) task, searchRequest, this::searchAsyncAction, listener);
     }
 
     public interface SinglePhaseSearchAction {
@@ -229,7 +229,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                   ActionListener<SearchPhaseResult> listener);
     }
 
-    public void executeRequest(Task task, SearchRequest searchRequest, String actionName,
+    public void executeRequest(SearchTask task, SearchRequest searchRequest, String actionName,
                                boolean includeSearchContext, SinglePhaseSearchAction phaseSearchAction,
                                ActionListener<SearchResponse> listener) {
         executeRequest(task, searchRequest, new SearchAsyncActionProvider() {
@@ -271,7 +271,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }, listener);
     }
 
-    private void executeRequest(Task task,
+    private void executeRequest(SearchTask task,
                                 SearchRequest original,
                                 SearchAsyncActionProvider searchAsyncActionProvider,
                                 ActionListener<SearchResponse> listener) {
@@ -297,7 +297,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
                     ccsRemoteReduce(parentTaskId, rewritten, localIndices, remoteClusterIndices, timeProvider,
-                        searchService.aggReduceContextBuilder(rewritten),
+                        searchService.aggReduceContextBuilder(task::isCancelled, rewritten),
                         remoteClusterService, threadPool, listener,
                         (r, l) -> executeLocalSearch(
                             task, timeProvider, r, localIndices, clusterState, l, searchContext, searchAsyncActionProvider));
@@ -323,7 +323,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 int localClusters = localIndices == null ? 0 : 1;
                                 int totalClusters = remoteClusterIndices.size() + localClusters;
                                 int successfulClusters = searchShardsResponses.size() + localClusters;
-                                executeSearch((SearchTask) task, timeProvider, rewritten, localIndices, remoteShardIterators,
+                                executeSearch(task, timeProvider, rewritten, localIndices, remoteShardIterators,
                                     clusterNodeLookup, clusterState, remoteAliasFilters, listener,
                                     new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()),
                                     searchContext, searchAsyncActionProvider);
@@ -816,7 +816,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }, clusters, searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis));
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
-                circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),
+                circuitBreaker, task::isCancelled, task.getProgressListener(), searchRequest, shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]"));
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {

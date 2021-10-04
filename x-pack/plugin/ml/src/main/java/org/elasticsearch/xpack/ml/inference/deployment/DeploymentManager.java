@@ -93,15 +93,14 @@ public class DeploymentManager {
         return Optional.ofNullable(processContextByAllocation.get(task.getId()))
             .map(processContext ->
                 new ModelStats(processContext.resultProcessor.getTimingStats(),
-                    processContext.resultProcessor.getLastUsed(),
-                    (long)processContext.getModelSizeBytes())
+                    processContext.resultProcessor.getLastUsed())
             );
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
         logger.debug("[{}] Starting model deployment", task.getModelId());
 
-        ProcessContext processContext = new ProcessContext(task.getModelId(), executorServiceForProcess, task.getId());
+        ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
 
         if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
             finalListener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
@@ -259,7 +258,7 @@ public class DeploymentManager {
                         listener
                     );
                 } catch (IOException e) {
-                    logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
+                    logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
                 } catch (Exception e) {
                     onFailure(e);
@@ -296,9 +295,11 @@ public class DeploymentManager {
                 return;
             }
 
-            logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
+            logger.debug(() -> new ParameterizedMessage(
+                "[{}] retrieved result for request [{}]", processContext.task.getModelId(), requestId));
             InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
-            logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
+            logger.debug(() -> new ParameterizedMessage(
+                "[{}] processed result for request [{}]", processContext.task.getModelId(), requestId));
             listener.onResponse(results);
         } catch (InterruptedException e) {
             listener.onFailure(e);
@@ -307,33 +308,21 @@ public class DeploymentManager {
 
     class ProcessContext {
 
-        private final String modelId;
-        private final long taskId;
+        private final TrainedModelDeploymentTask task;
         private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 
-        ProcessContext(String modelId, ExecutorService executorService, long taskId) {
-            this.modelId = Objects.requireNonNull(modelId);
-            resultProcessor = new PyTorchResultProcessor(modelId);
+        ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
+            this.task = Objects.requireNonNull(task);
+            resultProcessor = new PyTorchResultProcessor(task.getModelId());
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
-            this.taskId = taskId;
-        }
-
-        /**
-         * A value of -1 means the size is unknown. Most likely
-         * because the model has not been loaded yet or the load
-         * failed.
-         * @return size in bytes or -1
-         */
-        int getModelSizeBytes() {
-            return stateStreamer.getModelSize();
         }
 
         synchronized void startProcess() {
-            process.set(pyTorchProcessFactory.createProcess(modelId, executorServiceForProcess, onProcessCrash()));
+            process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
         }
 
         synchronized void stopProcess() {
@@ -344,22 +333,22 @@ public class DeploymentManager {
             try {
                 stateStreamer.cancel();
                 process.get().kill(true);
-                processContextByAllocation.remove(taskId);
+                processContextByAllocation.remove(task.getId());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Failed to kill process", modelId), e);
+                logger.error(new ParameterizedMessage("[{}] Failed to kill process", task.getModelId()), e);
             }
         }
 
         private Consumer<String> onProcessCrash() {
             return reason -> {
-                logger.error("[{}] process crashed due to reason [{}]", modelId, reason);
-                processContextByAllocation.remove(taskId);
+                logger.error("[{}] process crashed due to reason [{}]", task.getModelId(), reason);
+                processContextByAllocation.remove(task.getId());
             };
         }
 
         void loadModel(TrainedModelLocation modelLocation, ActionListener<Boolean> listener) {
             if (modelLocation instanceof IndexLocation) {
-                process.get().loadModel(modelId, ((IndexLocation) modelLocation).getIndexName(), stateStreamer, listener);
+                process.get().loadModel(task.getModelId(), ((IndexLocation) modelLocation).getIndexName(), stateStreamer, listener);
             } else {
                 throw new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]");
             }

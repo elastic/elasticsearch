@@ -280,7 +280,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.COMPLETE,
                 0,
-                "[" + shardsToIgnoreForFinalStatus.get() + "] primary shards cannot be moved away from this node"
+                "["
+                    + shardsToIgnoreForFinalStatus.get()
+                    + "] shards cannot be moved away from this node but have at least one copy on another node in the cluster"
             );
         } else if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.

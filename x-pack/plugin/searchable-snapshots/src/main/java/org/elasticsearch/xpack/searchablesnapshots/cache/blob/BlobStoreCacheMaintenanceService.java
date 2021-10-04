@@ -59,6 +59,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.Scheduler;
@@ -463,7 +464,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                 if (searchResponse == null) {
                     final SearchSourceBuilder searchSource = new SearchSourceBuilder();
-                    searchSource.fetchField(CachedBlob.CREATION_TIME_FIELD);
+                    searchSource.fetchField(new FieldAndFormat(CachedBlob.CREATION_TIME_FIELD, "epoch_millis"));
                     searchSource.fetchSource(false);
                     searchSource.trackScores(false);
                     searchSource.sort(ShardDocSortField.NAME);
@@ -483,7 +484,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         @Override
                         public void onResponse(SearchResponse response) {
                             if (searchAfter == null) {
-                                PeriodicMaintenanceTask.this.total.compareAndSet(0L, response.getHits().getTotalHits().value);
+                                assert PeriodicMaintenanceTask.this.total.get() == 0L;
+                                PeriodicMaintenanceTask.this.total.set(response.getHits().getTotalHits().value);
                             }
                             PeriodicMaintenanceTask.this.searchResponse = response;
                             PeriodicMaintenanceTask.this.searchAfter = null;

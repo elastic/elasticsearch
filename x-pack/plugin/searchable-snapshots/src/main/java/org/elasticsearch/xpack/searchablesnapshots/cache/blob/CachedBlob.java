@@ -81,7 +81,7 @@ public class CachedBlob implements ToXContent {
         builder.startObject();
         {
             builder.field("type", TYPE);
-            builder.field("creation_time", creationTime.toEpochMilli());
+            builder.field(CREATION_TIME_FIELD, creationTime.toEpochMilli());
             builder.field("version", version.id);
             builder.field("repository", repository);
             builder.startObject("blob");

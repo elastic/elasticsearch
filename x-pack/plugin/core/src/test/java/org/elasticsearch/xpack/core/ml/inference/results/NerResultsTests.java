@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -37,7 +38,7 @@ public class NerResultsTests extends AbstractWireSerializingTestCase<NerResults>
     public void testAsMap() {
         NerResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        List<Map<String, Object>> resultList = (List<Map<String, Object>>)asMap.get("results");
+        List<Map<String, Object>> resultList = (List<Map<String, Object>>)asMap.get(DEFAULT_RESULTS_FIELD);
         assertThat(resultList, hasSize(testInstance.getEntityGroups().size()));
         for (int i=0; i<testInstance.getEntityGroups().size(); i++) {
             NerResults.EntityGroup entity = testInstance.getEntityGroups().get(i);

@@ -264,7 +264,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     /**
      * Writes blob with resolving the blob name using {@link #blobName} method.
      * <p>
-     * The blob will optionally by compressed.
+     * The blob will optionally be compressed.
      *
      * @param obj                 object to be serialized
      * @param blobContainer       blob container
@@ -278,7 +278,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     /**
      * Writes blob with resolving the blob name using {@link #blobName} method.
      * <p>
-     * The blob will optionally by compressed.
+     * The blob will optionally be compressed.
      *
      * @param obj                            object to be serialized
      * @param blobContainer                  blob container
@@ -292,7 +292,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
     }
 
-    public void serialize(final T obj, final String blobName, final boolean compress, OutputStream outputStream) throws IOException {
+    public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {
         serialize(obj, blobName, compress, Collections.emptyMap(), outputStream);
     }
 
@@ -301,7 +301,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         final String blobName,
         final boolean compress,
         final Map<String, String> extraParams,
-        OutputStream outputStream
+        final OutputStream outputStream
     ) throws IOException {
         try (
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(

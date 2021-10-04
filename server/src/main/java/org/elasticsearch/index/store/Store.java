@@ -962,10 +962,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (StoreFileMetadata sourceFile : this) {
                 if (sourceFile.name().startsWith("_")) {
                     final String segmentId = IndexFileNames.parseSegmentName(sourceFile.name());
-                    final long generation = IndexFileNames.parseGeneration(sourceFile.name());
+                    final boolean isGenerationalFile = IndexFileNames.parseGeneration(sourceFile.name()) > 0L;
                     final Tuple<List<StoreFileMetadata>, List<StoreFileMetadata>> perSegmentTuple = perSegmentSourceFiles
                         .computeIfAbsent(segmentId, k -> Tuple.tuple(new ArrayList<>(), new ArrayList<>()));
-                    (generation == 0 ? perSegmentTuple.v1() : perSegmentTuple.v2()).add(sourceFile);
+                    (isGenerationalFile ? perSegmentTuple.v2() : perSegmentTuple.v1()).add(sourceFile);
                 } else {
                     assert sourceFile.name().startsWith(IndexFileNames.SEGMENTS + "_") : "unexpected " + sourceFile;
                     perCommitSourceFiles.add(sourceFile);

@@ -73,7 +73,6 @@ public class StoreFileMetadata implements Writeable {
         } else {
             writerUuid = UNAVAILABLE_WRITER_UUID;
         }
-
     }
 
     @Override

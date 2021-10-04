@@ -631,12 +631,12 @@ public class StoreTests extends ESTestCase {
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-            IndexWriter writer = new IndexWriter(store.directory(), iwc);
-            final String newDocValue = TestUtil.randomRealisticUnicodeString(random());
-            logger.info("--> update doc [{}] with dv=[{}]", updateId, newDocValue);
-            writer.updateBinaryDocValue(new Term("id", updateId), "dv", new BytesRef(newDocValue));
-            writer.commit();
-            writer.close();
+            try(IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
+                final String newDocValue = TestUtil.randomRealisticUnicodeString(random());
+                logger.info("--> update doc [{}] with dv=[{}]", updateId, newDocValue);
+                writer.updateBinaryDocValue(new Term("id", updateId), "dv", new BytesRef(newDocValue));
+                writer.commit();
+            }
             dvUpdateSnapshot = store.getMetadata(null);
         }
         logger.info("--> source: {}", dvUpdateSnapshot.asMap());

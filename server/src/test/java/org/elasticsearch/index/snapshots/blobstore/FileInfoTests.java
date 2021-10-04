@@ -55,9 +55,15 @@ public class FileInfoTests extends ESTestCase {
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             boolean serializeWriterUUID = randomBoolean();
-            ToXContent.Params params = new ToXContent.MapParams(
-                Collections.singletonMap(FileInfo.SERIALIZE_WRITER_UUID, Boolean.toString(serializeWriterUUID))
-            );
+            final ToXContent.Params params;
+            if (serializeWriterUUID && randomBoolean()) {
+                // We serialize by the writer uuid by default
+                params = new ToXContent.MapParams(Collections.emptyMap());
+            } else {
+                params = new ToXContent.MapParams(
+                    Collections.singletonMap(FileInfo.SERIALIZE_WRITER_UUID, Boolean.toString(serializeWriterUUID))
+                );
+            }
             BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, params);
             byte[] xcontent = BytesReference.toBytes(BytesReference.bytes(shuffleXContent(builder)));
 

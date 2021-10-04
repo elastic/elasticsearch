@@ -79,22 +79,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 client().performRequest(new Request("DELETE", "_logging/deprecation_cache"));
-                client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
-
-                final Request request = new Request("POST", "/" + DATA_STREAM_NAME + "/_delete_by_query");
-                request.setJsonEntity("{ \"query\" : { \"match_all\" : {} } }\n");
-                Response response = client().performRequest(request);
-                assertOK(response);
-
-                client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
-                response = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
-                assertOK(response);
-
-                ObjectMapper mapper = new ObjectMapper();
-                final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
-
-                final int hits = jsonNode.at("/hits/total/value").intValue();
-                assertThat(hits, equalTo(0));
+                client().performRequest(new Request("DELETE", "/_data_stream/" + DATA_STREAM_NAME));
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
@@ -283,10 +268,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     public void testDeprecationRouteThrottling() throws Exception {
 
-        final Request getRequest = deprecatedRequest("GET", "xOpaqueId-testDeprecationRouteThrottling");
-        assertOK(client().performRequest(getRequest));
+        final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDeprecationRouteThrottling");
+        assertOK(client().performRequest(deprecatedRequest));
 
-        assertOK(client().performRequest(getRequest));
+        assertOK(client().performRequest(deprecatedRequest));
 
         final Request postRequest = deprecatedRequest("POST", "xOpaqueId-testDeprecationRouteThrottling");
         assertOK(client().performRequest(postRequest));
@@ -321,8 +306,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
     public void testDisableDeprecationLogIndexing() throws Exception {
         try {
             configureWriteDeprecationLogsToIndex(true);
-            final Request getRequest = deprecatedRequest("GET", "xOpaqueId-testDisableDeprecationLogIndexing");
-            assertOK(client().performRequest(getRequest));
+            final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDisableDeprecationLogIndexing");
+            assertOK(client().performRequest(deprecatedRequest));
             configureWriteDeprecationLogsToIndex(false);
 
             final Request postRequest = deprecatedRequest("POST", "xOpaqueId-testDisableDeprecationLogIndexing");
@@ -583,12 +568,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     public void testDeprecationIndexingCacheReset() throws Exception {
 
-        final Request getRequest = deprecatedRequest("GET", "xOpaqueId-testDeprecationIndexingCacheReset");
-        assertOK(client().performRequest(getRequest));
+        final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDeprecationIndexingCacheReset");
+        assertOK(client().performRequest(deprecatedRequest));
 
         client().performRequest(new Request("DELETE", "/_logging/deprecation_cache"));
 
-        assertOK(client().performRequest(getRequest));
+        assertOK(client().performRequest(deprecatedRequest));
 
         assertBusy(() -> {
             List<Map<String, Object>> documents = getIndexedDeprecations();

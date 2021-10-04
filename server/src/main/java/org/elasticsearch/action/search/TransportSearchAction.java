@@ -682,7 +682,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
             aliasFilter = buildPerIndexAliasFilter(clusterState, indicesAndAliases, indices, remoteAliasMap);
             final Map<String, OriginalIndices> finalIndicesMap =
-                buildPerIndexOriginalIndices(clusterState, indicesAndAliases, indices, localIndices.indicesOptions());
+                buildPerIndexOriginalIndices(clusterState, indicesAndAliases, indices, searchRequest.indicesOptions());
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
                 .map(it -> {
                     OriginalIndices finalIndices = finalIndicesMap.get(it.shardId().getIndex().getUUID());

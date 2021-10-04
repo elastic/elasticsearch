@@ -85,7 +85,7 @@
 #
 #                                 *** WARNING ***
 #
-# By default Elasticsearch doesn’t have security features enabled.
+# Elasticsearch security features are disabled by default.
 # This means that users don’t have to provide a password and can get full access
 # to the cluster. Network connections are also not encrypted.
 #

@@ -21,7 +21,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 
 public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetadata> {
 

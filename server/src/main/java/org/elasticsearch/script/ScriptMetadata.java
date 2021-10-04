@@ -18,6 +18,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,6 +36,11 @@ import java.util.Map;
  * as part of the {@link ClusterState} using only an id as the key.
  */
 public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXContentFragment {
+
+    /**
+     * Standard deprecation logger for used to deprecate allowance of empty templates.
+     */
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptMetadata.class);
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -184,7 +191,20 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
                     }
 
                     StoredScriptSource source = StoredScriptSource.fromXContent(parser, true);
-                    scripts.put(id, source);
+                    // as of 8.0 we drop scripts/templates with an empty source
+                    // this check should be removed for the next upgradable version after 8.0
+                    // since there is a guarantee no more empty scripts will exist
+                    if (source.getSource().isEmpty()) {
+                        if (Script.DEFAULT_TEMPLATE_LANG.equals(source.getLang())) {
+                            deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates",
+                                    "empty template found and dropped");
+                        } else {
+                            deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_scripts",
+                                    "empty script found and dropped");
+                        }
+                    } else {
+                        scripts.put(id, source);
+                    }
 
                     id = null;
                     break;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -51,9 +52,13 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 
 /**
@@ -125,8 +130,50 @@ public class SearchTransportService {
 
     public void sendCanMatch(Transport.Connection connection, final CanMatchRequest request, SearchTask task, final
                              ActionListener<CanMatchNodeResponse> listener) {
-        transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new));
+        if (connection.getVersion().onOrAfter(Version.V_8_0_0)) {
+            transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
+                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new));
+        } else {
+            List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
+            AtomicReferenceArray<Object> results = new AtomicReferenceArray<>(shardSearchRequests.size());
+            AtomicInteger counter = new AtomicInteger();
+            for (int i = 0; i < shardSearchRequests.size(); i++) {
+                ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
+                // TODO: do we need to set parent task etc on this synthetic ShardSearchRequest
+                int finalI = i;
+                sendCanMatch(connection, shardSearchRequest, task, new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchService.CanMatchResponse response) {
+                        results.set(finalI, response);
+                        maybeFinish();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        results.set(finalI, e);
+                        maybeFinish();
+                    }
+
+                    private void maybeFinish() {
+                        if (counter.incrementAndGet() == shardSearchRequests.size()) {
+                            List<SearchService.CanMatchResponse> responses = new ArrayList<>(shardSearchRequests.size());
+                            List<Exception> failures = new ArrayList<>(shardSearchRequests.size());
+                            for (int i = 0; i < results.length(); i++) {
+                                Object o = results.get(i);
+                                if (o instanceof SearchService.CanMatchResponse) {
+                                    responses.set(i, (SearchService.CanMatchResponse) o);
+                                } else {
+                                    assert o instanceof Exception;
+                                    failures.set(i, (Exception) o);
+                                }
+                            }
+                            CanMatchNodeResponse response = new CanMatchNodeResponse(responses, failures);
+                            listener.onResponse(response);
+                        }
+                    }
+                });
+            }
+        }
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {

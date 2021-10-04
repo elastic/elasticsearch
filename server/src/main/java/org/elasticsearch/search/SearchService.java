@@ -15,6 +15,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -1227,15 +1228,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void canMatch(CanMatchRequest request, ActionListener<CanMatchNodeResponse> listener) {
-        try {
-            List<CanMatchResponse> responses = new ArrayList<>();
-            for (ShardSearchRequest shardSearchRequest : request.createShardSearchRequests()) {
-                responses.add(canMatch(shardSearchRequest));
+        List<CanMatchResponse> responses = new ArrayList<>();
+        List<Exception> failures = new ArrayList<>();
+        List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
+        for (int i = 0; i < shardSearchRequests.size(); i++) {
+            ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
+            CanMatchResponse canMatchResponse;
+            try {
+                canMatchResponse = canMatch(shardSearchRequest);
+                responses.set(i, canMatchResponse);
+            } catch (Exception e) {
+                failures.set(i, e);
             }
-            listener.onResponse(new CanMatchNodeResponse(responses));
-        } catch (IOException e) {
-            listener.onFailure(e);
+
         }
+        listener.onResponse(new CanMatchNodeResponse(responses, failures));
     }
 
     /**

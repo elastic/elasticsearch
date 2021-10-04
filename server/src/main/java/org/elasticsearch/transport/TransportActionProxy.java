@@ -63,6 +63,13 @@ public final class TransportActionProxy {
         }
     }
 
+    interface ResendingContext {
+        String getAction();
+        TransportRequest wrappedRequest();
+        DiscoveryNode targetNode();
+        TransportRequestOptions options();
+    }
+
     private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final Writeable.Reader<T> reader;
@@ -159,12 +166,7 @@ public final class TransportActionProxy {
      */
     public static void registerProxyAction(TransportService service, String action, boolean cancellable,
                                            Writeable.Reader<? extends TransportResponse> reader) {
-        RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
-        service.registerRequestHandler(getProxyAction(action), ThreadPool.Names.SAME, true, false,
-            in -> cancellable ?
-                new CancellableProxyRequest<>(in, requestHandler::newRequest) :
-                new ProxyRequest<>(in, requestHandler::newRequest),
-            new ProxyRequestHandler<>(service, action, request -> reader));
+        registerProxyActionWithDynamicResponseType(service, action, cancellable, request -> reader);
     }
 
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";

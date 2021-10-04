@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.apache.lucene.queries;
+package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -22,7 +22,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.index.mapper.RangeType;
 
 import java.io.IOException;
 import java.util.Objects;

@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
@@ -38,6 +39,8 @@ public class IngestDocumentTests extends ESTestCase {
 
     private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
+    private static final String DOUBLE_ARRAY_FIELD = "double_array_field";
+    private static final String DOUBLE_DOUBLE_ARRAY_FIELD = "double_double_array";
 
     @Before
     public void setTestIngestDocument() {
@@ -69,6 +72,14 @@ public class IngestDocumentTests extends ESTestCase {
         list2.add("bar");
         list2.add("baz");
         document.put("list2", list2);
+        document.put(DOUBLE_ARRAY_FIELD, DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray());
+        document.put(
+            DOUBLE_DOUBLE_ARRAY_FIELD,
+            new double[][] {
+                DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray(),
+                DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray(),
+                DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray() }
+        );
 
         ingestDocument = new IngestDocument("index", "id", null, null, null, document);
     }
@@ -1044,6 +1055,22 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(e.getMessage(),
                     containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array"));
         }
+    }
+
+    public void testDeepCopy() {
+        IngestDocument copiedDoc = new IngestDocument(
+            IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
+            IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())
+        );
+        assertArrayEquals(
+            copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
+            ingestDocument.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
+            1e-10
+        );
+        assertArrayEquals(
+            copiedDoc.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class),
+            ingestDocument.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class)
+        );
     }
 
 }

@@ -113,6 +113,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -482,7 +483,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
-
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce
             int toReduceSize = aggs.size();
@@ -490,7 +490,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> toReduce = aggs.subList(0, r);
             InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(
-                context.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
+                context.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY, () -> false);
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
             aggs.add(reduced);
@@ -500,7 +500,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-            context.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines);
+            context.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines, () -> false);
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
@@ -513,6 +513,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
             internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
         }
         doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
+            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
+        }
         return internalAgg;
     }
 
@@ -626,7 +629,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 context.bigArrays(),
                 getMockScriptService(),
                 context.multiBucketConsumer(),
-                builder.buildPipelineTree()
+                builder.buildPipelineTree(),
+                () -> false
             )
         );
         @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
@@ -669,6 +673,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    private void verifyMetricNames(
+        ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?> aggregationBuilder,
+        InternalAggregation agg)
+    {
+         for (String metric : aggregationBuilder.metricNames()) {
+             try {
+                 agg.getProperty(List.of(metric));
+             } catch (IllegalArgumentException ex) {
+                 fail("Cannot access metric [" + metric + "]");
+             }
+         }
+    }
 
     protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
         throws IOException {

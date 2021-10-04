@@ -23,7 +23,6 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
     public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
-    public static final String DEFAULT_RESULTS_FIELD = "predicted_value";
 
     public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
 
@@ -73,6 +72,7 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
         return numTopFeatureImportanceValues;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }

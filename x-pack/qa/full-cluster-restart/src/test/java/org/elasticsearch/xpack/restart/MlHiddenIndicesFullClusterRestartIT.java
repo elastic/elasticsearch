@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +27,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -68,7 +66,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
             openAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
 
-            Request getAliasesRequest = new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+            Request getAliasesRequest =
+                new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
             getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemAliasWarning);
                 v.compatible(systemAliasWarning);
@@ -116,7 +115,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     is(equalTo("true")));
             }
 
-            Request getAliasesRequest = new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+            Request getAliasesRequest =
+                new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
             getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemAliasWarning);
                 v.compatible(systemAliasWarning);
@@ -138,8 +138,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         }
     }
 
-    private static final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct " +
-        "access to system indices will be prevented by default";
+    private static final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, " +
+        "direct access to system indices will be prevented by default";
 
     private static final String systemAliasWarning = "this request accesses aliases with names reserved for system indices: [.security], " +
         "but in a future major version, direct access to system indices and their aliases will not be allowed";

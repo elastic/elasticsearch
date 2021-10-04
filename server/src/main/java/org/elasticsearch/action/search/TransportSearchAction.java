@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -140,6 +141,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.executorSelector = executorSelector;
     }
 
+    private Map<String, OriginalIndices> buildPerIndexOriginalIndices(ClusterState clusterState,
+                                                                      Set<String> indicesAndAliases,
+                                                                      Index[] concreteIndices,
+                                                                      IndicesOptions indicesOptions) {
+        Map<String, OriginalIndices> res = new HashMap<>();
+        for (Index index : concreteIndices) {
+            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
+            String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index.getName(), aliasMetadata -> true,
+                dataStreamAlias -> true, true, indicesAndAliases);
+            List<String> finalIndices = new ArrayList<>();
+            if (indicesAndAliases.contains(index.getName())
+                    || aliases == null || aliases.length == 0) {
+                finalIndices.add(index.getName());
+            }
+            if (aliases != null) {
+                finalIndices.addAll(Arrays.asList(aliases));
+            }
+            res.put(index.getUUID(), new OriginalIndices(finalIndices.toArray(String[]::new), indicesOptions));
+        }
+        return Collections.unmodifiableMap(res);
+    }
+
     private Map<String, AliasFilter> buildPerIndexAliasFilter(ClusterState clusterState,
                                                               Set<String> indicesAndAliases,
                                                               Index[] concreteIndices,
@@ -147,7 +170,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases, false);
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
@@ -551,12 +574,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 //add the cluster name to the remote index names for indices disambiguation
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
+                AliasFilter aliasFilter = aliasFilterMap.get(shardId.getIndex().getUUID());
+                String[] aliases = aliasFilter.getAliases();
                 String clusterAlias = entry.getKey();
-                assert remoteIndicesByCluster.get(clusterAlias) != null : "original indices are null for clusterAlias: " + clusterAlias;
-                final OriginalIndices originalIndices = getOriginalIndexAndAliases(shardId.getIndex(), Collections.emptySet(),
-                    aliasFilterMap, remoteIndicesByCluster.get(clusterAlias).indicesOptions());
+                String[] finalIndices = aliases.length == 0 ? new String[]{shardId.getIndexName()} : aliases;
+                final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
+                assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
                 SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId,
-                    Arrays.asList(clusterSearchShardsGroup.getShards()), originalIndices);
+                    Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
+                    originalIndices.indicesOptions()));
                 remoteShardIterators.add(shardIterator);
             }
         }
@@ -584,10 +610,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                 }
                 assert remoteClusterIndices.get(clusterAlias) != null : "original indices are null for clusterAlias: " + clusterAlias;
-                final OriginalIndices originalIndices = getOriginalIndexAndAliases(shardId.getIndex(), Collections.emptySet(),
-                    searchContextId.aliasFilter(), remoteClusterIndices.get(clusterAlias).indicesOptions());
+                final OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() },
+                    remoteClusterIndices.get(clusterAlias).indicesOptions());
                 SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId, targetNodes,
-                    originalIndices, perNode.getSearchContextId(), searchContextKeepAlive);
+                    finalIndices, perNode.getSearchContextId(), searchContextKeepAlive);
                 remoteShardIterators.add(shardIterator);
             }
         }
@@ -656,12 +682,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchService.getResponseCollectorService(), nodeSearchCounts);
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
             aliasFilter = buildPerIndexAliasFilter(clusterState, indicesAndAliases, indices, remoteAliasMap);
+            final Map<String, OriginalIndices> finalIndicesMap =
+                buildPerIndexOriginalIndices(clusterState, indicesAndAliases, indices, localIndices.indicesOptions());
             localShardIterators = StreamSupport.stream(localShardRoutings.spliterator(), false)
                 .map(it -> {
-                    final OriginalIndices finalIndices = getOriginalIndexAndAliases(it.shardId().getIndex(),
-                        indicesAndAliases, aliasFilter, localIndices.indicesOptions());
-                    return new SearchShardIterator(searchRequest.getLocalClusterAlias(),
-                        it.shardId(), it.getShardRoutings(), finalIndices);
+                    OriginalIndices finalIndices = finalIndicesMap.get(it.shardId().getIndex().getUUID());
+                    assert finalIndices != null;
+                    return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
                 })
                 .collect(Collectors.toList());
         }
@@ -956,29 +983,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     }
                 }
-                iterators.add(new SearchShardIterator(localClusterAlias, shardId, targetNodes,
-                    getOriginalIndexAndAliases(shardId.getIndex(), Collections.emptySet(),
-                        searchContext.aliasFilter(), originalIndices.indicesOptions()),
+                OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() },
+                    originalIndices.indicesOptions());
+                iterators.add(new SearchShardIterator(localClusterAlias, shardId, targetNodes, finalIndices,
                     perNode.getSearchContextId(), keepAlive));
             }
         }
         return iterators;
-    }
-
-    /**
-     * Returns the actual concrete index and aliases that expanded to the concrete {@link Index}.
-     */
-    static OriginalIndices getOriginalIndexAndAliases(Index index,
-                                                      Set<String> resolvedIndicesAndAliases,
-                                                      Map<String, AliasFilter> aliasFilter,
-                                                      IndicesOptions indicesOptions) {
-        assert aliasFilter.get(index.getUUID()) != null;
-        String[] aliases = aliasFilter.get(index.getUUID()).getAliases();
-        List<String> finalIndices = new ArrayList<>();
-        if (aliases.length == 0 || resolvedIndicesAndAliases.contains(index.getName())) {
-            finalIndices.add(index.getName());
-        }
-        finalIndices.addAll(Arrays.asList(aliases));
-        return new OriginalIndices(finalIndices.toArray(String[]::new), indicesOptions);
     }
 }

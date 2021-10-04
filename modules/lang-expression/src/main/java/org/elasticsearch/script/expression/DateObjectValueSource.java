@@ -10,8 +10,8 @@ package org.elasticsearch.script.expression;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -20,7 +20,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.ToIntFunction;
 
 /** Extracts a portion of a date field with joda time */

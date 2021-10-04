@@ -169,7 +169,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     public abstract static class SingleMetricAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
         extends MetricsAggregationBuilder<VS, AB> {
 
-        private static final Set<String> METRIC_NAME = Set.of("value");
+        private static final Set<String> METRIC_NAME = org.elasticsearch.core.Set.of("value");
 
         protected SingleMetricAggregationBuilder(String name) {
             super(name);

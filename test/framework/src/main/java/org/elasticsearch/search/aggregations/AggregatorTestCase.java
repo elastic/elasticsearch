@@ -685,7 +685,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     {
          for (String metric : aggregationBuilder.metricNames()) {
              try {
-                 agg.getProperty(List.of(metric));
+                 agg.getProperty(org.elasticsearch.core.List.of(metric));
              } catch (IllegalArgumentException ex) {
                  fail("Cannot access metric [" + metric + "]");
              }

@@ -34,6 +34,7 @@ ES_HOME=`dirname "$ES_HOME"`
 
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"
+ES_MODULEPATH="$ES_HOME/lib/"
 
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then

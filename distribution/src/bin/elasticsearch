@@ -54,6 +54,8 @@ fi
 #   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
+echo "Using module path: $ES_MODULEPATH"
+
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   exec \
@@ -65,7 +67,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
-    -cp "$ES_CLASSPATH" \
+    --module-path "$ES_MODULEPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
 else
@@ -78,7 +80,7 @@ else
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
-    -cp "$ES_CLASSPATH" \
+    --module-path "$ES_MODULEPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" \
     <<<"$KEYSTORE_PASSWORD" &

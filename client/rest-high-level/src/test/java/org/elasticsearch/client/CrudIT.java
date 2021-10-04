@@ -48,11 +48,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.io.IOException;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -923,7 +924,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testUrlEncode() throws IOException {
         String indexPattern = "<logstash-{now/M}>";
         String expectedIndex = "logstash-" +
-                DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+            DateTimeFormatter.ofPattern("uuuu.MM.dd").format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1).with(LocalTime.MIN));
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern).id("id#1");
             indexRequest.source("field", "value");

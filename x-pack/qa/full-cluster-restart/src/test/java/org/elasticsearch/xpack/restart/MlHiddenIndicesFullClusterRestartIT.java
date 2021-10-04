@@ -79,7 +79,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                 List.of(
                     Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
                     Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME),
-                    Tuple.tuple(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias()));
+                    Tuple.tuple(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                );
             for (Tuple<String, String> indexAndAlias : expected) {
                 assertThat(
                     indexAndAlias + " should not be hidden",
@@ -162,7 +163,12 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
 
     private void assertThatNoMlIndicesExist() throws IOException {
         Request getIndexRequest = new Request("GET", ".ml-*");
-        getIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addParameter("allow_no_indices", "false").build());
+        getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(systemIndexWarning);
+            v.compatible(systemIndexWarning);
+        }).toBuilder()
+            .addParameter("allow_no_indices", "false")
+            .build());
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.http.Header;
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
@@ -22,9 +22,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -42,13 +42,25 @@ public class DeprecationSettingsIT extends ESRestTestCase {
     private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
 
     /**
+     * Builds a REST client that will tolerate warnings in the response headers. The default
+     * is to throw an exception.
+     */
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
+    }
+
+    /**
      * Check that configuring deprecation settings causes a warning to be added to the
      * response headers.
      */
     public void testDeprecatedSettingsReturnWarnings() throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder()
             .startObject()
-            .startObject("transient")
+            .startObject("persistent")
             .field(
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
@@ -102,23 +114,6 @@ public class DeprecationSettingsIT extends ESRestTestCase {
         for (Matcher<String> headerMatcher : headerMatchers) {
             assertThat(actualWarningValues, hasItem(headerMatcher));
         }
-
-        assertBusy(() -> {
-            try {
-                client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
-                Response getResponse = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
-                assertOK(getResponse);
-
-                ObjectMapper mapper = new ObjectMapper();
-                final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
-
-                final int hits = jsonNode.at("/hits/total/value").intValue();
-                assertThat(hits, equalTo(2));
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-
-        }, 30, TimeUnit.SECONDS);
     }
 
     private List<String> getWarningHeaders(Header[] headers) {

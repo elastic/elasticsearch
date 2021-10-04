@@ -10,10 +10,10 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -138,8 +138,11 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         // simulate older data path layout by moving data under "nodes/0" folder
         final List<Path> dataPaths = List.of(PathUtils.get(Environment.PATH_DATA_SETTING.get(dataPathSettings)));
         dataPaths.forEach(path -> {
-                final Path targetPath = path.resolve("nodes").resolve("0");
+                final Path nodesPath = path.resolve("nodes");
+                final Path targetPath = nodesPath.resolve("0");
                 try {
+                    assertTrue(Files.isRegularFile(nodesPath));
+                    Files.delete(nodesPath);
                     Files.createDirectories(targetPath);
 
                     try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
@@ -192,9 +195,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         }
 
         // check that upgrade works
-        dataPaths.forEach(path -> assertTrue(Files.exists(path.resolve("nodes"))));
+        dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);
-        dataPaths.forEach(path -> assertFalse(Files.exists(path.resolve("nodes"))));
+        dataPaths.forEach(path -> assertTrue(Files.isRegularFile(path.resolve("nodes"))));
         assertEquals(nodeId, client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");

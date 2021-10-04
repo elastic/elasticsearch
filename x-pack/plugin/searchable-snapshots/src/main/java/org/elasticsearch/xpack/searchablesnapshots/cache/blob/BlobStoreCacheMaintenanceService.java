@@ -66,6 +66,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -439,7 +440,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 if (pointIntTimeId == null) {
                     final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(SNAPSHOT_BLOB_CACHE_INDEX);
                     openRequest.keepAlive(keepAlive);
-                    clientWithOrigin.execute(OpenPointInTimeAction.INSTANCE, openRequest, new ActionListener<>() {
+                    clientWithOrigin.execute(OpenPointInTimeAction.INSTANCE, openRequest, new ActionListener<OpenPointInTimeResponse>() {
                         @Override
                         public void onResponse(OpenPointInTimeResponse response) {
                             logger.trace("periodic maintenance task initialized with point-in-time id [{}]", response.getPointInTimeId());
@@ -480,7 +481,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     searchSource.pointInTimeBuilder(pointInTime);
                     final SearchRequest searchRequest = new SearchRequest();
                     searchRequest.source(searchSource);
-                    clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<>() {
+                    clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {
                             if (searchAfter == null) {
@@ -505,7 +506,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     if (expirationTime == null) {
                         final TimeValue retention = periodicTaskRetention;
                         expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
-                            .minus(retention.duration(), retention.timeUnit().toChronoUnit());
+                            .minus(retention.millis(), ChronoUnit.MILLIS);
 
                         final ClusterState state = clusterService.state();
                         // compute the list of existing searchable snapshots and repositories once
@@ -580,7 +581,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     }
 
                     final Object[] finalSearchAfter = lastSortValues;
-                    clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, new ActionListener<>() {
+                    clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, new ActionListener<BulkResponse>() {
                         @Override
                         public void onResponse(BulkResponse response) {
                             for (BulkItemResponse itemResponse : response.getItems()) {
@@ -660,21 +661,25 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final String pitId = pointIntTimeId;
                 if (Strings.hasLength(pitId)) {
                     final ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId);
-                    clientWithOrigin.execute(ClosePointInTimeAction.INSTANCE, closeRequest, ActionListener.runAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClosePointInTimeResponse response) {
-                            if (response.isSucceeded()) {
-                                logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
-                            } else {
-                                logger.debug("point-in-time id [{}] not found", pitId);
+                    clientWithOrigin.execute(
+                        ClosePointInTimeAction.INSTANCE,
+                        closeRequest,
+                        ActionListener.runAfter(new ActionListener<ClosePointInTimeResponse>() {
+                            @Override
+                            public void onResponse(ClosePointInTimeResponse response) {
+                                if (response.isSucceeded()) {
+                                    logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
+                                } else {
+                                    logger.debug("point-in-time id [{}] not found", pitId);
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
-                        }
-                    }, () -> Releasables.close(releasable)));
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
+                            }
+                        }, () -> Releasables.close(releasable))
+                    );
                     waitForRelease = true;
                 }
             } finally {

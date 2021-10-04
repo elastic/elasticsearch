@@ -30,7 +30,7 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withIndexCompatiple((bwcVersion, baseName) -> {
+BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
     def baseCluster = testClusters.register(baseName) {
         testDistribution = "DEFAULT"
         versions = [bwcVersion.toString(), project.version]
@@ -96,5 +96,4 @@ BuildParams.bwcVersions.withIndexCompatiple((bwcVersion, baseName) -> {
         dependsOn "${baseName}#upgradedClusterTest"
     }
 
-})
-
+}

@@ -15,12 +15,9 @@ apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
-for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-  String bwcVersionString = bwcVersion.toString()
-  String baseName = "v${bwcVersionString}"
-
+BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
-      version = bwcVersionString
+      version = bwcVersion.toString()
       setting 'xpack.security.enabled', 'true'
       user username: 'admin', password: 'admin-password', role: 'superuser'
   }

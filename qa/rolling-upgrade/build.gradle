@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
+BuildParams.bwcVersions.withWireCompatiple() { bwcVersion, baseName ->
   /*
    * The goal here is to:
    * <ul>
@@ -30,11 +30,8 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
    * </ul>
    */
 
-  String bwcVersionString = bwcVersion.toString()
-  String baseName = "v" + bwcVersionString
-
   def baseCluster = testClusters.register(baseName) {
-    versions = [bwcVersionString, project.version]
+    versions = [bwcVersion.toString(), project.version]
     numberOfNodes = 3
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'

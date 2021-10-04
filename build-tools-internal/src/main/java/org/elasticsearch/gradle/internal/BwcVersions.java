@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.gradle.internal;
 
+import groovy.lang.Closure;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
+import shadow.org.apache.logging.log4j.util.TriConsumer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,6 +26,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -346,6 +349,10 @@ public class BwcVersions {
         getIndexCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
     }
 
+    public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+        getIndexCompatible().stream().filter(filter).toList().forEach(v -> versionAction.accept(v, "v"+v.toString()));
+    }
+
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
@@ -359,6 +366,9 @@ public class BwcVersions {
         return unmodifiableList(filterSupportedVersions(wireCompat));
     }
 
+    public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
+        getWireCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
+    }
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {
         return Architecture.current() == Architecture.AARCH64
             ? wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList())

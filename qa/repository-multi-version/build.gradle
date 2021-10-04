@@ -20,8 +20,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
-  String baseName = "v${bwcVersion}"
+BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
   String oldClusterName = "${baseName}-old"
   String newClusterName = "${baseName}-new"
 

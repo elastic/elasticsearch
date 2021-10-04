@@ -214,7 +214,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                 TimeValue.ZERO,
                 TimeValue.ZERO),
-            new ThreadContext(Settings.EMPTY),
             getMetadataCreateIndexService()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -260,7 +259,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                 TimeValue.ZERO,
                 TimeValue.ZERO),
-            new ThreadContext(Settings.EMPTY),
             getMetadataCreateIndexService()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -313,7 +311,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                         TimeValue.ZERO,
                         TimeValue.ZERO),
-                    new ThreadContext(Settings.EMPTY),
                     getMetadataCreateIndexService()));
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));
     }

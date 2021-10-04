@@ -15,7 +15,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +26,9 @@ import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ImmutableOpenMapTests extends ESTestCase {
@@ -132,19 +134,17 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEmptyValuesIsCollection() {
-        assertTrue(ImmutableOpenMap.of().values().isEmpty());
+        assertThat(ImmutableOpenMap.of().values(), empty());
     }
 
     public void testValuesIsCollection() {
-        assertTrue(countryPopulations.values().containsAll(List.of(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942)));
+        assertThat(countryPopulations.values(), containsInAnyOrder(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942));
     }
 
     public void testValuesToArray() {
         Integer[] populations = countryPopulations.values().toArray(Integer[]::new);
 
-        assertThat(populations.length, equalTo(5));
-        Arrays.sort(populations);
-        assertThat(populations, equalTo(new Integer[]{37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942}));
+        assertThat(populations, arrayContainingInAnyOrder(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942));
     }
 
     public void testStreamOperationOnValues() {

@@ -39,6 +39,8 @@ import java.io.IOException;
 import java.util.Base64;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySearchResultTests extends ESTestCase {
 
@@ -74,7 +76,9 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
-        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new);
+        boolean delayed = randomBoolean();
+        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry,
+            delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new);
         assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
@@ -83,9 +87,11 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
+            assertThat(deserialized.aggregations().isSerialized(), is(delayed));
             Aggregations aggs = querySearchResult.consumeAggs();
             Aggregations deserializedAggs = deserialized.consumeAggs();
             assertEquals(aggs.asList(), deserializedAggs.asList());
+            assertThat(deserialized.aggregations(), is(nullValue()));
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }

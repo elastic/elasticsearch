@@ -82,7 +82,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, isUpgradeNeeded ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED));
     }
 
-    private GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
+    // visible for testing
+    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
         ClusterState state, Map.Entry<String, SystemIndices.Feature> entry) {
 
         String featureName = entry.getKey();
@@ -103,7 +104,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         );
     }
 
-    private List<GetFeatureUpgradeStatusResponse.IndexVersion> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
+    // visible for testing
+    static List<GetFeatureUpgradeStatusResponse.IndexVersion> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
         return Stream.of(feature.getIndexDescriptors(), feature.getAssociatedIndexDescriptors())
             .flatMap(Collection::stream)
             .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())

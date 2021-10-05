@@ -24,9 +24,11 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1046,4 +1048,17 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
+    public void testSetFieldValueRootField() throws Exception {
+        Map<String, Object> sourceAndMetadata = new HashMap<>();
+        sourceAndMetadata.put("field", "content");
+
+        IngestDocument original = new IngestDocument(sourceAndMetadata, new HashMap<>());
+        Map<String, Object> appendMap = new HashMap<>();
+        appendMap.put("key", "value");
+        original.setFieldValue(".", appendMap);
+
+        assertThat(original.getSourceAndMetadata().keySet(), containsInAnyOrder("field", "key"));
+        assertThat(original.getSourceAndMetadata(), hasEntry("field", "content"));
+        assertThat(original.getSourceAndMetadata(), hasEntry("key", "value"));
+    }
 }

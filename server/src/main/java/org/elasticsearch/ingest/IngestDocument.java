@@ -509,6 +509,16 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
+        // put everything under the root element
+        if (".".equals(path)) {
+            if (value instanceof Map == false) {
+                throw new IllegalArgumentException("if \".\" is specified as path, a map is needed");
+            }
+            Map fields = (Map) value;
+            fields.forEach((k, v) -> setFieldValue((String) k, v, append, allowDuplicates));
+            return;
+        }
+
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {

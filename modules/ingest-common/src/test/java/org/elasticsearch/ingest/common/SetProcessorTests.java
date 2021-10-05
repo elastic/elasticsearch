@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,6 +30,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class SetProcessorTests extends ESTestCase {
 
@@ -176,6 +178,19 @@ public class SetProcessorTests extends ESTestCase {
         } else {
             assertThat(copiedValue, equalTo(fieldValue));
         }
+    }
+
+    public void testCopyFromToRoot() throws Exception {
+        Map<String, Object> document = new HashMap<>();
+        document.put("field", "value");
+        document.put("data", Collections.singletonMap("key", "value"));
+        IngestDocument ingestDocument = new IngestDocument(document, Collections.emptyMap());
+
+        Processor processor = createSetProcessor(".", null, "data", true, false);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("field", "value"));
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("key", "value"));
     }
 
     private static void assertMapEquals(Object actual, Object expected) {

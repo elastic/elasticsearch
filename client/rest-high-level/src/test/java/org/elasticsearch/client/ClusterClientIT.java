@@ -37,9 +37,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -303,6 +303,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertNoIndices(response);
+        assertWarnings("HTTP status code for an internal cluster health timeout will be changed from 408 to 200 in 8.0.0. " +
+            "Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.");
     }
 
     public void testRemoteInfo() throws Exception {

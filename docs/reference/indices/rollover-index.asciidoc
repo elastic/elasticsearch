@@ -159,7 +159,7 @@ Data streams do not support this parameter.
 
 [role="child_attributes"]
 [[rollover-index-api-response-body]]
-==== {api-request-body-title}
+==== {api-response-body-title}
 
 `acknowledged`::
 (Boolean)

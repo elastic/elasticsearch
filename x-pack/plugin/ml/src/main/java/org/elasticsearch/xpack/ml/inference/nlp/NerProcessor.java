@@ -156,26 +156,15 @@ public class NerProcessor implements NlpTask.Processor {
             if (entity.getStartPos() == -1) {
                 continue;
             }
-            if (entity.getStartPos() == curPos) {
-                String entitySeq = seq.substring(entity.getStartPos(), entity.getEndPos());
-                annotatedResultBuilder.append("[")
-                    .append(entitySeq)
-                    .append("]")
-                    .append("(")
-                    .append(entity.getLabel())
-                    .append("&")
-                    .append(entitySeq.replace(" ", "+"))
-                    .append(")");
-                curPos = entity.getEndPos();
-                continue;
+            if (entity.getStartPos() != curPos) {
+                annotatedResultBuilder.append(seq, curPos, entity.getStartPos());
             }
-            annotatedResultBuilder.append(seq, curPos, entity.getStartPos());
             String entitySeq = seq.substring(entity.getStartPos(), entity.getEndPos());
             annotatedResultBuilder.append("[")
                 .append(entitySeq)
                 .append("]")
                 .append("(")
-                .append(entity.getLabel())
+                .append(entity.getClassName())
                 .append("&")
                 .append(entitySeq.replace(" ", "+"))
                 .append(")");
@@ -320,7 +309,9 @@ public class NerProcessor implements NlpTask.Processor {
                     )
                 );
                 startTokenIndex = endTokenIndex;
-                startFindInSeq = i;
+                if (i != -1) {
+                    startFindInSeq = i + entity.length();
+                }
             }
 
             return entities;

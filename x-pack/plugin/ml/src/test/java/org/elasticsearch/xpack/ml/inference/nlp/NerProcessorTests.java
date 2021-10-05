@@ -116,9 +116,9 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORG.toString()));
+        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo(NerProcessor.Entity.ORG.toString()));
         assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOC.toString()));
+        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo(NerProcessor.Entity.LOC.toString()));
     }
 
     public void testProcessResults_withIobMap() {
@@ -153,9 +153,9 @@ public class NerProcessorTests extends ESTestCase {
         assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getEntity(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORG.toString()));
+        assertThat(result.getEntityGroups().get(0).getClassName(), equalTo(NerProcessor.Entity.ORG.toString()));
         assertThat(result.getEntityGroups().get(1).getEntity(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOC.toString()));
+        assertThat(result.getEntityGroups().get(1).getClassName(), equalTo(NerProcessor.Entity.LOC.toString()));
     }
 
     public void testGroupTaggedTokens() {
@@ -177,11 +177,11 @@ public class NerProcessorTests extends ESTestCase {
             "Hi Sarah Jessica, I live in Manchester and work for Elastic"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("PER"));
+        assertThat(entityGroups.get(0).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Sarah Jessica"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("LOC"));
+        assertThat(entityGroups.get(1).getClassName(), equalTo("LOC"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("Manchester"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("ORG"));
+        assertThat(entityGroups.get(2).getClassName(), equalTo("ORG"));
         assertThat(entityGroups.get(2).getEntity(), equalTo("Elastic"));
     }
 
@@ -207,11 +207,11 @@ public class NerProcessorTests extends ESTestCase {
             "Rita, Sue, and Bob too"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("PER"));
+        assertThat(entityGroups.get(0).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Rita"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("PER"));
+        assertThat(entityGroups.get(1).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("Sue"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("PER"));
+        assertThat(entityGroups.get(2).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(2).getEntity(), equalTo("Bob"));
     }
 
@@ -228,11 +228,11 @@ public class NerProcessorTests extends ESTestCase {
             "FirstName SecondName, NextPerson NextPersonSecondName. something_else"
         );
         assertThat(entityGroups, hasSize(3));
-        assertThat(entityGroups.get(0).getLabel(), equalTo("PER"));
+        assertThat(entityGroups.get(0).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("FirstName SecondName"));
-        assertThat(entityGroups.get(1).getLabel(), equalTo("PER"));
+        assertThat(entityGroups.get(1).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(1).getEntity(), equalTo("NextPerson NextPersonSecondName"));
-        assertThat(entityGroups.get(2).getLabel(), equalTo("ORG"));
+        assertThat(entityGroups.get(2).getClassName(), equalTo("ORG"));
     }
 
     public void testAnnotatedTextBuilder() {

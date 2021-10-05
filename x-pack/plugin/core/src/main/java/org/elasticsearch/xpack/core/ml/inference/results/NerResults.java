@@ -114,21 +114,21 @@ public class NerResults implements InferenceResults {
         static final String END_POS = "end_pos";
 
         private final String entity;
-        private final String label;
-        private final double resultsProbability;
+        private final String className;
+        private final double classProbability;
         private final int startPos;
         private final int endPos;
 
         public EntityGroup(
             String entity,
-            String label,
-            double resultsProbability,
+            String className,
+            double classProbability,
             int startPos,
             int endPos
         ) {
             this.entity = entity;
-            this.label = label;
-            this.resultsProbability = resultsProbability;
+            this.className = className;
+            this.classProbability = classProbability;
             this.startPos = startPos;
             this.endPos = endPos;
             if (endPos < startPos) {
@@ -138,8 +138,8 @@ public class NerResults implements InferenceResults {
 
         public EntityGroup(StreamInput in) throws IOException {
             this.entity = in.readString();
-            this.label = in.readString();
-            this.resultsProbability = in.readDouble();
+            this.className = in.readString();
+            this.classProbability = in.readDouble();
             this.startPos = in.readInt();
             this.endPos = in.readInt();
         }
@@ -147,8 +147,8 @@ public class NerResults implements InferenceResults {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(entity);
-            out.writeString(label);
-            out.writeDouble(resultsProbability);
+            out.writeString(className);
+            out.writeDouble(classProbability);
             out.writeInt(startPos);
             out.writeInt(endPos);
         }
@@ -157,8 +157,8 @@ public class NerResults implements InferenceResults {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("entity", entity);
-            builder.field(CLASS_NAME, label);
-            builder.field(CLASS_PROBABILITY, resultsProbability);
+            builder.field(CLASS_NAME, className);
+            builder.field(CLASS_PROBABILITY, classProbability);
             if (startPos >= 0) {
                 builder.field(START_POS, startPos);
             }
@@ -172,8 +172,8 @@ public class NerResults implements InferenceResults {
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("entity", entity);
-            map.put(CLASS_NAME, label);
-            map.put(CLASS_PROBABILITY, resultsProbability);
+            map.put(CLASS_NAME, className);
+            map.put(CLASS_PROBABILITY, classProbability);
             if (startPos >= 0) {
                 map.put(START_POS, startPos);
             }
@@ -187,12 +187,12 @@ public class NerResults implements InferenceResults {
             return entity;
         }
 
-        public String getLabel() {
-            return label;
+        public String getClassName() {
+            return className;
         }
 
-        public double getResultsProbability() {
-            return resultsProbability;
+        public double getClassProbability() {
+            return classProbability;
         }
 
         public int getStartPos() {
@@ -208,15 +208,16 @@ public class NerResults implements InferenceResults {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             EntityGroup that = (EntityGroup) o;
-            return Double.compare(that.resultsProbability, resultsProbability) == 0
+            return Double.compare(that.classProbability, classProbability) == 0
                 && startPos == that.startPos
                 && endPos == that.endPos
-                && Objects.equals(entity, that.entity);
+                && Objects.equals(entity, that.entity)
+                && Objects.equals(className, that.className);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(entity, resultsProbability, startPos, endPos);
+            return Objects.hash(entity, className, classProbability, startPos, endPos);
         }
     }
 }

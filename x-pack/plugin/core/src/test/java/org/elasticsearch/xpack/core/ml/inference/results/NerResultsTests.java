@@ -57,9 +57,9 @@ public class NerResultsTests extends AbstractWireSerializingTestCase<NerResults>
         for (int i = 0; i < testInstance.getEntityGroups().size(); i++) {
             NerResults.EntityGroup entity = testInstance.getEntityGroups().get(i);
             Map<String, Object> map = resultList.get(i);
-            assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getLabel()));
+            assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getClassName()));
             assertThat(map.get("entity"), equalTo(entity.getEntity()));
-            assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getResultsProbability()));
+            assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getClassProbability()));
             Integer startPos = (Integer)map.get(NerResults.EntityGroup.START_POS);
             Integer endPos = (Integer)map.get(NerResults.EntityGroup.END_POS);
             if (startPos != null) {

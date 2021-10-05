@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextClassificationResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
@@ -21,12 +22,16 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 
 public class ZeroShotClassificationProcessor implements NlpTask.Processor {
 
@@ -36,6 +41,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
     private final String[] labels;
     private final String hypothesisTemplate;
     private final boolean isMultiLabel;
+    private final String resultsField;
 
     ZeroShotClassificationProcessor(NlpTokenizer tokenizer, ZeroShotClassificationConfig config) {
         this.tokenizer = tokenizer;
@@ -53,6 +59,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         this.labels = Optional.ofNullable(config.getLabels()).orElse(List.of()).toArray(String[]::new);
         this.hypothesisTemplate = config.getHypothesisTemplate();
         this.isMultiLabel = config.isMultiLabel();
+        this.resultsField = config.getResultsField();
     }
 
     @Override
@@ -79,15 +86,18 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig nlpConfig) {
         final String[] labels;
         final boolean isMultiLabel;
+        final String resultsField;
         if (nlpConfig instanceof ZeroShotClassificationConfig) {
             ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig) nlpConfig;
             labels = zeroShotConfig.getLabels().toArray(new String[0]);
             isMultiLabel = zeroShotConfig.isMultiLabel();
+            resultsField = zeroShotConfig.getResultsField();
         } else {
             labels = this.labels;
             isMultiLabel = this.isMultiLabel;
+            resultsField = this.resultsField;
         }
-        return new ResultProcessor(entailmentPos, contraPos, labels, isMultiLabel);
+        return new ResultProcessor(entailmentPos, contraPos, labels, isMultiLabel, resultsField);
     }
 
     static class RequestBuilder implements NlpTask.RequestBuilder {
@@ -126,12 +136,14 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         private final int contraPos;
         private final String[] labels;
         private final boolean isMultiLabel;
+        private final String resultsField;
 
-        ResultProcessor(int entailmentPos, int contraPos, String[] labels, boolean isMultiLabel) {
+        ResultProcessor(int entailmentPos, int contraPos, String[] labels, boolean isMultiLabel, String resultsField) {
             this.entailmentPos = entailmentPos;
             this.contraPos = contraPos;
             this.labels = labels;
             this.isMultiLabel = isMultiLabel;
+            this.resultsField = resultsField;
         }
 
         @Override
@@ -180,14 +192,25 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
                 }
                 normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(entailmentScores);
             }
+            int[] sortedIndices = IntStream.range(0, normalizedScores.length)
+                .boxed()
+                .sorted(Comparator.comparing(i -> normalizedScores[(Integer)i]).reversed())
+                .mapToInt(i -> i)
+                .toArray();
 
-            return new TextClassificationResults(
-                IntStream.range(0, normalizedScores.length)
+            return new ClassificationInferenceResults(
+                sortedIndices[0],
+                labels[sortedIndices[0]],
+                Arrays.stream(sortedIndices)
                     .mapToObj(i -> new TopClassEntry(labels[i], normalizedScores[i]))
-                    // Put the highest scoring class first
-                    .sorted(Comparator.comparing(TopClassEntry::getProbability).reversed())
-                    .limit(labels.length)
-                    .collect(Collectors.toList())
+                    .collect(Collectors.toList()),
+                List.of(),
+                DEFAULT_TOP_CLASSES_RESULTS_FIELD,
+                Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
+                PredictionFieldType.STRING,
+                0,
+                normalizedScores[sortedIndices[0]],
+                null
             );
         }
     }

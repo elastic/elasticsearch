@@ -2058,9 +2058,9 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean verbose) {
+    public List<Segment> segments() {
         try (ReleasableLock lock = readLock.acquire()) {
-            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();

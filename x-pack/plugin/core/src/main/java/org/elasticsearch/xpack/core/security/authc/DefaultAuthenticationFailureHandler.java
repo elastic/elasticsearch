@@ -101,7 +101,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
 
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(RestRequest request, Exception e, ThreadContext context) {
-        // a couple of authn processing errors can also return 500 & 503, besides the obvious 401
+        // a couple of authn processing errors can also return {@link RestStatus#INTERNAL_SERVER_ERROR} or
+        // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
             return (ElasticsearchAuthenticationProcessingError) e;
         }
@@ -111,7 +112,8 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     @Override
     public ElasticsearchSecurityException exceptionProcessingRequest(TransportMessage message, String action, Exception e,
             ThreadContext context) {
-        // a couple of authn processing errors can also return 500 & 503, besides the obvious 401
+        // a couple of authn processing errors can also return {@link RestStatus#INTERNAL_SERVER_ERROR} or
+        // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
             return (ElasticsearchAuthenticationProcessingError) e;
         }

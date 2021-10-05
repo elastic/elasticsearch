@@ -122,7 +122,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         listener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
                     } else {
                         ActionListener<AuthenticationResult> hashCleanupListener = ActionListener.runBefore(listener, () -> {
-                            if (userInfo != null && userInfo != bootstrapUserInfo && userInfo != autoconfigUserInfo) {
+                            if (userInfo != bootstrapUserInfo && userInfo != autoconfigUserInfo) {
                                 Arrays.fill(userInfo.passwordHash, (char) 0);
                             }
                         });
@@ -179,10 +179,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 }
             });
         }
-    }
-
-    public boolean isElasticUserAutoconfigured() {
-        return elasticUserAutoconfigured;
     }
 
     private User getUser(String username, ReservedUserInfo userInfo) {

@@ -45,7 +45,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             .put(super.nodeSettings())
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name());
         ((MockSecureSettings) settingsBuilder.getSecureSettings()).setString("autoconfiguration.password_hash",
-            new String(hasher.hash(new SecureString("auto_password".toCharArray()))));
+            new String(hasher.hash(new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray()))));
         return settingsBuilder.build();
     }
 
@@ -84,7 +84,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
                 new Request("GET", "_nodes"));
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                new SecureString("auto_password".toCharArray())));
+                new SecureString("auto_password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
             restRequest.setOptions(options);
             ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
@@ -94,7 +94,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
                 new Request("GET", "_nodes"));
             options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue("elastic",
-                new SecureString("wrong password".toCharArray())));
+                new SecureString("wrong password_that_is_longer_than_14_chars_because_of_FIPS".toCharArray())));
             restRequest2.setOptions(options);
             exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest2));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));

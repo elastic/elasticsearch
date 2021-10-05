@@ -690,12 +690,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              */
             // don't use canRebalance as we want hard filtering rules to apply. See #17698
             MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
-            final boolean shardsOnReplacedNodes = allocation.metadata().nodeShutdowns().values().stream()
-                .filter(s -> s.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
-                .map(SingleNodeShutdownMetadata::getNodeId)
-                .anyMatch(shardRouting.currentNodeId()::equals);
-            if (moveDecision.forceMove() == false && shardsOnReplacedNodes) {
-                return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
+            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
+                final boolean shardsOnReplacedNodes = allocation.metadata().nodeShutdowns().values().stream()
+                    .filter(s -> s.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
+                    .map(SingleNodeShutdownMetadata::getNodeId)
+                    .anyMatch(shardRouting.currentNodeId()::equals);
+                if (shardsOnReplacedNodes) {
+                    return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
+                }
             }
             return moveDecision;
         }

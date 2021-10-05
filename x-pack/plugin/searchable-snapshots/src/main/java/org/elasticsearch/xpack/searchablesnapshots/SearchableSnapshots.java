@@ -314,7 +314,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING
+            FrozenCacheService.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING,
+            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING,
+            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING,
+            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING,
+            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD
         );
     }
 
@@ -345,11 +349,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
                 clusterService,
                 client,
-                SNAPSHOT_BLOB_CACHE_INDEX,
-                threadPool::absoluteTimeInMillis
+                SNAPSHOT_BLOB_CACHE_INDEX
             );
             this.blobStoreCacheService.set(blobStoreCacheService);
-            clusterService.addListener(new BlobStoreCacheMaintenanceService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX));
+            clusterService.addListener(
+                new BlobStoreCacheMaintenanceService(settings, clusterService, threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX)
+            );
             components.add(blobStoreCacheService);
         } else {
             PersistentCache.cleanUp(settings, nodeEnvironment);

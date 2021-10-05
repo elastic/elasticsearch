@@ -56,6 +56,11 @@ public class PyTorchPassThroughResults implements InferenceResults {
     }
 
     @Override
+    public String getResultsField() {
+        return resultsField;
+    }
+
+    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, inference);

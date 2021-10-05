@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues;
 
 import java.nio.ByteBuffer;
 
@@ -53,7 +54,7 @@ public final class VectorEncoderDecoder {
 
     public static float getMagnitude(Version indexVersion, BytesRef vectorBR) {
         if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
         if (indexVersion.onOrAfter(Version.V_7_5_0)) {
             return decodeMagnitude(indexVersion, vectorBR);
@@ -69,7 +70,7 @@ public final class VectorEncoderDecoder {
      */
     public static void decodeDenseVector(BytesRef vectorBR, float[] vector) {
         if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         for (int dim = 0; dim < vector.length; dim++) {

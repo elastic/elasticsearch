@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
@@ -66,11 +69,18 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
 
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
-        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(settings, pluginsService.info(), clusterService.state(), licenseState));
+        return nodeOperation(request, DeprecationChecks.NODE_SETTINGS_CHECKS);
+    }
+
+    NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request,
+                                                           List<DeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules,
+                                                               ClusterState, XPackLicenseState, DeprecationIssue>> nodeSettingsChecks) {
+        List<String> skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
+        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(nodeSettingsChecks,
+            (c) -> c.apply(filteredSettings, pluginsService.info(), clusterService.state(), licenseState));
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }
-
 
 }

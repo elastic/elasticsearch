@@ -18,8 +18,11 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -200,9 +203,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                                                           NodesDeprecationCheckResponse nodeDeprecationResponse,
                                                           List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
-                                                          Map<String, List<DeprecationIssue>> pluginSettingIssues) {
+                                                          Map<String, List<DeprecationIssue>> pluginSettingIssues,
+                                                          List<String> skipTheseDeprecatedSettings) {
+            ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, skipTheseDeprecatedSettings);
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
-                (c) -> c.apply(state));
+                (c) -> c.apply(stateWithSkippedSettingsRemoved));
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
 
             // Allow system index access here to prevent deprecation warnings when we call this API
@@ -211,8 +216,9 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
+                IndexMetadata indexMetadataWithSkippedSettingsRemoved = removeSkippedSettings(indexMetadata, skipTheseDeprecatedSettings);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetadata));
+                    c -> c.apply(indexMetadataWithSkippedSettingsRemoved));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }
@@ -228,6 +234,25 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
             return new DeprecationInfoAction.Response(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, pluginSettingIssues);
         }
+    }
+
+    private static ClusterState removeSkippedSettings(ClusterState state, List<String> skipTheseDeprecatedSettings) {
+        ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state);
+        Metadata.Builder metadataBuilder = new Metadata.Builder(state.metadata());
+        metadataBuilder.transientSettings(
+            metadataBuilder.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false));
+        metadataBuilder.persistentSettings(
+            metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false));
+        clusterStateBuilder.metadata(metadataBuilder);
+        return clusterStateBuilder.build();
+    }
+
+    private static IndexMetadata removeSkippedSettings(IndexMetadata indexMetadata, List<String> skipTheseDeprecatedSettings) {
+        IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
+        Settings filteredSettings =
+            indexMetadata.getSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
+        filteredIndexMetadataBuilder.settings(filteredSettings);
+        return filteredIndexMetadataBuilder.build();
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {

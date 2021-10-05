@@ -90,6 +90,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN),
                 state
             );
+            List<String> skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
             pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
                 deprecationIssues -> {
                     listener.onResponse(
@@ -100,7 +101,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                             response,
                             INDEX_SETTINGS_CHECKS,
                             CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues
+                            deprecationIssues,
+                            skipTheseDeprecatedSettings
                         )
                     );
                 },

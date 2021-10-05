@@ -69,7 +69,11 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                    List <Object> ignoredValues = new ArrayList<>();
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), ignoredValues));
+                    // ignored fields are the exception so DocumentField normally returns emptyList which isn't
+                    // mutable. We have to use the add method here to set any exceptional 
+                    hitField.addIgnoredValues(ignoredValues);
                 }
             }
         };

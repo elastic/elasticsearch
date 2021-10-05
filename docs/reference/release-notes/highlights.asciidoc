@@ -29,7 +29,7 @@ Other versions:
 [discrete]
 === Index disk usage API 
 There's a new API that supports analyzing the disk usage of each field of an
-index, including the entire index itself. The the API estimates the disk usage
+index, including the entire index itself. The API estimates the disk usage
 of a field by iterating over its content and tracking the number of bytes read.
 Refer to {ref}/indices-disk-usage.html[analyze index disk usage API].
 

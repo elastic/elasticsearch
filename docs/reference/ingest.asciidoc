@@ -276,7 +276,7 @@ pipeline, even if neither is specified.
 === Pipelines for {beats}
 
 To add an ingest pipeline to an Elastic Beat, specify the `pipeline`
-parameter under `output.elasticsearch` in `<BEAT_NAME>beat.yml`. For example,
+parameter under `output.elasticsearch` in `<BEAT_NAME>.yml`. For example,
 for {filebeat}, you'd specify `pipeline` in `filebeat.yml`.
 
 [source,yaml]

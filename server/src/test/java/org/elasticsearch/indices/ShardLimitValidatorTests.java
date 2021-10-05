@@ -26,11 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
@@ -116,7 +114,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public Index[] getIndices(ClusterState state) {
-        return Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        return state.metadata().indices().values().stream()
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(Index.EMPTY_ARRAY);
@@ -201,8 +199,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     private static Metadata.Builder freezeMetadata(Metadata.Builder builder, Metadata metadata) {
-        StreamSupport.stream(metadata.indices().values().spliterator(), false)
-            .map(oc -> oc.value).map(imd -> IndexMetadata.builder(imd).settings(Settings.builder().put(imd.getSettings())
+        metadata.indices().values().stream()
+            .map(imd -> IndexMetadata.builder(imd).settings(Settings.builder().put(imd.getSettings())
             .put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP)))
             .forEach(builder::put);
         return builder;

@@ -34,6 +34,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
@@ -183,6 +184,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -195,6 +197,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -275,14 +278,14 @@ public class InternalEngineTests extends EngineTestCase {
     public void testVerboseSegments() throws Exception {
         try (Store store = createStore();
              Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
-            List<Segment> segments = engine.segments(true);
+            List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             engine.index(indexForDoc(doc));
             engine.refresh("test");
 
-            segments = engine.segments(true);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(1));
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
@@ -292,7 +295,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc3));
             engine.refresh("test");
 
-            segments = engine.segments(true);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
         }
     }
@@ -304,11 +307,11 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = indexForDoc(doc);
             engine.index(index);
             engine.flush();
-            assertThat(engine.segments(false).size(), equalTo(1));
+            assertThat(engine.segments().size(), equalTo(1));
             index = indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null));
             engine.index(index);
             engine.flush();
-            List<Segment> segments = engine.segments(false);
+            List<Segment> segments = engine.segments();
             assertThat(segments.size(), equalTo(2));
             for (Segment segment : segments) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -316,7 +319,7 @@ public class InternalEngineTests extends EngineTestCase {
             index = indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null));
             engine.index(index);
             engine.flush();
-            segments = engine.segments(false);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
             for (Segment segment : segments) {
                 assertThat(segment.getMergeId(), nullValue());
@@ -332,7 +335,7 @@ public class InternalEngineTests extends EngineTestCase {
             // ensure that we have released the older segments with a refresh so they can be removed
             assertFalse(engine.refreshNeeded());
 
-            for (Segment segment : engine.segments(false)) {
+            for (Segment segment : engine.segments()) {
                 assertThat(segment.getMergeId(), nullValue());
             }
             // we could have multiple underlying merges, so the generation may increase more than once
@@ -341,7 +344,7 @@ public class InternalEngineTests extends EngineTestCase {
             final boolean flush = randomBoolean();
             final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
             engine.forceMerge(flush, 1, false, UUIDs.randomBase64UUID());
-            for (Segment segment : engine.segments(false)) {
+            for (Segment segment : engine.segments()) {
                 assertThat(segment.getMergeId(), nullValue());
             }
 
@@ -359,14 +362,14 @@ public class InternalEngineTests extends EngineTestCase {
                      createEngine(defaultSettings, store, createTempDir(),
                          NoMergePolicy.INSTANCE, null, null, null,
                          indexSort, null)) {
-            List<Segment> segments = engine.segments(true);
+            List<Segment> segments = engine.segments();
             assertThat(segments.isEmpty(), equalTo(true));
 
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             engine.index(indexForDoc(doc));
             engine.refresh("test");
 
-            segments = engine.segments(false);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(1));
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
 
@@ -377,7 +380,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc3));
             engine.refresh("test");
 
-            segments = engine.segments(true);
+            segments = engine.segments();
             assertThat(segments.size(), equalTo(3));
             assertThat(segments.get(0).getSegmentSort(), equalTo(indexSort));
             assertThat(segments.get(1).getSegmentSort(), equalTo(indexSort));
@@ -423,7 +426,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null,
                  null, globalCheckpoint::get))) {
-            assertThat(engine.segments(false), empty());
+            assertThat(engine.segments(), empty());
             int numDocsFirstSegment = randomIntBetween(5, 50);
             Set<String> liveDocsFirstSegment = new HashSet<>();
             for (int i = 0; i < numDocsFirstSegment; i++) {
@@ -433,7 +436,7 @@ public class InternalEngineTests extends EngineTestCase {
                 liveDocsFirstSegment.add(id);
             }
             engine.refresh("test");
-            List<Segment> segments = engine.segments(randomBoolean());
+            List<Segment> segments = engine.segments();
             assertThat(segments, hasSize(1));
             assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
@@ -463,7 +466,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush();
             }
             engine.refresh("test");
-            segments = engine.segments(randomBoolean());
+            segments = engine.segments();
             assertThat(segments, hasSize(2));
             assertThat(segments.get(0).getNumDocs(), equalTo(liveDocsFirstSegment.size()));
             assertThat(segments.get(0).getDeletedDocs(), equalTo(updates + deletes));
@@ -2167,6 +2170,62 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
             engine.close();
+        } finally {
+            Loggers.removeAppender(rootLogger, mockAppender);
+            mockAppender.stop();
+            Loggers.setLevel(rootLogger, savedLevel);
+        }
+    }
+
+    private static class MockMTAppender extends AbstractAppender {
+        private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+
+        List<String> messages () { return messages; }
+
+        MockMTAppender(final String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0],
+                false, null, null), null);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            final String formattedMessage = event.getMessage().getFormattedMessage();
+            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
+                messages.add(formattedMessage);
+            }
+        }
+    }
+
+    public void testMergeThreadLogging() throws IllegalAccessException, IOException {
+        MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+        mockAppender.start();
+
+        Logger rootLogger = LogManager.getRootLogger();
+        Level savedLevel = rootLogger.getLevel();
+        Loggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.TRACE);
+
+        LogMergePolicy lmp = newLogMergePolicy();
+        lmp.setMergeFactor(2);
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), lmp); // fmp
+            engine.index(indexForDoc(testParsedDocument("1", null, testDocument(), B_1, null)));
+            engine.index(indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null)));
+            engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
+            engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
+            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+            engine.flushAndClose();
+
+            long merges = engine.getMergeStats().getTotal();
+            if (merges > 0) {
+                List<String> threadMsgs =
+                    mockAppender.messages().stream()
+                        .filter(line -> line.startsWith("merge thread"))
+                        .collect(Collectors.toList());
+                assertThat("messages:" + threadMsgs + ", merges=" + merges, threadMsgs.size(), greaterThanOrEqualTo(2));
+                assertThat(threadMsgs,
+                    containsInRelativeOrder(matchesRegex("^merge thread .* start$"), matchesRegex("^merge thread .* merge segment.*$")));
+            }
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();

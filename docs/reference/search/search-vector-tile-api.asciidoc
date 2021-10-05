@@ -260,10 +260,17 @@ If `false`, the response does not include the total number of hits matching the 
 aggregation types:
 +
 * <<search-aggregations-metrics-avg-aggregation,`avg`>>
+* <<search-aggregations-metrics-boxplot-aggregation,`boxplot`>>
 * <<search-aggregations-metrics-cardinality-aggregation,`cardinality`>>
+* <<search-aggregations-metrics-extendedstats-aggregation,`extended stats`>>
 * <<search-aggregations-metrics-max-aggregation,`max`>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,`median absolute deviation`>>
 * <<search-aggregations-metrics-min-aggregation,`min`>>
+* <<search-aggregations-metrics-percentile-aggregation,`percentile`>>
+* <<search-aggregations-metrics-percentile-rank-aggregation,`percentile-rank`>>
+* <<search-aggregations-metrics-stats-aggregation,`stats`>>
 * <<search-aggregations-metrics-sum-aggregation,`sum`>>
+* <<search-aggregations-metrics-valuecount-aggregation,`value count`>>
 +
 The aggregation names can't start with `_mvt_`. The `_mvt_` prefix is reserved
 for internal aggregations.

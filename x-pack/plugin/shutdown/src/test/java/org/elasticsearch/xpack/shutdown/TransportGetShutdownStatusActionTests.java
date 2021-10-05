@@ -343,6 +343,42 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
     }
 
+    public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, false, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.COMPLETE,
+            0,
+            containsString("[1] shards cannot be moved away from this node but have at least one copy on another node in the cluster")
+        );
+    }
+
     public void testOnlyInitializingShardsRemaining() {
         Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);

@@ -172,7 +172,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .putNull("cluster.acc.test.pw")
                 .putNull("cluster.acc.test.user")).get();
         }
-
     }
 
     public void testUpdateDependentIndexSettings() {

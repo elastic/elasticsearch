@@ -911,12 +911,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
         out.writeVInt(mappings.size());
-        for (MappingMetadata cursor : mappings.values()) {
-            cursor.writeTo(out);
+        for (MappingMetadata mappingMetadata : mappings.values()) {
+            mappingMetadata.writeTo(out);
         }
         out.writeVInt(aliases.size());
-        for (AliasMetadata cursor : aliases.values()) {
-            cursor.writeTo(out);
+        for (AliasMetadata aliasMetadata : aliases.values()) {
+            aliasMetadata.writeTo(out);
         }
         out.writeVInt(customData.size());
         for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
@@ -929,8 +929,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
         out.writeVInt(rolloverInfos.size());
-        for (RolloverInfo cursor : rolloverInfos.values()) {
-            cursor.writeTo(out);
+        for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
+            rolloverInfo.writeTo(out);
         }
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);

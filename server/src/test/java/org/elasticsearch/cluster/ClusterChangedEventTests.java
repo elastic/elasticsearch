@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -477,8 +478,8 @@ public class ClusterChangedEventTests extends ESTestCase {
     // Create the routing table for a cluster state.
     private static RoutingTable createRoutingTable(final long version, final Metadata metadata) {
         final RoutingTable.Builder builder = RoutingTable.builder().version(version);
-        for (IndexMetadata value : metadata.indices().values()) {
-            builder.addAsNew(value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            builder.addAsNew(indexMetadata);
         }
         return builder.build();
     }
@@ -507,8 +508,8 @@ public class ClusterChangedEventTests extends ESTestCase {
                                                           final TombstoneDeletionQuantity deletionQuantity) {
         final int numAdd = randomIntBetween(0, 5); // add random # of indices to the next cluster state
         final List<Index> stateIndices = new ArrayList<>();
-        for (IndexMetadata value : previousState.metadata().indices().values()) {
-            stateIndices.add(value.getIndex());
+        for (IndexMetadata indexMetadata : previousState.metadata().indices().values()) {
+            stateIndices.add(indexMetadata.getIndex());
         }
         final int numDel;
         switch (deletionQuantity) {

@@ -248,8 +248,8 @@ public class IndexResolver {
         Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
         // filter aliases (if present)
         if (aliases != null) {
-            for (List<AliasMetadata> value : aliases.getAliases().values()) {
-                for (AliasMetadata amd : value) {
+            for (List<AliasMetadata> aliasList : aliases.getAliases().values()) {
+                for (AliasMetadata amd : aliasList) {
                     String alias = amd.alias();
                     if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
                         result.add(new IndexInfo(alias, IndexType.ALIAS));

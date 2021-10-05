@@ -178,9 +178,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
     }
 
     private static List<DiscoveryNode> getSnapshotNodes(DiscoveryNodes discoveryNodes) {
-        final Collection<DiscoveryNode> nodesContainer = discoveryNodes.getMasterAndDataNodes().values();
-        final List<DiscoveryNode> nodes = new ArrayList<>(nodesContainer.size());
-        for (DiscoveryNode node : nodesContainer) {
+        final Collection<DiscoveryNode> nodesCollection = discoveryNodes.getMasterAndDataNodes().values();
+        final List<DiscoveryNode> nodes = new ArrayList<>(nodesCollection.size());
+        for (DiscoveryNode node : nodesCollection) {
             if (isSnapshotNode(node)) {
                 nodes.add(node);
             }

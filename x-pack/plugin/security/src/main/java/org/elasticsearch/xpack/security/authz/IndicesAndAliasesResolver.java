@@ -120,19 +120,28 @@ class IndicesAndAliasesResolver {
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
         }
-        // IndicesAliasesRequest requires special handling because it can have wildcards in request body
-        if (transportRequest instanceof IndicesAliasesRequest) {
-            return null;
-        }
-        // Replaceable requests always require wildcard expansion
-        if (transportRequest instanceof IndicesRequest.Replaceable) {
+        final IndicesRequest indicesRequest = (IndicesRequest) transportRequest;
+        if (requiresWildcardExpansion(indicesRequest)) {
             return null;
         }
         // It's safe to cast IndicesRequest since the above test guarantees it
-        return resolveIndicesAndAliasesWithoutWildcards(action, (IndicesRequest) transportRequest);
+        return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
+    }
+
+    private boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
+        // IndicesAliasesRequest requires special handling because it can have wildcards in request body
+        if (indicesRequest instanceof IndicesAliasesRequest) {
+            return true;
+        }
+        // Replaceable requests always require wildcard expansion
+        if (indicesRequest instanceof IndicesRequest.Replaceable) {
+            return true;
+        }
+        return false;
     }
 
     ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
+        assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");

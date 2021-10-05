@@ -42,10 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
-import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
@@ -236,7 +234,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                                                                          XPackLicenseState licenseState) {
         String policyName = oldPolicy.getName();
         final List<IndexMetadata> managedIndices =
-            StreamSupport.stream(Spliterators.spliteratorUnknownSize(currentState.metadata().indices().valuesIt(), 0), false)
+            currentState.metadata().indices().values().stream()
                 .filter(meta -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
                 .collect(Collectors.toList());
 

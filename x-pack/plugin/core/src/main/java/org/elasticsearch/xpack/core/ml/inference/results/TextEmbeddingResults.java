@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,6 +32,10 @@ public class TextEmbeddingResults implements InferenceResults {
     public TextEmbeddingResults(StreamInput in) throws IOException {
         inference = in.readDoubleArray();
         resultsField = in.readString();
+    }
+
+    public String getResultsField() {
+        return resultsField;
     }
 
     public double[] getInference() {
@@ -56,7 +60,9 @@ public class TextEmbeddingResults implements InferenceResults {
 
     @Override
     public Map<String, Object> asMap() {
-        return Collections.singletonMap(resultsField, inference);
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(resultsField, inference);
+        return map;
     }
 
     @Override

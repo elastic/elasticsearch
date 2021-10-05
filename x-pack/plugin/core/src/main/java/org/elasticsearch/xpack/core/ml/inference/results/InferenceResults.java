@@ -30,6 +30,8 @@ public interface InferenceResults extends NamedWriteable, ToXContentFragment {
         }
     }
 
+    String getResultsField();
+
     Map<String, Object> asMap();
 
     Object predictedValue();

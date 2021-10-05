@@ -51,7 +51,7 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
                 InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT);
-            request.setTimeout(inferTimeout);
+            request.setInferenceTimeout(inferTimeout);
         }
 
         return channel -> client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

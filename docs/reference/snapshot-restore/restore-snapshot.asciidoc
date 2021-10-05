@@ -121,7 +121,8 @@ contains one or more of these system indices, the request will return an error.
 
 To avoid this error, specify the indices and data streams to restore. To exclude
 system indices and other index names that begin with a dot (`.`), append the
-`-.*` wildcard pattern.
+`-.*` wildcard pattern. To restore all indices and data streams except dot
+indices, use `*,-.*`.
 
 [source,console]
 ----

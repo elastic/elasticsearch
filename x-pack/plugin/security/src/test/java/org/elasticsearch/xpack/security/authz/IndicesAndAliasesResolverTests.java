@@ -83,6 +83,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -1418,7 +1419,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testUnauthorizedDateMathExpressionStrict() {
-        String expectedIndex = "datetime-" + DateTimeFormatter.ofPattern("uuuu.MM.dd").format(
+        String expectedIndex = "datetime-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(
             ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
@@ -1460,7 +1461,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testMissingDateMathExpressionStrict() {
-        String expectedIndex = "foobar-" + DateTimeFormatter.ofPattern("YYYY.MM.dd").format(
+        String expectedIndex = "foobar-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(
             ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));

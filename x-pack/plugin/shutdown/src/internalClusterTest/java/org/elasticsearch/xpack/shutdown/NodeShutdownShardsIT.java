@@ -188,9 +188,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
-        Settings.Builder nodeASettings = Settings.builder()
-            .put("index.number_of_shards", 3)
-            .put("index.number_of_replicas", 1);
+        Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1);
         createIndex("myindex", nodeASettings.build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
@@ -271,16 +269,17 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()
-                        .getDecisions()
-                        .stream()
-                        .map(Decision::getExplanation)
-                        .collect(Collectors.joining(",")),
+                            .getDecisions()
+                            .stream()
+                            .map(Decision::getExplanation)
+                            .collect(Collectors.joining(",")),
                     nodeAllocationResult.getCanAllocateDecision()
                         .getDecisions()
                         .stream()
                         .anyMatch(
-                            decision -> decision.getExplanation().contains("is replacing the vacating node") &&
-                                decision.getExplanation().contains("may be allocated to it until the replacement is complete"))
+                            decision -> decision.getExplanation().contains("is replacing the vacating node")
+                                && decision.getExplanation().contains("may be allocated to it until the replacement is complete")
+                        )
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }
@@ -368,16 +367,17 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()
-                        .getDecisions()
-                        .stream()
-                        .map(Decision::getExplanation)
-                        .collect(Collectors.joining(",")),
+                            .getDecisions()
+                            .stream()
+                            .map(Decision::getExplanation)
+                            .collect(Collectors.joining(",")),
                     nodeAllocationResult.getCanAllocateDecision()
                         .getDecisions()
                         .stream()
                         .anyMatch(
-                            decision -> decision.getExplanation().contains("is replacing the vacating node") &&
-                                decision.getExplanation().contains("may be allocated to it until the replacement is complete"))
+                            decision -> decision.getExplanation().contains("is replacing the vacating node")
+                                && decision.getExplanation().contains("may be allocated to it until the replacement is complete")
+                        )
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }

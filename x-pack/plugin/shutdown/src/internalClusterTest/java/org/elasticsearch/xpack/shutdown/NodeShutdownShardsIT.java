@@ -147,14 +147,14 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
-        createIndex(
-            "myindex",
-            Settings.builder()
-                .put("index.routing.allocation.require._name", nodeA)
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .build()
-        );
+        Settings.Builder nodeASettings = Settings.builder()
+            .put("index.number_of_shards", 3)
+            .put("index.number_of_replicas", 0);
+        // Randomly add a filter that will be overridden by the node shutdown-replace
+        if (randomBoolean()) {
+            nodeASettings.put("index.routing.allocation.require._name", nodeA);
+        }
+        createIndex("myindex", nodeASettings.build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 

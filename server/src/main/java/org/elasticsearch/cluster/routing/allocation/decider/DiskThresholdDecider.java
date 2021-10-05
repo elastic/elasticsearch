@@ -319,8 +319,29 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        // TODO: check whether we would reach 100% disk as a safety effort
-        return super.canForceAllocateDuringReplace(shardRouting, node, allocation);
+        ImmutableOpenMap<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
+        final Decision decision = earlyTerminate(allocation, usages);
+        if (decision != null) {
+            return decision;
+        }
+
+        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+            return YES_DISK_WATERMARKS_IGNORED;
+        }
+
+        final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
+        final long shardSize = getExpectedShardSize(shardRouting, 0L,
+            allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
+        assert shardSize >= 0 : shardSize;
+        double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
+        if (freeSpaceAfterShard < 0) {
+            return Decision.single(Decision.Type.NO, NAME,
+                "unable to force allocate shard to [%s] during replacement, " +
+                    "as allocating to this node would cause disk usage to exceed 100%% ([%s] free)",
+                node.nodeId(), Strings.format1Decimals(freeSpaceAfterShard, "%"));
+        } else {
+            return super.canForceAllocateDuringReplace(shardRouting, node, allocation);
+        }
     }
 
     private static final Decision YES_NOT_MOST_UTILIZED_DISK = Decision.single(Decision.Type.YES, NAME,

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+import java.util.Map;
 import java.util.Optional;
 
 public class NodeReplacementAllocationDecider extends AllocationDecider {
@@ -139,8 +140,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (nodeId == null || replacementOngoing(metadata) == false) {
             return false;
         }
-        return metadata.nodeShutdowns().containsKey(nodeId) &&
-            metadata.nodeShutdowns().get(nodeId).getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
+        final Map<String, SingleNodeShutdownMetadata> nodeShutdowns = metadata.nodeShutdowns();
+        return nodeShutdowns.containsKey(nodeId) && nodeShutdowns.get(nodeId).getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
     }
 
     /**

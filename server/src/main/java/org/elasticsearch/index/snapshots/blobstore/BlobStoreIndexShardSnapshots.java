@@ -208,7 +208,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         // First we list all blobs with their file infos:
         builder.startArray(Fields.FILES);
         for (Map.Entry<String, FileInfo> entry : files.entrySet()) {
-            FileInfo.toXContent(entry.getValue(), builder);
+            FileInfo.toXContent(entry.getValue(), builder, params);
         }
         builder.endArray();
         // Then we list all snapshots with list of all blobs that are used by the snapshot

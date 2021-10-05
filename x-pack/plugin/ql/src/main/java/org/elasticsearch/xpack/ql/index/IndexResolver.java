@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -249,8 +248,8 @@ public class IndexResolver {
         Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
         // filter aliases (if present)
         if (aliases != null) {
-            for (ObjectCursor<List<AliasMetadata>> cursor : aliases.getAliases().values()) {
-                for (AliasMetadata amd : cursor.value) {
+            for (List<AliasMetadata> aliasList : aliases.getAliases().values()) {
+                for (AliasMetadata amd : aliasList) {
                     String alias = amd.alias();
                     if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
                         result.add(new IndexInfo(alias, IndexType.ALIAS));

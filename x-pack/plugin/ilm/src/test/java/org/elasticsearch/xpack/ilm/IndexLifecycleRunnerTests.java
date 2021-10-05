@@ -91,6 +91,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -164,8 +166,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(2)).submitStateUpdateTask(any(), any());
-
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(anyString(), any(), any(), any(), any());
     }
 
     public void testRunPolicyErrorStep() {
@@ -627,10 +628,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
+        final ExecuteStepsUpdateTaskMatcher taskMatcher =
+                new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step);
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\"," +
                 "\"name\":\"cluster_state_action_step\"} => null]"),
-                Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step))
+                Mockito.argThat(taskMatcher),
+                eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
+                any(),
+                Mockito.argThat(taskMatcher)
         );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -647,10 +653,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
+        final ExecuteStepsUpdateTaskMatcher taskMatcher =
+                new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step);
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-execute-cluster-state-steps [{\"phase\":\"phase\",\"action\":\"action\"," +
                 "\"name\":\"cluster_state_action_step\"} => null]"),
-                Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step))
+                Mockito.argThat(taskMatcher),
+                eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
+                any(),
+                Mockito.argThat(taskMatcher)
         );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -700,16 +711,20 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         // verify that no exception is thrown
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
+        final SetStepInfoUpdateTaskMatcher taskMatcher = new SetStepInfoUpdateTaskMatcher(indexMetadata.getIndex(), policyName, null,
+            (builder, params) -> {
+                builder.startObject();
+                builder.field("reason", "policy [does_not_exist] does not exist");
+                builder.field("type", "illegal_argument_exception");
+                builder.endObject();
+                return builder;
+        });
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(
             Mockito.eq("ilm-set-step-info {policy [cluster_state_action_policy], index [my_index], currentStep [null]}"),
-            Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetadata.getIndex(), policyName, null,
-                (builder, params) -> {
-                    builder.startObject();
-                    builder.field("reason", "policy [does_not_exist] does not exist");
-                    builder.field("type", "illegal_argument_exception");
-                    builder.endObject();
-                    return builder;
-                }))
+            Mockito.argThat(taskMatcher),
+            eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
+            any(),
+            Mockito.argThat(taskMatcher)
         );
         Mockito.verifyNoMoreInteractions(clusterService);
     }

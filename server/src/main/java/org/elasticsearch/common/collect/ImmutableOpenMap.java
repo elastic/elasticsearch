@@ -20,9 +20,13 @@ import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import java.util.AbstractCollection;
 import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -137,10 +141,26 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
-     * @return Returns a container with all values stored in this map.
+     * Returns a {@link Set} view of the keys contained in this map.
      */
-    public ObjectContainer<VType> values() {
-        return map.values();
+    public Set<KType> keySet() {
+        return new AbstractSet<>() {
+            @Override
+            public Iterator<KType> iterator() {
+                return keysIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean contains(Object o) {
+                return map.containsKey((KType) o);
+            }
+        };
     }
 
     /**
@@ -148,6 +168,23 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      */
     public Iterator<VType> valuesIt() {
         return iterator(map.values());
+    }
+
+    /**
+     * Returns a {@link Collection} view of the values contained in the map.
+     */
+    public Collection<VType> values() {
+        return new AbstractCollection<VType>() {
+            @Override
+            public Iterator<VType> iterator() {
+                return valuesIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+        };
     }
 
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {

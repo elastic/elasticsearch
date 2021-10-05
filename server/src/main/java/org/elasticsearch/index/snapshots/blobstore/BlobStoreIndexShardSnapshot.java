@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.store.StoreFileMetadata.UNAVAILABLE_WRITER_UUID;
+
 /**
  * Shard snapshot metadata
  */
@@ -36,6 +38,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Information about snapshotted file
      */
     public static class FileInfo implements Writeable {
+        public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
 
         private final String name;
         private final ByteSizeValue partSize;
@@ -238,6 +241,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         static final String PART_SIZE = "part_size";
         static final String WRITTEN_BY = "written_by";
         static final String META_HASH = "meta_hash";
+        static final String WRITER_UUID = "writer_uuid";
 
         /**
          * Serializes file info into JSON
@@ -245,7 +249,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param file    file info
          * @param builder XContent builder
          */
-        public static void toXContent(FileInfo file, XContentBuilder builder) throws IOException {
+        public static void toXContent(FileInfo file, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(NAME, file.name);
             builder.field(PHYSICAL_NAME, file.metadata.name());
@@ -259,10 +263,19 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 builder.field(WRITTEN_BY, file.metadata.writtenBy());
             }
 
-            if (file.metadata.hash() != null && file.metadata().hash().length > 0) {
-                BytesRef br = file.metadata.hash();
-                builder.field(META_HASH, br.bytes, br.offset, br.length);
+            final BytesRef hash = file.metadata.hash();
+            if (hash != null && hash.length > 0) {
+                builder.field(META_HASH, hash.bytes, hash.offset, hash.length);
             }
+
+            final BytesRef writerUuid = file.metadata.writerUuid();
+            // We serialize by default when SERIALIZE_WRITER_UUID is not present since in deletes/clones
+            // we read the serialized files from the blob store and we enforce the version invariants when
+            // the snapshot was done
+            if (writerUuid.length > 0 && params.paramAsBoolean(SERIALIZE_WRITER_UUID, true)) {
+                builder.field(WRITER_UUID, writerUuid.bytes, writerUuid.offset, writerUuid.length);
+            }
+
             builder.endObject();
         }
 
@@ -281,6 +294,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             ByteSizeValue partSize = null;
             String writtenBy = null;
             BytesRef metaHash = new BytesRef();
+            BytesRef writerUuid = UNAVAILABLE_WRITER_UUID;
             XContentParserUtils.ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser);
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -303,6 +317,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                             metaHash.bytes = parser.binaryValue();
                             metaHash.offset = 0;
                             metaHash.length = metaHash.bytes.length;
+                        } else if (WRITER_UUID.equals(currentFieldName)) {
+                            writerUuid = new BytesRef(parser.binaryValue());
+                            assert writerUuid.length > 0;
                         } else {
                             XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                         }
@@ -326,7 +343,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             } else if (checksum == null) {
                 throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
             }
-            return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash), partSize);
+            return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash, writerUuid), partSize);
         }
 
         @Override
@@ -503,7 +520,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         builder.field(INCREMENTAL_SIZE, incrementalSize);
         builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
-            FileInfo.toXContent(fileInfo, builder);
+            FileInfo.toXContent(fileInfo, builder, params);
         }
         builder.endArray();
         return builder;

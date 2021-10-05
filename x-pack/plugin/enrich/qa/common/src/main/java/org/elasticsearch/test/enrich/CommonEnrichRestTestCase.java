@@ -210,8 +210,10 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         );
         assertTrue(
             exc.getMessage()
-                .contains("Could not delete policy [my_policy] because" + " a pipeline is referencing it [my_pipeline, another_pipeline]")
+                .contains("Could not delete policy [my_policy] because a pipeline is referencing it [")
         );
+        assertTrue(exc.getMessage().contains("another_pipeline"));
+        assertTrue(exc.getMessage().contains("my_pipeline"));
 
         // delete the pipelines so the policies can be deleted
         client().performRequest(new Request("DELETE", "/_ingest/pipeline/my_pipeline"));

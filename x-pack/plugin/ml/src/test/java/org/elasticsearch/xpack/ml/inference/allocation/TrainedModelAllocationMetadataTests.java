@@ -95,7 +95,12 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
+            randomNonNegativeLong(),
+            randomIntBetween(1, 8),
+            randomIntBetween(1, 8)
+        );
     }
 
 }

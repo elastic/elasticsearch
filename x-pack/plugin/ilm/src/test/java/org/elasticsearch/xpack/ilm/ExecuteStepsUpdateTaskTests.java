@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -144,7 +143,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         return indexMetadata;
     }
 
-    public void testNeverExecuteNonClusterStateStep() throws IOException {
+    public void testNeverExecuteNonClusterStateStep() throws Exception {
         setStateToKey(thirdStepKey);
         Step startStep = policyStepsRegistry.getStep(indexMetadata, thirdStepKey);
         long now = randomNonNegativeLong();
@@ -152,7 +151,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(task.execute(clusterState), sameInstance(clusterState));
     }
 
-    public void testSuccessThenFailureUnsetNextKey() throws IOException {
+    public void testSuccessThenFailureUnsetNextKey() throws Exception {
         secondStep.setWillComplete(false);
         setStateToKey(firstStepKey);
         Step startStep = policyStepsRegistry.getStep(indexMetadata, firstStepKey);
@@ -170,7 +169,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getStepInfo(), nullValue());
     }
 
-    public void testExecuteUntilFirstNonClusterStateStep() throws IOException {
+    public void testExecuteUntilFirstNonClusterStateStep() throws Exception {
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(indexMetadata, secondStepKey);
         long now = randomNonNegativeLong();
@@ -186,7 +185,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getStepInfo(), nullValue());
     }
 
-    public void testExecuteInvalidStartStep() throws IOException {
+    public void testExecuteInvalidStartStep() throws Exception {
         // Unset the index's phase/action/step to simulate starting from scratch
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
             LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index)));
@@ -208,7 +207,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteIncompleteWaitStepNoInfo() throws IOException {
+    public void testExecuteIncompleteWaitStepNoInfo() throws Exception {
         secondStep.setWillComplete(false);
         setStateToKey(secondStepKey);
         Step startStep = policyStepsRegistry.getStep(indexMetadata, secondStepKey);
@@ -225,7 +224,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getStepInfo(), nullValue());
     }
 
-    public void testExecuteIncompleteWaitStepWithInfo() throws IOException {
+    public void testExecuteIncompleteWaitStepWithInfo() throws Exception {
         secondStep.setWillComplete(false);
         RandomStepInfo stepInfo = new RandomStepInfo(() -> randomAlphaOfLength(10));
         secondStep.expectedInfo(stepInfo);
@@ -250,14 +249,10 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + mixedPolicyName + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].",
-                exception.getMessage());
-        assertSame(expectedException, exception.getCause());
+        task.onFailure(randomAlphaOfLength(10), expectedException);
     }
 
-    public void testClusterActionStepThrowsException() throws IOException {
+    public void testClusterActionStepThrowsException() throws Exception {
         RuntimeException thrownException = new RuntimeException("error");
         firstStep.setException(thrownException);
         setStateToKey(firstStepKey);
@@ -277,7 +272,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\",\"stack_trace\":\""));
     }
 
-    public void testClusterWaitStepThrowsException() throws IOException {
+    public void testClusterWaitStepThrowsException() throws Exception {
         RuntimeException thrownException = new RuntimeException("error");
         secondStep.setException(thrownException);
         setStateToKey(firstStepKey);

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -397,6 +398,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final long creationDate;
 
+    private final boolean ignoreDiskWatermarks;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -425,7 +428,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isHidden,
             final IndexLongFieldRange timestampRange,
             final int priority,
-            final long creationDate) {
+            final long creationDate,
+            final boolean ignoreDiskWatermarks
+    ) {
 
         this.index = index;
         this.version = version;
@@ -462,6 +467,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.timestampRange = timestampRange;
         this.priority = priority;
         this.creationDate = creationDate;
+        this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -554,6 +560,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public ActiveShardCount getWaitForActiveShards() {
         return waitForActiveShards;
+    }
+
+    public boolean ignoreDiskWatermarks() {
+        return ignoreDiskWatermarks;
     }
 
     public Settings getSettings() {
@@ -1329,7 +1339,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     INDEX_HIDDEN_SETTING.get(settings),
                     timestampRange,
                     IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
-                    settings.getAsLong(SETTING_CREATION_DATE, -1L)
+                    settings.getAsLong(SETTING_CREATION_DATE, -1L),
+                    DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings)
             );
         }
 

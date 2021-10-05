@@ -29,13 +29,13 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // setup - put something in the watcher index
             // create index
-            Request createTestIndex = new Request("PUT", "/test_index_old");
+            Request createTestIndex = new Request("PUT", "/feature_test_index_old");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}}\n" +
                 "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
@@ -44,10 +44,10 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
             reindex.setJsonEntity(
                 "{\n" +
                     "  \"source\":{\n" +
-                    "    \"index\":\"test_index_old\"\n" +
+                    "    \"index\":\"feature_test_index_old\"\n" +
                     "  },\n" +
                     "  \"dest\":{\n" +
-                    "    \"index\":\"test_index_reindex\"\n" +
+                    "    \"index\":\"feature_test_index_reindex\"\n" +
                     "  }\n" +
                     "}");
             reindex.addParameter("wait_for_completion", "false");

@@ -39,11 +39,11 @@ public class DeprecationChecksTests extends ESTestCase {
     public void testShouldHideDeprecation() {
         Settings settings = settings(Version.CURRENT).build();
         String settingKey = "some.deprecated.key";
-        assertFalse(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings), settingKey));
-        settings = settings(Version.CURRENT).put(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.getKey(), "some.deprecated.key").build();
-        assertTrue(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings), settingKey));
-        settings = settings(Version.CURRENT).put(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.getKey(), "some.*.key").build();
-        assertTrue(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings), settingKey));
+        assertFalse(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings), settingKey));
+        settings = settings(Version.CURRENT).put(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), "some.deprecated.key").build();
+        assertTrue(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings), settingKey));
+        settings = settings(Version.CURRENT).put(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), "some.*.key").build();
+        assertTrue(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings), settingKey));
     }
 
     private static DeprecationIssue createRandomDeprecationIssue() {

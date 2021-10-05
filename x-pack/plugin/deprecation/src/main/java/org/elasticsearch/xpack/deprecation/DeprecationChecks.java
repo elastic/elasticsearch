@@ -32,9 +32,9 @@ import java.util.stream.Stream;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> HIDE_DEPRECATIONS_SETTING =
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
         Setting.listSetting(
-            "deprecation.hide_deprecated_settings",
+            "deprecation.skip_deprecated_settings",
             Collections.emptyList(),
             Function.identity(),
             new Setting.Property[] {Setting.Property.NodeScope, Setting.Property.Dynamic}

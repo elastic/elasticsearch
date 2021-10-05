@@ -60,8 +60,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
-        this.hideDeprecationsSetting = DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.HIDE_DEPRECATIONS_SETTING,
+        this.hideDeprecationsSetting = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
             this::updateHideDeprecationsSetting);
     }
 

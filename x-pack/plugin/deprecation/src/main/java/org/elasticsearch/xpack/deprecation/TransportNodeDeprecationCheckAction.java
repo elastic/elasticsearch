@@ -46,8 +46,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
         this.settings = settings;
         this.pluginsService = pluginsService;
         this.licenseState = licenseState;
-        this.hideDeprecationsSetting = DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.HIDE_DEPRECATIONS_SETTING,
+        this.hideDeprecationsSetting = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
             this::updateHideDeprecationsSetting);
     }
 

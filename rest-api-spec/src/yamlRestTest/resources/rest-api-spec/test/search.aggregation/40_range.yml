@@ -37,6 +37,9 @@ setup:
 
 ---
 "Float Endpoint Exclusive":
+  - skip:
+      version: " - 7.99.99"
+      reason:  Bug fixed in 7.16.0 (backport pending)
   - do:
       search:
         body:
@@ -62,6 +65,9 @@ setup:
 
 ---
 "Half Float Endpoint Exclusive":
+  - skip:
+      version: " - 7.99.99"
+      reason:  Bug fixed in 7.16.0 (backport pending)
   - do:
       search:
         body:

@@ -75,7 +75,7 @@ public final class RequestOptions {
      * Return true if the options contain the given header
      */
     public boolean containsHeader(String name) {
-        return headers.stream().anyMatch(h -> name.equals(h.getName()));
+        return headers.stream().anyMatch(h -> name.equalsIgnoreCase(h.getName()));
     }
 
     public Map<String, String> getParameters() {
@@ -214,7 +214,7 @@ public final class RequestOptions {
          */
         public Builder removeHeader(String name) {
             Objects.requireNonNull(name, "header name cannot be null");
-            this.headers.removeIf(h -> name.equals(h.getName()));
+            this.headers.removeIf(h -> name.equalsIgnoreCase(h.getName()));
             return this;
         }
 

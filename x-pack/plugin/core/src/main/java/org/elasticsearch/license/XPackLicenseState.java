@@ -67,7 +67,7 @@ public class XPackLicenseState {
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
         SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-        
+
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.

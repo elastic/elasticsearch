@@ -285,6 +285,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         } else if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
             ShardRouting shardRouting = unmovableShard.get().v1();
+            ShardAllocationDecision decision = unmovableShard.get().v2();
 
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
@@ -294,7 +295,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",
                     shardRouting.index().getName()
-                ).getFormattedMessage()
+                ).getFormattedMessage(),
+                decision
             );
         } else {
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);

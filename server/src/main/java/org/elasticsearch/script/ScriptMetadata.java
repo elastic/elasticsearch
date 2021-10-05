@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,8 +20,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,9 +38,9 @@ import java.util.Map;
 public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXContentFragment {
 
     /**
-     * Standard deprecation logger for used to deprecate allowance of empty templates.
+     * Standard logger used to warn about dropped scripts.
      */
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptMetadata.class);
+    private static final Logger logger = LogManager.getLogger(ScriptMetadata.class);
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -196,11 +196,9 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
                     // since there is a guarantee no more empty scripts will exist
                     if (source.getSource().isEmpty()) {
                         if (Script.DEFAULT_TEMPLATE_LANG.equals(source.getLang())) {
-                            deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates",
-                                    "empty template found and dropped");
+                            logger.warn("empty template [" + id + "] found and dropped");
                         } else {
-                            deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_scripts",
-                                    "empty script found and dropped");
+                            logger.warn("empty script [" + id + "] found and dropped");
                         }
                     } else {
                         scripts.put(id, source);

@@ -91,16 +91,14 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty script found and dropped");
+        assertTrue(ScriptMetadata.fromXContent(parser).getStoredScripts().isEmpty());
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
         parser = XContentType.JSON.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 BytesReference.bytes(builder).streamInput());
-        ScriptMetadata.fromXContent(parser);
-        assertWarnings("empty template found and dropped");
+        assertTrue(ScriptMetadata.fromXContent(parser).getStoredScripts().isEmpty());
     }
 
     @Override

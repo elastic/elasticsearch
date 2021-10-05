@@ -198,6 +198,34 @@ IMPORTANT: You can only configure these settings on nodes with the
 <<data-frozen-node,`data_frozen`>> role. Additionally, nodes with a shared
 cache can only have a single <<path-settings,data path>>.
 
+{es} also uses a dedicated system index named `.snapshot-blob-cache` to speed
+up the recoveries of {search-snap} shards. This index is used as an additional
+caching layer on top of the partially or fully mounted data and contains the
+minimal required data to start the {search-snap} shards. {es} automatically
+deletes the documents that are no longer used in this index. This periodic
+clean up can be tuned using the following settings:
+
+`searchable_snapshots.blob_cache.periodic_cleanup.interval`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The interval at which the periodic cleanup of the `.snapshot-blob-cache`
+index is scheduled. Defaults to every hour (`1h`).
+
+`searchable_snapshots.blob_cache.periodic_cleanup.retention_period`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The retention period to keep obsolete documents in the `.snapshot-blob-cache`
+index. Defaults to every hour (`1h`).
+
+`searchable_snapshots.blob_cache.periodic_cleanup.batch_size`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The number of documents that are searched for and bulk-deleted at once during
+the periodic cleanup of the `.snapshot-blob-cache` index. Defaults to `100`.
+
+`searchable_snapshots.blob_cache.periodic_cleanup.pit_keep_alive`::
+(<<dynamic-cluster-setting,Dynamic>>)
+The value used for the <point-in-time-keep-alive,point-in-time keep alive>>
+requests executed during the periodic cleanup of the `.snapshot-blob-cache`
+index. Defaults to `10m`.
+
 [discrete]
 [[searchable-snapshots-costs]]
 === Reduce costs with {search-snaps}

@@ -34,6 +34,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
@@ -183,6 +184,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -195,6 +197,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -2167,6 +2170,62 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
             engine.close();
+        } finally {
+            Loggers.removeAppender(rootLogger, mockAppender);
+            mockAppender.stop();
+            Loggers.setLevel(rootLogger, savedLevel);
+        }
+    }
+
+    private static class MockMTAppender extends AbstractAppender {
+        private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+
+        List<String> messages () { return messages; }
+
+        MockMTAppender(final String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0],
+                false, null, null), null);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            final String formattedMessage = event.getMessage().getFormattedMessage();
+            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
+                messages.add(formattedMessage);
+            }
+        }
+    }
+
+    public void testMergeThreadLogging() throws IllegalAccessException, IOException {
+        MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+        mockAppender.start();
+
+        Logger rootLogger = LogManager.getRootLogger();
+        Level savedLevel = rootLogger.getLevel();
+        Loggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.TRACE);
+
+        LogMergePolicy lmp = newLogMergePolicy();
+        lmp.setMergeFactor(2);
+        try (Store store = createStore()) {
+            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), lmp); // fmp
+            engine.index(indexForDoc(testParsedDocument("1", null, testDocument(), B_1, null)));
+            engine.index(indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null)));
+            engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
+            engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
+            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+            engine.flushAndClose();
+
+            long merges = engine.getMergeStats().getTotal();
+            if (merges > 0) {
+                List<String> threadMsgs =
+                    mockAppender.messages().stream()
+                        .filter(line -> line.startsWith("merge thread"))
+                        .collect(Collectors.toList());
+                assertThat("messages:" + threadMsgs + ", merges=" + merges, threadMsgs.size(), greaterThanOrEqualTo(2));
+                assertThat(threadMsgs,
+                    containsInRelativeOrder(matchesRegex("^merge thread .* start$"), matchesRegex("^merge thread .* merge segment.*$")));
+            }
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();

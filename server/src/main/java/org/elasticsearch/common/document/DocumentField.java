@@ -155,18 +155,6 @@ public class DocumentField implements Writeable, Iterable<Object> {
         };
     }    
 
-//    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-//        builder.startArray(name);
-//        for (Object value : values) {
-//            // This call doesn't really need to support writing any kind of object, since the values
-//            // here are always serializable to xContent. Each value could be a leaf types like a string,
-//            // number, or boolean, a list of such values, or a map of such values with string keys.
-//            builder.value(value);
-//        }
-//        builder.endArray();
-//        return builder;
-//    }
-//
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
         String fieldName = parser.currentName();

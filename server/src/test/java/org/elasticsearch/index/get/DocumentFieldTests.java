@@ -54,7 +54,12 @@ public class DocumentFieldTests extends ESTestCase {
         DocumentField documentField = tuple.v1();
         DocumentField expectedDocumentField = tuple.v2();
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(documentField.getValidValuesWriter(), xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            documentField.getValidValuesWriter(),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
         //test that we can parse what we print out
         DocumentField parsedDocumentField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

@@ -334,7 +334,9 @@ class VectorTileRequest {
             if (aggregation instanceof MetricsAggregationBuilder<?, ?>) {
                 aggs.add((MetricsAggregationBuilder<?, ?>) aggregation);
             } else {
-                throw new IllegalArgumentException("Unsupported aggregation of type [" + aggregation.getType() + "]");
+                throw new IllegalArgumentException(
+                    "Unsupported aggregation of type [" + aggregation.getType() + "]." + "Only metric aggregations are supported."
+                );
             }
         }
         for (PipelineAggregationBuilder aggregation : aggBuilder.getPipelineAggregatorFactories()) {

@@ -23,7 +23,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     public static final String NAME = "node_replacement";
 
     static final Decision NO_REPLACEMENTS = Decision.single(Decision.Type.YES, NAME,
-        "no node replacements are currently ongoing, allocation is allowed");
+        "neither the source nor target node are part of an ongoing node replacement (no replacements)");
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

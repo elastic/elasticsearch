@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -52,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -71,10 +73,10 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
  */
 public final class Settings implements ToXContentFragment {
 
-    public static final Settings EMPTY = new Builder().build();
+    public static final Settings EMPTY = new Settings(Map.of(), null);
 
     /** The raw settings from the full key to raw string value. */
-    private final Map<String, Object> settings;
+    private final NavigableMap<String, Object> settings;
 
     /** The secure settings storage associated with these settings. */
     private final SecureSettings secureSettings;
@@ -88,9 +90,16 @@ public final class Settings implements ToXContentFragment {
      */
     private Set<String> keys;
 
+    private static Settings of(Map<String, Object> settings, SecureSettings secureSettings) {
+        if (secureSettings == null && settings.isEmpty()) {
+            return EMPTY;
+        }
+        return new Settings(settings, secureSettings);
+    }
+
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
-        this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
+        this.settings = Collections.unmodifiableNavigableMap(new TreeMap<>(settings));
         this.secureSettings = secureSettings;
     }
 
@@ -198,15 +207,24 @@ public final class Settings implements ToXContentFragment {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
-        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), secureSettings == null ? null :
-            new PrefixedSecureSettings(secureSettings, prefix, s -> s.startsWith(prefix)));
+        if (prefix.isEmpty()) {
+            return this;
+        }
+        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // below
+        char[] toPrefixCharArr = prefix.toCharArray();
+        toPrefixCharArr[toPrefixCharArr.length - 1]++;
+        String toPrefix = new String(toPrefixCharArr);
+        final Map<String, Object> subMap = settings.subMap(prefix, toPrefix);
+        return Settings.of(subMap.isEmpty() ? Map.of() : new FilteredMap(subMap, null, prefix),
+            secureSettings == null ? null : new PrefixedSecureSettings(secureSettings, prefix, s -> s.startsWith(prefix)));
     }
 
     /**
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
      */
     public Settings filter(Predicate<String> predicate) {
-        return new Settings(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
+        return Settings.of(new FilteredMap(this.settings, predicate, null), secureSettings == null ? null :
             new PrefixedSecureSettings(secureSettings, "", predicate));
     }
 
@@ -436,6 +454,9 @@ public final class Settings implements ToXContentFragment {
 
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         Settings prefixSettings = getByPrefix(settingPrefix);
+        if (prefixSettings.isEmpty()) {
+            return Map.of();
+        }
         Map<String, Settings> groups = new HashMap<>();
         for (String groupName : prefixSettings.names()) {
             Settings groupSettings = prefixSettings.getByPrefix(groupName + ".");
@@ -523,8 +544,11 @@ public final class Settings implements ToXContentFragment {
     }
 
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
-        Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
+        if (numberOfSettings == 0) {
+            return EMPTY;
+        }
+        Builder builder = new Builder();
         for (int i = 0; i < numberOfSettings; i++) {
             String key = in.readString();
             Object value = in.readGenericValue();
@@ -689,12 +713,12 @@ public final class Settings implements ToXContentFragment {
         }
         final Set<String> newKeySet;
         if (secureSettings == null) {
-            newKeySet = settings.keySet();
+            newKeySet = Set.copyOf(settings.keySet());
         } else {
             // uniquify, since for legacy reasons the same setting name may exist in both
             final Set<String> merged = new HashSet<>(settings.keySet());
             merged.addAll(secureSettings.getSettingNames());
-            newKeySet = Collections.unmodifiableSet(merged);
+            newKeySet = Set.copyOf(merged);
         }
         keys = newKeySet;
         return newKeySet;
@@ -1182,19 +1206,25 @@ public final class Settings implements ToXContentFragment {
          * set on this builder.
          */
         public Settings build() {
+            final SecureSettings secSettings = secureSettings.get();
+            if (secSettings == null && map.isEmpty()) {
+                return EMPTY;
+            }
             processLegacyLists(map);
-            return new Settings(map, secureSettings.get());
+            return new Settings(map, secSettings);
         }
     }
 
     // TODO We could use an FST internally to make things even faster and more compact
     private static final class FilteredMap extends AbstractMap<String, Object> {
         private final Map<String, Object> delegate;
+        @Nullable
         private final Predicate<String> filter;
+        @Nullable
         private final String prefix;
         // we cache that size since we have to iterate the entire set
         // this is safe to do since this map is only used with unmodifiable maps
-        private int size = -1;
+        private int size;
         @Override
         public Set<Entry<String, Object>> entrySet() {
             Set<Entry<String, Object>> delegateSet = delegate.entrySet();
@@ -1217,7 +1247,7 @@ public final class Settings implements ToXContentFragment {
                                     return false;
                                 }
                                 while (iter.hasNext()) {
-                                    if (filter.test((currentElement = iter.next()).getKey())) {
+                                    if (test((currentElement = iter.next()).getKey())) {
                                         numIterated++;
                                         return true;
                                     }
@@ -1271,24 +1301,33 @@ public final class Settings implements ToXContentFragment {
             this.delegate = delegate;
             this.filter = filter;
             this.prefix = prefix;
+            if (filter == null) {
+                this.size = delegate.size();
+            } else {
+                this.size = -1;
+            }
         }
 
         @Override
         public Object get(Object key) {
             if (key instanceof String) {
                 final String theKey = prefix == null ? (String)key : prefix + key;
-                if (filter.test(theKey)) {
+                if (test(theKey)) {
                     return delegate.get(theKey);
                 }
             }
             return null;
         }
 
+        private boolean test(String theKey) {
+            return filter == null || filter.test(theKey);
+        }
+
         @Override
         public boolean containsKey(Object key) {
             if (key instanceof String) {
                 final String theKey = prefix == null ? (String) key : prefix + key;
-                if (filter.test(theKey)) {
+                if (test(theKey)) {
                     return delegate.containsKey(theKey);
                 }
             }

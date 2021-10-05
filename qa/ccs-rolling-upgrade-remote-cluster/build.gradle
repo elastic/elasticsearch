@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -19,9 +18,7 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String bwcVersionStr = bwcVersion.toString()
-  String baseName = "v" + bwcVersionStr
+BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
   /**
    * We execute tests 3 times.
@@ -32,13 +29,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
    */
   def localCluster = testClusters.register("${baseName}-local") {
     numberOfNodes = 2
-    versions = [bwcVersionStr, project.version]
+    versions = [bwcVersion.toString(), project.version]
     setting 'cluster.remote.node.attr', 'gateway'
     setting 'xpack.security.enabled', 'false'
   }
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 3
-    versions = [bwcVersionStr, project.version]
+    versions = [bwcVersion.toString(), project.version]
     firstNode.setting 'node.attr.gateway', 'true'
     lastNode.setting 'node.attr.gateway', 'true'
     setting 'xpack.security.enabled', 'false'
@@ -48,7 +45,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
     useCluster localCluster
     useCluster remoteCluster
-    systemProperty 'tests.upgrade_from_version', bwcVersionStr.replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
 
     doFirst {
       nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))

@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -61,7 +60,6 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
 
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            assertThatNoMlIndicesExist();
             // trigger ML indices creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
             openAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
@@ -159,18 +157,6 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     private static Map<String, Object> contentAsMap(Response response) throws IOException {
         return new ObjectMapper().readValue(
             new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8), HashMap.class);
-    }
-
-    private void assertThatNoMlIndicesExist() throws IOException {
-        Request getIndexRequest = new Request("GET", ".ml-*");
-        getIndexRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            v.current(systemIndexWarning);
-            v.compatible(systemIndexWarning);
-        }).toBuilder()
-            .addParameter("allow_no_indices", "false")
-            .build());
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {

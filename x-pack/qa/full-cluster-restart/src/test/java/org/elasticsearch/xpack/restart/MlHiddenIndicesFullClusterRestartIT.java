@@ -64,17 +64,11 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
             openAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
 
-            Request getAliasesRequest =
-                new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
-            getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                v.current(systemAliasWarning);
-                v.compatible(systemAliasWarning);
-            }));
-            Response getAliasesResponse = client().performRequest(getAliasesRequest);
-            Map<String, Object> aliasesMap = contentAsMap(getAliasesResponse);
             if (getOldClusterVersion().before(Version.V_7_7_0)) {
-                Map<String, Object> indexSettings = contentAsMap(getMlIndicesSettings());
-                for (Map.Entry<String, Object> e : indexSettings.entrySet()) {
+                Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
+                Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
+
+                for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
                     String indexName = e.getKey();
                     @SuppressWarnings("unchecked")
                     Map<String, Object> settings = (Map<String, Object>) e.getValue();
@@ -98,8 +92,10 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                 }
             }
         } else {
-            Map<String, Object> indexSettings = contentAsMap(getMlIndicesSettings());
-            for (Map.Entry<String, Object> e : indexSettings.entrySet()) {
+            Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
+            Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
+
+            for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
                 String indexName = e.getKey();
                 // .ml-config is supposed to be a system index, *not* a hidden index
                 if (".ml-config".equals(indexName)) {
@@ -113,14 +109,6 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     is(equalTo("true")));
             }
 
-            Request getAliasesRequest =
-                new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
-            getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                v.current(systemAliasWarning);
-                v.compatible(systemAliasWarning);
-            }));
-            Response getAliasesResponse = client().performRequest(getAliasesRequest);
-            Map<String, Object> aliasesMap = contentAsMap(getAliasesResponse);
             // TODO: Include all the ML aliases
             List<Tuple<String, String>> expected =
                 List.of(
@@ -139,9 +127,6 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     private static final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, " +
         "direct access to system indices will be prevented by default";
 
-    private static final String systemAliasWarning = "this request accesses aliases with names reserved for system indices: [.security], " +
-        "but in a future major version, direct access to system indices and their aliases will not be allowed";
-
     private Response getMlIndicesSettings() throws IOException {
         Request getSettingsRequest = new Request("GET", ".ml-*/_settings");
         getSettingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
@@ -151,6 +136,21 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
         assertThat(getSettingsResponse, is(notNullValue()));
         return getSettingsResponse;
+    }
+
+    private static final String systemAliasWarning = "this request accesses aliases with names reserved for system indices: [.security], " +
+        "but in a future major version, direct access to system indices and their aliases will not be allowed";
+
+    private Response getMlAliases() throws IOException {
+        Request getAliasesRequest =
+            new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+        getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(systemAliasWarning);
+            v.compatible(systemAliasWarning);
+        }));
+        Response getAliasesResponse = client().performRequest(getAliasesRequest);
+        assertThat(getAliasesResponse, is(notNullValue()));
+        return getAliasesResponse;
     }
 
     @SuppressWarnings("unchecked")

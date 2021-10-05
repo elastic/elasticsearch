@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
@@ -27,7 +28,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
             "access to system indices will be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            // setup - put something in the watcher index
+            // setup - put something in the tasks index
             // create index
             Request createTestIndex = new Request("PUT", "/feature_test_index_old");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
@@ -67,10 +68,6 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
             }));
             getTasksIndex.addParameter("allow_no_indices", "false");
 
-            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
-                v.current(systemIndexWarning);
-                v.compatible(systemIndexWarning);
-            }));
             assertBusy(() -> {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));
@@ -94,6 +91,11 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature.size(), equalTo(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.toString()));
+                if (UPGRADE_FROM_VERSION.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                    assertThat(feature.get("upgrade_status"), equalTo("UPGRADE_NEEDED"));
+                } else {
+                    assertThat(feature.get("upgrade_status"), equalTo("NO_UPGRADE_NEEDED"));
+                }
             });
         }
     }

@@ -31,6 +31,11 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
 
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
 
+    @After
+    public void resetFeatures() throws Exception {
+        client().performRequest(new Request("POST", "/_features/_reset"));
+    }
+
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
@@ -61,10 +66,5 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
         assertThat(testFeature.get("indices"), instanceOf(List.class));
 
         assertThat((List<Object>) testFeature.get("indices"), hasSize(1));
-    }
-
-    @After
-    public void resetFeatures() throws Exception {
-        client().performRequest(new Request("POST", "/_features/_reset"));
     }
 }

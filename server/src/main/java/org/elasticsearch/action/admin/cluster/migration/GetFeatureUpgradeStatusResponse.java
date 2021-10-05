@@ -28,13 +28,13 @@ import java.util.Objects;
 public class GetFeatureUpgradeStatusResponse extends ActionResponse implements ToXContentObject {
 
     private final List<FeatureUpgradeStatus> featureUpgradeStatuses;
-    private final String upgradeStatus;
+    private final UpgradeStatus upgradeStatus;
 
     /**
      * @param statuses A list of feature statuses
      * @param upgradeStatus Whether system features need to be upgraded
      */
-    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, String upgradeStatus) {
+    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, UpgradeStatus upgradeStatus) {
         this.featureUpgradeStatuses = Objects.nonNull(statuses) ? statuses : Collections.emptyList();
         this.upgradeStatus = upgradeStatus;
     }
@@ -46,7 +46,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
         super(in);
         this.featureUpgradeStatuses = in.readList(FeatureUpgradeStatus::new);
-        this.upgradeStatus = in.readString();
+        this.upgradeStatus = in.readEnum(UpgradeStatus.class);
     }
 
     @Override
@@ -65,14 +65,14 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(this.featureUpgradeStatuses);
-        out.writeString(upgradeStatus);
+        out.writeEnum(upgradeStatus);
     }
 
     public List<FeatureUpgradeStatus> getFeatureUpgradeStatuses() {
         return featureUpgradeStatuses;
     }
 
-    public String getUpgradeStatus() {
+    public UpgradeStatus getUpgradeStatus() {
         return upgradeStatus;
     }
 
@@ -97,6 +97,11 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             '}';
     }
 
+    public enum UpgradeStatus {
+        UPGRADE_NEEDED,
+        NO_UPGRADE_NEEDED
+    }
+
     /**
      * A class for a particular feature, showing whether it needs to be upgraded and the earliest
      * Elasticsearch version used to create one of this feature's system indices.
@@ -104,7 +109,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {
         private final String featureName;
         private final Version minimumIndexVersion;
-        private final String upgradeStatus;
+        private final UpgradeStatus upgradeStatus;
         private final List<IndexVersion> indexVersions;
 
         /**
@@ -114,7 +119,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          * @param indexVersions A list of this feature's concrete indices and the Elasticsearch version that created them
          */
         public FeatureUpgradeStatus(String featureName, Version minimumIndexVersion,
-                                    String upgradeStatus, List<IndexVersion> indexVersions) {
+                                    UpgradeStatus upgradeStatus, List<IndexVersion> indexVersions) {
             this.featureName = featureName;
             this.minimumIndexVersion = minimumIndexVersion;
             this.upgradeStatus = upgradeStatus;
@@ -128,7 +133,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public FeatureUpgradeStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
             this.minimumIndexVersion = Version.readVersion(in);
-            this.upgradeStatus = in.readString();
+            this.upgradeStatus = in.readEnum(UpgradeStatus.class);
             this.indexVersions = in.readList(IndexVersion::new);
         }
 
@@ -140,7 +145,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             return this.minimumIndexVersion;
         }
 
-        public String getUpgradeStatus() {
+        public UpgradeStatus getUpgradeStatus() {
             return this.upgradeStatus;
         }
 
@@ -152,7 +157,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
             Version.writeVersion(this.minimumIndexVersion, out);
-            out.writeString(this.upgradeStatus);
+            out.writeEnum(this.upgradeStatus);
             out.writeList(this.indexVersions);
         }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
 
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FeatureUpgradeIT extends ESIntegTestCase {
@@ -28,13 +29,13 @@ public class FeatureUpgradeIT extends ESIntegTestCase {
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status = new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             "tasks",
             Version.CURRENT,
-            "NO_UPGRADE_NEEDED",
+            NO_UPGRADE_NEEDED,
             List.of()
         );
         assertThat(apiResponse, equalTo(
            new GetFeatureUpgradeStatusResponse(
                List.of(status),
-               "NO_UPGRADE_NEEDED"
+               NO_UPGRADE_NEEDED
            )));
     }
 }

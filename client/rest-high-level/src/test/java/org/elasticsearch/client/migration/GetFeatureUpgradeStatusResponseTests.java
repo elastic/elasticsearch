@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -39,13 +41,13 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
                 () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
                     randomAlphaOfLengthBetween(3, 20),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
-                    randomAlphaOfLengthBetween(4, 16),
+                    randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED),
                     randomList(4,
                         () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion(
                             randomAlphaOfLengthBetween(3, 20),
                             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())))
                 )),
-            randomAlphaOfLength(5)
+            randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED)
         );
     }
 
@@ -59,7 +61,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
         org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse serverTestInstance,
         GetFeatureUpgradeStatusResponse clientInstance) {
 
-        assertThat(clientInstance.getUpgradeStatus(), equalTo(serverTestInstance.getUpgradeStatus()));
+        assertThat(clientInstance.getUpgradeStatus(), equalTo(serverTestInstance.getUpgradeStatus().toString()));
 
         assertNotNull(serverTestInstance.getFeatureUpgradeStatuses());
         assertNotNull(clientInstance.getFeatureUpgradeStatuses());
@@ -73,7 +75,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
 
             assertThat(clientStatus.getFeatureName(), equalTo(serverTestStatus.getFeatureName()));
             assertThat(clientStatus.getMinimumIndexVersion(), equalTo(serverTestStatus.getMinimumIndexVersion().toString()));
-            assertThat(clientStatus.getUpgradeStatus(), equalTo(serverTestStatus.getUpgradeStatus()));
+            assertThat(clientStatus.getUpgradeStatus(), equalTo(serverTestStatus.getUpgradeStatus().toString()));
 
             assertThat(clientStatus.getIndexVersions(), hasSize(serverTestStatus.getIndexVersions().size()));
 

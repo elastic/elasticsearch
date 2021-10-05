@@ -15,6 +15,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -32,7 +34,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     protected GetFeatureUpgradeStatusResponse createTestInstance() {
         return new GetFeatureUpgradeStatusResponse(
             randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
-            randomAlphaOfLengthBetween(4, 16)
+            randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED)
         );
     }
 
@@ -42,13 +44,13 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
             randomList(8,
                 () -> randomValueOtherThanMany(instance.getFeatureUpgradeStatuses()::contains,
                     GetFeatureUpgradeStatusResponseTests::createFeatureStatus)),
-            randomValueOtherThan(instance.getUpgradeStatus(), () -> randomAlphaOfLengthBetween(4, 16))
+            randomValueOtherThan(instance.getUpgradeStatus(), () -> randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED))
         );
     }
 
     /** If constructor is called with null for a list, we just use an empty list */
     public void testConstructorHandlesNullLists() {
-        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, "status");
+        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, UPGRADE_NEEDED);
         assertThat(response.getFeatureUpgradeStatuses(), notNullValue());
         assertThat(response.getFeatureUpgradeStatuses(), equalTo(Collections.emptyList()));
     }
@@ -57,7 +59,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
-            randomAlphaOfLengthBetween(4, 16),
+            randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED),
             randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexVersion)
         );
     }

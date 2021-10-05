@@ -268,11 +268,8 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.named('splitPackagesAudit').configure {
-  // Joda should own its own packages! This should be a simple move.
-  ignoreClasses 'org.joda.time.format.StrictISODateTimeFormat',
-
-    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
-    'org.elasticsearch.cli.CommandLoggingConfigurator',
+  // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
+  ignoreClasses 'org.elasticsearch.cli.CommandLoggingConfigurator',
     'org.elasticsearch.cli.EnvironmentAwareCommand',
     'org.elasticsearch.cli.KeyStoreAwareCommand',
     'org.elasticsearch.cli.LoggingAwareCommand',

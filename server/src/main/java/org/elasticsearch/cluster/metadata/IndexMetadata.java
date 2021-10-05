@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -397,6 +398,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final long creationDate;
 
+    private final List<String> tierPreference;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -425,7 +428,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isHidden,
             final IndexLongFieldRange timestampRange,
             final int priority,
-            final long creationDate) {
+            final long creationDate,
+            final List<String> tierPreference) {
 
         this.index = index;
         this.version = version;
@@ -462,6 +466,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.timestampRange = timestampRange;
         this.priority = priority;
         this.creationDate = creationDate;
+        this.tierPreference = tierPreference;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -562,6 +567,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public ImmutableOpenMap<String, AliasMetadata> getAliases() {
         return this.aliases;
+    }
+
+    public List<String> getTierPreference() {
+        return tierPreference;
     }
 
     /**
@@ -1329,7 +1338,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     INDEX_HIDDEN_SETTING.get(settings),
                     timestampRange,
                     IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
-                    settings.getAsLong(SETTING_CREATION_DATE, -1L)
+                    settings.getAsLong(SETTING_CREATION_DATE, -1L),
+                    DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings))
             );
         }
 

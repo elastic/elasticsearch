@@ -129,10 +129,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
 
     private Response getMlIndicesSettings() throws IOException {
         Request getSettingsRequest = new Request("GET", ".ml-*/_settings");
-        getSettingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            v.current(systemIndexWarning);
-            v.compatible(systemIndexWarning);
-        }));
+        getSettingsRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(systemIndexWarning)));
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
         assertThat(getSettingsResponse, is(notNullValue()));
         return getSettingsResponse;
@@ -144,10 +141,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     private Response getMlAliases() throws IOException {
         Request getAliasesRequest =
             new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
-        getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            v.current(systemAliasWarning);
-            v.compatible(systemAliasWarning);
-        }));
+        getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(systemAliasWarning)));
         Response getAliasesResponse = client().performRequest(getAliasesRequest);
         assertThat(getAliasesResponse, is(notNullValue()));
         return getAliasesResponse;

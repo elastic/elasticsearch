@@ -126,6 +126,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Set<String> excludeTemplates() {
         Set<String> excludes = new HashSet<>();
+        excludes.addAll(super.excludeTemplates());
         excludes.addAll(Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES));
         return Collections.unmodifiableSet(excludes);
     }

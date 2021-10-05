@@ -207,14 +207,18 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return new HashSet<>(Arrays.asList(
+        final List<String> excludes = Arrays.asList(
             NotificationsIndex.NOTIFICATIONS_INDEX,
             MlMetaIndex.indexName(),
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobResultsIndexPrefix(),
             InferenceIndexConstants.LATEST_INDEX_NAME,
             SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
-        ));
+        );
+        Set<String> allExcludes = new HashSet<>();
+        allExcludes.addAll(super.excludeTemplates());
+        allExcludes.addAll(excludes);
+        return allExcludes;
     }
 
     protected void cleanUpResources(){

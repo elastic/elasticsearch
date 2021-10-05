@@ -3,7 +3,7 @@
 
 The Java REST Client comes in 2 flavors:
 
-* {java-api-client}java-rest-low.html[Java Low Level REST Client]: the official 
+* {java-api-client}/java-rest-low.html[Java Low Level REST Client]: the official 
 low-level client for Elasticsearch. It allows to communicate with an 
 Elasticsearch cluster through http. Leaves requests marshalling and responses 
 un-marshalling to users. It is compatible with all Elasticsearch versions.

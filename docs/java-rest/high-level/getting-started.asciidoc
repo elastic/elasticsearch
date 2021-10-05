@@ -142,7 +142,7 @@ transitive dependencies:
 === Initialization
 
 A `RestHighLevelClient` instance needs a 
-{java-api-client}java-rest-low-usage-initialization.html[REST low-level client builder]
+{java-api-client}/java-rest-low-usage-initialization.html[REST low-level client builder]
 to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

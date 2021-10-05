@@ -378,8 +378,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public List<Segment> segments(boolean verbose) {
-        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, verbose));
+    public List<Segment> segments() {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos));
     }
 
     @Override

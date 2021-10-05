@@ -28,7 +28,7 @@ setup:
          - {"index": {}}
          - { "double" : 42.1, "long": 25, "float": 0.01, "half_float": 0.01 }
          - {"index": {}}
-         - { "double" : 100.7, "long": 80, "float": 0.03, "half_float": 0.03 }
+         - { "double" : 100.7, "long": 80, "float": 0.03, "half_float": 0.0152 }
          - {"index": {}}
          - { "double" : 50.5, "long":  75, "float": 0.04, "half_float": 0.04 }
 # For testing missing values
@@ -37,10 +37,6 @@ setup:
 
 ---
 "Float Endpoint Exclusive":
-  - skip:
-      version: 7.99.99
-      reason: Fixed in 7.16 (backport pending)
-
   - do:
       search:
         body:
@@ -48,6 +44,7 @@ setup:
           aggs:
             double_range:
               range:
+                format: "0.0#"
                 field: "float"
                 ranges:
                   -
@@ -65,10 +62,6 @@ setup:
 
 ---
 "Half Float Endpoint Exclusive":
-  - skip:
-      version: 7.99.99
-      reason: Fixed in 7.16 (backport pending)
-
   - do:
       search:
         body:
@@ -76,6 +69,7 @@ setup:
           aggs:
             double_range:
               range:
+                format: "0.0###"
                 field: "half_float"
                 ranges:
                   -
@@ -87,9 +81,9 @@ setup:
   - match: { hits.total.value: 4 }
   - length: { aggregations.double_range.buckets: 2 }
   - match: { aggregations.double_range.buckets.0.key: "0.0-0.0152" }
-  - match: { aggregations.double_range.buckets.0.doc_count: 2 }
+  - match: { aggregations.double_range.buckets.0.doc_count: 1 }
   - match: { aggregations.double_range.buckets.1.key: "0.0152-1.0" }
-  - match: { aggregations.double_range.buckets.1.doc_count: 1 }
+  - match: { aggregations.double_range.buckets.1.doc_count: 2 }
 
 ---
 "Double range":

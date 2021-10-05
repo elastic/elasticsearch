@@ -29,7 +29,7 @@ document content, as it treats all values as keywords and does not provide full
 search functionality. The default approach, where each subfield has its own
 entry in the mappings, works well in the majority of cases.
 
-An flattened object field can be created as follows:
+A flattened object field can be created as follows:
 
 [source,console]
 --------------------------------

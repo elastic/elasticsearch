@@ -21,7 +21,7 @@ The following {transform} rules are available:
 [[creating-transform-rules]]
 == Creating a rule
 
-You can create {transform} rules under **{stack-manage-app} > {alerts-ui}**.
+You can create {transform} rules under **{stack-manage-app} > {rules-ui}**.
 
 On the *Create rule* window, give a name to the rule and optionally provide 
 tags. Specify the time interval for the rule to check {transform} health 
@@ -77,7 +77,7 @@ writes the JSON object you configure to a specific index. It's also possible to
 customize the notification messages. A list of variables is available to include 
 in the message, like {transform} ID, description, {transform} state, and so on.
 
-After you save the configurations, the rule appears in the *{alerts-ui}* list 
+After you save the configurations, the rule appears in the *{rules-ui}* list 
 where you can check its status and see the overview of its configuration 
 information.
 

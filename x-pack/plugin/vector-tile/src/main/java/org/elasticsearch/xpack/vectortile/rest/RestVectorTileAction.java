@@ -33,9 +33,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -46,13 +44,14 @@ import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -209,27 +208,33 @@ public class RestVectorTileAction extends BaseRestHandler {
             searchRequestBuilder.addAggregation(tileAggBuilder);
             searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(COUNT_TAG, GRID_FIELD + "." + COUNT_TAG));
             if (request.getGridType() == VectorTileRequest.GRID_TYPE.CENTROID) {
-                GeoCentroidAggregationBuilder centroidAggregationBuilder = new GeoCentroidAggregationBuilder(CENTROID_AGG_NAME);
-                centroidAggregationBuilder.field(request.getField());
-                tileAggBuilder.subAggregation(centroidAggregationBuilder);
+                tileAggBuilder.subAggregation(new GeoCentroidAggregationBuilder(CENTROID_AGG_NAME).field(request.getField()));
             }
-            final AggregatorFactories.Builder otherAggBuilder = request.getAggBuilder();
-            if (otherAggBuilder != null) {
-                final Collection<AggregationBuilder> aggregations = otherAggBuilder.getAggregatorFactories();
-                for (AggregationBuilder aggregation : aggregations) {
-                    if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
-                        throw new IllegalArgumentException(
-                            "Invalid aggregation name ["
-                                + aggregation.getName()
-                                + "]. Aggregation names cannot start with prefix '"
-                                + INTERNAL_AGG_PREFIX
-                                + "'"
-                        );
+            final List<MetricsAggregationBuilder<?, ?>> aggregations = request.getAggBuilder();
+            for (MetricsAggregationBuilder<?, ?> aggregation : aggregations) {
+                if (aggregation.getName().startsWith(INTERNAL_AGG_PREFIX)) {
+                    throw new IllegalArgumentException(
+                        "Invalid aggregation name ["
+                            + aggregation.getName()
+                            + "]. Aggregation names cannot start with prefix '"
+                            + INTERNAL_AGG_PREFIX
+                            + "'"
+                    );
+                }
+                tileAggBuilder.subAggregation(aggregation);
+                final Set<String> metricNames = aggregation.metricNames();
+                for (String metric : metricNames) {
+                    final String bucketPath;
+                    // handle the case where the metric contains a dot
+                    if (metric.contains(".")) {
+                        bucketPath = GRID_FIELD + ">" + aggregation.getName() + "[" + metric + "]";
+                    } else {
+                        bucketPath = GRID_FIELD + ">" + aggregation.getName() + "." + metric;
                     }
-                    tileAggBuilder.subAggregation(aggregation);
-                    // we add the metric (.value) to the path in order to support aggregation names with '.'
-                    final String bucketPath = GRID_FIELD + ">" + aggregation.getName() + ".value";
-                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggregation.getName(), bucketPath));
+                    // we only add the metric name to multi-value metric aggregations
+                    final String aggName = metricNames.size() == 1 ? aggregation.getName() : aggregation.getName() + "." + metric;
+                    searchRequestBuilder.addAggregation(new StatsBucketPipelineAggregationBuilder(aggName, bucketPath));
+
                 }
             }
         }

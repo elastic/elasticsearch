@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
+public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbeddingResults> {
     @Override
     protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
         return TextEmbeddingResults::new;
@@ -37,5 +37,13 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
         Map<String, Object> asMap = testInstance.asMap();
         assertThat(asMap.keySet(), hasSize(1));
         assertArrayEquals(testInstance.getInference(), (double[]) asMap.get(DEFAULT_RESULTS_FIELD), 1e-10);
+    }
+
+    @Override
+    void assertFieldValues(TextEmbeddingResults createdInstance, IngestDocument document, String resultsField) {
+        assertArrayEquals(
+            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[].class),
+            createdInstance.getInference(), 1e-10
+        );
     }
 }

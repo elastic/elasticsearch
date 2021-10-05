@@ -12,6 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PyTorchPassThroughResultsTests extends AbstractWireSerializingTestCase<PyTorchPassThroughResults> {
@@ -31,13 +32,13 @@ public class PyTorchPassThroughResultsTests extends AbstractWireSerializingTestC
             }
         }
 
-        return new PyTorchPassThroughResults(arr);
+        return new PyTorchPassThroughResults(DEFAULT_RESULTS_FIELD, arr);
     }
 
     public void testAsMap() {
         PyTorchPassThroughResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
         assertThat(asMap.keySet(), hasSize(1));
-        assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(PyTorchPassThroughResults.DEFAULT_RESULTS_FIELD));
+        assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(DEFAULT_RESULTS_FIELD));
     }
 }

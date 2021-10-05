@@ -62,7 +62,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
-    public void testExecuteSuccessfullyMoved() {
+    public void testExecuteSuccessfullyMoved() throws Exception {
         long now = randomNonNegativeLong();
         List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();
@@ -84,7 +84,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertTrue(changed.get());
     }
 
-    public void testExecuteDifferentCurrentStep() {
+    public void testExecuteDifferentCurrentStep() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         long now = randomNonNegativeLong();
@@ -95,7 +95,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteDifferentPolicy() {
+    public void testExecuteDifferentPolicy() throws Exception {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         long now = randomNonNegativeLong();
         setStateToKey(currentStepKey, now);
@@ -106,7 +106,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         assertSame(newState, clusterState);
     }
 
-    public void testExecuteSuccessfulMoveWithInvalidNextStep() {
+    public void testExecuteSuccessfulMoveWithInvalidNextStep() throws Exception {
         long now = randomNonNegativeLong();
         List<Step> steps = lifecyclePolicy.toSteps(null, null);
         StepKey currentStepKey = steps.get(0).getKey();

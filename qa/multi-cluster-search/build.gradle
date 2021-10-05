@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -22,6 +23,12 @@ testClusters.register('remote-cluster')
 tasks.register('remote-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
+}
+
+testClusters.configureEach {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 testClusters.matching{ it.name == 'remote-cluster' }.configureEach {

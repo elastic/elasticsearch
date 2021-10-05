@@ -227,6 +227,11 @@ Each feature is a `Polygon` of the cell's bounding box.
 
 `point`:::
 Each feature is a `Point` that's the centroid of the cell.
+
+`centroid`:::
+Each feature is a `Point` that's the centroid of the data within the cell. For
+complex geometries, the actual centroid may be outside the cell. In these cases,
+the feature is set to the closest point to the centroid inside the cell.
 // end::grid-type[]
 
 // tag::size[]
@@ -259,6 +264,9 @@ aggregation types:
 * <<search-aggregations-metrics-max-aggregation,`max`>>
 * <<search-aggregations-metrics-min-aggregation,`min`>>
 * <<search-aggregations-metrics-sum-aggregation,`sum`>>
++
+The aggregation names can't start with `_mvt_`. The `_mvt_` prefix is reserved
+for internal aggregations.
 
 include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 

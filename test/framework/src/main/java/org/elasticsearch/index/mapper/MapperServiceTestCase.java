@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -350,6 +351,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public long nowInMillis() {
                 return 0;
+            }
+
+            @Override
+            public Analyzer getNamedAnalyzer(String analyzer) {
+                return null;
+            }
+
+            @Override
+            public Analyzer buildCustomAnalyzer(
+                IndexSettings indexSettings,
+                boolean normalizer,
+                NameOrDefinition tokenizer,
+                List<NameOrDefinition> charFilters,
+                List<NameOrDefinition> tokenFilters
+            ) {
+                return null;
             }
 
             @Override

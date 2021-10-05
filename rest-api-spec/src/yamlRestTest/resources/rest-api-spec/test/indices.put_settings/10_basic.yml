@@ -130,6 +130,7 @@ setup:
 ---
 put unsupported setting:
   - do:
+      catch: bad_request
       indices.put_settings:
         index: test-index
         body:

@@ -57,7 +57,7 @@ public abstract class DateHistogramGroupConfig implements Writeable, ToXContentO
     public static final String TIME_ZONE = "time_zone";
     public static final String DELAY = "delay";
 
-    private static final String DEFAULT_TIMEZONE = ZoneOffset.UTC.getId();
+    private static final String DEFAULT_TIMEZONE = "UTC";
     public static final ZoneId DEFAULT_ZONEID_TIMEZONE = ZoneOffset.UTC;
     private static final String FIELD = "field";
     private static final String TYPE_NAME = "interval";

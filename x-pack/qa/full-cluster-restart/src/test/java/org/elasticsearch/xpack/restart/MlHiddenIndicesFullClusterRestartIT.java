@@ -138,9 +138,16 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         return getSettingsResponse;
     }
 
+    private static final String systemAliasWarning = "this request accesses aliases with names reserved for system indices: [.security], " +
+        "but in a future major version, direct access to system indices and their aliases will not be allowed";
+
     private Response getMlAliases() throws IOException {
         Request getAliasesRequest =
             new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
+        getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(systemAliasWarning);
+            v.compatible(systemAliasWarning);
+        }));
         Response getAliasesResponse = client().performRequest(getAliasesRequest);
         assertThat(getAliasesResponse, is(notNullValue()));
         return getAliasesResponse;

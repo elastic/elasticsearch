@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -250,8 +251,7 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (ObjectCursor<IndexMetadata> cursor : previousMetadata.indices().values()) {
-            IndexMetadata index = cursor.value;
+        for (IndexMetadata index : previousMetadata.indices().values()) {
             IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {

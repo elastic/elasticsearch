@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -231,8 +230,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, DocumentMapper> updatedEntries;
         try {
             Map<String, CompressedXContent> map = new LinkedHashMap<>();
-            for (ObjectCursor<MappingMetadata> cursor : newIndexMetadata.getMappings().values()) {
-                MappingMetadata mappingMetadata = cursor.value;
+            for (MappingMetadata mappingMetadata : newIndexMetadata.getMappings().values()) {
                 map.put(mappingMetadata.type(), mappingMetadata.source());
             }
             Mappings mappings = parseMappings(map, MergeReason.MAPPING_RECOVERY);
@@ -340,8 +338,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
-        for (ObjectCursor<MappingMetadata> cursor : indexMetadata.getMappings().values()) {
-            MappingMetadata mappingMetadata = cursor.value;
+        for (MappingMetadata mappingMetadata : indexMetadata.getMappings().values()) {
             map.put(mappingMetadata.type(), mappingMetadata.source());
         }
         mergeAndApplyMappings(map, reason);

@@ -109,6 +109,96 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     /**
+     * Check that configuring deprecation settings causes a warning to be added to the
+     * response headers.
+     */
+    public void testDeprecatedSettingsReturnWarnings() throws Exception {
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder()
+                .startObject()
+                .startObject("persistent")
+                .field(
+                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
+                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
+                )
+                .field(
+                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(),
+                    TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY) == false
+                )
+                // There should be no warning for this field
+                .field(
+                    TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(),
+                    TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY) == false
+                )
+                .endObject()
+                .endObject();
+
+            final Request request = new Request("PUT", "_cluster/settings");
+            ///
+            request.setJsonEntity(Strings.toString(builder));
+            final Response response = client().performRequest(request);
+
+            final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+            final List<Matcher<String>> headerMatchers = new ArrayList<>(2);
+
+            for (Setting<Boolean> setting : List.of(
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1,
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2
+            )) {
+                headerMatchers.add(
+                    equalTo(
+                        "["
+                            + setting.getKey()
+                            + "] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."
+                    )
+                );
+            }
+
+            assertThat(deprecatedWarnings, hasSize(headerMatchers.size()));
+            for (final String deprecatedWarning : deprecatedWarnings) {
+                assertThat(
+                    "Header does not conform to expected pattern",
+                    deprecatedWarning,
+                    matches(HeaderWarning.WARNING_HEADER_PATTERN.pattern())
+                );
+            }
+
+            final List<String> actualWarningValues = deprecatedWarnings.stream()
+                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+                .collect(Collectors.toList());
+            for (Matcher<String> headerMatcher : headerMatchers) {
+                assertThat(actualWarningValues, hasItem(headerMatcher));
+            }
+
+            assertBusy(() -> {
+                List<Map<String, Object>> documents = getIndexedDeprecations();
+                logger.warn(documents);
+                assertEquals(documents.size(), 2);
+            });
+
+        } finally {
+            cleanupSettings();
+        }
+    }
+
+    private void cleanupSettings() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("persistent")
+            .field(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(), (Boolean) null)
+            .field(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(), (Boolean) null)
+            // There should be no warning for this field
+            .field(TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(), (Boolean) null)
+            .endObject()
+            .endObject();
+
+        final Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity(Strings.toString(builder));
+        client().performRequest(request);
+    }
+
+    /**
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19222")

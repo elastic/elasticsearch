@@ -136,12 +136,12 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
-    private boolean esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200();
+    private boolean esClusterHealthRequestTimeout200 = readEsClusterHealthRequestTimeout200FromProperty();
 
     public ClusterHealthResponse() {
     }
 
-    /** For testing of the opting in for the 200 status code without setting a system property */
+    /** For the testing of opting in for the 200 status code without setting a system property */
     ClusterHealthResponse(boolean esClusterHealthRequestTimeout200) {
         this.esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200;
     }
@@ -381,7 +381,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
                 timedOut, clusterStateHealth, clusterHealthStatus);
     }
 
-    private static boolean esClusterHealthRequestTimeout200() {
+    private static boolean readEsClusterHealthRequestTimeout200FromProperty() {
         String property = System.getProperty("es.cluster_health.request_timeout_200");
         if (property == null) {
             return false;

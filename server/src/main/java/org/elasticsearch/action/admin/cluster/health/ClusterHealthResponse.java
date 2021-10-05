@@ -112,7 +112,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (Boolean.parseBoolean(property)) {
             return true;
         } else {
-            throw new IllegalArgumentException("es.cluster_health.request_timeout_200 can only be unset or [true] but was [" + property + "]");
+            throw new IllegalArgumentException("es.cluster_health.request_timeout_200 can only be unset or [true] but was ["
+                + property + "]");
         }
     }
 

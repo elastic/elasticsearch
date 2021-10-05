@@ -568,7 +568,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             final Path indexPath = indexPathByNodeName.get(nodeName);
             final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
             command.findAndProcessShardPath(options, environmentByNodeName.get(nodeName),
-                environmentByNodeName.get(nodeName).dataFile(),
+                new Path[] { environmentByNodeName.get(nodeName).dataFile() },
                 state, shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
         }
     }

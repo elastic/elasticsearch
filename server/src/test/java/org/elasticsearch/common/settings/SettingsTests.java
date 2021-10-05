@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
@@ -318,7 +319,7 @@ public class SettingsTests extends ESTestCase {
         assertEquals("ab2", filteredSettings.get("a.b.c"));
         assertEquals("ab3", filteredSettings.get("a.b.c.d"));
 
-        Iterator<String> iterator = filteredSettings.keySet().iterator();
+        Iterator<String> iterator = new TreeSet<>(filteredSettings.keySet()).iterator();
         for (int i = 0; i < 10; i++) {
             assertTrue(iterator.hasNext());
         }
@@ -364,7 +365,7 @@ public class SettingsTests extends ESTestCase {
         assertEquals("ab1", prefixMap.get("b"));
         assertEquals("ab2", prefixMap.get("b.c"));
         assertEquals("ab3", prefixMap.get("b.c.d"));
-        Iterator<String> prefixIterator = prefixMap.keySet().iterator();
+        Iterator<String> prefixIterator = new TreeSet<>(prefixMap.keySet()).iterator();
         for (int i = 0; i < 10; i++) {
             assertTrue(prefixIterator.hasNext());
         }

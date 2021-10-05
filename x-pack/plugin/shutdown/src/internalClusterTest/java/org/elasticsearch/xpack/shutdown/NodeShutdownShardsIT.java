@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +29,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Status.COMPLETE;
@@ -141,6 +147,43 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         ).get();
 
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+    }
+
+    /**
+     * Checks that, if we get to a situation where a shard can't move because all other nodes already have a copy of that shard,
+     * we'll still return COMPLETE instead of STALLED.
+     */
+    public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() throws Exception {
+        internalCluster().startNodes(2);
+
+        final String indexName = "test";
+        prepareCreate(indexName).setSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1) // <- Ensure we have a copy of the shard on both nodes
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+        ).get();
+        ensureGreen(indexName);
+        indexRandomData();
+
+        String nodeToStopId = findIdOfNodeWithPrimaryShard(indexName);
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeToStopId,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            this.getTestName(),
+            null,
+            null
+        );
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
+        assertBusy(() -> {
+            GetShutdownStatusAction.Response getResp = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(nodeToStopId)
+            ).get();
+
+            assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        });
     }
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
@@ -325,10 +368,10 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                 assertTrue(
                     "expected decisions to mention node replacement: "
                         + nodeAllocationResult.getCanAllocateDecision()
-                            .getDecisions()
-                            .stream()
-                            .map(Decision::getExplanation)
-                            .collect(Collectors.joining(",")),
+                        .getDecisions()
+                        .stream()
+                        .map(Decision::getExplanation)
+                        .collect(Collectors.joining(",")),
                     nodeAllocationResult.getCanAllocateDecision()
                         .getDecisions()
                         .stream()
@@ -339,7 +382,35 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }
 
-    private String getNodeId(String nodeName) throws Exception {
+    private void indexRandomData() throws Exception {
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+    }
+
+    private String findIdOfNodeWithPrimaryShard(String indexName) {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        return startedShards.stream()
+            .filter(ShardRouting::primary)
+            .filter(shardRouting -> indexName.equals(shardRouting.index().getName()))
+            .map(ShardRouting::currentNodeId)
+            .findFirst()
+            .orElseThrow(
+                () -> new AssertionError(
+                    new ParameterizedMessage(
+                        "could not find a primary shard of index [{}] in list of started shards [{}]",
+                        indexName,
+                        startedShards
+                    )
+                )
+            );
+    }
+
+    private String getNodeId(String nodeName) {
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
         return nodes.getNodes()
             .stream()

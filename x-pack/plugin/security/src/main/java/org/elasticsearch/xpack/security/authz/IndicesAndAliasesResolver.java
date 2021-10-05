@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -109,16 +110,29 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, authorizedIndices);
     }
 
-    boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
-        if (indicesRequest instanceof IndicesAliasesRequest) {
-            return true;
-        } else {
-            return indicesRequest instanceof IndicesRequest.Replaceable;
+    /**
+     * Attempt to resolve requested indices without expanding any wildcards.
+     * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
+     */
+    @Nullable
+    ResolvedIndices resolveWithoutWildcards(String action, TransportRequest transportRequest) {
+        // We only take care of IndicesRequest
+        if (false == transportRequest instanceof IndicesRequest) {
+            return null;
         }
+        // IndicesAliasesRequest requires special handling because it can have wildcards in request body
+        if (transportRequest instanceof IndicesAliasesRequest) {
+            return null;
+        }
+        // Replaceable requests always require wildcard expansion
+        if (transportRequest instanceof IndicesRequest.Replaceable) {
+            return null;
+        }
+        // It's safe to cast IndicesRequest since the above test guarantees it
+        return resolveIndicesAndAliasesWithoutWildcards(action, (IndicesRequest) transportRequest);
     }
 
-    ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest) {
-        assert false == requiresWildcardExpansion(indicesRequest) : "indices must not require wildcard expansion";
+    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
             throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");

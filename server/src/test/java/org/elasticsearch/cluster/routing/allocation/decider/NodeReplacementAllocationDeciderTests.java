@@ -204,28 +204,33 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         RoutingNode routingNode = new RoutingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canAllocate(shard, routingNode, allocation);
+        ShardRouting testShard = this.shard;
+        if (randomBoolean()) {
+            testShard = shard.initialize(NODE_C.getId(), null, 1);
+            testShard = testShard.moveToStarted();
+        }
+        Decision decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
             equalTo("node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() +
-                "], so no data from other node [null] may be allocated to it")
+                "], so no data from other node [" + testShard.currentNodeId() + "] may be allocated to it")
         );
 
-        routingNode = new RoutingNode(NODE_B.getId(), NODE_B, shard);
+        routingNode = new RoutingNode(NODE_B.getId(), NODE_B, testShard);
 
-        decision = decider.canAllocate(shard, routingNode, allocation);
+        decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
             equalTo("node [" + NODE_B.getId() +
-                "] is replacing the vacating node [" + NODE_A.getId() +
-                "], so no data from other node [null] may be allocated to it until the replacement is complete")
+                "] is replacing the vacating node [" + NODE_A.getId() + "], so no data from other node [" +
+                testShard.currentNodeId() + "] may be allocated to it until the replacement is complete")
         );
 
-        routingNode = new RoutingNode(NODE_C.getId(), NODE_C, shard);
+        routingNode = new RoutingNode(NODE_C.getId(), NODE_C, testShard);
 
-        decision = decider.canAllocate(shard, routingNode, allocation);
+        decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.getExplanation(), decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),

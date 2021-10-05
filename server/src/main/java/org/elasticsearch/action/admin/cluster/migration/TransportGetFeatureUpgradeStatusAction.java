@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -66,6 +67,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                                    ActionListener<GetFeatureUpgradeStatusResponse> listener) throws Exception {
 
         List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures().entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
             .map(entry -> getFeatureUpgradeStatus(state, entry))
             .collect(Collectors.toList());
 
@@ -103,6 +105,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         return Stream.of(feature.getIndexDescriptors(), feature.getAssociatedIndexDescriptors())
             .flatMap(Collection::stream)
             .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
+            .sorted(String::compareTo)
             .map(index -> state.metadata().index(index))
             .map(indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexVersion(
                 indexMetadata.getIndex().getName(),

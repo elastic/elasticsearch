@@ -157,7 +157,7 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base ->
 
 def createAndSetWritable(Object... locations) {
   locations.each { location ->
-    ile file = file(location)
+    File file = file(location)
     file.mkdirs()
     file.setWritable(true, false)
   }

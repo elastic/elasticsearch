@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.audit.index;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public class IndexNameResolver {
 
@@ -20,7 +21,7 @@ public class IndexNameResolver {
         private final DateTimeFormatter formatter;
 
         Rollover(String format) {
-            this.formatter = DateTimeFormatter.ofPattern(format);
+            this.formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT);
         }
 
         DateTimeFormatter formatter() {

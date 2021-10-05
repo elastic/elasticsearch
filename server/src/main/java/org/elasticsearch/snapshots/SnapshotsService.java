@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.logging.log4j.LogManager;
@@ -1504,11 +1503,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Set<String> reposSeen = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             if (reposSeen.add(entry.repository())) {
-                for (ObjectCursor<ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
-                    if (value.value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
+                for (ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+                    if (value.equals(ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                         assert reposWithRunningDelete.contains(entry.repository())
                             : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
-                    } else if (value.value.isActive()) {
+                    } else if (value.isActive()) {
                         assert reposWithRunningDelete.contains(entry.repository()) == false
                             : "Found shard snapshot actively executing in ["
                                 + entry
@@ -1809,8 +1808,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // nothing to do for already completed snapshots or clones that run on master anyways
                 return false;
             }
-            for (ObjectCursor<ShardSnapshotStatus> shardStatus : snapshot.shardsByRepoShardId().values()) {
-                final ShardSnapshotStatus shardSnapshotStatus = shardStatus.value;
+            for (ShardSnapshotStatus shardSnapshotStatus : snapshot.shardsByRepoShardId().values()) {
                 if (shardSnapshotStatus.state().completed() == false && removedNodeIds.contains(shardSnapshotStatus.nodeId())) {
                     // Snapshot had an incomplete shard running on a removed node so we need to adjust that shard's snapshot status
                     return true;
@@ -2615,11 +2613,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 } else {
                     boolean hasUncompletedShards = false;
                     // Cleanup in case a node gone missing and snapshot wasn't updated for some reason
-                    for (ObjectCursor<ShardSnapshotStatus> shardStatus : snapshotEntry.shards().values()) {
+                    for (ShardSnapshotStatus shardStatus : snapshotEntry.shards().values()) {
                         // Check if we still have shard running on existing nodes
-                        if (shardStatus.value.state().completed() == false
-                            && shardStatus.value.nodeId() != null
-                            && currentState.nodes().get(shardStatus.value.nodeId()) != null) {
+                        if (shardStatus.state().completed() == false
+                            && shardStatus.nodeId() != null
+                            && currentState.nodes().get(shardStatus.nodeId()) != null) {
                             hasUncompletedShards = true;
                             break;
                         }
@@ -2923,8 +2921,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // Entry is writing to the repo because it's finalizing on master
             return true;
         }
-        for (ObjectCursor<ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
-            if (value.value.isActive()) {
+        for (ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+            if (value.isActive()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }
@@ -3333,7 +3331,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             : "Missing assignment for [" + sid + "]";
                                         updatedAssignmentsBuilder.put(sid, ShardSnapshotStatus.MISSING);
                                     } else {
-                                        markShardReassigned(shardId, reassignedShardIds);
+                                        if (updated.isActive()) {
+                                            markShardReassigned(shardId, reassignedShardIds);
+                                        }
                                         updatedAssignmentsBuilder.put(sid, updated);
                                     }
                                 }

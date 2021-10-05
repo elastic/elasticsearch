@@ -57,7 +57,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
@@ -138,9 +137,9 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 shardId = Integer.parseInt(shardIdFileName);
                 fromNodeId = Integer.parseInt(nodeIdFileName);
                 toNodeId = fromNodeId + 1;
-                indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
-                    .map(imd -> imd.value)
-                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
+                indexMetadata = clusterState.metadata().indices().values().stream()
+                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))
+                    .findFirst()
                     .orElse(null);
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()

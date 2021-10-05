@@ -15,7 +15,9 @@ import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -66,6 +68,13 @@ import static java.util.Collections.singletonList;
 
 public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin, IngestPlugin, ExtensiblePlugin {
     private final SpatialUsage usage = new SpatialUsage();
+
+    private final LicensedFeature.Momentary GEO_CENTROID_AGG_FEATURE =
+        LicensedFeature.momentary("spatial", "geo-centroid-agg", License.OperationMode.GOLD);
+    private final LicensedFeature.Momentary GEO_GRID_AGG_FEATURE =
+        LicensedFeature.momentary("spatial", "geo-grid-agg", License.OperationMode.GOLD);
+    private final LicensedFeature.Momentary GEO_LINE_AGG_FEATURE =
+        LicensedFeature.momentary("spatial", "geo-line-agg", License.OperationMode.GOLD);
 
     public Collection<Module> createGuiceModules() {
         return Collections.singletonList(b -> {
@@ -118,7 +127,7 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
                 GeoLineAggregationBuilder.NAME,
                 GeoLineAggregationBuilder::new,
                 usage.track(SpatialStatsAction.Item.GEOLINE,
-                    checkLicense(GeoLineAggregationBuilder.PARSER, XPackLicenseState.Feature.SPATIAL_GEO_LINE)))
+                    checkLicense(GeoLineAggregationBuilder.PARSER, GEO_LINE_AGG_FEATURE)))
                 .addResultReader(InternalGeoLine::new)
                 .setAggregatorRegistrar(GeoLineAggregationBuilder::registerUsage));
     }
@@ -141,7 +150,7 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
         builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, valuesSourceConfig, context, parent, metadata)
                 -> {
-                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
+                if (GEO_CENTROID_AGG_FEATURE.check(getLicenseState())) {
                     return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
@@ -154,7 +163,7 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
         builder.register(GeoHashGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
              aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
-                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new UnboundedGeoHashGridTiler(precision);
@@ -176,7 +185,7 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
         builder.register(GeoTileGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
              aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
-                if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                if (GEO_GRID_AGG_FEATURE.check(getLicenseState())) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
                         tiler = new UnboundedGeoTileGridTiler(precision);
@@ -204,10 +213,10 @@ public class SpatialPlugin extends Plugin implements MapperPlugin, ActionPlugin,
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
     }
 
-    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, XPackLicenseState.Feature feature) {
+    private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {
         return (parser, name) -> {
-            if (getLicenseState().checkFeature(feature) == false) {
-                throw LicenseUtils.newComplianceException(feature.name());
+            if (feature.check(getLicenseState()) == false) {
+                throw LicenseUtils.newComplianceException(feature.getName());
             }
             return realParser.parse(parser, name);
         };

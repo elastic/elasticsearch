@@ -33,6 +33,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -125,16 +126,22 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                                      PutMappingRequest request,
                                      ActionListener<AcknowledgedResponse> listener,
                                      MetadataMappingService metadataMappingService) {
-        PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
-                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                    .indices(concreteIndices).type(request.type())
-                    .source(request.source());
-
-        metadataMappingService.putMapping(updateRequest, listener.delegateResponse((l, e) -> {
+        final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
                     Arrays.asList(concreteIndices)), e);
             l.onFailure(e);
-        }));
+        });
+        final PutMappingClusterStateUpdateRequest updateRequest;
+        try {
+            updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
+                .indices(concreteIndices).type(request.type())
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+        } catch (IOException e) {
+            wrappedListener.onFailure(e);
+            return;
+        }
+
+        metadataMappingService.putMapping(updateRequest, wrappedListener);
     }
 
     static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {

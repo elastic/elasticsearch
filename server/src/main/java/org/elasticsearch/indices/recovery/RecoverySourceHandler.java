@@ -1104,6 +1104,8 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
 
+        // use a smaller buffer than the configured chunk size if we only have files smaller than the chunk size
+        final int bufferSize = files.length == 0 ? 0 : (int) Math.min(chunkSizeInBytes, files[files.length - 1].length());
         Releasable temporaryStoreRef = acquireStore(store);
         try {
             final Releasable storeRef = temporaryStoreRef;
@@ -1119,7 +1121,12 @@ public class RecoverySourceHandler {
                     protected void onNewResource(StoreFileMetadata md) throws IOException {
                         offset = 0;
                         IOUtils.close(currentInput);
-                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        if (md.hashEqualsContents()) {
+                            // we already have the file contents on heap no need to open the file again
+                            currentInput = null;
+                        } else {
+                            currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        }
                     }
 
                     private byte[] acquireBuffer() {
@@ -1128,13 +1135,18 @@ public class RecoverySourceHandler {
                         if (buffer != null) {
                             return buffer;
                         }
-                        return new byte[chunkSizeInBytes];
+                        return new byte[bufferSize];
                     }
 
                     @Override
                     protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
                         assert Transports.assertNotTransportThread("read file chunk");
                         cancellableThreads.checkForCancel();
+                        if (currentInput == null) {
+                            // no input => reading directly from the metadata
+                            assert md.hashEqualsContents();
+                            return new FileChunk(md, new BytesArray(md.hash()), 0, true, () -> {});
+                        }
                         final byte[] buffer = acquireBuffer();
                         final int toRead = Math.toIntExact(Math.min(md.length() - offset, buffer.length));
                         currentInput.readBytes(buffer, 0, toRead, false);

@@ -555,7 +555,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         context.bigArrays(),
                         getMockScriptService(),
                         b -> {},
-                        PipelineTree.EMPTY
+                        PipelineTree.EMPTY,
+                        () -> false
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;
@@ -1117,7 +1118,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         debugTestCase(builder, new MatchAllDocsQuery(), iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(buildDocWithField.apply(i));
@@ -1143,7 +1144,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             }
         };
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
             assertThat(aggregator, instanceOf(FilterByFilterAggregator.class));
 

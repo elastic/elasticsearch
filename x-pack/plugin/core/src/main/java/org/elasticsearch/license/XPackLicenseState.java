@@ -62,8 +62,6 @@ public class XPackLicenseState {
 
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
-        LOGSTASH(OperationMode.STANDARD, true),
-
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.

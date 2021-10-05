@@ -421,6 +421,7 @@ public class SettingsTests extends ESTestCase {
         assertThat(key2.names(), containsInAnyOrder("foo", "bog", "baz", "else"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78691")
     public void testEmptyFilterMap() {
         Settings.Builder builder = Settings.builder();
         builder.put("a", "a1");

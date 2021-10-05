@@ -236,12 +236,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                         .getDecisions()
                         .stream()
                         .anyMatch(
-                            decision -> decision.getExplanation()
-                                .contains(
-                                    "is replacing a vacating node, so no data from "
-                                        + "other nodes may be allocated to it until the replacement is complete"
-                                )
-                        )
+                            decision -> decision.getExplanation().contains("is replacing the vacating node") &&
+                                decision.getExplanation().contains("may be allocated to it until the replacement is complete"))
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }
@@ -337,12 +333,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                         .getDecisions()
                         .stream()
                         .anyMatch(
-                            decision -> decision.getExplanation()
-                                .contains(
-                                    "is replacing a vacating node, so no data from "
-                                        + "other nodes may be allocated to it until the replacement is complete"
-                                )
-                        )
+                            decision -> decision.getExplanation().contains("is replacing the vacating node") &&
+                                decision.getExplanation().contains("may be allocated to it until the replacement is complete"))
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
     }

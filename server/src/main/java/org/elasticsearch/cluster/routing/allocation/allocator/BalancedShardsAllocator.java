@@ -688,7 +688,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
-            // don't use canRebalance as we want hard filtering rules to apply. See #17698
             MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
                 final boolean shardsOnReplacedNodes = allocation.metadata().nodeShutdowns().values().stream()
@@ -737,6 +736,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {
+            // don't use canRebalance as we want hard filtering rules to apply. See #17698
             return allocation.deciders().canAllocate(shardRouting, target, allocation);
         }
 

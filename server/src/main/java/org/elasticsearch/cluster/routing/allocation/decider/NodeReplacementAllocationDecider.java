@@ -66,23 +66,6 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        if (replacementOngoing(allocation) == false) {
-            return NO_REPLACEMENTS;
-        } else if (isReplacementTargetName(allocation, node.node().getName())) {
-            final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.node().getName());
-            return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is replacing a vacating node [%s], so no data from other nodes " +
-                    "may be allocated to it until the replacement is complete",
-                node.nodeId(), shutdown == null ? null : shutdown.getNodeId());
-        } else {
-            // The node in question is not a replacement target, so allow allocation.
-            return Decision.single(Decision.Type.YES, NAME,
-                "node is not a replacement target, so allocation is allowed");
-        }
-    }
-
-    @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;

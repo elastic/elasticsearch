@@ -147,31 +147,6 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
             equalTo("shard is not on the source of a node replacement relocated to the replacement target"));
     }
 
-    public void testCanAllocateFromTheVoid() {
-        ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
-        RoutingNode routingNode = new RoutingNode(NODE_A.getId(), NODE_A, shard);
-        allocation.debugDecision(true);
-
-        Decision decision = decider.canAllocate(indexMetadata, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo("node is not a replacement target, so allocation is allowed"));
-
-        routingNode = new RoutingNode(NODE_B.getId(), NODE_B, shard);
-
-        decision = decider.canAllocate(indexMetadata, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.getExplanation(), equalTo("node [" + NODE_B.getId() +
-            "] is replacing a vacating node [" + NODE_A.getId() +
-            "], so no data from other nodes may be allocated to it until the replacement is complete"));
-
-        routingNode = new RoutingNode(NODE_C.getId(), NODE_C, shard);
-
-        decision = decider.canAllocate(indexMetadata, routingNode, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo("node is not a replacement target, so allocation is allowed"));
-    }
-
     public void testCannotRemainOnReplacedNode() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);

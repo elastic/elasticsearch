@@ -101,8 +101,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    static final String CLUSTER_HEALTH_TIMEOUT_DEPRECATION_MSG = "HTTP status code for an internal cluster health timeout will be " +
-        "changed from 408 to 200 in 8.0.0. Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.";
+    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "HTTP status code for an internal cluster health timeout " +
+        "will be changed from 408 to 200 in 8.0.0. Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.";
     private static final boolean ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200 = esClusterHealthRequestTimeout200();
     private static boolean esClusterHealthRequestTimeout200() {
         String property = System.getProperty("es.cluster_health.request_timeout_200");
@@ -324,7 +324,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200) {
             return RestStatus.OK;
         } else {
-            deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_TIMEOUT_DEPRECATION_MSG);
+            deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
             return RestStatus.REQUEST_TIMEOUT;
         }
     }

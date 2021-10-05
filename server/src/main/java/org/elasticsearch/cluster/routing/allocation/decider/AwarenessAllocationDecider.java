@@ -122,6 +122,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        // We need to meet the criteria for shard awareness even during a replacement so that all
+        // copies of a shard do not get allocated to the same host/rack/AZ, so this explicitly
+        // checks the awareness 'canAllocate' to ensure we don't violate that constraint.
         return canAllocate(shardRouting, node, allocation);
     }
 

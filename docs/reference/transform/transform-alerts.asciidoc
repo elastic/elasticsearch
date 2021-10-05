@@ -84,4 +84,4 @@ information.
 The name of an alert is always the same as the {transform} ID of the associated 
 {transform} that triggered it. You can mute the notifications for a particular 
 {transform} on the page of the rule that lists the individual alerts. You can 
-open it via *{alerts-ui}* by selecting the rule name.
+open it via *{rules-ui}* by selecting the rule name.

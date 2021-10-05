@@ -4,6 +4,10 @@
 <titleabbrev>Composite</titleabbrev>
 ++++
 
+[WARNING]
+While this query _can_ be used in Production, it is more expensive than a normal
+terms aggregation and should be load tested for a use case before go-live.
+
 A multi-bucket aggregation that creates composite buckets from different sources.
 
 Unlike the other `multi-bucket` aggregations, you can use the `composite`

@@ -2093,8 +2093,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
     }
 
-    public List<Segment> segments(boolean verbose) {
-        return getEngine().segments(verbose);
+    public List<Segment> segments() {
+        return getEngine().segments();
     }
 
     public String getHistoryUUID() {

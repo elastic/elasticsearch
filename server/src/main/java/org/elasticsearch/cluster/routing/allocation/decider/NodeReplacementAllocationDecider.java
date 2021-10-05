@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -28,20 +27,19 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final Metadata metadata = allocation.metadata();
-        if (replacementOngoing(metadata) == false) {
+        if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
-        } else if (replacementFromSourceToTarget(metadata, shardRouting.currentNodeId(), node.node().getName())) {
+        } else if (replacementFromSourceToTarget(allocation, shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(Decision.Type.YES, NAME,
                 "node [%s] is replacing node [%s], and may receive shards from it", shardRouting.currentNodeId(), node.nodeId());
-        } else if (isReplacementSource(metadata, shardRouting.currentNodeId())) {
+        } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is being replaced, and its shards may only be allocated to the replacement target",
                 shardRouting.currentNodeId());
-        } else if (isReplacementSource(metadata, node.nodeId())) {
+        } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is being removed, so no data from other nodes may be allocated to it", node.nodeId());
-        } else if (isReplacementTargetName(metadata, node.node().getName())) {
+        } else if (isReplacementTargetName(allocation, node.node().getName())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is replacing a vacating node, so no data from other nodes " +
                     "may be allocated to it until the replacement is complete", node.nodeId());
@@ -53,12 +51,12 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (replacementOngoing(allocation.metadata()) == false) {
+        if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
-        } else if (isReplacementSource(allocation.metadata(), node.nodeId())) {
+        } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is being replaced by node [%s], so no data may remain on it", node.nodeId(),
-                getReplacementName(allocation.metadata(), node.nodeId()));
+                getReplacementName(allocation, node.nodeId()));
         } else {
             return Decision.single(Decision.Type.YES, NAME, "node [%s] is not being replaced", node.nodeId());
         }
@@ -66,9 +64,9 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-        if (replacementOngoing(allocation.metadata()) == false) {
+        if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
-        } else if (isReplacementTargetName(allocation.metadata(), node.node().getName())) {
+        } else if (isReplacementTargetName(allocation, node.node().getName())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is replacing a vacating node, so no data from other nodes " +
                     "may be allocated to it until the replacement is complete", node.nodeId());
@@ -81,13 +79,13 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        if (replacementOngoing(allocation.metadata()) == false) {
+        if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
-        } else if (isReplacementTargetName(allocation.metadata(), node.getName())) {
+        } else if (isReplacementTargetName(allocation, node.getName())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is a node replacement target, shards cannot auto expand to be on it until the replacement is complete",
                 node.getId(), "source");
-        } else if (isReplacementSource(allocation.metadata(), node.getId())) {
+        } else if (isReplacementSource(allocation, node.getId())) {
             return Decision.single(Decision.Type.NO, NAME,
                 "node [%s] is being replaced, shards cannot auto expand to be on it", node.getId());
         } else {
@@ -98,7 +96,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (replacementFromSourceToTarget(allocation.metadata(), shardRouting.currentNodeId(), node.node().getName())) {
+        if (replacementFromSourceToTarget(allocation, shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(Decision.Type.YES, NAME,
                 "node [%s] is being replaced by node [%s], and can be force vacated to the target",
                 shardRouting.currentNodeId(), node.nodeId());
@@ -111,22 +109,22 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     /**
      * Returns true if there are any node replacements ongoing in the cluster
      */
-    private static boolean replacementOngoing(Metadata metadata) {
-        return metadata.nodeShutdowns().values().stream()
+    private static boolean replacementOngoing(RoutingAllocation allocation) {
+        return allocation.nodeShutdowns().values().stream()
             .anyMatch(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE));
     }
 
     /**
      * Returns true if there is a replacement currently ongoing from the source to the target node id
      */
-    private static boolean replacementFromSourceToTarget(Metadata metadata, String sourceNodeId, String targetNodeName) {
-        if (replacementOngoing(metadata) == false) {
+    private static boolean replacementFromSourceToTarget(RoutingAllocation allocation, String sourceNodeId, String targetNodeName) {
+        if (replacementOngoing(allocation) == false) {
             return false;
         }
         if (sourceNodeId == null || targetNodeName == null) {
             return false;
         }
-        final SingleNodeShutdownMetadata shutdown = metadata.nodeShutdowns().get(sourceNodeId);
+        final SingleNodeShutdownMetadata shutdown = allocation.nodeShutdowns().get(sourceNodeId);
         return shutdown != null &&
             shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE) &&
             shutdown.getNodeId().equals(sourceNodeId) &&
@@ -136,31 +134,29 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     /**
      * Returns true if the given node id is the source (the replaced node) of an ongoing node replacement
      */
-    private static boolean isReplacementSource(Metadata metadata, String nodeId) {
-        if (nodeId == null || replacementOngoing(metadata) == false) {
+    private static boolean isReplacementSource(RoutingAllocation allocation, String nodeId) {
+        if (nodeId == null || replacementOngoing(allocation) == false) {
             return false;
         }
-        final Map<String, SingleNodeShutdownMetadata> nodeShutdowns = metadata.nodeShutdowns();
+        final Map<String, SingleNodeShutdownMetadata> nodeShutdowns = allocation.nodeShutdowns();
         return nodeShutdowns.containsKey(nodeId) && nodeShutdowns.get(nodeId).getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
     }
 
     /**
      * Returns true if the given node name (not the id!) is the target (the replacing node) of an ongoing node replacement
      */
-    private static boolean isReplacementTargetName(Metadata metadata, String nodeName) {
-        if (nodeName == null || replacementOngoing(metadata) == false) {
+    private static boolean isReplacementTargetName(RoutingAllocation allocation, String nodeName) {
+        if (nodeName == null || replacementOngoing(allocation) == false) {
             return false;
         }
-        return metadata.nodeShutdowns().values().stream()
-            .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
-            .anyMatch(shutdown -> shutdown.getTargetNodeName().equals(nodeName));
+        return allocation.replacementTargetShutdowns().get(nodeName) != null;
     }
 
-    private static String getReplacementName(Metadata metadata, String nodeIdBeingReplaced) {
-        if (nodeIdBeingReplaced == null || replacementOngoing(metadata) == false) {
+    private static String getReplacementName(RoutingAllocation allocation, String nodeIdBeingReplaced) {
+        if (nodeIdBeingReplaced == null || replacementOngoing(allocation) == false) {
             return null;
         }
-        return Optional.ofNullable(metadata.nodeShutdowns().get(nodeIdBeingReplaced))
+        return Optional.ofNullable(allocation.nodeShutdowns().get(nodeIdBeingReplaced))
             .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
             .map(SingleNodeShutdownMetadata::getTargetNodeName)
             .orElse(null);

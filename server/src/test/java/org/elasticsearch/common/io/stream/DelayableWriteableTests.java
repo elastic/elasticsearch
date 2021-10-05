@@ -134,14 +134,12 @@ public class DelayableWriteableTests extends ESTestCase {
     public void testRoundTripFromDelayedFromOldVersion() throws IOException {
         Example e = new Example(randomAlphaOfLength(5));
         DelayableWriteable<Example> original = roundTrip(DelayableWriteable.referencing(e), Example::new, randomOldVersion());
-        assertTrue(original.isSerialized());
         roundTripTestCase(original, Example::new);
     }
 
     public void testRoundTripFromDelayedFromOldVersionWithNamedWriteable() throws IOException {
         NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
         DelayableWriteable<NamedHolder> original = roundTrip(DelayableWriteable.referencing(n), NamedHolder::new, randomOldVersion());
-        assertTrue(original.isSerialized());
         roundTripTestCase(original, NamedHolder::new);
     }
 
@@ -160,14 +158,20 @@ public class DelayableWriteableTests extends ESTestCase {
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
         DelayableWriteable<T> roundTripped = roundTrip(original, reader, Version.CURRENT);
-        assertTrue(roundTripped.isSerialized());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
     private <T extends Writeable> DelayableWriteable<T> roundTrip(DelayableWriteable<T> original,
             Writeable.Reader<T> reader, Version version) throws IOException {
-        return copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
+        DelayableWriteable<T> delayed = copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
             in -> DelayableWriteable.delayed(reader, in), version);
+        assertTrue(delayed.isSerialized());
+
+        DelayableWriteable<T> referencing = copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
+            in -> DelayableWriteable.referencing(reader, in), version);
+        assertFalse(referencing.isSerialized());
+
+        return randomFrom(delayed, referencing);
     }
 
     @Override

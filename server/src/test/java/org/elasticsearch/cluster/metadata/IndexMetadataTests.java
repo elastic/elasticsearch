@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -364,6 +366,26 @@ public class IndexMetadataTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
         }
+    }
+
+    public void testIsHidden() {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).build();
+        assertFalse(indexMetadata.isHidden());
+
+        settings.put(INDEX_HIDDEN_SETTING.getKey(), "false");
+        indexMetadata = IndexMetadata.builder(indexMetadata).settings(settings).build();
+        assertFalse(indexMetadata.isHidden());
+
+        settings.put(INDEX_HIDDEN_SETTING.getKey(), "true");
+        indexMetadata = IndexMetadata.builder(indexMetadata).settings(settings).build();
+        assertTrue(indexMetadata.isHidden());
+
+        indexMetadata = IndexMetadata.builder(indexMetadata).build();
+        assertTrue(indexMetadata.isHidden()); // preserved if settings unchanged
     }
 
 }

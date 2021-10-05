@@ -83,7 +83,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
         indices.forEach(entry -> {
-            String tierPref = entry.value.getSettings().get(DataTierAllocationDecider.INDEX_ROUTING_PREFER);
+            String tierPref = entry.value.getSettings().get(DataTierAllocationDecider.TIER_PREFERENCE);
             if (Strings.hasText(tierPref)) {
                 String[] tiers = tierPref.split(",");
                 if (tiers.length > 0) {
@@ -110,8 +110,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
 
     // Visible for testing
     static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(List<NodeStats> nodesStats,
-                                                                                   Map<String, String> indexByTier,
-                                                                                   RoutingNodes routingNodes) {
+                                                                                  Map<String, String> indexByTier,
+                                                                                  RoutingNodes routingNodes) {
         Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
         for (NodeStats nodeStats : nodesStats) {
             aggregateDataTierNodeCounts(nodeStats, statsAccumulators);
@@ -130,7 +130,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     private static void aggregateDataTierNodeCounts(NodeStats nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
         nodeStats.getNode().getRoles().stream()
             .map(DiscoveryNodeRole::roleName)
-            .filter(DataTier.ALL_DATA_TIERS::contains)
+            .filter(DataTier::validTierName)
             .forEach(tier -> tiersStats.computeIfAbsent(tier, k -> new TierStatsAccumulator()).nodeCount++);
     }
 
@@ -138,7 +138,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
      * Locate which indices are hosted on the node specified by the NodeStats, then group and aggregate the available index stats by tier.
      */
     private static void aggregateDataTierIndexStats(NodeStats nodeStats, RoutingNodes routingNodes, Map<String, String> indexByTier,
-                                             Map<String, TierStatsAccumulator> accumulators) {
+                                                    Map<String, TierStatsAccumulator> accumulators) {
         final RoutingNode node = routingNodes.node(nodeStats.getNode().getId());
         if (node != null) {
             StreamSupport.stream(node.spliterator(), false)
@@ -152,7 +152,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
      * Determine which tier an index belongs in, then accumulate its stats into that tier's stats.
      */
     private static void classifyIndexAndCollectStats(Index index, NodeStats nodeStats, Map<String, String> indexByTier,
-                                              RoutingNode node, Map<String, TierStatsAccumulator> accumulators) {
+                                                     RoutingNode node, Map<String, TierStatsAccumulator> accumulators) {
         // Look up which tier this index belongs to (its most preferred)
         String indexTier = indexByTier.get(index.getName());
         if (indexTier != null) {

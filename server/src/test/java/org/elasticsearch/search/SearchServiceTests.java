@@ -1404,7 +1404,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         service.executeQueryPhase(request, task, future);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(ex.getMessage(), containsString("Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint=1, max_issued_seqNo=0]"));
+        assertThat(ex.getMessage(),
+            containsString("Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint=1, max_issued_seqNo=0]"));
     }
 
     public void testWaitOnRefreshTimeout() throws Exception {

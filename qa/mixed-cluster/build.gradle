@@ -51,6 +51,8 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
         nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
         nonInputProperties.systemProperty('tests.clustername', baseName)
       }
+      systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      onlyIf { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

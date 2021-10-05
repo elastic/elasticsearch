@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -212,7 +211,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                 TimeValue.ZERO,
                 TimeValue.ZERO),
-            new ThreadContext(Settings.EMPTY),
             getMetadataCreateIndexService()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -257,7 +255,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                 TimeValue.ZERO,
                 TimeValue.ZERO),
-            new ThreadContext(Settings.EMPTY),
             getMetadataCreateIndexService()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -309,7 +306,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(dataStreamName,
                         TimeValue.ZERO,
                         TimeValue.ZERO),
-                    new ThreadContext(Settings.EMPTY),
                     getMetadataCreateIndexService()));
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));
     }

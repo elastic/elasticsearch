@@ -139,6 +139,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version UUIDS_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
+    // TODO: Update to 7.16 after backporting
+    public static final Version FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = Version.CURRENT;
+
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
     public static final Version MULTI_DELETE_VERSION = Version.V_7_8_0;
@@ -2998,6 +3001,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public static boolean includesUUIDs(Version repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(UUIDS_IN_REPO_DATA_VERSION);
+    }
+
+    public static boolean includeFileInfoWriterUUID(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
     }
 
     /** Deletes snapshot from repository

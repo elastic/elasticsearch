@@ -190,6 +190,12 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         decision = decider.canRemain(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), equalTo("node [" + NODE_B.getId() + "] is not being replaced"));
+
+        routingNode = new RoutingNode(NODE_C.getId(), NODE_C, shard);
+
+        decision = decider.canRemain(shard, routingNode, allocation);
+        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.getExplanation(), equalTo("node [" + NODE_C.getId() + "] is not being replaced"));
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {

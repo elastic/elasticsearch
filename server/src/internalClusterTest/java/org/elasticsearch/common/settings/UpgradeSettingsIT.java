@@ -28,12 +28,13 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
 
     @After
     public void cleanup() throws Exception {
-                client()
-                        .admin()
-                        .cluster()
-                        .prepareUpdateSettings()
-                        .setPersistentSettings(Settings.builder().putNull("*"))
-                        .get();
+        client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("*"))
+            .setTransientSettings(Settings.builder().putNull("*"))
+            .get();
     }
 
     @Override
@@ -81,25 +82,29 @@ public class UpgradeSettingsIT extends ESSingleNodeTestCase {
         runUpgradeSettingsOnUpdateTest((settings, builder) -> builder.setPersistentSettings(settings), Metadata::persistentSettings);
     }
 
+    public void testUpgradeTransientSettingsOnUpdate() {
+        runUpgradeSettingsOnUpdateTest((settings, builder) -> builder.setTransientSettings(settings), Metadata::transientSettings);
+    }
+
     private void runUpgradeSettingsOnUpdateTest(
-            final BiConsumer<Settings, ClusterUpdateSettingsRequestBuilder> consumer,
-            final Function<Metadata, Settings> settingsFunction) {
+        final BiConsumer<Settings, ClusterUpdateSettingsRequestBuilder> consumer,
+        final Function<Metadata, Settings> settingsFunction) {
         final String value = randomAlphaOfLength(8);
         final ClusterUpdateSettingsRequestBuilder builder =
-                client()
-                        .admin()
-                        .cluster()
-                        .prepareUpdateSettings();
+            client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings();
         consumer.accept(Settings.builder().put("foo.old", value).build(), builder);
         builder.get();
 
         final ClusterStateResponse response = client()
-                .admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .get();
+            .admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .get();
 
         assertFalse(UpgradeSettingsPlugin.oldSetting.exists(settingsFunction.apply(response.getState().metadata())));
         assertTrue(UpgradeSettingsPlugin.newSetting.exists(settingsFunction.apply(response.getState().metadata())));

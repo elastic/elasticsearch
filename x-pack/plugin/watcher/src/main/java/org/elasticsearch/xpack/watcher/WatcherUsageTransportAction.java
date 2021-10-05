@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
@@ -70,14 +71,14 @@ public class WatcherUsageTransportAction extends XPackUsageFeatureTransportActio
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList());
                     Counters mergedCounters = Counters.merge(countersPerNode);
-                    WatcherFeatureSetUsage usage =
-                        new WatcherFeatureSetUsage(licenseState.isAllowed(Feature.WATCHER), true, mergedCounters.toNestedMap());
+                    WatcherFeatureSetUsage usage = new WatcherFeatureSetUsage(
+                        WatcherConstants.WATCHER_FEATURE.checkWithoutTracking(licenseState), true, mergedCounters.toNestedMap());
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                 }, listener::onFailure));
             }
         } else {
-            WatcherFeatureSetUsage usage =
-                new WatcherFeatureSetUsage(licenseState.isAllowed(Feature.WATCHER), false, Collections.emptyMap());
+            WatcherFeatureSetUsage usage = new WatcherFeatureSetUsage(
+                WatcherConstants.WATCHER_FEATURE.checkWithoutTracking(licenseState), false, Collections.emptyMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

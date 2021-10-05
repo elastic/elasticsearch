@@ -48,9 +48,7 @@ public class XPackLicenseState {
         SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
-
-        WATCHER(OperationMode.STANDARD, true),
-        // TODO: should just check WATCHER directly?
+        
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
         MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
 

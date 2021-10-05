@@ -126,3 +126,11 @@ setup:
      test-index.settings.index.query_string.lenient: "true"
   - match:
      test-index.settings.index.translog.durability: "async"
+
+---
+put unsupported setting:
+  - do:
+      indices.put_settings:
+        index: test-index
+        body:
+          garbage: garbage

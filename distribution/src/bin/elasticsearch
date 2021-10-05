@@ -68,6 +68,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     --module-path "$ES_MODULEPATH" \
+    --add-modules org.apache.logging.log4j,com.fasterxml.jackson.core \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" <<<"$KEYSTORE_PASSWORD"
 else
@@ -81,6 +82,7 @@ else
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     --module-path "$ES_MODULEPATH" \
+    --add-modules org.apache.logging.log4j,com.fasterxml.jackson.core \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" \
     <<<"$KEYSTORE_PASSWORD" &

@@ -18,6 +18,11 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
+  // jackson-core module requires databind, databind require annotations
+  // We live "on the edge" without databind/annotations! - these are just impl deps?
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -32,14 +37,6 @@ tasks.named('forbiddenApisMain').configure {
   // x-content does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
   replaceSignatureFiles 'jdk-signatures'
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-          // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-          'com.fasterxml.jackson.databind.ObjectMapper',
-          'com.fasterxml.jackson.databind.cfg.MapperBuilder'
-  )
 }
 
 tasks.named("dependencyLicenses").configure {

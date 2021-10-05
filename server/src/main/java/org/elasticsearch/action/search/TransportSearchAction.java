@@ -747,8 +747,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterShardSize = 1;
         }
         return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
-                    && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
-                    && preFilterShardSize < numShards;
+                    /*&& (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))*/
+                    && preFilterShardSize <= numShards;
     }
 
     private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {
@@ -809,12 +809,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     threadPool,
                     clusters);
                 assert action instanceof AbstractSearchAsyncAction;
-                return new SearchPhase(action.getName()) {
-                    @Override
-                    public void run() {
-                        action.start();
-                    }
-                };
+                return action;
             }, clusters, searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis));
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,

@@ -128,35 +128,32 @@ public class CanMatchPhase extends SearchPhase {
             final CanMatchRequest canMatchRequest = new CanMatchRequest(searchShardIterator.getOriginalIndices(), request,
                 Collections.singletonList(buildShardLevelRequest(searchShardIterator)), getNumShards(),
                 timeProvider.getAbsoluteStartMillis(), searchShardIterator.getClusterAlias());
-            List<CanMatchRequest.ShardLevelRequest> shardLevelRequests = canMatchRequest.getShardLevelRequests();
             List<ShardSearchRequest> shardSearchRequests = canMatchRequest.createShardSearchRequests();
             for (int i = 0; i < shardSearchRequests.size(); i++) {
                 ShardSearchRequest request = shardSearchRequests.get(i);
 
+                boolean canMatch = true;
                 CoordinatorRewriteContext coordinatorRewriteContext =
                     coordinatorRewriteContextProvider.getCoordinatorRewriteContext(request.shardId().getIndex());
                 if (coordinatorRewriteContext != null) {
-                    boolean canMatch = true;
                     try {
                         canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
                     } catch (Exception e) {
-                        // ignore
                         // treat as if shard is still a potential match
                     }
-
-                    if (canMatch) {
-                        matchedShardLevelRequests.add(searchShardIterator);
-                    } else {
-                        SearchService.CanMatchResponse result = new SearchService.CanMatchResponse(canMatch, null);
-                        result.setShardIndex(request.shardRequestIndex());
-                        results.consumeResult(result, () -> {});
-                    }
+                }
+                if (canMatch) {
+                    matchedShardLevelRequests.add(searchShardIterator);
+                } else {
+                    SearchService.CanMatchResponse result = new SearchService.CanMatchResponse(canMatch, null);
+                    result.setShardIndex(request.shardRequestIndex());
+                    results.consumeResult(result, () -> {});
                 }
             }
         }
 
         if (matchedShardLevelRequests.isEmpty() == false) {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
+            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).start();
         } else {
             finishHim();
         }
@@ -246,8 +243,7 @@ public class CanMatchPhase extends SearchPhase {
                     task, new ActionListener<>() {
                         @Override
                         public void onResponse(CanMatchNodeResponse canMatchResponse) {
-                            assert shardLevelRequests.size() == canMatchResponse.getResponses().size() &&
-                                shardLevelRequests.size() == canMatchResponse.getFailures().size();
+                            logger.info("Happy response");
                             for (int i = 0; i < canMatchResponse.getResponses().size(); i++) {
                                 SearchService.CanMatchResponse response = canMatchResponse.getResponses().get(i);
                                 if (response != null) {
@@ -268,7 +264,9 @@ public class CanMatchPhase extends SearchPhase {
 
                         @Override
                         public void onFailure(Exception e) {
+                            logger.error(e);
                             for (CanMatchRequest.ShardLevelRequest shardLevelRequest : shardLevelRequests) {
+                                results.consumeShardFailure(shardLevelRequest.getShardRequestIndex());
                                 onOperationFailed(shardLevelRequest.getShardRequestIndex(), e);
                             }
                         }
@@ -324,7 +322,7 @@ public class CanMatchPhase extends SearchPhase {
 
     private void finishHim() {
         try {
-            phaseFactory.apply(getIterator(results, shardsIts)).run();
+            phaseFactory.apply(getIterator(results, shardsIts)).start();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);

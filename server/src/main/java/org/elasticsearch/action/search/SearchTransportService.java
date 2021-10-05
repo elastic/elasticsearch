@@ -130,16 +130,18 @@ public class SearchTransportService {
 
     public void sendCanMatch(Transport.Connection connection, final CanMatchRequest request, SearchTask task, final
                              ActionListener<CanMatchNodeResponse> listener) {
-        if (connection.getVersion().onOrAfter(Version.V_8_0_0)) {
+        // TODO: use minNodeVersion here to check (i.e. min{connection.getVersion(), targetNode.getVersion()})
+        if (connection.getVersion().onOrAfter(Version.V_8_0_0) &&
+            connection.getNode().getVersion().onOrAfter(Version.V_8_0_0)) {
             transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
                 TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new));
         } else {
-            List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-            AtomicReferenceArray<Object> results = new AtomicReferenceArray<>(shardSearchRequests.size());
-            AtomicInteger counter = new AtomicInteger();
+            // BWC layer: translate into shard-level requests
+            final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
+            final AtomicReferenceArray<Object> results = new AtomicReferenceArray<>(shardSearchRequests.size());
+            final AtomicInteger counter = new AtomicInteger();
             for (int i = 0; i < shardSearchRequests.size(); i++) {
                 ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
-                // TODO: do we need to set parent task etc on this synthetic ShardSearchRequest
                 int finalI = i;
                 sendCanMatch(connection, shardSearchRequest, task, new ActionListener<>() {
                     @Override

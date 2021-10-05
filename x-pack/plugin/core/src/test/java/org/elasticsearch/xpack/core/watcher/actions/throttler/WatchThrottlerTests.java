@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;

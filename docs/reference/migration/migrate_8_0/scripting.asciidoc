@@ -23,28 +23,30 @@ in a compilation error or runtime error and may not allow the upgraded node to
 start.
 ====
 
-.Empty scripts/templates are no longer allowed as stored scripts.
+.Stored scripts no longer support empty scripts or search templates.
 [%collapsible]
 ====
 *Details* +
-Empty scripts/templates cannot be specified as the source of a
-PutStoredScript action.
+The {ref}/create-stored-script-api.html[create or update stored script API]'s
+`source` parameter cannot be empty.
 
 *Impact* +
-Before upgrading, remove stored scripts/templates that are empty. Otherwise,
-these scripts will be dropped, and may not align with the scripts on older
-nodes.
+Before upgrading, use the {ref}/delete-stored-script-api.html[delete stored
+script API] to delete any empty stored scripts or search templates.
+In 8.0, {es} will drop any empty stored scripts or empty search templates from
+the cluster state. Requests to create a stored script or search template with
+an empty `source` will return an error.
 ====
 
-.The `code` field can no longer be specified as part of a stored script/template.
+.The create or update stored script API's `code` parameter has been removed.
 [%collapsible]
 ====
 *Details* +
-The `code` field is replaced by the `source` field as the only way to specify
-the source of a script.
+The {ref}/create-stored-script-api.html[create or update stored script API]'s
+`code` parameter has been removed. Use the `source` parameter instead.
 
 *Impact* +
-Before upgrading, any calls to PutStoredScript should use `source` instead
-of `code`.
+Discontinue use of the `code` parameter. Requests that include the parameter
+will return an error.
 ====
 // end::notable-breaking-changes[]

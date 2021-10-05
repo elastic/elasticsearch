@@ -272,6 +272,21 @@ final pipeline. {es} applies this pipeline after the request or default
 pipeline, even if neither is specified.
 
 [discrete]
+[[pipelines-for-beats]]
+=== Pipelines for {beats}
+
+To add an ingest pipeline to an Elastic Beat, specify the `pipeline`
+parameter under `output.elasticsearch` in `<BEAT_NAME>.yml`. For example,
+for {filebeat}, you'd specify `pipeline` in `filebeat.yml`.
+
+[source,yaml]
+----
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  pipeline: my-pipeline
+----
+
+[discrete]
 [[pipelines-for-fleet-elastic-agent]]
 === Pipelines for {fleet} and {agent}
 

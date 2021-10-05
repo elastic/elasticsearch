@@ -349,7 +349,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .array("field", "really_really_long_value")
             .endObject();
         fields = fetchFields(mapperService, source, "field");
-        assertFalse(fields.containsKey("field"));
+        assertThat(fields.get("field").getValues().size(), equalTo(0));
+        assertThat(fields.get("field").getIgnoredValues().size(), equalTo(1));
     }
 
     public void testFieldAliases() throws IOException {
@@ -827,14 +828,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         // this should not return a field bc. f1 is malformed
         Map<String, DocumentField> fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         // and this should neither
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("*", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 
         // check this also does not overwrite with arrays
         source = XContentFactory.jsonBuilder().startObject()
@@ -842,7 +846,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         fields = fetchFields(mapperService, source, List.of(new FieldAndFormat("f1", null, true)));
-        assertThat(fields.size(), equalTo(0));
+        assertThat(fields.get("f1").getValues().size(), equalTo(0));
+        assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
     }
 
     public void testUnmappedFieldsWildcard() throws IOException {

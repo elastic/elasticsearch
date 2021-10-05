@@ -7,9 +7,11 @@
  */
 package org.elasticsearch.env;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +33,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 
@@ -93,8 +94,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
 
         final Set<String> indexUUIDs = Sets.union(indexUUIDsFor(indexPaths),
-            StreamSupport.stream(metadata.indices().values().spliterator(), false)
-                .map(imd -> imd.value.getIndexUUID()).collect(Collectors.toSet()));
+            metadata.indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet()));
 
         outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
 

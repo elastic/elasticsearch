@@ -150,7 +150,7 @@ public class MlInitializationService implements ClusterStateListener {
         LatchedActionListener<Boolean> listener = new LatchedActionListener<>(
             ActionListener.wrap(
                 result -> logger.info("All the ML internal indices and aliases were successfully made hidden"),
-                e -> logger.error("An error occurred while making ML indices and aliases hidden", e)
+                e -> logger.error("An error occurred while making ML internal indices and aliases hidden", e)
             ),
             latch
         );
@@ -158,7 +158,7 @@ public class MlInitializationService implements ClusterStateListener {
         ActionListener<AcknowledgedResponse> updateAliasesListener = ActionListener.wrap(
             updateAliasesResponse -> {
                 if (updateAliasesResponse.isAcknowledged() == false) {
-                    logger.error("One or more of the following ML aliases could not be made hidden: {}", "sraka");
+                    logger.error("One or more of the following ML internal aliases could not be made hidden.");
                 }
                 listener.onResponse(updateAliasesResponse.isAcknowledged());
             },
@@ -247,7 +247,7 @@ public class MlInitializationService implements ClusterStateListener {
         try {
             latch.await();
         } catch (InterruptedException e) {
-            logger.error("Interrupted while making ML indices and aliases hidden", e);
+            logger.error("Interrupted while making ML internal indices and aliases hidden", e);
         }
     }
 }

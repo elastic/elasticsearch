@@ -103,19 +103,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
     static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "HTTP status code for an internal cluster health timeout " +
         "will be changed from 408 to 200 in 8.0.0. Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.";
-    private static final boolean ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200 = esClusterHealthRequestTimeout200();
-    private static boolean esClusterHealthRequestTimeout200() {
-        String property = System.getProperty("es.cluster_health.request_timeout_200");
-        if (property == null) {
-            return false;
-        }
-        if (Boolean.parseBoolean(property)) {
-            return true;
-        } else {
-            throw new IllegalArgumentException("es.cluster_health.request_timeout_200 can only be unset or [true] but was ["
-                + property + "]");
-        }
-    }
+
 
     static {
         // ClusterStateHealth fields
@@ -148,8 +136,14 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
+    private boolean esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200();
 
     public ClusterHealthResponse() {
+    }
+
+    /** For testing of the opting in for the 200 status code without setting a system property */
+    ClusterHealthResponse(boolean esClusterHealthRequestTimeout200) {
+        this.esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200;
     }
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
@@ -321,7 +315,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200) {
+        if (esClusterHealthRequestTimeout200) {
             return RestStatus.OK;
         } else {
             deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
@@ -385,5 +379,18 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     public int hashCode() {
         return Objects.hash(clusterName, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassignedShards, taskMaxWaitingTime,
                 timedOut, clusterStateHealth, clusterHealthStatus);
+    }
+
+    private static boolean esClusterHealthRequestTimeout200() {
+        String property = System.getProperty("es.cluster_health.request_timeout_200");
+        if (property == null) {
+            return false;
+        }
+        if (Boolean.parseBoolean(property)) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("es.cluster_health.request_timeout_200 can only be unset or [true] but was ["
+                + property + "]");
+        }
     }
 }

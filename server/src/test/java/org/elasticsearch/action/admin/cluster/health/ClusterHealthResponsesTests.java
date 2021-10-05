@@ -55,6 +55,14 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         }
     }
 
+    public void testTimeoutReturns200IfOptedIn() {
+        ClusterHealthResponse res = new ClusterHealthResponse(true);
+        for (int i = 0; i < 5; i++) {
+            res.setTimedOut(randomBoolean());
+            assertEquals(RestStatus.OK, res.status());
+        }
+    }
+
     public void testClusterHealth() throws IOException {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
         int pendingTasks = randomIntBetween(0, 200);

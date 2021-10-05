@@ -509,11 +509,11 @@ version 5.3.2 run:
 -------------------------------------------------
 
 Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
-For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
+For example to run a specific tests from the x-pack rolling upgrade from 7.16.0:
 -------------------------------------------------
-./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
+./gradlew :x-pack:qa:rolling-upgrade:v7.16.0#bwcTest \
  -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
- -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
+ -Dtests.method="test {yaml=*/40_ml_datafeed_crud/*}"
 -------------------------------------------------
 
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.

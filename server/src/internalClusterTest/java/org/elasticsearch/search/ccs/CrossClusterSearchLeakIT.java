@@ -66,6 +66,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
      *     <li>scroll vs no scroll</li>
      * </ul>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78673")
     public void testSearch() throws Exception {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo")
             .setMapping("f", "type=keyword")

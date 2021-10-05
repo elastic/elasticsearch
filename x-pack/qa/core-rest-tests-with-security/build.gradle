@@ -14,6 +14,17 @@ restResources {
   }
 }
 
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
+
 tasks.named("integTest").configure {
     systemProperty 'tests.rest.blacklist',
       [

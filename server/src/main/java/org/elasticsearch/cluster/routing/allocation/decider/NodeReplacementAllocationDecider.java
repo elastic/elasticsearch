@@ -34,15 +34,18 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 "node [%s] is replacing node [%s], and may receive shards from it", shardRouting.currentNodeId(), node.nodeId());
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is being replaced, and its shards may only be allocated to the replacement target",
-                shardRouting.currentNodeId());
+                "node [%s] is being replaced, and its shards may only be allocated to the replacement target [%s]",
+                shardRouting.currentNodeId(), getReplacementName(allocation, shardRouting.currentNodeId()));
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is being removed, so no data from other nodes may be allocated to it", node.nodeId());
+                "node [%s] is being replaced by [%s], so no data from other node [%s] may be allocated to it",
+                node.nodeId(), getReplacementName(allocation, node.nodeId()), shardRouting.currentNodeId());
         } else if (isReplacementTargetName(allocation, node.node().getName())) {
+            final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.node().getName());
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is replacing a vacating node, so no data from other nodes " +
-                    "may be allocated to it until the replacement is complete", node.nodeId());
+                "node [%s] is replacing the vacating node [%s], so no data from other node [%s] " +
+                    "may be allocated to it until the replacement is complete",
+                node.nodeId(), shutdown == null ? null : shutdown.getNodeId(), shardRouting.currentNodeId());
         } else {
             return Decision.single(Decision.Type.YES, NAME,
                 "neither the source nor target node are part of an ongoing node replacement");
@@ -67,9 +70,11 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
         } else if (isReplacementTargetName(allocation, node.node().getName())) {
+            final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.node().getName());
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is replacing a vacating node, so no data from other nodes " +
-                    "may be allocated to it until the replacement is complete", node.nodeId());
+                "node [%s] is replacing a vacating node [%s], so no data from other nodes " +
+                    "may be allocated to it until the replacement is complete",
+                node.nodeId(), shutdown == null ? null : shutdown.getNodeId());
         } else {
             // The node in question is not a replacement target, so allow allocation.
             return Decision.single(Decision.Type.YES, NAME,
@@ -82,12 +87,15 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
         } else if (isReplacementTargetName(allocation, node.getName())) {
+            final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.getName());
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is a node replacement target, shards cannot auto expand to be on it until the replacement is complete",
-                node.getId(), "source");
+                "node [%s] is a node replacement target for node [%s], " +
+                    "shards cannot auto expand to be on it until the replacement is complete",
+                node.getId(), shutdown == null ? null : shutdown.getNodeId());
         } else if (isReplacementSource(allocation, node.getId())) {
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is being replaced, shards cannot auto expand to be on it", node.getId());
+                "node [%s] is being replaced by [%s], shards cannot auto expand to be on it",
+                node.getId(), getReplacementName(allocation, node.getId()));
         } else {
             return Decision.single(Decision.Type.YES, NAME,
                 "node is not part of a node replacement, so shards may be auto expanded onto it");

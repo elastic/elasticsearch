@@ -162,7 +162,8 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         decision = decider.canAllocate(indexMetadata, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(decision.getExplanation(), equalTo("node [" + NODE_B.getId() +
-            "] is replacing a vacating node, so no data from other nodes may be allocated to it until the replacement is complete"));
+            "] is replacing a vacating node [" + NODE_A.getId() +
+            "], so no data from other nodes may be allocated to it until the replacement is complete"));
 
         routingNode = new RoutingNode(NODE_C.getId(), NODE_C, shard);
 
@@ -201,7 +202,8 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
-            equalTo("node [" + NODE_A.getId() + "] is being removed, so no data from other nodes may be allocated to it")
+            equalTo("node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() +
+                "], so no data from other node [null] may be allocated to it")
         );
 
         routingNode = new RoutingNode(NODE_B.getId(), NODE_B, shard);
@@ -211,7 +213,8 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         assertThat(
             decision.getExplanation(),
             equalTo("node [" + NODE_B.getId() +
-                "] is replacing a vacating node, so no data from other nodes may be allocated to it until the replacement is complete")
+                "] is replacing the vacating node [" + NODE_A.getId() +
+                "], so no data from other node [null] may be allocated to it until the replacement is complete")
         );
 
         routingNode = new RoutingNode(NODE_C.getId(), NODE_C, shard);

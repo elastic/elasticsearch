@@ -164,7 +164,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             nodeToStopId,
             SingleNodeShutdownMetadata.Type.REMOVE,
             this.getTestName(),
-            null,
             null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();

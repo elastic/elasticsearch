@@ -437,8 +437,7 @@ public class SettingsTests extends ESTestCase {
         assertFalse(filteredSettings.keySet().contains("a.b"));
         assertFalse(filteredSettings.keySet().contains("a.b.c"));
         assertFalse(filteredSettings.keySet().contains("a.b.c.d"));
-        expectThrows(UnsupportedOperationException.class, () ->
-            filteredSettings.keySet().remove("a.b"));
+        assertFalse(filteredSettings.keySet().remove("a.b"));
         assertNull(filteredSettings.get("a.b"));
         assertNull(filteredSettings.get("a.b.c"));
         assertNull(filteredSettings.get("a.b.c.d"));

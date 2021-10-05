@@ -143,17 +143,117 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
     }
 
+    public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
+        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
+        Settings.Builder nodeASettings = Settings.builder()
+            .put("index.number_of_shards", 3)
+            .put("index.number_of_replicas", 1);
+        createIndex("myindex", nodeASettings.build());
+        final String nodeAId = getNodeId(nodeA);
+        final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
+
+        // Mark the nodeA as being replaced
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeAId,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            this.getTestName(),
+            null,
+            nodeB
+        );
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
+
+        GetShutdownStatusAction.Response getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(nodeAId)
+        ).get();
+
+        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+
+        internalCluster().startNode(Settings.builder().put("node.name", nodeB));
+        final String nodeBId = getNodeId(nodeB);
+
+        logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
+        logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            int active = 0;
+            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
+                if (sr.active()) {
+                    active++;
+                    assertThat(
+                        "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
+                        sr.currentNodeId(),
+                        equalTo(nodeBId)
+                    );
+                }
+            }
+            assertThat("expected all 3 of the primary shards to be allocated", active, equalTo(3));
+        });
+
+        assertBusy(() -> {
+            GetShutdownStatusAction.Response shutdownStatus = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(nodeAId)
+            ).get();
+            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        });
+
+        final String nodeC = internalCluster().startNode();
+
+        createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+
+        ensureYellow("other");
+
+        // Explain the replica for the "other" index
+        ClusterAllocationExplainResponse explainResponse = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("other")
+            .setShard(0)
+            .setPrimary(false)
+            .get();
+
+        // Validate that the replica cannot be allocated to nodeB because it's the target of a node replacement
+        explainResponse.getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision()
+            .getNodeDecisions()
+            .stream()
+            .filter(nodeDecision -> nodeDecision.getNode().getId().equals(nodeBId))
+            .findFirst()
+            .ifPresentOrElse(nodeAllocationResult -> {
+                assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
+                assertTrue(
+                    "expected decisions to mention node replacement: "
+                        + nodeAllocationResult.getCanAllocateDecision()
+                        .getDecisions()
+                        .stream()
+                        .map(Decision::getExplanation)
+                        .collect(Collectors.joining(",")),
+                    nodeAllocationResult.getCanAllocateDecision()
+                        .getDecisions()
+                        .stream()
+                        .anyMatch(
+                            decision -> decision.getExplanation()
+                                .contains(
+                                    "is replacing a vacating node, so no data from "
+                                        + "other nodes may be allocated to it until the replacement is complete"
+                                )
+                        )
+                );
+            }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
+    }
+
     public void testNodeReplacementOverridesFilters() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
         Settings.Builder nodeASettings = Settings.builder()
+            .put("index.routing.allocation.require._name", nodeA)
             .put("index.number_of_shards", 3)
             .put("index.number_of_replicas", 0);
-        // Randomly add a filter that will be overridden by the node shutdown-replace
-        if (randomBoolean()) {
-            nodeASettings.put("index.routing.allocation.require._name", nodeA);
-        }
         createIndex("myindex", nodeASettings.build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable

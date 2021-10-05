@@ -56,7 +56,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                         // As we apply this segment sorter to any timeseries indices,
                         // we don't have a guarantee that all docs contain @timestamp field.
                         // Some segments may have all docs without @timestamp field, in this
-                        // they are will be sorted last.
+                        // case they will be sorted last.
                         return Long.MIN_VALUE;
                     }
                 } catch (IOException e) {

@@ -10,7 +10,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -124,24 +126,24 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         }
     }
 
-    private static final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, " +
-        "direct access to system indices will be prevented by default";
-
     private Response getMlIndicesSettings() throws IOException {
         Request getSettingsRequest = new Request("GET", ".ml-*/_settings");
-        getSettingsRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(systemIndexWarning)));
+        getSettingsRequest
+            .setOptions(RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+                .build());
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
         assertThat(getSettingsResponse, is(notNullValue()));
         return getSettingsResponse;
     }
 
-    private static final String systemAliasWarning = "this request accesses aliases with names reserved for system indices: [.security], " +
-        "but in a future major version, direct access to system indices and their aliases will not be allowed";
-
     private Response getMlAliases() throws IOException {
         Request getAliasesRequest =
             new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_alias");
-        getAliasesRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(systemAliasWarning)));
+        getAliasesRequest
+            .setOptions(RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+                .build());
         Response getAliasesResponse = client().performRequest(getAliasesRequest);
         assertThat(getAliasesResponse, is(notNullValue()));
         return getAliasesResponse;

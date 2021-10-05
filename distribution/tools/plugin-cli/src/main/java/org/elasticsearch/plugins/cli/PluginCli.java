@@ -9,8 +9,8 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;

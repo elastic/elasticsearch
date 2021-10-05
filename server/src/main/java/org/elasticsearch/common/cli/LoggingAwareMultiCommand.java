@@ -6,13 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.common.cli;
+
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.common.cli.CommandLoggingConfigurator;
 
 /**
- * A command that is aware of logging. This class should be preferred over the base {@link Command} class for any CLI tools that depend on
- * core Elasticsearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be configured.
+ * A multi-command that is aware of logging. This class should be preferred over the base {@link MultiCommand} class for any CLI tools that
+ * depend on core Elasticsearch as they could directly or indirectly touch classes that touch logging and as such logging needs to be
+ * configured.
  */
-public abstract class LoggingAwareCommand extends Command {
+public abstract class LoggingAwareMultiCommand extends MultiCommand {
 
     /**
      * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch
@@ -20,7 +24,7 @@ public abstract class LoggingAwareCommand extends Command {
      *
      * @param description the command description
      */
-    public LoggingAwareCommand(final String description) {
+    public LoggingAwareMultiCommand(final String description) {
         super(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
     }
 

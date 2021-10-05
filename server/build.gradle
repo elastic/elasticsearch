@@ -266,13 +266,3 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
-
-tasks.named('splitPackagesAudit').configure {
-  // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
-  ignoreClasses 'org.elasticsearch.cli.CommandLoggingConfigurator',
-    'org.elasticsearch.cli.EnvironmentAwareCommand',
-    'org.elasticsearch.cli.KeyStoreAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareMultiCommand'
-
-}

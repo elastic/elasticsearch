@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
+import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 
 /**

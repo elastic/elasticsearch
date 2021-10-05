@@ -56,16 +56,6 @@ public class PyTorchStateStreamer {
     }
 
     /**
-     * The size of the streamed model in bytes.
-     * A return value of -1 means the model has not been streamed yet
-     * and the size is unknown.
-     * @return The model size in bytes or -1 if not known yet.
-     */
-    public int getModelSize() {
-        return modelSize;
-    }
-
-    /**
      * First writes the size of the model so the native process can
      * allocated memory then writes the chunks of binary state.
      *

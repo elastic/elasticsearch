@@ -430,7 +430,8 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s&wait_for=" + waitForState);
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId +
+            "/deployment/_start?timeout=40s&wait_for=" + waitForState + "&inference_threads=1&model_threads=1");
         return client().performRequest(request);
     }
 

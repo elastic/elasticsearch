@@ -376,7 +376,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
                 transportService.addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
                     (handler, request, channel, task) -> {
-                        if (random().nextBoolean() && failedRequest.compareAndSet(false, true)) {
+                        if (failedRequest.compareAndSet(false, true)) {
                             channel.sendResponse(new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT));
                         } else {
                             handler.messageReceived(request, channel, task);
@@ -390,6 +390,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
             }
             final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+            assertTrue(failedRequest.get());
             assertThat(response.getIndices(), arrayContainingInAnyOrder("log-index-1", "log-index-2"));
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));

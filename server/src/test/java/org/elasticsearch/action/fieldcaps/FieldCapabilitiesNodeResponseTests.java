@@ -24,8 +24,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         for (int i = 0; i < numResponse; i++) {
             responses.add(FieldCapabilitiesResponseTests.createRandomIndexResponse());
         }
-        String[] randomIndices = generateRandomStringArray(5, 10, false, false);
-        return new FieldCapabilitiesNodeResponse(randomIndices, responses, Collections.emptyList());
+        return new FieldCapabilitiesNodeResponse(responses, Collections.emptyList());
     }
 
     @Override
@@ -50,6 +49,6 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                 newResponses.set(toReplace, FieldCapabilitiesResponseTests.createRandomIndexResponse());
                 break;
         }
-        return new FieldCapabilitiesNodeResponse(null, newResponses, Collections.emptyList());
+        return new FieldCapabilitiesNodeResponse(newResponses, Collections.emptyList());
     }
 }

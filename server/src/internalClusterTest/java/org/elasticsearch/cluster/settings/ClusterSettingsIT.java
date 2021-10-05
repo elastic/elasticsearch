@@ -48,14 +48,16 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testClusterNonExistingPersistentSettingsUpdate() {
-        testClusterNonExistingSettingsUpdate((settings, builder) -> builder.setPersistentSettings(settings));
+        testClusterNonExistingSettingsUpdate((settings, builder) -> builder.setPersistentSettings(settings), "persistent");
     }
 
     public void testClusterNonExistingTransientSettingsUpdate() {
-        testClusterNonExistingSettingsUpdate((settings, builder) -> builder.setTransientSettings(settings));
+        testClusterNonExistingSettingsUpdate((settings, builder) -> builder.setTransientSettings(settings), "transient");
     }
 
-    private void testClusterNonExistingSettingsUpdate(final BiConsumer<Settings.Builder, ClusterUpdateSettingsRequestBuilder> consumer) {
+    private void testClusterNonExistingSettingsUpdate(
+        final BiConsumer<Settings.Builder, ClusterUpdateSettingsRequestBuilder> consumer,
+        String label) {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
         try {
@@ -65,7 +67,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             builder.get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals("transient setting [no_idea_what_you_are_talking_about], not recognized", ex.getMessage());
+            assertEquals(label + " setting [no_idea_what_you_are_talking_about], not recognized", ex.getMessage());
         }
     }
 

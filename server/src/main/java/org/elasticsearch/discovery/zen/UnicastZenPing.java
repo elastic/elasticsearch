@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -192,8 +191,8 @@ public class UnicastZenPing implements ZenPing {
         seedAddresses.addAll(hostsProvider.getSeedAddresses(createHostsResolver()));
         final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
         // add all possible master nodes that were active in the last known cluster configuration
-        for (ObjectCursor<DiscoveryNode> masterNode : nodes.getMasterNodes().values()) {
-            seedAddresses.add(masterNode.value.getAddress());
+        for (DiscoveryNode masterNode : nodes.getMasterNodes().values()) {
+            seedAddresses.add(masterNode.getAddress());
         }
 
         final ConnectionProfile connectionProfile =

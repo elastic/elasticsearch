@@ -16,12 +16,13 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -47,7 +48,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -370,10 +370,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     private List<Path> getGeoIpTmpDirs() throws IOException {
-        final java.util.Set<String> ids =
-            StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
-                .map(c -> c.value.getId())
-                .collect(Collectors.toSet());
+        final java.util.Set<String> ids = clusterService().state().nodes().getDataNodes().values().stream()
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
         // All nodes share the same geoip base dir in the shared tmp dir:
         Path geoipBaseTmpDir = internalCluster().getDataNodeInstance(Environment.class).tmpFile().resolve("geoip-databases");
         assertThat(Files.exists(geoipBaseTmpDir), is(true));

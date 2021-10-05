@@ -182,12 +182,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
+                return InternalAggregation.ReduceContext.forPartialReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree, () -> false);
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                    BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree, () -> false);
             }
         };
     }
@@ -361,7 +363,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
             toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
+                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY, () -> false);
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
@@ -385,7 +387,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY);
+                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY, () -> false);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);

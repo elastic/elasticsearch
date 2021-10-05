@@ -113,18 +113,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
     @Before
     public void setup() {
         reductions = new CopyOnWriteArrayList<>();
-        searchPhaseController = new SearchPhaseController(s -> new InternalAggregation.ReduceContextBuilder() {
+        searchPhaseController = new SearchPhaseController((t, s) -> new InternalAggregation.ReduceContextBuilder() {
             @Override
             public ReduceContext forPartialReduction() {
                 reductions.add(false);
                 return InternalAggregation.ReduceContext.forPartialReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineTree.EMPTY, t);
             }
 
             public ReduceContext forFinalReduction() {
                 reductions.add(true);
                 return InternalAggregation.ReduceContext.forFinalReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineTree.EMPTY, t);
             };
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
@@ -456,7 +456,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
         ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, 3+numEmptyResponses, exc  -> {});
         if (numEmptyResponses == 0) {
             assertEquals(0, reductions.size());
@@ -544,7 +544,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
         ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         Thread[] threads = new Thread[expectedNumResults];
@@ -595,7 +595,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch =  new CountDownLatch(expectedNumResults);
@@ -637,7 +637,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch =  new CountDownLatch(expectedNumResults);
@@ -681,7 +681,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP
             , request, 4, exc  -> {});
         int score = 100;
         CountDownLatch latch =  new CountDownLatch(4);
@@ -720,7 +720,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc  -> {});
         AtomicInteger max = new AtomicInteger();
         SortField[] sortFields = {new SortField("field", SortField.Type.INT, true)};
@@ -759,7 +759,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc  -> {});
         SortField[] sortFields = {new SortField("field", SortField.Type.STRING)};
         BytesRef a = new BytesRef("a");
@@ -801,7 +801,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.setBatchedReduceSize(bufferSize);
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc  -> {});
         int maxScoreTerm = -1;
         int maxScorePhrase = -1;
@@ -928,7 +928,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             };
             QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST), progressListener, request, expectedNumResults, exc  -> {});
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, progressListener, request, expectedNumResults, exc  -> {});
             AtomicInteger max = new AtomicInteger();
             Thread[] threads = new Thread[expectedNumResults];
             CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -996,7 +996,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             circuitBreaker.shouldBreak.set(true);
         }
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            circuitBreaker, SearchProgressListener.NOOP,
+            circuitBreaker, () -> false, SearchProgressListener.NOOP,
             request, numShards, exc -> hasConsumedFailure.set(true));
         CountDownLatch latch = new CountDownLatch(numShards);
         Thread[] threads = new Thread[numShards];
@@ -1049,7 +1049,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
         try (QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             request, expectedNumResults, exc -> hasConsumedFailure.set(true))) {
             for (int i = 0; i < expectedNumResults; i++) {
                 final int index = i;

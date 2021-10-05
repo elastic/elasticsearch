@@ -313,6 +313,8 @@ public class CanMatchPhase extends SearchPhase {
         final List<CanMatchRequest.ShardLevelRequest> shardLevelRequests =
             entry.getValue().stream().map(this::buildShardLevelRequest)
                 .collect(Collectors.toCollection(ArrayList::new));
+        assert entry.getValue().stream().allMatch(ssi -> ssi != null);
+        assert entry.getValue().stream().allMatch(ssi -> ssi.getOriginalIndices() != null);
         assert entry.getValue().stream().allMatch(ssi -> ssi.getOriginalIndices().equals(first.getOriginalIndices()));
         assert entry.getValue().stream().allMatch(ssi -> Objects.equals(ssi.getClusterAlias(), first.getClusterAlias()));
         final CanMatchRequest canMatchRequest = new CanMatchRequest(first.getOriginalIndices(), request,

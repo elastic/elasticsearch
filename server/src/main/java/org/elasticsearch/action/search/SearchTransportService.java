@@ -163,10 +163,10 @@ public class SearchTransportService {
                             for (int i = 0; i < results.length(); i++) {
                                 Object o = results.get(i);
                                 if (o instanceof SearchService.CanMatchResponse) {
-                                    responses.set(i, (SearchService.CanMatchResponse) o);
+                                    responses.add(i, (SearchService.CanMatchResponse) o);
                                 } else {
                                     assert o instanceof Exception;
-                                    failures.set(i, (Exception) o);
+                                    failures.add(i, (Exception) o);
                                 }
                             }
                             CanMatchNodeResponse response = new CanMatchNodeResponse(responses, failures);

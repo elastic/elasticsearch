@@ -96,7 +96,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canForceDuringVacate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (replacementFromSourceToTarget(allocation.metadata(), shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(Decision.Type.YES, NAME,
                 "node [%s] is being replaced by node [%s], and can be force vacated to the target",

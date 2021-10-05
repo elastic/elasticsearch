@@ -741,7 +741,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
-            return allocation.deciders().canForceDuringVacate(shardRouting, target, allocation);
+            return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
         }
 
         /**

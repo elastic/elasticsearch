@@ -47,7 +47,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canForceDuringVacate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, node, allocation);
     }
 

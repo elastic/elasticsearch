@@ -319,9 +319,9 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canForceDuringVacate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         // TODO: check whether we would reach 100% disk as a safety effort
-        return super.canForceDuringVacate(shardRouting, node, allocation);
+        return super.canForceAllocateDuringReplace(shardRouting, node, allocation);
     }
 
     private static final Decision YES_NOT_MOST_UTILIZED_DISK = Decision.single(Decision.Type.YES, NAME,

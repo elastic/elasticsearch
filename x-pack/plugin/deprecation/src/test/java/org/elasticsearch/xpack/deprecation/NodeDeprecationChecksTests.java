@@ -63,6 +63,8 @@ import static org.mockito.Mockito.when;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
+    private static final DeprecationChecks.DeprecatedSettingsChecker NO_OP_CHECKER = settingKey -> false;
+
     public void testCheckDefaults() {
         final Settings settings = Settings.EMPTY;
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
@@ -71,7 +73,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue issue =
             NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(settings, pluginsAndModules, ClusterState.EMPTY_STATE,
-                                                                                 licenseState);
+                                                                                 licenseState, NO_OP_CHECKER);
         assertThat(issues, hasItem(issue));
     }
 
@@ -80,7 +82,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(Settings.EMPTY, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState)
+            c -> c.apply(Settings.EMPTY, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState, NO_OP_CHECKER)
         );
 
         final DeprecationIssue expected = new DeprecationIssue(
@@ -573,7 +575,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new PluginsAndModules(org.elasticsearch.core.List.of(), org.elasticsearch.core.List.of());
         final List<DeprecationIssue> issues =
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-                c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState));
+                c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState, NO_OP_CHECKER));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
@@ -588,7 +590,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
         final DeprecationIssue issue =
-            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "http://removed-setting.example.com");
+            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "http://removed-setting.example.com", NO_OP_CHECKER);
         assertThat(issue, nullValue());
     }
 
@@ -596,7 +598,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings = Settings.builder().put("node.removed_setting", "value").build();
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
         final DeprecationIssue issue =
-            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "https://removed-setting.example.com");
+            NodeDeprecationChecks.checkRemovedSetting(settings, removedSetting, "https://removed-setting.example.com", NO_OP_CHECKER);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -616,7 +618,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                                                         XPackLicenseState licenseState) {
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState)
+            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, licenseState, NO_OP_CHECKER)
         );
 
         if (isJvmEarlierThan11()) {
@@ -642,7 +644,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testMultipleDataPaths() {
         final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState,
+            NO_OP_CHECKER);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -659,14 +662,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testNoMultipleDataPaths() {
         Settings settings = Settings.builder().put("path.data", "data").build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState,
+            NO_OP_CHECKER);
         assertThat(issue, nullValue());
     }
 
     public void testDataPathsList() {
         final Settings settings = Settings.builder().putList("path.data", "d1").build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState,
+            NO_OP_CHECKER);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -682,7 +687,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testNoDataPathsListDefault() {
         final Settings settings = Settings.builder().build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState,
+            NO_OP_CHECKER);
         assertThat(issue, nullValue());
     }
 
@@ -691,7 +697,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null, licenseState);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null, licenseState,
+            NO_OP_CHECKER);
         final String expectedUrl = "https://ela.st/es-deprecation-7-shared-path-settings";
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -706,7 +713,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
             .build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings,
-            null, ClusterState.EMPTY_STATE, new XPackLicenseState(Settings.EMPTY, () -> 0)));
+            null, ClusterState.EMPTY_STATE, new XPackLicenseState(Settings.EMPTY, () -> 0), NO_OP_CHECKER));
 
         final String expectedUrl =
             "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting";
@@ -735,7 +742,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
             c -> c.apply(Settings.EMPTY,
-                null, ClusterStateCreationUtils.state(node1, node1, node1), licenseState));
+                null, ClusterStateCreationUtils.state(node1, node1, node1), licenseState, NO_OP_CHECKER));
 
         final String expectedUrl =
             "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting";
@@ -751,15 +758,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issues, hasItem(deprecationIssue));
 
         assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(master
-            , master, master), licenseState),
+            , master, master), licenseState, NO_OP_CHECKER),
             nullValue());
 
         assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
-            node1, node1, node2), licenseState),
+            node1, node1, node2), licenseState, NO_OP_CHECKER),
             nullValue());
 
         assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
-            master, node1, master), licenseState),
+            master, node1, master), licenseState, NO_OP_CHECKER),
             equalTo(deprecationIssue));
     }
 
@@ -774,7 +781,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
         final Settings settings = b.build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null , licenseState);
+        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null, licenseState,
+            NO_OP_CHECKER);
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-passwords";
         final String joinedNames = Arrays
             .stream(exporterNames)
@@ -797,7 +805,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             ), false, null)));
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState,
+            NO_OP_CHECKER);
+        assertThat(issue, nullValue());
+
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null , licenseState,
+            x -> true);
         assertThat(issue, nullValue());
     }
 
@@ -820,7 +833,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertThat(
-            NodeDeprecationChecks.checkJoinTimeoutSetting(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkJoinTimeoutSetting(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -848,7 +861,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         settingsBuilder.put("search.remote.connect", randomBoolean());
         final Settings settings = settingsBuilder.build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        DeprecationIssue issue = NodeDeprecationChecks.checkSearchRemoteSettings(settings, null, null , licenseState);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSearchRemoteSettings(settings, null, null , licenseState,
+            NO_OP_CHECKER);
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-search-remote-settings";
         String joinedNames = Arrays
@@ -885,7 +899,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             ), false, null)));
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null, licenseState,
+            NO_OP_CHECKER);
         assertThat(issue, nullValue());
     }
 
@@ -908,7 +923,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertThat(
-            NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(nodeSettings, null, clusterState, licenseState,
+                NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -924,7 +940,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(Settings.EMPTY,
                 null,
                 ClusterState.EMPTY_STATE,
-                new XPackLicenseState(Settings.EMPTY, () -> 0));
+                new XPackLicenseState(Settings.EMPTY, () -> 0), NO_OP_CHECKER);
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(issue.getMessage(), equalTo("Security is enabled by default for all licenses in the next major version."));
         assertNotNull(issue.getDetails());
@@ -976,7 +992,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false, null
         );
         assertThat(
-            NodeDeprecationChecks.checkFractionalByteValueSettings(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFractionalByteValueSettings(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
         assertWarnings(String.format(Locale.ROOT, "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [%s] " +
@@ -1004,7 +1020,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false,null
         );
         assertThat(
-            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1013,7 +1029,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(cacheSizeSettingKey, cacheSizeSettingValue)
             .build();
         assertThat(
-            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
 
@@ -1023,7 +1039,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("node.roles", "data_frozen")
             .build();
         assertThat(
-            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
 
@@ -1032,7 +1048,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("node.roles", "data_warm")
             .build();
         assertThat(
-            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
 
@@ -1042,7 +1058,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("node.roles", "data_warm")
             .build();
         assertThat(
-            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFrozenCacheLeniency(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
     }
@@ -1073,7 +1089,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertThat(
-            NodeDeprecationChecks.checkSslServerEnabled(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslServerEnabled(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
     }
@@ -1095,7 +1111,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false,null
         );
         assertThat(
-            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1105,7 +1121,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.transport.ssl.keystore.path", randomAlphaOfLength(10))
             .build();
         assertThat(
-            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
 
@@ -1116,7 +1132,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.transport.ssl.certificate", randomAlphaOfLength(10))
             .build();
         assertThat(
-            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
 
@@ -1136,7 +1152,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false,null
         );
         assertThat(
-            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1155,7 +1171,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false,null
         );
         assertThat(
-            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1172,7 +1188,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false,null
         );
         assertThat(
-            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSslCertConfiguration(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
     }
@@ -1208,7 +1224,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
         final Settings settings = b.build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        DeprecationIssue issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(settings, null, null, licenseState);
+        DeprecationIssue issue =
+            NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(settings, null, null, licenseState, NO_OP_CHECKER);
         final String expectedUrl = "https://ela.st/es-deprecation-7-transport-profiles-settings";
         final String joinedNames = Arrays
             .stream(profileNames)
@@ -1231,7 +1248,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             ), false, null)));
 
         // test for absence of deprecated exporter passwords
-        issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(Settings.builder().build(), null, null, licenseState);
+        issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(
+            Settings.builder().build(), null, null, licenseState, NO_OP_CHECKER);
         assertThat(issue, nullValue());
     }
 
@@ -1256,7 +1274,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
                 () -> randomFrom(License.OperationMode.values())));
         assertThat(
-            NodeDeprecationChecks.checkDelayClusterStateRecoverySettings(settings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkDelayClusterStateRecoverySettings(
+                settings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
     }
@@ -1292,7 +1311,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
                 () -> randomFrom(License.OperationMode.values())));
         assertThat(
-            NodeDeprecationChecks.checkFixedAutoQueueSizeThreadpool(settings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkFixedAutoQueueSizeThreadpool(
+                settings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
     }
@@ -1340,15 +1360,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         assertThat(
-            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata, NO_OP_CHECKER),
             equalTo(expectedRequireIssue)
         );
         assertThat(
-            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata, NO_OP_CHECKER),
             equalTo(expectedIncludeIssue)
         );
         assertThat(
-            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata, NO_OP_CHECKER),
             equalTo(expectedExcludeIssue)
         );
 
@@ -1364,7 +1384,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private void checkSimpleSetting(String settingKey, String settingValue, String url, DeprecationChecks.NodeDeprecationCheck<Settings,
-        PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue> checkFunction) {
+        PluginsAndModules, ClusterState, XPackLicenseState, DeprecationChecks.DeprecatedSettingsChecker,
+        DeprecationIssue> checkFunction) {
         final Settings nodeSettings =
             Settings.builder().put(settingKey, settingValue).build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
@@ -1382,7 +1403,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertThat(
-            checkFunction.apply(nodeSettings, null, clusterState, licenseState),
+            checkFunction.apply(nodeSettings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1433,7 +1454,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
                 () -> randomFrom(License.OperationMode.values())));
         assertThat(
-            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(null)
         );
 
@@ -1448,7 +1469,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false, null
         );
         assertThat(
-            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1465,7 +1486,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false, null
         );
         assertThat(
-            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
 
@@ -1482,7 +1503,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             false, null
         );
         assertThat(
-            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState),
+            NodeDeprecationChecks.checkSamlNameIdFormatSetting(settings, null, clusterState, licenseState, NO_OP_CHECKER),
             equalTo(expectedIssue)
         );
     }

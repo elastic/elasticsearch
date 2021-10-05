@@ -10,11 +10,13 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,10 +32,18 @@ import java.util.stream.Stream;
  */
 public class DeprecationChecks {
 
+    public static final Setting<List<String>> HIDE_DEPRECATIONS_SETTING =
+        Setting.listSetting(
+            "deprecation.hide_deprecated_settings",
+            Collections.emptyList(),
+            Function.identity(),
+            new Setting.Property[] {Setting.Property.NodeScope, Setting.Property.Dynamic}
+        );
+
     private DeprecationChecks() {
     }
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
+    static List<ClusterDeprecationCheck<ClusterState, DeprecatedSettingsChecker, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
@@ -46,15 +56,17 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkILMFreezeActions
         ));
 
-    static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
+    static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecatedSettingsChecker,
+        DeprecationIssue>>
         NODE_SETTINGS_CHECKS;
 
         static {
-            final Stream<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
+            final Stream<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState,
+            DeprecatedSettingsChecker, DeprecationIssue>>
                 legacyRoleSettings =
                 DiscoveryNode.getPossibleRoles().stream()
                 .filter(r -> r.legacySetting() != null)
-                .map(r -> (s, p, t, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
+                .map(r -> (s, p, t, f, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p, c));
             NODE_SETTINGS_CHECKS = Stream.concat(
                 legacyRoleSettings,
                 Stream.of(
@@ -65,34 +77,42 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkUniqueRealmOrders,
                     NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
                     NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings, deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkThreadPoolListenerSize(settings, deprecatedSettingsChecker),
                     NodeDeprecationChecks::checkClusterRemoteConnectSetting,
                     NodeDeprecationChecks::checkNodeLocalStorageSetting,
                     NodeDeprecationChecks::checkGeneralScriptSizeSetting,
                     NodeDeprecationChecks::checkGeneralScriptExpireSetting,
                     NodeDeprecationChecks::checkGeneralScriptCompileSettings,
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
                         NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                            XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED),
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
-                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED),
+                            XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED, deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED,
+                            deprecatedSettingsChecker),
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED,
+                            deprecatedSettingsChecker),
                     NodeDeprecationChecks::checkMultipleDataPaths,
                     NodeDeprecationChecks::checkDataPathsList,
                     NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
@@ -106,7 +126,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkSslServerEnabled,
                     NodeDeprecationChecks::checkSslCertConfiguration,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
-                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                    (settings, pluginsAndModules, clusterState, licenseState, deprecatedSettingsChecker) ->
                         NodeDeprecationChecks.checkNoPermitHandshakeFromIncompatibleBuilds(settings, pluginsAndModules, clusterState,
                             licenseState, () -> System.getProperty(TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY)),
                     NodeDeprecationChecks::checkTransportClientProfilesFilterSetting,
@@ -127,7 +147,7 @@ public class DeprecationChecks {
             ).collect(Collectors.toList());
         }
 
-    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
+    static List<IndexDeprecationCheck<IndexMetadata, DeprecatedSettingsChecker, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::tooManyFieldsCheck,
@@ -158,8 +178,27 @@ public class DeprecationChecks {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
+    static boolean shouldHideDeprecation(List<String> hideDeprecationsSetting, String deprecatedSettingKey) {
+        return Regex.simpleMatch(hideDeprecationsSetting, deprecatedSettingKey);
+    }
+
     @FunctionalInterface
-    public interface NodeDeprecationCheck<A, B, C, D, R> {
-        R apply(A first, B second, C third, D fourth);
+    public interface ClusterDeprecationCheck<A, B, R> {
+        R apply(A first, B second);
+    }
+
+    @FunctionalInterface
+    public interface NodeDeprecationCheck<A, B, C, D, E, R> {
+        R apply(A first, B second, C third, D fourth, E fifth);
+    }
+
+    @FunctionalInterface
+    public interface IndexDeprecationCheck<A, B, R> {
+        R apply(A first, B second);
+    }
+
+    @FunctionalInterface
+    public interface DeprecatedSettingsChecker {
+        boolean shouldHideDeprecation(String setting);
     }
 }

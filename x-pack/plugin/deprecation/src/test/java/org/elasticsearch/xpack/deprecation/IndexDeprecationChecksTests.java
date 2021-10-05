@@ -47,9 +47,13 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
+
+    private static final DeprecationChecks.DeprecatedSettingsChecker NO_OP_CHECKER = settingKey -> false;
+
     public void testOldIndicesCheck() {
         Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
             VersionUtils.getPreviousVersion(Version.V_7_0_0));
@@ -62,7 +66,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Index created before 7.0",
             "https://ela.st/es-deprecation-7-reindex",
             "This index was created using version: " + createdWith, false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         assertEquals(singletonList(expected), issues);
     }
 
@@ -87,7 +91,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfReplicas(randomIntBetween(1, 100))
             .putMapping("_doc", simpleMapping)
             .build();
-        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertEquals(0, noIssues.size());
 
         // Test that it catches having too many fields
@@ -117,7 +121,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, which may cause queries which use " +
                 "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
                 "explicitly specified in the query.", false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsIndex));
+        List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsIndex, NO_OP_CHECKER));
         assertEquals(singletonList(expected), issues);
 
         // Check that it's okay to  have too many fields as long as `index.query.default_field` is set
@@ -129,7 +134,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .putMapping("_doc", Strings.toString(mappingBuilder))
             .build();
         List<DeprecationIssue> withDefaultFieldIssues =
-            DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsOk));
+            DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsOk, NO_OP_CHECKER));
         assertEquals(0, withDefaultFieldIssues.size());
     }
 
@@ -167,7 +172,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfReplicas(1)
             .putMapping("_doc", mapping)
             .build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertEquals(1, issues.size());
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -188,7 +193,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "}";
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
-        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex, NO_OP_CHECKER);
         assertNull(issue);
     }
 
@@ -203,7 +208,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "}";
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
-        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex, NO_OP_CHECKER);
         assertNull(issue);
     }
 
@@ -227,7 +232,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "; "+
                 "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
                 "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertThat(issues, hasItem(expected));
     }
 
@@ -249,7 +254,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "[type: _doc, field: date_time_field_Y, format: dd-YYYY||MM-YYYY, " +
                 "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
                 "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertThat(issues, hasItem(expected));
     }
 
@@ -271,7 +276,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "[type: _doc, field: date_time_field_Y, format: strictWeekyearWeek||MM-YYYY, " +
                 "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
                 "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertThat(issues, hasItem(expected));
     }
 
@@ -325,7 +330,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone." +
                 "]"+
                 "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertThat(issues, hasItem(expected));
     }
 
@@ -352,7 +357,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset." +
                 "]"+
                 "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertThat(issues, hasItem(expected));
     }
 
@@ -407,7 +412,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "translog retention settings are ignored",
@@ -426,7 +431,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
         }
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         assertThat(issues, empty());
     }
 
@@ -444,7 +449,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putMapping("_doc", mapping).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, NO_OP_CHECKER));
         assertEquals(1, issues.size());
 
         DeprecationIssue issue = issues.get(0);
@@ -459,7 +464,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(Version.CURRENT);
         settings.put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), createTempDir());
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         final String expectedUrl = "https://ela.st/es-deprecation-7-shared-path-settings";
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -474,7 +479,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         settings.put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.DEBUG);
         settings.put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), SlowLogLevel.DEBUG);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         final String expectedUrl = "https://ela.st/es-deprecation-7-slowlog-settings";
         assertThat(issues, containsInAnyOrder(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -493,7 +498,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(Version.CURRENT);
         settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "[simplefs] is deprecated and will be removed in future versions",
@@ -547,16 +552,29 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         assertThat(
-            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata, NO_OP_CHECKER),
             equalTo(expectedRequireIssue)
         );
         assertThat(
-            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata, NO_OP_CHECKER),
             equalTo(expectedIncludeIssue)
         );
         assertThat(
-            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata, NO_OP_CHECKER),
             equalTo(expectedExcludeIssue)
+        );
+
+        assertThat(IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata,
+            settingKey -> INDEX_ROUTING_REQUIRE_SETTING.getKey().equals(settingKey)),
+            nullValue()
+        );
+        assertThat(IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata,
+            settingKey -> INDEX_ROUTING_INCLUDE_SETTING.getKey().equals(settingKey)),
+            nullValue()
+        );
+        assertThat(IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata,
+            settingKey -> INDEX_ROUTING_EXCLUDE_SETTING.getKey().equals(settingKey)),
+            nullValue()
         );
 
         final String warningTemplate = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -576,7 +594,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(Version.CURRENT);
         IndexMetadata indexMetadata =
             IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         assertTrue(issues.isEmpty());
 
         Map<String, Object> okGeoMappingMap = Collections.singletonMap("properties", Collections.singletonMap("location",
@@ -584,7 +602,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         mappingMetadata = new MappingMetadata("", okGeoMappingMap);
         IndexMetadata indexMetadata2 =
             IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
-        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata2));
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata2, NO_OP_CHECKER));
         assertTrue(issues.isEmpty());
 
         Map<String, String> deprecatedPropertiesMap = Stream.of(new String[][] {
@@ -597,7 +615,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         mappingMetadata = new MappingMetadata("", deprecatedGeoMappingMap);
         IndexMetadata indexMetadata3 =
             IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
-        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata3));
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata3, NO_OP_CHECKER));
         assertEquals(1, issues.size());
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -616,7 +634,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         mappingMetadata = new MappingMetadata("", nestedDeprecatedGeoMappingMap);
         IndexMetadata indexMetadata4 =
             IndexMetadata.builder("test").settings(settings).putMapping(mappingMetadata).numberOfShards(1).numberOfReplicas(0).build();
-        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata4));
+        issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata4, NO_OP_CHECKER));
         assertEquals(1, issues.size());
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -631,7 +649,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         Settings.Builder settings = settings(Version.CURRENT);
         settings.put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 5);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, NO_OP_CHECKER));
         assertThat(
             issues,
             contains(

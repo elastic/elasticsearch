@@ -6,15 +6,6 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -37,6 +28,15 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
+
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
     DeprecationInfoAction.Response> {
     private static final List<DeprecationChecker> PLUGIN_CHECKERS =
@@ -47,6 +47,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
+    private List<String> hideDeprecationsSetting;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -59,6 +60,17 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        this.hideDeprecationsSetting = DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.HIDE_DEPRECATIONS_SETTING,
+            this::updateHideDeprecationsSetting);
+    }
+
+    private <T> void updateHideDeprecationsSetting(List<String> hideDeprecationsSetting) {
+        this.hideDeprecationsSetting = hideDeprecationsSetting;
+    }
+
+    private boolean shouldHideDeprecation(String deprecatedKey) {
+        return DeprecationChecks.shouldHideDeprecation(hideDeprecationsSetting, deprecatedKey);
     }
 
     @Override
@@ -100,7 +112,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                             response,
                             INDEX_SETTINGS_CHECKS,
                             CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues
+                            deprecationIssues,
+                            this::shouldHideDeprecation
                         )
                     );
                 },

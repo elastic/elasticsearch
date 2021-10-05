@@ -18,11 +18,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.deprecation.DeprecationChecks.DeprecatedSettingsChecker;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -109,7 +110,7 @@ public class IndexDeprecationChecks {
         return "type: " + type + ", field: " + entry.getKey();
     }
 
-    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -121,7 +122,10 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue tooManyFieldsCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue tooManyFieldsCheck(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(IndexSettings.DEFAULT_FIELD_SETTING.getKey())) {
+            return null;
+        }
         if (indexMetadata.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
             AtomicInteger fieldCount = new AtomicInteger(0);
 
@@ -145,7 +149,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue deprecatedDateTimeFormat(IndexMetadata indexMetadata) {
+    static DeprecationIssue deprecatedDateTimeFormat(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         Version createdWith = indexMetadata.getCreationVersion();
         if (createdWith.before(Version.V_7_0_0)) {
             List<String> fields = new ArrayList<>();
@@ -172,7 +176,7 @@ public class IndexDeprecationChecks {
             JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
     }
 
-    static DeprecationIssue chainedMultiFieldsCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue chainedMultiFieldsCheck(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         List<String> issues = new ArrayList<>();
         fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> issues.addAll(
             findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
@@ -202,7 +206,7 @@ public class IndexDeprecationChecks {
     /**
      * warn about existing explicit "_field_names" settings in existing mappings
      */
-    static DeprecationIssue fieldNamesDisabledCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue fieldNamesDisabledCheck(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         MappingMetadata mapping = indexMetadata.mapping();
         if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -261,7 +265,11 @@ public class IndexDeprecationChecks {
         return fields;
     }
 
-    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata,
+                                                          DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey())) {
+            return null;
+        }
         final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings());
         if (softDeletesEnabled) {
             if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
@@ -277,7 +285,10 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey())) {
+            return null;
+        }
         if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
             final String message = String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version", IndexMetadata.INDEX_DATA_PATH_SETTING.getKey());
@@ -287,15 +298,21 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
-    static DeprecationIssue indexingSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
-        return slowLogSettingCheck(indexMetadata, IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING);
+    static DeprecationIssue indexingSlowLogLevelSettingCheck(IndexMetadata indexMetadata,
+                                                             DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        return slowLogSettingCheck(indexMetadata, IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING, deprecatedSettingsChecker);
     }
 
-    static DeprecationIssue searchSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
-        return slowLogSettingCheck(indexMetadata, SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
+    static DeprecationIssue searchSlowLogLevelSettingCheck(IndexMetadata indexMetadata,
+                                                           DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        return slowLogSettingCheck(indexMetadata, SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL, deprecatedSettingsChecker);
     }
 
-    private static DeprecationIssue slowLogSettingCheck(IndexMetadata indexMetadata, Setting<SlowLogLevel> setting) {
+    private static DeprecationIssue slowLogSettingCheck(IndexMetadata indexMetadata, Setting<SlowLogLevel> setting,
+                                                        DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(setting.getKey())) {
+            return null;
+        }
         if (setting.exists(indexMetadata.getSettings())) {
             final String message = String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version", setting.getKey());
@@ -308,7 +325,10 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())) {
+            return null;
+        }
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
@@ -324,13 +344,15 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkRemovedSetting(final Settings settings,
                                                 final Setting<?> removedSetting,
                                                 final String url,
-                                                DeprecationIssue.Level deprecationLevel) {
+                                                DeprecationIssue.Level deprecationLevel,
+                                                DeprecatedSettingsChecker deprecatedSettingsChecker) {
         return checkRemovedSetting(
             settings,
             removedSetting,
             url,
             "setting [%s] is deprecated and will be removed in the next major version",
-            deprecationLevel
+            deprecationLevel,
+            deprecatedSettingsChecker
         );
     }
 
@@ -338,7 +360,11 @@ public class IndexDeprecationChecks {
                                                 final Setting<?> removedSetting,
                                                 final String url,
                                                 final String messagePattern,
-                                                DeprecationIssue.Level deprecationLevel) {
+                                                DeprecationIssue.Level deprecationLevel,
+                                                DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(removedSetting.getKey())) {
+            return null;
+        }
         if (removedSetting.exists(settings) == false) {
             return null;
         }
@@ -351,37 +377,45 @@ public class IndexDeprecationChecks {
         return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkIndexRoutingRequireSetting(IndexMetadata indexMetadata,
+                                                            DeprecatedSettingsChecker deprecatedSettingsChecker) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_REQUIRE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
-            DeprecationIssue.Level.CRITICAL
+            DeprecationIssue.Level.CRITICAL,
+            deprecatedSettingsChecker
         );
     }
 
-    static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkIndexRoutingIncludeSetting(IndexMetadata indexMetadata,
+                                                            DeprecatedSettingsChecker deprecatedSettingsChecker) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_INCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
-            DeprecationIssue.Level.CRITICAL
+            DeprecationIssue.Level.CRITICAL,
+            deprecatedSettingsChecker
         );
     }
 
-    static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkIndexRoutingExcludeSetting(IndexMetadata indexMetadata,
+                                                            DeprecatedSettingsChecker deprecatedSettingsChecker) {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_EXCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
-            DeprecationIssue.Level.CRITICAL
+            DeprecationIssue.Level.CRITICAL,
+            deprecatedSettingsChecker
         );
     }
 
-    static DeprecationIssue checkIndexMatrixFiltersSetting(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkIndexMatrixFiltersSetting(IndexMetadata indexMetadata,
+                                                           DeprecatedSettingsChecker deprecatedSettingsChecker) {
         return checkRemovedSetting(
             indexMetadata.getSettings(),
             IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
             "https://ela.st/es-deprecation-7-adjacency-matrix-filters-setting",
             "[%s] setting will be ignored in 8.0. Use [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey() + "] instead.",
-            DeprecationIssue.Level.WARNING
+            DeprecationIssue.Level.WARNING,
+            deprecatedSettingsChecker
         );
     }
 
@@ -402,7 +436,7 @@ public class IndexDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    static DeprecationIssue checkGeoShapeMappings(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkGeoShapeMappings(IndexMetadata indexMetadata, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         if (indexMetadata == null || indexMetadata.mapping() == null) {
             return null;
         }

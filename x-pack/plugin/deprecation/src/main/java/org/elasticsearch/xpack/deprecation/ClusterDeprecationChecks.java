@@ -28,6 +28,7 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.deprecation.DeprecationChecks.DeprecatedSettingsChecker;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,7 +51,7 @@ public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
 
     @SuppressWarnings("unchecked")
-    static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
+    static DeprecationIssue checkUserAgentPipelines(ClusterState state, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
 
         List<String> pipelinesWithDeprecatedEcsConfig = pipelines.stream()
@@ -79,7 +80,10 @@ public class ClusterDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkTemplatesWithTooManyFields(ClusterState state) {
+    static DeprecationIssue checkTemplatesWithTooManyFields(ClusterState state, DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey())) {
+            return null;
+        }
         Integer maxClauseCount = INDICES_MAX_CLAUSE_COUNT_SETTING.get(state.getMetadata().settings());
         List<String> templatesOverLimit = new ArrayList<>();
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
@@ -114,7 +118,7 @@ public class ClusterDeprecationChecks {
      * and will throw an error on new indices in 8.0
      */
     @SuppressWarnings("unchecked")
-    static DeprecationIssue checkTemplatesWithFieldNamesDisabled(ClusterState state) {
+    static DeprecationIssue checkTemplatesWithFieldNamesDisabled(ClusterState state, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         Set<String> templatesContainingFieldNames = new HashSet<>();
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
@@ -157,7 +161,10 @@ public class ClusterDeprecationChecks {
         return false;
     }
 
-    static DeprecationIssue checkPollIntervalTooLow(ClusterState state) {
+    static DeprecationIssue checkPollIntervalTooLow(ClusterState state, DeprecatedSettingsChecker deprecatedSettingsChecker) {
+        if (deprecatedSettingsChecker.shouldHideDeprecation(LIFECYCLE_POLL_INTERVAL_SETTING.getKey())) {
+            return null;
+        }
         String pollIntervalString = state.metadata().settings().get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
         if (Strings.isNullOrEmpty(pollIntervalString)) {
             return null;
@@ -181,7 +188,7 @@ public class ClusterDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkTemplatesWithMultipleTypes(ClusterState state) {
+    static DeprecationIssue checkTemplatesWithMultipleTypes(ClusterState state, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         Set<String> templatesWithMultipleTypes = new HashSet<>();
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
@@ -202,11 +209,12 @@ public class ClusterDeprecationChecks {
             null);
     }
 
-    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
+    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState,
+                                                                                   DeprecatedSettingsChecker deprecatedSettingsChecker) {
         return checkRemovedSetting(clusterState.metadata().settings(),
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
-            DeprecationIssue.Level.WARNING
+            DeprecationIssue.Level.WARNING, deprecatedSettingsChecker
         );
     }
 
@@ -268,7 +276,7 @@ public class ClusterDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
+    static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         String detailsForComponentTemplates =
             getDetailsMessageForGeoShapeComponentTemplates(clusterState.getMetadata().componentTemplates());
         String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
@@ -359,7 +367,8 @@ public class ClusterDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    static DeprecationIssue checkSparseVectorTemplates(final ClusterState clusterState) {
+    static DeprecationIssue checkSparseVectorTemplates(final ClusterState clusterState,
+                                                       DeprecatedSettingsChecker deprecatedSettingsChecker) {
         String detailsForComponentTemplates =
             getDetailsMessageForSparseVectorComponentTemplates(clusterState.getMetadata().componentTemplates());
         String detailsForIndexTemplates = getDetailsMessageForSparseVectorIndexTemplates(clusterState.getMetadata().getTemplates());
@@ -384,7 +393,7 @@ public class ClusterDeprecationChecks {
         }
     }
 
-    static DeprecationIssue checkILMFreezeActions(ClusterState state) {
+    static DeprecationIssue checkILMFreezeActions(ClusterState state, DeprecatedSettingsChecker deprecatedSettingsChecker) {
         IndexLifecycleMetadata indexLifecycleMetadata = state.getMetadata().custom("index_lifecycle");
         if (indexLifecycleMetadata != null) {
             List<String> policiesWithFreezeActions =

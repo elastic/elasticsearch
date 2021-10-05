@@ -52,6 +52,8 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
+    private static final DeprecationChecks.DeprecatedSettingsChecker NO_OP_CHECKER = settingKey -> false;
+
     public void testUserAgentEcsCheck() {
         PutPipelineRequest ecsFalseRequest = new PutPipelineRequest("ecs_false",
             new BytesArray("{\n" +
@@ -95,7 +97,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         state = IngestService.innerPut(ecsNullRequest, state);
 
         final ClusterState finalState = state;
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState, NO_OP_CHECKER));
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "User-Agent ingest plugin will always use ECS-formatted output",
@@ -163,7 +165,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 .build())
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state, NO_OP_CHECKER));
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Fields in index template exceed automatic field expansion limit",
@@ -236,7 +238,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 .build())
             .build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state, NO_OP_CHECKER));
         if (expectIssue) {
             assertEquals(1, issues.size());
             DeprecationIssue issue = issues.get(0);
@@ -270,7 +272,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
                 "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
                     "currently set to [" + tooLowInterval + "], but must be 1s or greater", false, null);
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState, NO_OP_CHECKER));
             assertEquals(singletonList(expected), issues);
         }
 
@@ -285,7 +287,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             ClusterState okState = ClusterState.builder(new ClusterName("test"))
                 .metadata(okMetadata)
                 .build();
-            List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
+            List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState, NO_OP_CHECKER));
             assertThat(noIssues, hasSize(0));
         }
     }
@@ -309,7 +311,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .templates(templates)
             .build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState, NO_OP_CHECKER));
         assertThat(issues, hasSize(1));
         assertThat(issues.get(0).getDetails(),
             equalTo("Index templates [multiple-types] define multiple types and so will cause errors when used in index creation"));
@@ -321,7 +323,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .build();
         ClusterState goodState = ClusterState.builder(new ClusterName("test")).metadata(goodMetadata).build();
         assertThat(
-            DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)),
+            DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState, NO_OP_CHECKER)),
             hasSize(0)
         );
     }
@@ -355,7 +357,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             null
         );
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState, NO_OP_CHECKER));
         assertThat(issues, hasSize(1));
         assertThat(issues.get(0), equalTo(expectedIssue));
 
@@ -395,7 +397,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .templates(templates)
             .build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        DeprecationIssue issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
+        DeprecationIssue issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState, NO_OP_CHECKER);
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -417,7 +419,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
             .build();
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
+        issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState, NO_OP_CHECKER);
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -433,7 +435,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .templates(templates)
             .build();
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState);
+        issue = ClusterDeprecationChecks.checkGeoShapeTemplates(badState, NO_OP_CHECKER);
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -475,7 +477,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .templates(templates)
             .build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        DeprecationIssue issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
+        DeprecationIssue issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState, NO_OP_CHECKER);
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -496,7 +498,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .componentTemplates(Collections.singletonMap(templateName, componentTemplate))
             .build();
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
+        issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState, NO_OP_CHECKER);
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -511,7 +513,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .templates(templates)
             .build();
         badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState);
+        issue = ClusterDeprecationChecks.checkSparseVectorTemplates(badState, NO_OP_CHECKER);
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -545,7 +547,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             .putCustom("index_lifecycle", lifecycle)
             .build();
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
-        DeprecationIssue issue = ClusterDeprecationChecks.checkILMFreezeActions(badState);
+        DeprecationIssue issue = ClusterDeprecationChecks.checkILMFreezeActions(badState, NO_OP_CHECKER);
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "some ilm policies contain a freeze action, which is deprecated and will be removed in a future release",

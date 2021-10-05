@@ -32,6 +32,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     private final Settings settings;
     private final XPackLicenseState licenseState;
     private final PluginsService pluginsService;
+    private List<String> hideDeprecationsSetting;
 
     @Inject
     public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
@@ -45,6 +46,17 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
         this.settings = settings;
         this.pluginsService = pluginsService;
         this.licenseState = licenseState;
+        this.hideDeprecationsSetting = DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.HIDE_DEPRECATIONS_SETTING,
+            this::updateHideDeprecationsSetting);
+    }
+
+    private <T> void updateHideDeprecationsSetting(List<String> hideDeprecationsSetting) {
+        this.hideDeprecationsSetting = hideDeprecationsSetting;
+    }
+
+    private boolean shouldHideDeprecation(String deprecatedKey) {
+        return DeprecationChecks.shouldHideDeprecation(hideDeprecationsSetting, deprecatedKey);
     }
 
     @Override
@@ -67,7 +79,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(settings, pluginsService.info(), clusterService.state(), licenseState));
+            (c) -> c.apply(settings, pluginsService.info(), clusterService.state(), licenseState, this::shouldHideDeprecation));
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }

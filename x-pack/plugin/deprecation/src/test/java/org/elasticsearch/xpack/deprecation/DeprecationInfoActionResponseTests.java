@@ -91,13 +91,15 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
+        List<DeprecationChecks.ClusterDeprecationCheck<ClusterState, DeprecationChecks.DeprecatedSettingsChecker,
+            DeprecationIssue>> clusterSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (s) -> clusterIssueFound ? foundIssue : null
+                (s, c) -> clusterIssueFound ? foundIssue : null
             ));
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<DeprecationChecks.IndexDeprecationCheck<IndexMetadata, DeprecationChecks.DeprecatedSettingsChecker,
+            DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (idx) -> indexIssueFound ? foundIssue : null
+                (idx, checker) -> indexIssueFound ? foundIssue : null
             ));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
@@ -115,7 +117,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             nodeDeprecationIssues,
             indexSettingsChecks,
             clusterSettingsChecks,
-            Collections.emptyMap());
+            Collections.emptyMap(),
+            x -> false);
 
         if (clusterIssueFound) {
             assertThat(response.getClusterSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));

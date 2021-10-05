@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -32,6 +34,16 @@ public class DeprecationChecksTests extends ESTestCase {
         }
         List<DeprecationIssue> filteredIssues = DeprecationInfoAction.filterChecks(checks, Supplier::get);
         assertThat(filteredIssues.size(), equalTo(numChecksFailed));
+    }
+
+    public void testShouldHideDeprecation() {
+        Settings settings = settings(Version.CURRENT).build();
+        String settingKey = "some.deprecated.key";
+        assertFalse(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings), settingKey));
+        settings = settings(Version.CURRENT).put(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.getKey(), "some.deprecated.key").build();
+        assertTrue(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings), settingKey));
+        settings = settings(Version.CURRENT).put(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.getKey(), "some.*.key").build();
+        assertTrue(DeprecationChecks.shouldHideDeprecation(DeprecationChecks.HIDE_DEPRECATIONS_SETTING.get(settings), settingKey));
     }
 
     private static DeprecationIssue createRandomDeprecationIssue() {

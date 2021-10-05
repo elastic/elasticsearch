@@ -728,7 +728,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
         final Map<String, long[]> indexToWaitForCheckpoints = request.getWaitForCheckpoints();
         final TimeValue waitForCheckpointsTimeout = request.getWaitForCheckpointsTimeout();
-        long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardIt.shardId().getIndex().getName(), EMPTY_LONG_ARRAY);
+        final long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardIt.shardId().getIndex().getName(), EMPTY_LONG_ARRAY);
 
         long waitForCheckpoint;
         if (waitForCheckpoints.length == 0) {

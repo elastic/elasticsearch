@@ -289,7 +289,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     /**
      * Snapshot of the local processed checkpoint before the current refresh if there is a refresh going on or null. Doesn't have to be
-     * volatile because when it is used by the refreshing thread.
+     * volatile because it is only used by the refreshing thread.
      */
     private long currentRefreshCheckpoint;
     private LongSupplier processedCheckpointSupplier;

@@ -79,10 +79,10 @@ setup:
       fleet.msearch:
         index: "test-after-refresh"
         body:
-          - { "allow_partial_search_results" : false, wait_for_checkpoints: [1]}
-          - { query: { match_all: {} } }
-          - {  "allow_partial_search_results":  false, wait_for_checkpoints: [2]}
-          - { query: { match_all: {} } }
+          - {"allow_partial_search_results" : false, wait_for_checkpoints: [1]}
+          - {query: { match_all: {} } }
+          - {"allow_partial_search_results":  false, wait_for_checkpoints: [2]}
+          - {query: { match_all: {} } }
 
   - match: { responses.0._shards.successful: 1 }
   - match: { responses.0.hits.total.value: 2 }

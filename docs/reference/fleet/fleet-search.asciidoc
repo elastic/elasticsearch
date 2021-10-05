@@ -9,7 +9,9 @@ The purpose of the fleet search api is to provide a search api where the search
 will only be executed after provided checkpoint has been processed and is visible
 for searches inside of Elasticsearch.
 
-This API is experimental and only intended for internal use by fleet server.
+NOTE: The fleet search API is designed for indirect use through fleet server. Direct use is
+not supported. Elastic reserves the right to change or remove this feature in future releases
+without prior notice.
 
 [discrete]
 [[wait-for-checkpoint-functionality]]
@@ -64,7 +66,5 @@ Defaults to an empty list which will cause Elasticsearch to immediately execute 
 (Optional, Boolean)
 If `true`, returns partial results if there are shard request timeouts or
 <<shard-failures,shard failures>>. If `false`, returns an error with
-no partial results. Defaults to `true`.
-+
-To override the default for this field, set the
-`search.default_allow_partial_results` cluster setting to `false`.
+no partial results. Defaults to the configured cluster setting `search.default_allow_partial_results` which
+is `true` by default.

@@ -380,7 +380,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,

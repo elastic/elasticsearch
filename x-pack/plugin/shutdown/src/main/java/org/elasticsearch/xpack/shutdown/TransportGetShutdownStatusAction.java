@@ -274,7 +274,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             })
             .findFirst();
 
-        if (totalRemainingShards == shardsToIgnoreForFinalStatus.get() && unmovableShard.isEmpty()) {
+        if (totalRemainingShards == shardsToIgnoreForFinalStatus.get() && unmovableShard.isPresent() == false) {
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.COMPLETE,
                 0,

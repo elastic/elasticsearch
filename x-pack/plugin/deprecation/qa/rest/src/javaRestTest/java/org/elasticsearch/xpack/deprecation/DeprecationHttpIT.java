@@ -74,9 +74,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
 
         final boolean defaultValue = jsonNode.at("/defaults/cluster.deprecation_indexing.enabled").asBoolean();
-        // value can be changed by tests
-        final boolean transientValue = jsonNode.at("/transient/cluster.deprecation_indexing.enabled").asBoolean();
-        assertTrue(defaultValue || transientValue);
+        assertTrue(defaultValue);
 
         // assert index does not exist
         assertBusy(() -> {
@@ -378,7 +376,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 );
             }, 30, TimeUnit.SECONDS);
         } finally {
-            configureWriteDeprecationLogsToIndex(true);
+            configureWriteDeprecationLogsToIndex(null);
         }
     }
 

@@ -493,7 +493,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Determines if data streams are preserved upon completion of this test. The default implementation does wipe data streams.
+     * Determines if data streams are preserved upon completion of this test. The default implementation wipes data streams.
      *
      * @return whether or not to preserve data streams
      */
@@ -782,7 +782,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
+            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*,-.ds-.logs-deprecation.elasticsearch-default-*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(warnings -> {

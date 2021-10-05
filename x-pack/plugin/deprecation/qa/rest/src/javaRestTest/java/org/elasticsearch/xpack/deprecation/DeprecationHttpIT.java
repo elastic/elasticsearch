@@ -60,6 +60,11 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class DeprecationHttpIT extends ESRestTestCase {
 
+    /**
+     * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
+     */
+    private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
+
     @Before
     public void assertIndexingIsEnabled() throws Exception {
         // make sure the deprecation logs indexing is enabled by default
@@ -82,8 +87,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     return;
                 }
             }
-            fail("Index should be remove on startup");
-        });
+            List<Map<String, Object>> documents = getIndexedDeprecations();
+            logger.warn(documents);
+
+            fail("Index should be removed on startup");
+        }, 30, TimeUnit.SECONDS);
     }
 
     @After
@@ -99,11 +107,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         }, 30, TimeUnit.SECONDS);
     }
-
-    /**
-     * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
-     */
-    private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
 
     /**
      * Attempts to do a scatter/gather request that expects unique responses per sub-request.

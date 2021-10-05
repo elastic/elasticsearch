@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -105,6 +107,7 @@ public class MetadataIndexAliasesService {
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
+            final Set<String> modifiedAliases = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
@@ -156,11 +159,29 @@ public class MetadataIndexAliasesService {
                     if (Strings.hasLength(filter)) {
                         validateFilter(indicesToClose, indices, action, index, alias, filter);
                     }
+                    modifiedAliases.add(alias);
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {
                     changed = true;
                     maybeModifiedIndices.add(index.getIndex().getName());
                 }
+            }
+
+            for (String alias : modifiedAliases) {
+                Set<IndexMetadata> referencesIndices = StreamSupport.stream(metadata.indices().values().spliterator(), false)
+                    .map(cursor -> cursor.value)
+                    .filter(im -> im.getAliases().get(alias) != null)
+                    .collect(Collectors.toSet());
+
+                Set<String> writeIndices = referencesIndices.stream()
+                    .filter(im -> Boolean.TRUE.equals(im.getAliases().get(alias).writeIndex()))
+                    .map(im -> im.getIndex().getName())
+                    .collect(Collectors.toSet());
+                if (writeIndices.size() > 1) {
+                    throw new IllegalStateException("alias [" + alias + "] has more than one write index [" +
+                        Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+                }
+                AliasValidator.validateAliasProperties(alias, referencesIndices);
             }
 
             for (final String maybeModifiedIndex : maybeModifiedIndices) {

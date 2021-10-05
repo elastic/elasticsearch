@@ -89,6 +89,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
@@ -923,6 +924,23 @@ public class MetadataCreateIndexService {
         blocks.updateBlocks(indexMetadata);
 
         ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metadata(newMetadata).build();
+
+        for (AliasMetadata am : indexMetadata.getAliases().values()) {
+            String aliasName = am.alias();
+            Set<IndexMetadata> referencesIndices = StreamSupport.stream(updatedState.metadata().indices().values().spliterator(), false)
+                .filter(im -> im.getAliases().get(aliasName) != null)
+                .collect(Collectors.toSet());
+
+            Set<String> writeIndices = referencesIndices.stream()
+                .filter(im -> Boolean.TRUE.equals(im.getAliases().get(aliasName).writeIndex()))
+                .map(im -> im.getIndex().getName())
+                .collect(Collectors.toSet());
+            if (writeIndices.size() > 1) {
+                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+            }
+            AliasValidator.validateAliasProperties(aliasName, referencesIndices);
+        }
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
             .addAsNew(updatedState.metadata().index(indexName));

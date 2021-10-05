@@ -7,12 +7,10 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
@@ -206,13 +204,13 @@ public interface IndexAbstraction {
             } else {
                 List<String> writeIndicesStrings = writeIndices.stream()
                     .map(i -> i.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
-                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
+                assert false : "alias [" + aliasName + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]";
+                this.writeIndex = null;
             }
 
-            this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
+            this.isHidden = aliasMetadata.isHidden() != null && aliasMetadata.isHidden();
             dataStreamAlias = false;
-            validateAliasProperties();
         }
 
         public Alias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
@@ -270,48 +268,6 @@ public interface IndexAbstraction {
             return null;
         }
 
-        private void validateAliasProperties() {
-            // Validate hidden status
-            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
-                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
-            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
-                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream()
-                    .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
-                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream()
-                    .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException("alias [" + aliasName + "] has is_hidden set to true on indices [" +
-                    Strings.collectionToCommaDelimitedString(hiddenOn) + "] but does not have is_hidden set to true on indices [" +
-                    Strings.collectionToCommaDelimitedString(nonHiddenOn) + "]; alias must have the same is_hidden setting " +
-                    "on all indices");
-            }
-
-            // Validate system status
-
-            final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = referenceIndexMetadatas.stream()
-                .collect(Collectors.groupingBy(IndexMetadata::isSystem));
-            // If the alias has either all system or all non-system, then no more validation is required
-            if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
-                final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true).stream()
-                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
-                    .map(i -> i.getIndex().getName())
-                    .sorted() // reliable error message for testing
-                    .collect(Collectors.toList());
-
-                if (newVersionSystemIndices.isEmpty() == false) {
-                    final List<String> nonSystemIndices = groupedBySystemStatus.get(false).stream()
-                        .map(i -> i.getIndex().getName())
-                        .sorted() // reliable error message for testing
-                        .collect(Collectors.toList());
-                    throw new IllegalStateException("alias [" + aliasName + "] refers to both system indices " + newVersionSystemIndices +
-                        " and non-system indices: " + nonSystemIndices + ", but aliases must refer to either system or" +
-                        " non-system indices, not both");
-                }
-            }
-        }
-
-        private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
-            return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
-        }
     }
 
     class DataStream implements IndexAbstraction {

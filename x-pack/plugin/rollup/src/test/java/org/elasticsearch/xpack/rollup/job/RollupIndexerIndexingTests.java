@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.FixedInt
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -634,7 +634,10 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             // Make sure the timestamp is sufficiently in the past that we don't get bitten
             // by internal rounding, causing no docs to match
             long timestamp = ZonedDateTime.now(ZoneOffset.UTC)
-                .minusDays(2).minusHours(randomIntBetween(11, 100)).toInstant().toEpochMilli();
+                .minusDays(2)
+                .minusHours(randomIntBetween(11, 100))
+                .toInstant()
+                .toEpochMilli();
             dataset.add(asMap(timestampField, timestamp, valueField, randomLongBetween(1, 100)));
         }
         executeTestCase(dataset, job, System.currentTimeMillis(), (resp) -> {

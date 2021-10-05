@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -920,7 +921,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
         indexDoc("test", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
@@ -983,7 +984,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         ensureGreen("test");
 
         ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
         indexDoc("test", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");

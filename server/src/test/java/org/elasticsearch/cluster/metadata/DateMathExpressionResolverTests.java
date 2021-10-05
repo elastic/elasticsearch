@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +44,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     }
 
     private static String formatDate(String pattern, ZonedDateTime zonedDateTime) {
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(pattern);
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(pattern, Locale.ROOT);
         return dateFormatter.format(zonedDateTime);
     }
 

@@ -395,7 +395,7 @@ public class Archives {
             // Clear the asynchronous event handlers
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} |"
                     + "Unregister-EventSubscriber -Force"
             );
         });

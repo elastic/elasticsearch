@@ -449,7 +449,7 @@ public abstract class PackagingTestCase extends Assert {
             sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} |"
                     + "Unregister-EventSubscriber -Force"
             );
             assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));

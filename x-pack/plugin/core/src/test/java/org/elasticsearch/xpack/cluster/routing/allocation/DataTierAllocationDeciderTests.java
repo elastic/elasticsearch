@@ -99,12 +99,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(node.toString(), d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm, data_cold], " +
+                containsString("index has a preference for tiers [data_warm,data_cold], " +
                     "but no nodes for any of those tiers are available in the cluster"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(node.toString(), d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm, data_cold], " +
+                containsString("index has a preference for tiers [data_warm,data_cold], " +
                     "but no nodes for any of those tiers are available in the cluster"));
         }
 
@@ -132,12 +132,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(node.toString(), d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm, data_cold] " +
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
                     "and node does not meet the required [data_cold] tier"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(node.toString(), d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm, data_cold] " +
+                containsString("index has a preference for tiers [data_warm,data_cold] " +
                     "and node does not meet the required [data_cold] tier"));
         }
 
@@ -146,11 +146,11 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
             assertThat(node.toString(), d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm, data_cold] and node has tier [data_cold]"));
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"));
             d = decider.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
             assertThat(node.toString(), d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm, data_cold] and node has tier [data_cold]"));
+                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"));
         }
     }
 

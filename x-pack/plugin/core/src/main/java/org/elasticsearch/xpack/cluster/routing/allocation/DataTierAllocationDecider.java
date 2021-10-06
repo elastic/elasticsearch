@@ -86,15 +86,29 @@ public class DataTierAllocationDecider extends AllocationDecider {
             if (tier.isPresent()) {
                 String tierName = tier.get();
                 if (allocationAllowed(tierName, roles)) {
+                    if (allocation.debugDecision() == false) {
+                        return Decision.YES;
+                    }
                     return allocation.decision(Decision.YES, NAME,
-                        "index has a preference for tiers %s and node has tier [%s]", tierPreference, tierName);
+                        "index has a preference for tiers [%s] and node has tier [%s]", String.join(",", tierPreference), tierName);
                 } else {
-                    return allocation.decision(Decision.NO, NAME,
-                    "index has a preference for tiers %s and node does not meet the required [%s] tier", tierPreference, tierName);
+                    if (allocation.debugDecision() == false) {
+                        return Decision.NO;
+                    }
+                    return allocation.decision(
+                        Decision.NO,
+                        NAME,
+                        "index has a preference for tiers [%s] and node does not meet the required [%s] tier",
+                        String.join(",", tierPreference),
+                        tierName
+                    );
                 }
             } else {
-                return allocation.decision(Decision.NO, NAME, "index has a preference for tiers %s, " +
-                    "but no nodes for any of those tiers are available in the cluster", tierPreference);
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
+                }
+                return allocation.decision(Decision.NO, NAME, "index has a preference for tiers [%s], " +
+                    "but no nodes for any of those tiers are available in the cluster", String.join(",", tierPreference));
             }
         }
         return null;

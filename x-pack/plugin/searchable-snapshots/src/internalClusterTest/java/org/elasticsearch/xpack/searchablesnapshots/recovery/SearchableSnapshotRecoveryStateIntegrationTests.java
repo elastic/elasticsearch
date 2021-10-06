@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
-import com.carrotsearch.hppc.ObjectContainer;
-
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -217,11 +215,11 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
     @SuppressForbidden(reason = "Uses FileSystem APIs")
     private long getPhysicalCacheSize(Index index, String snapshotUUID) throws Exception {
-        final ObjectContainer<DiscoveryNode> dataNodes = getDiscoveryNodes().getDataNodes().values();
+        final Collection<DiscoveryNode> dataNodes = getDiscoveryNodes().getDataNodes().values();
 
         assertThat(dataNodes.size(), equalTo(1));
 
-        final String dataNode = dataNodes.iterator().next().value.getName();
+        final String dataNode = dataNodes.iterator().next().getName();
 
         final IndexService indexService = internalCluster().getInstance(IndicesService.class, dataNode).indexService(index);
         final Path shardCachePath = CacheService.getShardCachePath(indexService.getShard(0).shardPath());

@@ -59,6 +59,11 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
+    public String getResultsField() {
+        return NAME;
+    }
+
+    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> asMap = new LinkedHashMap<>();
         asMap.put(NAME, warning);

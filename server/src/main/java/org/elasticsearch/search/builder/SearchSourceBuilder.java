@@ -1425,7 +1425,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (stats != null) {
-            builder.field(STATS_FIELD.getPreferredName(), stats);
+            builder.stringListField(STATS_FIELD.getPreferredName(), stats);
         }
 
         if (extBuilders != null && extBuilders.isEmpty() == false) {

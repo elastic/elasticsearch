@@ -71,7 +71,6 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -203,7 +202,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     DataTier.ALL_DATA_TIERS.stream().filter(tier -> tier.equals(DataTier.DATA_FROZEN) == false).collect(Collectors.toSet())
                 )
             );
-            indexSettingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, expectedDataTiersPreference);
+            indexSettingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, expectedDataTiersPreference);
         } else {
             expectedDataTiersPreference = MountSearchableSnapshotRequest.Storage.FULL_COPY.defaultDataTiersPreference();
         }
@@ -247,7 +246,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(expectedDataTiersPreference));
+        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(settings), equalTo(expectedDataTiersPreference));
         assertThat(IndexSettings.INDEX_CHECK_ON_STARTUP.get(settings), equalTo("false"));
 
         checkSoftDeletesNotEagerlyLoaded(restoredIndexName);
@@ -298,10 +297,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final DiscoveryNode dataNode = randomFrom(
-            StreamSupport.stream(
-                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values().spliterator(),
-                false
-            ).map(c -> c.value).toArray(DiscoveryNode[]::new)
+            client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
         assertAcked(

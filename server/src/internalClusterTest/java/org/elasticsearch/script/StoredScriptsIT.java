@@ -55,7 +55,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setId("id#")
-                .setContent(new BytesArray("{}"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON)
                 .get());
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }

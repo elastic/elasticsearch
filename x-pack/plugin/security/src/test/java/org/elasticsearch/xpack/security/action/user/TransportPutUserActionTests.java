@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -121,14 +120,12 @@ public class TransportPutUserActionTests extends ESTestCase {
 
     public void testReservedUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         ReservedRealm reservedRealm = new ReservedRealm(TestEnvironment.newEnvironment(settings), settings, usersStore,
-                                                        new AnonymousUser(settings), securityIndex, threadPool);
+                                                        new AnonymousUser(settings), threadPool);
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final User reserved = randomFrom(userFuture.actionGet().toArray(new User[0]));

@@ -39,7 +39,7 @@ public class TextEmbeddingConfig implements NlpConfig {
 
     private static ConstructingObjectParser<TextEmbeddingConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<TextEmbeddingConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new TextEmbeddingConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
+            a -> new TextEmbeddingConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2]));
         parser.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> {
@@ -57,21 +57,27 @@ public class TextEmbeddingConfig implements NlpConfig {
             ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
             TOKENIZATION
         );
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
+    private final String resultsField;
 
-    public TextEmbeddingConfig(@Nullable VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
+    public TextEmbeddingConfig(@Nullable VocabularyConfig vocabularyConfig,
+                               @Nullable Tokenization tokenization,
+                               @Nullable String resultsField) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
+        this.resultsField = resultsField;
     }
 
     public TextEmbeddingConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
+        resultsField = in.readOptionalString();
     }
 
     @Override
@@ -79,6 +85,9 @@ public class TextEmbeddingConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
         builder.endObject();
         return builder;
     }
@@ -92,6 +101,7 @@ public class TextEmbeddingConfig implements NlpConfig {
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
+        out.writeOptionalString(resultsField);
     }
 
     @Override
@@ -121,12 +131,13 @@ public class TextEmbeddingConfig implements NlpConfig {
 
         TextEmbeddingConfig that = (TextEmbeddingConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
-            && Objects.equals(tokenization, that.tokenization);
+            && Objects.equals(tokenization, that.tokenization)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization);
+        return Objects.hash(vocabularyConfig, tokenization, resultsField);
     }
 
     @Override
@@ -137,5 +148,10 @@ public class TextEmbeddingConfig implements NlpConfig {
     @Override
     public Tokenization getTokenization() {
         return tokenization;
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 }

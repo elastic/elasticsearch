@@ -26,7 +26,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MinAggregationBuilder> {
+public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
+    ValuesSource.Numeric,
+    MinAggregationBuilder> {
     public static final String NAME = "min";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,

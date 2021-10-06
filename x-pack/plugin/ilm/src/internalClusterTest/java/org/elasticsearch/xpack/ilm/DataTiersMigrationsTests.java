@@ -190,7 +190,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             assertReplicaIsUnassigned();
         }, 30, TimeUnit.SECONDS);
 
-        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER).build();
+        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTierAllocationDecider.TIER_PREFERENCE).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(managedIndex).settings(removeTierRoutingSetting);
         assertAcked(client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
 

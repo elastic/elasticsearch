@@ -316,7 +316,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             String defaultMetric = metrics.contains("value_count") ? "value_count" : metrics.get(0);
             builder.startObject(metricConfig.getField())
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics.toArray())
+                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .endObject();
         }

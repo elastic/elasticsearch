@@ -12,9 +12,6 @@ plugins {
 includeBuild "build-conventions"
 includeBuild "build-tools"
 includeBuild "build-tools-internal"
-includeBuild("plugins/examples") {
-  name = "example-plugins"
-}
 
 rootProject.name = "elasticsearch"
 
@@ -65,7 +62,8 @@ List projects = [
   'test:framework',
   'test:fixtures:azure-fixture',
   'test:fixtures:gcs-fixture',
-  'test:fixtures:hdfs-fixture',
+  'test:fixtures:hdfs2-fixture',
+  'test:fixtures:hdfs3-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',

@@ -8,6 +8,7 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -24,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class TransportGetIndexTemplatesAction extends
@@ -50,7 +50,7 @@ public class TransportGetIndexTemplatesAction extends
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = Arrays.asList(state.metadata().templates().values().toArray(IndexTemplateMetadata.class));
+            results = new ArrayList<>(state.metadata().templates().values());
         } else {
             results = new ArrayList<>();
         }

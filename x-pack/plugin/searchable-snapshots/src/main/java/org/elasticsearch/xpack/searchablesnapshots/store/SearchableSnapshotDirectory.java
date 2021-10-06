@@ -282,6 +282,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return stats.get(getNonNullFileExt(fileName));
     }
 
+    // only used in tests
+    public void clearStats() {
+        stats.clear();
+    }
+
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
         return files().stream()
             .filter(fileInfo -> fileInfo.physicalName().equals(name))
@@ -699,7 +704,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public void putCachedBlob(String name, ByteRange range, BytesReference content, ActionListener<Void> listener) {
-        blobStoreCacheService.putAsync(repository, snapshotId, indexId, shardId, name, range, content, listener);
+        blobStoreCacheService.putAsync(
+            repository,
+            snapshotId,
+            indexId,
+            shardId,
+            name,
+            range,
+            content,
+            threadPool.absoluteTimeInMillis(),
+            listener
+        );
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {

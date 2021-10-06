@@ -324,7 +324,7 @@ A specific test case can be run with the following command:
 ---------------------------------------------------------------------------
 ./gradlew ':rest-api-spec:yamlRestTest' \
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
-  -Dtests.method="test {p0=cat.segments/10_basic/Help}"
+  -Dtests.method="test {yaml=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 The YAML REST tests support all the options provided by the randomized runner, plus the following:

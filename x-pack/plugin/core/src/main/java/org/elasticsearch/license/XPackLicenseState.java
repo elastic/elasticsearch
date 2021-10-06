@@ -58,8 +58,6 @@ public class XPackLicenseState {
 
         CCR(OperationMode.PLATINUM, true),
 
-        GRAPH(OperationMode.PLATINUM, true),
-
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);

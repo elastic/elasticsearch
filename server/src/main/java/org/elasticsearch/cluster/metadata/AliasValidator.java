@@ -29,8 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -145,6 +147,23 @@ public class AliasValidator {
         return name -> Optional.ofNullable(metadata.getIndicesLookup().get(name))
             .filter(indexAbstraction -> indexAbstraction.getType() != IndexAbstraction.Type.ALIAS)
             .map(IndexAbstraction::getName).orElse(null);
+    }
+
+    static void crossValidateAliases(Collection<String> modifiedAliases, Stream<IndexMetadata> indices) {
+        for (String alias : modifiedAliases) {
+            Set<IndexMetadata> referencesIndices = indices.filter(im -> im.getAliases().get(alias) != null)
+                .collect(Collectors.toSet());
+
+            Set<String> writeIndices = referencesIndices.stream()
+                .filter(im -> Boolean.TRUE.equals(im.getAliases().get(alias).writeIndex()))
+                .map(im -> im.getIndex().getName())
+                .collect(Collectors.toSet());
+            if (writeIndices.size() > 1) {
+                throw new IllegalStateException("alias [" + alias + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndices) + "]");
+            }
+            validateAliasProperties(alias, referencesIndices);
+        }
     }
 
     static void validateAliasProperties(String aliasName, Collection<IndexMetadata> referenceIndexMetadatas) {

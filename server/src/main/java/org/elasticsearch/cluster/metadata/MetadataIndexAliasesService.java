@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyList;
@@ -166,24 +166,8 @@ public class MetadataIndexAliasesService {
                     maybeModifiedIndices.add(index.getIndex().getName());
                 }
             }
-
-            for (String alias : modifiedAliases) {
-                Set<IndexMetadata> referencesIndices = StreamSupport.stream(metadata.indices().values().spliterator(), false)
-                    .map(cursor -> cursor.value)
-                    .filter(im -> im.getAliases().get(alias) != null)
-                    .collect(Collectors.toSet());
-
-                Set<String> writeIndices = referencesIndices.stream()
-                    .filter(im -> Boolean.TRUE.equals(im.getAliases().get(alias).writeIndex()))
-                    .map(im -> im.getIndex().getName())
-                    .collect(Collectors.toSet());
-                if (writeIndices.size() > 1) {
-                    throw new IllegalStateException("alias [" + alias + "] has more than one write index [" +
-                        Strings.collectionToCommaDelimitedString(writeIndices) + "]");
-                }
-                AliasValidator.validateAliasProperties(alias, referencesIndices);
-            }
-
+            Stream<IndexMetadata> indicesStream = StreamSupport.stream(metadata.indices().values().spliterator(), false).map(c -> c.value);
+            AliasValidator.crossValidateAliases(modifiedAliases, indicesStream);
             for (final String maybeModifiedIndex : maybeModifiedIndices) {
                 final IndexMetadata currentIndexMetadata = currentState.metadata().index(maybeModifiedIndex);
                 final IndexMetadata newIndexMetadata = metadata.get(maybeModifiedIndex);

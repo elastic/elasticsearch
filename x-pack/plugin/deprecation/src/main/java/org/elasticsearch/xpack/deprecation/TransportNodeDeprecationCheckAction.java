@@ -75,7 +75,12 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request,
                                                            List<DeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules,
                                                                ClusterState, XPackLicenseState, DeprecationIssue>> nodeSettingsChecks) {
-        List<String> skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        final List<String> skipTheseDeprecatedSettings;
+        if (DeprecationChecks.SKIP_DEPRECATIONS_SETTING.exists(clusterService.state().metadata().settings())) {
+            skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(clusterService.state().metadata().settings());
+        } else {
+            skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        }
         Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(nodeSettingsChecks,
             (c) -> c.apply(filteredSettings, pluginsService.info(), clusterService.state(), licenseState));

@@ -87,11 +87,11 @@ public class CancellationTests extends ESTestCase {
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
         FieldCapabilities fooField =
-            new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
+            new FieldCapabilities("foo", "integer", false, true, true, false, null, indices, null, null, null, emptyMap());
         FieldCapabilities categoryField =
-            new FieldCapabilities("event.category", "keyword", false, true, true, indices, null, null, emptyMap());
+            new FieldCapabilities("event.category", "keyword", false, true, true, false, null, indices, null, null, null, emptyMap());
         FieldCapabilities timestampField =
-            new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+            new FieldCapabilities("@timestamp", "date", false, true, true, false, null, indices, null, null, null, emptyMap());
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));

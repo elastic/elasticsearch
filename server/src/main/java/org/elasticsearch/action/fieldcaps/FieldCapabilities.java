@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +34,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
+
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
  */
@@ -41,9 +46,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");
     private static final ParseField SEARCHABLE_FIELD = new ParseField("searchable");
     private static final ParseField AGGREGATABLE_FIELD = new ParseField("aggregatable");
+    private static final ParseField TIME_SERIES_DIMENSION_FIELD = new ParseField(TIME_SERIES_DIMENSION_PARAM);
+    private static final ParseField TIME_SERIES_METRIC_FIELD = new ParseField(TIME_SERIES_METRIC_PARAM);
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField NON_SEARCHABLE_INDICES_FIELD = new ParseField("non_searchable_indices");
     private static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
+    private static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
     private static final ParseField META_FIELD = new ParseField("meta");
 
     private final String name;
@@ -51,10 +59,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private final boolean isMetadataField;
     private final boolean isSearchable;
     private final boolean isAggregatable;
+    private final boolean isDimension;
+    private final TimeSeriesParams.MetricType metricType;
 
     private final String[] indices;
     private final String[] nonSearchableIndices;
     private final String[] nonAggregatableIndices;
+    private final String[] nonDimensionIndices;
 
     private final Map<String, Set<String>> meta;
 
@@ -65,30 +76,39 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isMetadataField Whether this field is a metadata field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param isDimension Whether this field can be used as dimension
+     * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
      * @param indices The list of indices where this field name is defined as {@code type},
      *                or null if all indices have the same {@code type} for the field.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
      *                               or null if the field is aggregatable in all indices.
+     * @param nonDimensionIndices The list of indices where this field is not a dimension
      * @param meta Merged metadata across indices.
      */
     public FieldCapabilities(String name, String type,
                              boolean isMetadataField,
                              boolean isSearchable,
                              boolean isAggregatable,
+                             boolean isDimension,
+                             TimeSeriesParams.MetricType metricType,
                              String[] indices,
                              String[] nonSearchableIndices,
                              String[] nonAggregatableIndices,
+                             String[] nonDimensionIndices,
                              Map<String, Set<String>> meta) {
         this.name = name;
         this.type = type;
         this.isMetadataField = isMetadataField;
         this.isSearchable = isSearchable;
         this.isAggregatable = isAggregatable;
+        this.isDimension = isDimension;
+        this.metricType = metricType;
         this.indices = indices;
         this.nonSearchableIndices = nonSearchableIndices;
         this.nonAggregatableIndices = nonAggregatableIndices;
+        this.nonDimensionIndices = nonDimensionIndices;
         this.meta = Objects.requireNonNull(meta);
     }
 
@@ -98,9 +118,21 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.isDimension = in.readBoolean();
+            this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
+        } else {
+            this.isDimension = false;
+            this.metricType = null;
+        }
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.nonDimensionIndices = in.readOptionalStringArray();
+        } else {
+            this.nonDimensionIndices = null;
+        }
         meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
     }
 
@@ -111,9 +143,16 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(isDimension);
+            out.writeOptionalEnum(metricType);
+        }
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalStringArray(nonDimensionIndices);
+        }
         out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
     }
 
@@ -124,6 +163,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(IS_METADATA_FIELD.getPreferredName(), isMetadataField);
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
+        builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), isDimension);
+        if (metricType != null) {
+            builder.field(TIME_SERIES_METRIC_FIELD.getPreferredName(), metricType);
+        }
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
@@ -132,6 +175,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
         if (nonAggregatableIndices != null) {
             builder.array(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
+        }
+        if (nonDimensionIndices != null) {
+            builder.field(NON_DIMENSION_INDICES_FIELD.getPreferredName(), nonDimensionIndices);
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
@@ -156,26 +202,38 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<FieldCapabilities, String> PARSER = new ConstructingObjectParser<>(
         "field_capabilities",
         true,
-        (a, name) -> new FieldCapabilities(name,
+        (a, name) -> new FieldCapabilities(
+            name,
             (String) a[0],
             a[3] == null ? false : (boolean) a[3],
             (boolean) a[1],
             (boolean) a[2],
-            a[4] != null ? ((List<String>) a[4]).toArray(new String[0]) : null,
-            a[5] != null ? ((List<String>) a[5]).toArray(new String[0]) : null,
+            a[4] == null ? false : (boolean) a[4],
+            a[5] != null ? Enum.valueOf(TimeSeriesParams.MetricType.class, (String) a[5]) : null,
             a[6] != null ? ((List<String>) a[6]).toArray(new String[0]) : null,
-            a[7] != null ? ((Map<String, Set<String>>) a[7]) : Collections.emptyMap()));
+            a[7] != null ? ((List<String>) a[7]).toArray(new String[0]) : null,
+            a[8] != null ? ((List<String>) a[8]).toArray(new String[0]) : null,
+            a[9] != null ? ((List<String>) a[9]).toArray(new String[0]) : null,
+            a[10] != null ? ((Map<String, Set<String>>) a[10]) : Collections.emptyMap()
+        )
+    );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_METADATA_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (parser, context) -> parser.map(HashMap::new, p -> Set.copyOf(p.list())), META_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD); // 0
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SEARCHABLE_FIELD); // 1
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), AGGREGATABLE_FIELD); // 2
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), IS_METADATA_FIELD); // 3
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_DIMENSION_FIELD); // 4
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SERIES_METRIC_FIELD); // 5
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD); // 6
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD); // 7
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD); // 8
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_DIMENSION_INDICES_FIELD); // 9
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (parser, context) -> parser.map(HashMap::new, p -> Set.copyOf(p.list())),
+            META_FIELD
+        ); // 10
     }
 
     /**
@@ -204,6 +262,20 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      */
     public boolean isSearchable() {
         return isSearchable;
+    }
+
+    /**
+     * Whether this field is a dimension in any indices.
+     */
+    public boolean isDimension() {
+        return isDimension;
+    }
+
+    /**
+     * The metric type
+     */
+    public TimeSeriesParams.MetricType getMetricType() {
+        return metricType;
     }
 
     /**
@@ -237,6 +309,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return nonAggregatableIndices;
     }
 
+
+    /**
+     * The list of indices where this field has different dimension or metric flag
+     */
+    public String[] nonDimensionIndices() {
+        return nonDimensionIndices;
+    }
+
     /**
      * Return merged metadata across indices.
      */
@@ -252,20 +332,24 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return isMetadataField == that.isMetadataField &&
             isSearchable == that.isSearchable &&
             isAggregatable == that.isAggregatable &&
+            isDimension == that.isDimension &&
+            Objects.equals(metricType, that.metricType) &&
             Objects.equals(name, that.name) &&
             Objects.equals(type, that.type) &&
             Arrays.equals(indices, that.indices) &&
             Arrays.equals(nonSearchableIndices, that.nonSearchableIndices) &&
             Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices) &&
+            Arrays.equals(nonDimensionIndices, that.nonDimensionIndices) &&
             Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, meta);
+        int result = Objects.hash(name, type, isMetadataField, isSearchable, isAggregatable, isDimension, metricType, meta);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
+        result = 31 * result + Arrays.hashCode(nonDimensionIndices);
         return result;
     }
 
@@ -280,6 +364,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isMetadataField;
         private boolean isSearchable;
         private boolean isAggregatable;
+        private boolean isDimension;
+        private TimeSeriesParams.MetricType metricType;
+        private boolean mertricTypeIsSet;
         private List<IndexCaps> indiceList;
         private Map<String, Set<String>> meta;
 
@@ -288,6 +375,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.type = type;
             this.isSearchable = true;
             this.isAggregatable = true;
+            this.isDimension = true;
+            this.metricType = null;
+            this.mertricTypeIsSet = false;
             this.indiceList = new ArrayList<>();
             this.meta = new HashMap<>();
         }
@@ -295,12 +385,30 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         /**
          * Collect the field capabilities for an index.
          */
-        void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
-            IndexCaps indexCaps = new IndexCaps(index, search, agg);
+        void add(
+            String index,
+            boolean isMetadataField,
+            boolean search,
+            boolean agg,
+            boolean isDimension,
+            TimeSeriesParams.MetricType metricType,
+            Map<String, String> meta
+        ) {
+            IndexCaps indexCaps = new IndexCaps(index, search, agg, isDimension, metricType != null);
             indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
             this.isMetadataField |= isMetadataField;
+            this.isDimension &= isDimension;
+            // If we have discrepancy in metric types - we ignore it
+            if (this.mertricTypeIsSet) {
+                if (this.metricType != metricType) {
+                    this.metricType = null;
+                }
+            } else {
+                this.mertricTypeIsSet = true;
+                this.metricType = metricType;
+            }
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
                         .add(entry.getValue());
@@ -347,12 +455,37 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             } else {
                 nonAggregatableIndices = null;
             }
+
+
+            final String[] nonDimensionIndices;
+            if (isDimension == false && indiceList.stream().anyMatch((caps) -> caps.isDimension)) {
+                // Collect all indices that disagree on the dimension flag
+                nonDimensionIndices = indiceList.stream()
+                    .filter((caps) -> caps.isDimension == false)
+                    .map(caps -> caps.name)
+                    .toArray(String[]::new);
+            } else {
+                nonDimensionIndices = null;
+            }
+
             final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
             Map<String, Set<String>> immutableMeta = meta.entrySet().stream()
                     .collect(Collectors.toUnmodifiableMap(
                             Map.Entry::getKey, entryValueFunction.andThen(Set::copyOf)));
-            return new FieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable,
-                indices, nonSearchableIndices, nonAggregatableIndices, immutableMeta);
+            return new FieldCapabilities(
+                name,
+                type,
+                isMetadataField,
+                isSearchable,
+                isAggregatable,
+                isDimension,
+                metricType,
+                indices,
+                nonSearchableIndices,
+                nonAggregatableIndices,
+                nonDimensionIndices,
+                immutableMeta
+            );
         }
     }
 
@@ -360,11 +493,15 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         final String name;
         final boolean isSearchable;
         final boolean isAggregatable;
+        final boolean isMetric;
+        final boolean isDimension;
 
-        IndexCaps(String name, boolean isSearchable, boolean isAggregatable) {
+        IndexCaps(String name, boolean isSearchable, boolean isAggregatable, boolean isDimension, boolean isMetric) {
             this.name = name;
             this.isSearchable = isSearchable;
             this.isAggregatable = isAggregatable;
+            this.isMetric = isMetric;
+            this.isDimension = isDimension;
         }
     }
 }

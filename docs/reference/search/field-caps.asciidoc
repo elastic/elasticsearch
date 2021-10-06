@@ -111,6 +111,12 @@ field types are all described as the `keyword` type family.
 `aggregatable`::
   Whether this field can be aggregated on all indices.
 
+`time_series_dimension`::
+  Whether this field is used as a time series dimension.
+
+`time_series_metrics`::
+  Contains metric type if this fields is used as a time series metrics, null if the field is not used as metric.
+
 `indices`::
   The list of indices where this field has the same type family, or null if all indices
   have the same type family for the field.
@@ -121,6 +127,10 @@ field types are all described as the `keyword` type family.
 
 `non_aggregatable_indices`::
   The list of indices where this field is not aggregatable, or null if all
+  indices have the same definition for the field.
+
+`non_dimension_indices`::
+  The list of indices where this field is not marked as a dimension field, or null if all
   indices have the same definition for the field.
 
 `meta`::
@@ -163,6 +173,7 @@ The API returns the following response:
         "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
+        "time_series_dimension": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]  <2>
       },
@@ -170,6 +181,7 @@ The API returns the following response:
         "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
+        "time_series_dimension": false,
         "indices": [ "index3", "index4" ],
         "non_searchable_indices": [ "index4" ]    <3>
       }
@@ -178,8 +190,8 @@ The API returns the following response:
       "text": {
         "metadata_field": false,
         "searchable": true,
-        "aggregatable": false
-
+        "aggregatable": false,
+        "time_series_dimension": false
       }
     }
   }
@@ -215,6 +227,7 @@ in some indices but not all:
         "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
+        "time_series_dimension": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]
       },
@@ -222,6 +235,7 @@ in some indices but not all:
         "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
+        "time_series_dimension": false,
         "indices": [ "index3", "index4" ],
         "non_searchable_indices": [ "index4" ]
       },
@@ -229,7 +243,8 @@ in some indices but not all:
         "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
-        "aggregatable": false
+        "aggregatable": false,
+        "time_series_dimension": false
       }
     },
     "title": {
@@ -237,13 +252,15 @@ in some indices but not all:
         "metadata_field": false,
         "indices": [ "index1", "index2", "index3", "index4" ],
         "searchable": true,
-        "aggregatable": false
+        "aggregatable": false,
+        "time_series_dimension": false
       },
       "unmapped": {                               <2>
         "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
-        "aggregatable": false
+        "aggregatable": false,
+        "time_series_dimension": false
       }
     }
   }

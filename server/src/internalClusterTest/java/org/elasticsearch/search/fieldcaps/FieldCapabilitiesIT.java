@@ -124,14 +124,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(distance.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("distance", "double", false, true, true, new String[] {"old_index"}, null, null,
-                    Collections.emptyMap()),
+            new FieldCapabilities("distance", "double", false, true, true, false, null, new String[] {"old_index"}, null, null, null,
+                Collections.emptyMap()),
             distance.get("double"));
 
         assertTrue(distance.containsKey("text"));
         assertEquals(
-            new FieldCapabilities("distance", "text", false, true, false, new String[] {"new_index"}, null, null,
-                    Collections.emptyMap()),
+            new FieldCapabilities("distance", "text", false, true, false, false, null, new String[] {"new_index"}, null, null, null,
+                Collections.emptyMap()),
             distance.get("text"));
 
         // Check the capabilities for the 'route_length_miles' alias.
@@ -140,7 +140,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", false, true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("route_length_miles", "double", false, true, true, false, null, null, null, null, null,
+                Collections.emptyMap()),
             routeLength.get("double"));
     }
 
@@ -181,14 +182,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(oldField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("old_field", "long", false, true, true, new String[] {"old_index"}, null, null,
-                    Collections.emptyMap()),
+            new FieldCapabilities("old_field", "long", false, true, true, false, null, new String[] {"old_index"}, null, null, null,
+                Collections.emptyMap()),
             oldField.get("long"));
 
         assertTrue(oldField.containsKey("unmapped"));
         assertEquals(
-            new FieldCapabilities("old_field", "unmapped", false, false, false, new String[] {"new_index"}, null, null,
-                    Collections.emptyMap()),
+            new FieldCapabilities("old_field", "unmapped", false, false, false, false, null, new String[] {"new_index"}, null, null, null,
+                Collections.emptyMap()),
             oldField.get("unmapped"));
 
         Map<String, FieldCapabilities> newField = response.getField("new_field");
@@ -196,7 +197,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", false, true, true, null, null, null, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", false, true, true, false, null, null, null, null, null,
+                Collections.emptyMap()),
             newField.get("long"));
     }
 
@@ -260,7 +262,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(idField.containsKey("_id"));
             assertEquals(
-                new FieldCapabilities("_id", "_id", true, true, false, null, null, null, Collections.emptyMap()),
+                new FieldCapabilities("_id", "_id", true, true, false, false, null, null, null, null, null, Collections.emptyMap()),
                 idField.get("_id"));
 
             Map<String, FieldCapabilities> testField = response.getField("_test");
@@ -268,7 +270,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
             assertTrue(testField.containsKey("keyword"));
             assertEquals(
-                new FieldCapabilities("_test", "keyword", true, true, true, null, null, null, Collections.emptyMap()),
+                new FieldCapabilities("_test", "keyword", true, true, true, false, null, null, null, null, null,
+                    Collections.emptyMap()),
                 testField.get("keyword"));
         }
     }

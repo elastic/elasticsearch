@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
 
@@ -73,7 +74,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         }
 
         return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), randomBoolean(), meta);
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomFrom(TimeSeriesParams.MetricType.values()), meta);
     }
 
     @Override

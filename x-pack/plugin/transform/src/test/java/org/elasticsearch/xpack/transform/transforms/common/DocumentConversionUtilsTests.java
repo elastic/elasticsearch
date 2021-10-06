@@ -117,6 +117,7 @@ public class DocumentConversionUtilsTests extends ESTestCase {
 
     private static FieldCapabilities createFieldCapabilities(String name, String type) {
         return new FieldCapabilities(
-            name, type, false, true, true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Collections.emptyMap());
+            name, type, false, true, true, false, null, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, null,
+                Collections.emptyMap());
     }
 }

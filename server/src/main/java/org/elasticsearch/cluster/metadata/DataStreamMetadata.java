@@ -121,11 +121,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(DATA_STREAM.getPreferredName());
-        for (Map.Entry<String, DataStream> dataStream : dataStreams.entrySet()) {
-            builder.field(dataStream.getKey(), dataStream.getValue());
-        }
-        builder.endObject();
+        builder.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams);
         builder.startObject(DATA_STREAM_ALIASES.getPreferredName());
         for (Map.Entry<String, DataStreamAlias> dataStream : dataStreamAliases.entrySet()) {
             dataStream.getValue().toXContent(builder, params);

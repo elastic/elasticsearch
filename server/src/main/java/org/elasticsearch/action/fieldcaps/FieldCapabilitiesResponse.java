@@ -151,11 +151,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
             throw new IllegalStateException("cannot serialize non-merged response");
         }
         builder.startObject();
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.array(INDICES_FIELD.getPreferredName(), indices);
         builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
         if (this.failures.size() > 0) {
             builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
-            builder.field(FAILURES_FIELD.getPreferredName(), failures);
+            builder.xContentList(FAILURES_FIELD.getPreferredName(), failures);
         }
         builder.endObject();
         return builder;

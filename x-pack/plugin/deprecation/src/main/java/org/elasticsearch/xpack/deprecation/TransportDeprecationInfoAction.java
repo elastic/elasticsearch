@@ -47,7 +47,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
-    private List<String> skipTheseDeprecatedSettings;
+    private volatile List<String> skipTheseDeprecatedSettings;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,

@@ -35,7 +35,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     private final Settings settings;
     private final XPackLicenseState licenseState;
     private final PluginsService pluginsService;
-    private List<String> skipTheseDeprecatedSettings;
+    private volatile List<String> skipTheseDeprecatedSettings;
 
     @Inject
     public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,

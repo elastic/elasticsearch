@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
+ * Base class for {@link GeoShapeFieldMapper}
  */
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 

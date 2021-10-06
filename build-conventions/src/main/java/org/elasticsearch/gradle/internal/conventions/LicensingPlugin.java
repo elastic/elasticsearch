@@ -16,7 +16,6 @@ import org.gradle.api.provider.ProviderFactory;
 
 import javax.inject.Inject;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 public class LicensingPlugin implements Plugin<Project> {
     static final String ELASTIC_LICENSE_URL_PREFIX = "https://raw.githubusercontent.com/elastic/elasticsearch/";
@@ -42,7 +41,7 @@ public class LicensingPlugin implements Plugin<Project> {
         project.getExtensions().getExtraProperties().set("elasticLicenseUrl", projectLicenseURL);
 
         MapProperty<String, String> licensesProperty = project.getObjects().mapProperty(String.class, String.class).convention(
-                providerFactory.provider((Callable<Map<? extends String, ? extends String>>) () -> Map.of(
+                providerFactory.provider(() -> Map.of(
                         "Server Side Public License, v 1", "https://www.mongodb.com/licensing/server-side-public-license",
                         "Elastic License 2.0", projectLicenseURL.get())
                 )

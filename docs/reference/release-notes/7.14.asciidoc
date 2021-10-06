@@ -7,6 +7,7 @@ Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 [discrete]
 === Known issues
 
+// tag::ccs-agg-mem-known-issue[]
 * Aggregations: In {es} 7.14.0–7.15.0, when a {ccs} ({ccs-init}) request is proxied, the memory for the aggregations on the
 proxy node will not be freed. The trigger is {ccs} using aggregations where minimize 
 roundtrips is not effective (for example, when minimize roundtrips is explicitly disabled, or implicitly disabled 
@@ -20,6 +21,7 @@ we must send the request as a proxy request. The workaround is to periodically r
 +
 We have fixed this issue in {es} 7.15.1 and later versions. For more details,
 see {es-pull}78404[#78404].
+// end::ccs-agg-mem-known-issue[]
 
 [[enhancement-7.14.2]]
 [float]
@@ -51,6 +53,12 @@ Snapshot/Restore::
 == {es} version 7.14.1
 
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[known-issues-7.14.1]]
+[discrete]
+=== Known issues
+
+include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 
 [[enhancement-7.14.1]]
 [float]
@@ -146,6 +154,12 @@ Packaging::
 == {es} version 7.14.0
 
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[known-issues-7.14.0]]
+[discrete]
+=== Known issues
+
+include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 
 [[breaking-7.14.0]]
 [float]

@@ -443,7 +443,7 @@ public class PublicationTransportHandler {
                 transportService.sendRequest(
                     destination,
                     PUBLISH_STATE_ACTION_NAME,
-                    new BytesTransportRequest(Compression.Scheme.DEFLATE, bytes, destination.getVersion()),
+                    new BytesTransportRequest(compressionScheme, bytes, destination.getVersion()),
                     STATE_REQUEST_OPTIONS,
                     new ActionListenerResponseHandler<PublishWithJoinResponse>(
                         ActionListener.runAfter(listener, bytes::decRef),

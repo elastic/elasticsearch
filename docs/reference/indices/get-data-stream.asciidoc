@@ -59,7 +59,7 @@ PUT /_data_stream/my-data-stream-two
 [source,console]
 ----
 DELETE /_data_stream/*
-DELETE /_index_template/*
+DELETE /_index_template/my-index-template
 DELETE /_ilm/policy/my-lifecycle-policy
 ----
 // TEARDOWN

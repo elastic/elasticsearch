@@ -45,7 +45,7 @@ PUT /my-data-stream/_create/bfspvnIBr7VVZlfp2lqX?refresh=wait_for
 ----
 DELETE /_data_stream/*
 
-DELETE /_index_template/*
+DELETE /_index_template/my-data-stream-template
 ----
 // TEARDOWN
 ////

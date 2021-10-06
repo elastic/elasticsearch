@@ -52,7 +52,7 @@ query>>.
 [source,console]
 ----
 DELETE /_data_stream/*
-DELETE /_index_template/*
+DELETE /_index_template/my-data-stream-template
 ----
 // TEARDOWN
 ////

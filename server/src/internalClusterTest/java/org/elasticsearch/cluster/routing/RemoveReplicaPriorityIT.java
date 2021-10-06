@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -19,7 +20,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -53,9 +53,9 @@ public class RemoveReplicaPriorityIT extends ESIntegTestCase {
             });
         }
 
-        final String dataNodeIdFilter = StreamSupport.stream(client().admin().cluster().prepareState().clear().setNodes(true).get()
-                .getState().nodes().getDataNodes().values().spliterator(), false)
-                .map(c -> c.value.getId()).limit(3).collect(Collectors.joining(","));
+        final String dataNodeIdFilter = client().admin().cluster().prepareState().clear().setNodes(true).get()
+                .getState().nodes().getDataNodes().values().stream()
+                .map(DiscoveryNode::getId).limit(3).collect(Collectors.joining(","));
         final String excludedDataNodeId = dataNodeIdFilter.substring(0, dataNodeIdFilter.indexOf(','));
 
         createIndex(INDEX_NAME, Settings.builder()

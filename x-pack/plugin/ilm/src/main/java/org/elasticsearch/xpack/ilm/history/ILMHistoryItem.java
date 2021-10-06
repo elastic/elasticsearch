@@ -82,7 +82,7 @@ public class ILMHistoryItem implements ToXContentObject {
         }
         builder.field(SUCCESS.getPreferredName(), success);
         if (executionState != null) {
-            builder.field(EXECUTION_STATE.getPreferredName(), executionState.asMap());
+            builder.stringStringMap(EXECUTION_STATE.getPreferredName(), executionState.asMap());
         }
         if (errorDetails != null) {
             builder.field(ERROR.getPreferredName(), errorDetails);

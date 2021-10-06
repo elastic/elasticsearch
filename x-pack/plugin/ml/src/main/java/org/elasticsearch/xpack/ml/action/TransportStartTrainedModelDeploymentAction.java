@@ -156,7 +156,12 @@ public class TransportStartTrainedModelDeploymentAction
 
                 getModelBytes(trainedModelConfig, ActionListener.wrap(
                     modelBytes -> {
-                        TaskParams taskParams = new TaskParams(trainedModelConfig.getModelId(), modelBytes);
+                        TaskParams taskParams = new TaskParams(
+                            trainedModelConfig.getModelId(),
+                            modelBytes,
+                            request.getInferenceThreads(),
+                            request.getModelThreads()
+                        );
                         PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
                             PersistentTasksCustomMetadata.TYPE);
                         memoryTracker.refresh(persistentTasks, ActionListener.wrap(

@@ -100,7 +100,6 @@ public class MetadataMigrateToDataStreamService {
                             }
                         },
                         request,
-                        threadContext,
                         metadataCreateIndexService);
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
@@ -111,7 +110,6 @@ public class MetadataMigrateToDataStreamService {
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request,
-                                            ThreadContext threadContext,
                                             MetadataCreateIndexService metadataCreateIndexService) throws Exception {
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
@@ -119,7 +117,7 @@ public class MetadataMigrateToDataStreamService {
         validateBackingIndices(currentState, request.aliasName);
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
         for (IndexMetadata im : alias.getIndices()) {
-            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier);
+            prepareBackingIndex(mb, im, request.aliasName, mapperSupplier, true);
         }
         currentState = ClusterState.builder(currentState).metadata(mb).build();
 
@@ -153,12 +151,13 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
-    private static void prepareBackingIndex(
+    // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
+    static void prepareBackingIndex(
         Metadata.Builder b,
         IndexMetadata im,
         String dataStreamName,
-        Function<IndexMetadata, MapperService> mapperSupplier) throws IOException {
-        // hides the index, removes the original alias, and adds data stream timestamp field mapper
+        Function<IndexMetadata, MapperService> mapperSupplier,
+        boolean removeAlias) throws IOException {
         MappingMetadata mm = im.mapping();
         if (mm == null) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
@@ -170,8 +169,12 @@ public class MetadataMigrateToDataStreamService {
             MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();
 
-        b.put(IndexMetadata.builder(im)
-            .removeAlias(dataStreamName)
+        var imb = IndexMetadata.builder(im);
+        if (removeAlias) {
+            imb.removeAlias(dataStreamName);
+        }
+
+        b.put(imb
             .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
             .settingsVersion(im.getSettingsVersion() + 1)
             .mappingVersion(im.getMappingVersion() + 1)

@@ -92,6 +92,10 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -375,6 +379,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // API keys
         assertThat(kibanaRole.cluster().check(InvalidateApiKeyAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(GrantApiKeyAction.NAME, request, authentication), is(true));
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
+        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
+        // Can only get and query its own API keys
+        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(), authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME,
+            new GetApiKeyRequest(null, null, null, null, true), authentication),
+            is(true));
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
+        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
+        queryApiKeyRequest.setFilterForCurrentUser();
+        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
 
         // ML
         assertRoleHasManageMl(kibanaRole);

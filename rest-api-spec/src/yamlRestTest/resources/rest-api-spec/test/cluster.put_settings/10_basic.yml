@@ -1,6 +1,13 @@
 ---
 "Test put and reset transient settings":
+  - skip:
+      version: " - 7.15.99"
+      reason:  "transient settings deprecation added in 7.16.0"
+      features: "warnings"
+
   - do:
+      warnings:
+        - "[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead."
       cluster.put_settings:
         body:
           transient:

@@ -8,8 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,34 +95,26 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     FieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
-        this.isMetadataField = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
+        this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
-        } else {
-            meta = Collections.emptyMap();
-        }
+        meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(isMetadataField);
-        }
+        out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
-        }
+        out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
     }
 
     @Override
@@ -134,13 +125,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (indices != null) {
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
+            builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
         if (nonSearchableIndices != null) {
-            builder.field(NON_SEARCHABLE_INDICES_FIELD.getPreferredName(), nonSearchableIndices);
+            builder.array(NON_SEARCHABLE_INDICES_FIELD.getPreferredName(), nonSearchableIndices);
         }
         if (nonAggregatableIndices != null) {
-            builder.field(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
+            builder.array(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
@@ -149,7 +140,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             for (Map.Entry<String, Set<String>> entry : entries) {
                 List<String> values = new ArrayList<>(entry.getValue());
                 values.sort(String::compareTo); // provide predictable order
-                builder.field(entry.getKey(), values);
+                builder.stringListField(entry.getKey(), values);
             }
             builder.endObject();
         }

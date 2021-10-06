@@ -25,9 +25,6 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -38,9 +35,22 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -48,8 +58,7 @@ public class ServerUtils {
 
     private static final Logger logger = LogManager.getLogger(ServerUtils.class);
 
-    private static String SECURITY_ENABLED = "xpack.security.enabled: true";
-    private static String SSL_ENABLED = "xpack.security.http.ssl.enabled: true";
+    private static String SECURITY_DISABLED = "xpack.security.enabled: false";
 
     // generous timeout as nested virtualization can be quite slow ...
     private static final long waitTime = TimeUnit.MINUTES.toMillis(3);
@@ -57,23 +66,31 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
-        boolean xpackEnabled = false;
+        boolean securityEnabled;
 
-        // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
         if (installation.distribution.isDocker() == false) {
             Path configFilePath = installation.config("elasticsearch.yml");
             // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-            xpackEnabled = configFile.contains(SECURITY_ENABLED) || configFile.contains(SSL_ENABLED);
+            securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
+        } else {
+            final Optional<String> commandLine = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+                .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
+                .findFirst();
+            if (commandLine.isPresent() == false) {
+                throw new RuntimeException("Installation distribution is docker but a docker container is not running");
+            }
+            // security is enabled by default, the only way for it to be disabled is to be explicitly disabled
+            securityEnabled = commandLine.get().contains("-Expack.security.enabled=false") == false;
         }
 
-        if (xpackEnabled) {
+        if (securityEnabled) {
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests
             waitForXpack();
         } else {
-            waitForElasticsearch("green", null, installation, null, null);
+            waitForElasticsearch("green", null, installation, null, null, null);
         }
     }
 
@@ -144,9 +161,41 @@ public class ServerUtils {
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
+    public static Path getCaCert(Path configPath) throws IOException {
+        boolean enrollmentEnabled = false;
+        boolean httpSslEnabled = false;
+        Path caCert = configPath.resolve("certs/ca/ca.crt");
+        Path configFilePath = configPath.resolve("elasticsearch.yml");
+        if (Files.exists(configFilePath)) {
+            // In docker we might not even have a file, and if we do it's not in the host's FS
+            String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
+            enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
+            httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
+        }
+        if (enrollmentEnabled && httpSslEnabled) {
+            assert Files.exists(caCert) == false;
+            Path autoConfigTlsDir = Files.list(configPath)
+                .filter(p -> p.getFileName().toString().startsWith("tls_auto_config_initial_node_"))
+                .findFirst()
+                .get();
+            caCert = autoConfigTlsDir.resolve("http_ca.crt");
+            logger.info("Node has TLS auto-configured [" + caCert + "]");
+            assert Files.exists(caCert);
+        } else if (Files.exists(caCert) == false) {
+            logger.info("No TLS certificate configured");
+            caCert = null; // no cert, so don't use ssl
+        }
+        return caCert;
+    }
 
+    public static void waitForElasticsearch(
+        String status,
+        String index,
+        Installation installation,
+        String username,
+        String password,
+        Path caCert
+    ) throws Exception {
         Objects.requireNonNull(status);
 
         // we loop here rather than letting httpclient handle retries so we can measure the entire waiting time
@@ -155,10 +204,8 @@ public class ServerUtils {
         long timeElapsed = 0;
         boolean started = false;
         Throwable thrownException = null;
-
-        Path caCert = installation.config("certs/ca/ca.crt");
-        if (Files.exists(caCert) == false) {
-            caCert = null; // no cert, so don't use ssl
+        if (caCert == null) {
+            caCert = getCaCert(installation.config);
         }
 
         while (started == false && timeElapsed < waitTime) {
@@ -166,7 +213,7 @@ public class ServerUtils {
                 try {
 
                     final HttpResponse response = execute(
-                        Request.Get("http://localhost:9200/_cluster/health")
+                        Request.Get((caCert != null ? "https" : "http") + "://localhost:9200/_cluster/health")
                             .connectTimeout((int) timeoutLength)
                             .socketTimeout((int) timeoutLength),
                         username,
@@ -206,9 +253,18 @@ public class ServerUtils {
 
         final String url;
         if (index == null) {
-            url = "http://localhost:9200/_cluster/health?wait_for_status=" + status + "&timeout=60s&pretty";
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health?wait_for_status="
+                + status
+                + "&timeout=60s"
+                + "&pretty";
         } else {
-            url = "http://localhost:9200/_cluster/health/" + index + "?wait_for_status=" + status + "&timeout=60s&pretty";
+            url = (caCert != null ? "https" : "http")
+                + "://localhost:9200/_cluster/health/"
+                + index
+                + "?wait_for_status="
+                + status
+                + "&timeout=60s&pretty";
         }
 
         final String body = makeRequest(Request.Get(url), username, password, caCert);
@@ -232,6 +288,29 @@ public class ServerUtils {
         makeRequest(Request.Delete("http://localhost:9200/library"));
     }
 
+    public static void runElasticsearchTests(String username, String password) throws Exception {
+        makeRequest(
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
+                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
+            username,
+            password,
+            null
+        );
+
+        makeRequest(
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
+                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
+            username,
+            password,
+            null
+        );
+
+        String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"), username, password, null);
+        assertThat(count, containsString("\"count\" : 2"));
+
+        makeRequest(Request.Delete("http://localhost:9200/library"), username, password, null);
+    }
+
     public static String makeRequest(Request request) throws Exception {
         return makeRequest(request, null, null, null);
     }
@@ -245,5 +324,74 @@ public class ServerUtils {
         }
 
         return body;
+    }
+
+    public static int makeRequestAndGetStatus(Request request, String username, String password, Path caCert) throws Exception {
+        final HttpResponse response = execute(request, username, password, caCert);
+        return response.getStatusLine().getStatusCode();
+    }
+
+    public static void disableGeoIpDownloader(Installation installation) throws IOException {
+        List<String> yaml = Collections.singletonList("ingest.geoip.downloader.enabled: false");
+        Path yml = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
+            if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
+                Files.write(yml, yaml, CREATE, APPEND);
+            }
+        }
+    }
+
+    public static void enableGeoIpDownloader(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("ingest.geoip.downloader.enabled") == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    /**
+     * Explicitly disables security if the existing configuration didn't already have an explicit value for the
+     * xpack.security.enabled setting
+     */
+    public static void possiblyDisableSecurityFeatures(Installation installation) throws IOException {
+        List<String> configLines = Collections.singletonList("xpack.security.enabled: false");
+        Path yamlFile = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yamlFile).stream()) {
+            if (lines.noneMatch(s -> s.startsWith("xpack.security.enabled"))) {
+                Files.write(yamlFile, configLines, CREATE, APPEND);
+            }
+        }
+    }
+
+    public static void enableSecurityFeatures(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.enabled") == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void disableSecurityAutoConfiguration(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: false");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+        }
+        lines.addAll(addedLines);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void enableSecurityAutoConfiguration(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> addedLines = List.of("xpack.security.autoconfiguration.enabled: true");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.autoconfiguration.enabled") == false).collect(Collectors.toList());
+        }
+        lines.addAll(addedLines);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 }

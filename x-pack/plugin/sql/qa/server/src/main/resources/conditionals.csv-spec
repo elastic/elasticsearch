@@ -534,16 +534,18 @@ SELECT GREATEST(null, null, birth_date + INTERVAL 25 YEARS, hire_date + INTERVAL
 ;
 
 ifNullWithRuntimeField
-SELECT COUNT(*) c, IFNULL(birth_date_day_of_week, 'no day') AS day FROM test_emp GROUP BY day ORDER BY c;
+SELECT COUNT(*) c, LEFT(IFNULL(name, 'never'), 1) AS n FROM test_emp GROUP BY n ORDER BY n DESC LIMIT 10;
 
-      c:l      |      day:s      
+      c:l      |      n:s      
 ---------------+---------------
-8              |Monday         
-10             |Sunday         
-10             |no day       
-12             |Friday         
-13             |Saturday       
-14             |Wednesday      
-15             |Thursday       
-18             |Tuesday        
+2              |Z
+3              |Y
+1              |X
+1              |W
+3              |V
+2              |U
+3              |T
+11             |S
+3              |R
+5              |P
 ;

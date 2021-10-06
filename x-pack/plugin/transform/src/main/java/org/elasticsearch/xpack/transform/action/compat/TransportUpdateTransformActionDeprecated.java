@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
@@ -31,7 +30,6 @@ public class TransportUpdateTransformActionDeprecated extends TransportUpdateTra
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
@@ -44,7 +42,6 @@ public class TransportUpdateTransformActionDeprecated extends TransportUpdateTra
             actionFilters,
             indexNameExpressionResolver,
             clusterService,
-            licenseState,
             transformServices,
             client,
             ingestService

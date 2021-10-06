@@ -17,7 +17,7 @@ import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -74,7 +74,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     private AsyncSearchTask createAsyncSearchTask() {
         return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
     }
 
     public void testTaskDescription() {
@@ -82,7 +82,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         AsyncSearchTask asyncSearchTask = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), searchRequest::buildDescription,
             TimeValue.timeValueHours(1), Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
         assertEquals("async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], " +
             "source[{\"query\":{\"term\":{\"field\":{\"value\":\"value\",\"boost\":1.0}}}}]}", asyncSearchTask.getDescription());
     }
@@ -90,7 +90,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     public void testWaitForInit() throws InterruptedException {
         AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -158,7 +158,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
             SearchResponse.Clusters.EMPTY, false);
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true),
-            BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
+            BucketOrder.key(true), 1, 1, Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0L)));
         task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             aggs, 1);
         task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));

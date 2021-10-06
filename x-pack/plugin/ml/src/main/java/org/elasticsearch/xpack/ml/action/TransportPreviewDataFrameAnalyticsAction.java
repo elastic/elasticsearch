@@ -48,6 +48,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
     private final NodeClient client;
     private final SecurityContext securityContext;
     private final ThreadPool threadPool;
+    private final Settings settings;
 
     @Inject
     public TransportPreviewDataFrameAnalyticsAction(
@@ -62,6 +63,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         this.threadPool = threadPool;
+        this.settings = settings;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -79,7 +81,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
                 // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
@@ -18,13 +20,15 @@ import java.util.Map;
  * Dedicated collection for mapping a key to a list of sequences
  * The list represents the sequence for each stage (based on its index) and is fixed in size
  */
-class KeyToSequences {
+class KeyToSequences implements Accountable {
 
     /**
      * Utility class holding the sequencegroup/until tuple that also handles
      * lazy initialization.
      */
-    private class SequenceEntry {
+    private static class SequenceEntry implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceEntry.class);
 
         private final SequenceGroup[] groups;
         // created lazily
@@ -51,6 +55,16 @@ class KeyToSequences {
                 until = new UntilGroup();
             }
             until.add(ordinal);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            long size = SHALLOW_SIZE;
+            if (until != null) {
+                size += until.ramBytesUsed();
+            }
+            size += RamUsageEstimator.sizeOf(groups);
+            return size;
         }
     }
 
@@ -131,6 +145,11 @@ class KeyToSequences {
 
     public void clear() {
         keyToSequences.clear();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return RamUsageEstimator.sizeOfMap(keyToSequences);
     }
 
     @Override

@@ -43,12 +43,6 @@ public interface CircuitBreaker {
      * writing requests on the network layer.
      */
     String IN_FLIGHT_REQUESTS = "inflight_requests";
-    /**
-     * The accounting breaker tracks things held in memory that is independent
-     * of the request lifecycle. This includes memory used by Lucene for
-     * segments.
-     */
-    String ACCOUNTING = "accounting";
 
     enum Type {
         // A regular or ChildMemoryCircuitBreaker

@@ -8,22 +8,22 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -43,8 +43,6 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  */
 public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
     implements Writeable, Diffable<SnapshotLifecyclePolicy>, ToXContentObject {
-
-    public static final String POLICY_ID_METADATA_FIELD = "policy";
 
     private final String id;
     private final String name;
@@ -97,11 +95,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         this.schedule = in.readString();
         this.repository = in.readString();
         this.configuration = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        } else {
-            this.retentionPolicy = SnapshotRetentionConfiguration.EMPTY;
-        }
+        this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
     }
 
     public String getId() {
@@ -199,9 +193,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             } else {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
-                if (metadata.containsKey(POLICY_ID_METADATA_FIELD)) {
-                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name [" + POLICY_ID_METADATA_FIELD +
-                        "] is reserved and will be added automatically");
+                if (metadata.containsKey(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
+                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name ["
+                        + SnapshotsService.POLICY_ID_METADATA_FIELD + "] is reserved and will be added automatically");
                 } else {
                     Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);
                     int serializedSizeOriginal = CreateSnapshotRequest.metadataSize(metadata);
@@ -232,7 +226,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         } else {
             newMetadata = new HashMap<>(metadata);
         }
-        newMetadata.put(POLICY_ID_METADATA_FIELD, this.id);
+        newMetadata.put(SnapshotsService.POLICY_ID_METADATA_FIELD, this.id);
         return newMetadata;
     }
 
@@ -263,9 +257,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeMap(this.configuration);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalWriteable(this.retentionPolicy);
-        }
+        out.writeOptionalWriteable(this.retentionPolicy);
     }
 
     @Override

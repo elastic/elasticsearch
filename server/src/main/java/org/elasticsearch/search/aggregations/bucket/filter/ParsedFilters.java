@@ -49,12 +49,17 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         return bucketMap.get(key);
     }
 
-    private static final ObjectParser<ParsedFilters, Void> PARSER =
-            new ObjectParser<>(ParsedFilters.class.getSimpleName(), true, ParsedFilters::new);
+    private static final ObjectParser<ParsedFilters, Void> PARSER = new ObjectParser<>(
+        ParsedFilters.class.getSimpleName(),
+        true,
+        ParsedFilters::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedFilters fromXContent(XContentParser parser, String name) throws IOException {
@@ -99,7 +104,6 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
             return builder;
         }
 
-
         static ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
             final ParsedBucket bucket = new ParsedBucket();
             bucket.setKeyed(keyed);
@@ -120,8 +124,12 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                         bucket.setDocCount(parser.longValue());
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

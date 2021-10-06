@@ -10,14 +10,15 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -28,56 +29,49 @@ import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
-    static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Number) {
-                    emit(((Number) v).doubleValue());
-                } else if (v instanceof String) {
-                    try {
-                        emit(Double.parseDouble((String) v));
-                    } catch (NumberFormatException e) {
-                        // ignore
-                    }
-                }
-            }
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
+
+    private static class Builder extends AbstractScriptFieldType.Builder<DoubleFieldScript.Factory> {
+        Builder(String name) {
+            super(name, DoubleFieldScript.CONTEXT);
         }
-    };
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DoubleFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
-            @Override
-            RuntimeField newRuntimeField(DoubleFieldScript.Factory scriptFactory) {
-                return new DoubleScriptFieldType(name, scriptFactory, getScript(), meta(), this);
-            }
-        });
+        @Override
+        AbstractScriptFieldType<?> createFieldType(String name,
+                                                   DoubleFieldScript.Factory factory,
+                                                   Script script,
+                                                   Map<String, String> meta) {
+            return new DoubleScriptFieldType(name, factory, script, meta);
+        }
 
-    public DoubleScriptFieldType(String name) {
-        this(name, PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+        @Override
+        DoubleFieldScript.Factory getParseFromSourceFactory() {
+            return DoubleFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return DoubleFieldScript.leafAdapter(parentScriptFactory);
+        }
+    }
+
+    public static RuntimeField sourceOnly(String name) {
+        return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
     DoubleScriptFieldType(
         String name,
         DoubleFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
+        Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
     }
 
     @Override
@@ -92,9 +86,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
-        }
+        checkNoTimeZone(timeZone);
         if (format == null) {
             return DocValueFormat.RAW;
         }

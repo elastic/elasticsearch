@@ -16,14 +16,14 @@ Posts scheduled events in a calendar.
 [[ml-post-calendar-event-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-post-calendar-event-desc]]
 == {api-description-title}
 
-This API accepts a list of {ml-docs}/ml-calendars.html[scheduled events], each
+This API accepts a list of
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[scheduled events], each
 of which must have a start time, end time, and description.
 
 [[ml-post-calendar-event-path-parms]]

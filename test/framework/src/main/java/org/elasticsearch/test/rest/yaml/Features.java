@@ -38,7 +38,8 @@ public final class Features {
             "transform_and_set",
             "arbitrary_key",
             "allowed_warnings",
-            "allowed_warnings_regex");
+            "allowed_warnings_regex",
+            "close_to");
 
     private Features() {
 

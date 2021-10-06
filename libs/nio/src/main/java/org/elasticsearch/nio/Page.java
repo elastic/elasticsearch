@@ -8,9 +8,9 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.AbstractRefCounted;
 
 import java.nio.ByteBuffer;
 
@@ -65,7 +65,6 @@ public class Page implements Releasable {
         private final Releasable closeable;
 
         private RefCountedCloseable(Releasable closeable) {
-            super("byte array page");
             this.closeable = closeable;
         }
 

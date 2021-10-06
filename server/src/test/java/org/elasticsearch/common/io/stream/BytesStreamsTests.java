@@ -16,17 +16,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -298,10 +297,10 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
+        out.writeZoneId(ZoneId.of("CET"));
+        out.writeOptionalZoneId(ZoneId.systemDefault());
         out.writeOptionalTimeZone(null);
-        out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        out.writeGenericValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(123456), ZoneId.of("America/Los_Angeles")));
         final OffsetTime offsetNow = OffsetTime.now(randomZone());
         out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
@@ -333,14 +332,14 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
-        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
-        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
+        assertEquals(ZoneId.of("CET"), in.readZoneId());
+        assertEquals(ZoneId.systemDefault(), in.readOptionalZoneId());
         assertNull(in.readOptionalTimeZone());
         Object dt = in.readGenericValue();
-        assertThat(dt, instanceOf(JodaCompatibleZonedDateTime.class));
-        JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
-        assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
-        assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(dt, instanceOf(ZonedDateTime.class));
+        ZonedDateTime zdt = (ZonedDateTime)dt;
+        assertThat(zdt.toInstant().toEpochMilli(), equalTo(123456L));
+        assertThat(zdt.getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
         assertThat(in.readGenericValue(), equalTo(offsetNow));
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
@@ -789,7 +788,7 @@ public class BytesStreamsTests extends ESTestCase {
                     assertEquals(i, ints[i]);
                 }
                 EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
-                assertEquals("tried to read: 100 bytes but this stream is limited to: 82", eofException.getMessage());
+                assertEquals("tried to read: 100 bytes but only 40 remaining", eofException.getMessage());
             }
         }
     }

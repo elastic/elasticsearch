@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -87,7 +87,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             for (Map.Entry<String, List<String>> entry : overlappingTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), entry.getKey());
-                builder.field(INDEX_PATTERNS.getPreferredName(), entry.getValue());
+                builder.stringListField(INDEX_PATTERNS.getPreferredName(), entry.getValue());
                 builder.endObject();
             }
             builder.endArray();

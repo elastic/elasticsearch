@@ -8,12 +8,12 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.AbstractRefCounted;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Handles the shutdown of the wrapped {@link AmazonS3Client} using reference
@@ -24,7 +24,6 @@ public class AmazonS3Reference extends AbstractRefCounted implements Releasable 
     private final AmazonS3 client;
 
     AmazonS3Reference(AmazonS3 client) {
-        super("AWS_S3_CLIENT");
         this.client = client;
     }
 

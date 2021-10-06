@@ -259,8 +259,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 "\"eggplant\":{\"type\":\"integer\"}}}}}").get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
-        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
-        for (IndexFeatureStats stat : stats) {
+        Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (FieldStats stat : stats) {
             if (stat.getName().equals("integer")) {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));
             } else if (stat.getName().equals("keyword")) {

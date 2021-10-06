@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -118,6 +118,7 @@ public final class TransportSamlInvalidateSessionAction
 
     private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
         return source -> {
+            @SuppressWarnings("unchecked")
             Map<String, Object> actualMetadata = (Map<String, Object>) source.get("metadata");
             return requiredMetadata.entrySet().stream().allMatch(e -> Objects.equals(actualMetadata.get(e.getKey()), e.getValue()));
         };

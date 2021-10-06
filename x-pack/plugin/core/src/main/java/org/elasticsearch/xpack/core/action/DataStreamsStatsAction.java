@@ -83,7 +83,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             builder.field("data_stream_count", dataStreamCount);
             builder.field("backing_indices", backingIndices);
             builder.humanReadableField("total_store_size_bytes", "total_store_size", totalStoreSize);
-            builder.array("data_streams", (Object[]) dataStreams);
+            builder.xContentList("data_streams", dataStreams);
         }
 
         public int getDataStreamCount() {

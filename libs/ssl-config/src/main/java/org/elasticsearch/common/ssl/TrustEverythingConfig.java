@@ -14,16 +14,16 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 /**
  * A {@link SslTrustConfig} that trusts all certificates. Used when {@link SslVerificationMode#isCertificateVerificationEnabled()} is
  * {@code false}.
  * This class cannot be used on FIPS-140 JVM as it has its own trust manager implementation.
  */
-final class TrustEverythingConfig implements SslTrustConfig {
+public final class TrustEverythingConfig implements SslTrustConfig {
 
-    static final TrustEverythingConfig TRUST_EVERYTHING = new TrustEverythingConfig();
+    public static final TrustEverythingConfig TRUST_EVERYTHING = new TrustEverythingConfig();
 
     private TrustEverythingConfig() {
         // single instances
@@ -66,7 +66,12 @@ final class TrustEverythingConfig implements SslTrustConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return List.of();
     }
 
     @Override

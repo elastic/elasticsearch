@@ -11,8 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
@@ -69,6 +70,21 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
             // wonderful thing)
             TimeValue retryThreshold = LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING.get(idxMeta.getSettings());
             LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+            if (stepToExecute.isCompletable() == false) {
+                // we may not have passed the time threshold, but the step is not completable due to a different reason
+                thresholdPassed.set(true);
+
+                String message = String.format(Locale.ROOT, "[%s] lifecycle step, as part of [%s] action, for index [%s] Is not " +
+                        "completable, reason: [%s]. Abandoning execution and moving to the next fallback step [%s]",
+                    getKey().getName(),
+                    getKey().getAction(),
+                    idxMeta.getIndex().getName(),
+                    Strings.toString(stepResult.getInfomationContext()),
+                    nextKeyOnThresholdBreach);
+                logger.debug(message);
+
+                return new Result(true, new SingleMessageFieldInfo(message));
+            }
             if (waitedMoreThanThresholdLevel(retryThreshold, lifecycleState, Clock.systemUTC())) {
                 // we retried this step enough, next step will be the configured to {@code nextKeyOnThresholdBreach}
                 thresholdPassed.set(true);

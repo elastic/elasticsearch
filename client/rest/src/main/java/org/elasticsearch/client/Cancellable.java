@@ -31,9 +31,19 @@ import java.util.concurrent.CancellationException;
  * Note that cancelling a request does not automatically translate to aborting its execution on the server side, which needs to be
  * specifically implemented in each API.
  */
-public class Cancellable {
+public abstract class Cancellable {
 
-    static final Cancellable NO_OP = new Cancellable(null) {
+    /**
+     * Cancels the on-going request that is associated with the current instance of {@link Cancellable}.
+     */
+    public abstract void cancel();
+
+    /**
+     * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
+     */
+    abstract void runIfNotCancelled(Runnable runnable);
+
+    static final Cancellable NO_OP = new Cancellable() {
         @Override
         public void cancel() {
         }
@@ -45,40 +55,41 @@ public class Cancellable {
     };
 
     static Cancellable fromRequest(HttpRequestBase httpRequest) {
-        return new Cancellable(httpRequest);
+        return new RequestCancellable(httpRequest);
     }
 
-    private final HttpRequestBase httpRequest;
+    private static class RequestCancellable extends Cancellable {
 
-    private Cancellable(HttpRequestBase httpRequest) {
-        this.httpRequest = httpRequest;
-    }
+        private final HttpRequestBase httpRequest;
 
-    /**
-     * Cancels the on-going request that is associated with the current instance of {@link Cancellable}.
-     *
-     */
-    public synchronized void cancel() {
-        this.httpRequest.abort();
-    }
-
-    /**
-     * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
-     * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
-     * attempts of the same request. The low-level client reuses the same instance of the {@link AbstractExecutionAwareRequest} by calling
-     * {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
-     * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
-     * the subsequent attempt has not been started yet.
-     * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
-     * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next attempt.
-     * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
-     * when there is no future to cancel, which would make cancelling the request a no-op.
-     */
-    synchronized void runIfNotCancelled(Runnable runnable) {
-        if (this.httpRequest.isAborted()) {
-            throw newCancellationException();
+        private RequestCancellable(HttpRequestBase httpRequest) {
+            this.httpRequest = httpRequest;
         }
-        runnable.run();
+
+        public synchronized void cancel() {
+            this.httpRequest.abort();
+        }
+
+        /**
+         * Executes some arbitrary code iff the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
+         * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
+         * attempts of the same request. The low-level client reuses the same instance of the {@link AbstractExecutionAwareRequest} by
+         * calling
+         * {@link AbstractExecutionAwareRequest#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
+         * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
+         * the subsequent attempt has not been started yet.
+         * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
+         * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next
+         * attempt.
+         * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
+         * when there is no future to cancel, which would make cancelling the request a no-op.
+         */
+        synchronized void runIfNotCancelled(Runnable runnable) {
+            if (this.httpRequest.isAborted()) {
+                throw newCancellationException();
+            }
+            runnable.run();
+        }
     }
 
     static CancellationException newCancellationException() {

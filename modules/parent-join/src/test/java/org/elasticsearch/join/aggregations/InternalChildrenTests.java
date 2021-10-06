@@ -8,7 +8,7 @@
 
 package org.elasticsearch.join.aggregations;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.join.ParentJoinPlugin;

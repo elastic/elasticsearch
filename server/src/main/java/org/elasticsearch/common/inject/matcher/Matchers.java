@@ -16,7 +16,7 @@
 
 package org.elasticsearch.common.inject.matcher;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
@@ -81,7 +81,7 @@ public class Matchers {
         @Override
         public boolean equals(Object other) {
             return other instanceof Not
-                    && ((Not) other).delegate.equals(delegate);
+                    && ((Not<?>) other).delegate.equals(delegate);
         }
 
         @Override
@@ -186,11 +186,11 @@ public class Matchers {
      * Returns a matcher which matches subclasses of the given type (as well as
      * the given type).
      */
-    public static Matcher<Class> subclassesOf(final Class<?> superclass) {
+    public static Matcher<Class<?>> subclassesOf(final Class<?> superclass) {
         return new SubclassesOf(superclass);
     }
 
-    private static class SubclassesOf extends AbstractMatcher<Class> {
+    private static class SubclassesOf extends AbstractMatcher<Class<?>> {
         private final Class<?> superclass;
 
         SubclassesOf(Class<?> superclass) {
@@ -198,7 +198,7 @@ public class Matchers {
         }
 
         @Override
-        public boolean matches(Class subclass) {
+        public boolean matches(Class<?> subclass) {
             return superclass.isAssignableFrom(subclass);
         }
 
@@ -295,11 +295,11 @@ public class Matchers {
      * Returns a matcher which matches classes in the given package. Packages are specific to their
      * classloader, so classes with the same package name may not have the same package at runtime.
      */
-    public static Matcher<Class> inPackage(final Package targetPackage) {
+    public static Matcher<Class<?>> inPackage(final Package targetPackage) {
         return new InPackage(targetPackage);
     }
 
-    private static class InPackage extends AbstractMatcher<Class> {
+    private static class InPackage extends AbstractMatcher<Class<?>> {
         private final transient Package targetPackage;
         private final String packageName;
 
@@ -309,7 +309,7 @@ public class Matchers {
         }
 
         @Override
-        public boolean matches(Class c) {
+        public boolean matches(Class<?> c) {
             return c.getPackage().equals(targetPackage);
         }
 
@@ -342,11 +342,11 @@ public class Matchers {
      *
      * @since 2.0
      */
-    public static Matcher<Class> inSubpackage(final String targetPackageName) {
+    public static Matcher<Class<?>> inSubpackage(final String targetPackageName) {
         return new InSubpackage(targetPackageName);
     }
 
-    private static class InSubpackage extends AbstractMatcher<Class>  {
+    private static class InSubpackage extends AbstractMatcher<Class<?>>  {
         private final String targetPackageName;
 
         InSubpackage(String targetPackageName) {
@@ -354,7 +354,7 @@ public class Matchers {
         }
 
         @Override
-        public boolean matches(Class c) {
+        public boolean matches(Class<?> c) {
             String classPackageName = c.getPackage().getName();
             return classPackageName.equals(targetPackageName)
                     || classPackageName.startsWith(targetPackageName + ".");

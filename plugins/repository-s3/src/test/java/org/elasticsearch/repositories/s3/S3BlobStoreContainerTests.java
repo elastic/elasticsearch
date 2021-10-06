@@ -25,7 +25,7 @@ import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
@@ -76,7 +76,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
         }
@@ -149,9 +149,9 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
-            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> BlobPath.EMPTY.add("path_" + value));
         }
 
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
@@ -250,7 +250,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteMultipartUploadAborted() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
 
         final long blobSize = ByteSizeUnit.MB.toBytes(765);
         final long bufferSize =  ByteSizeUnit.MB.toBytes(150);
@@ -312,7 +312,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         doNothing().when(client).abortMultipartUpload(argumentCaptor.capture());
 
         final IOException e = expectThrows(IOException.class, () -> {
-            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+            final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
             blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
         });
 

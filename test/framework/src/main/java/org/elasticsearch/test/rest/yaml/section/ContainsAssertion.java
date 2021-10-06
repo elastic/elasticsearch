@@ -9,7 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -39,6 +39,7 @@ public class ContainsAssertion extends Assertion {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         // add support for matching objects ({a:b}) against list of objects ([ {a:b, c:d} ])
         if(expectedValue instanceof Map && actualValue instanceof List) {

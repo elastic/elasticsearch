@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -135,7 +135,7 @@ public class Manifest implements ToXContentFragment {
         builder.field(CURRENT_TERM_PARSE_FIELD.getPreferredName(), currentTerm);
         builder.field(CLUSTER_STATE_VERSION_PARSE_FIELD.getPreferredName(), clusterStateVersion);
         builder.field(GENERATION_PARSE_FIELD.getPreferredName(), globalGeneration);
-        builder.array(INDEX_GENERATIONS_PARSE_FIELD.getPreferredName(), indexEntryList().toArray());
+        builder.xContentList(INDEX_GENERATIONS_PARSE_FIELD.getPreferredName(), indexEntryList());
         return builder;
     }
 

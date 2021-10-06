@@ -9,7 +9,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -133,7 +133,7 @@ public class GetJobRequest implements Validatable, ToXContentObject {
         builder.startObject();
 
         if (jobIds.isEmpty() == false) {
-            builder.field(JOB_IDS.getPreferredName(), jobIds);
+            builder.stringListField(JOB_IDS.getPreferredName(), jobIds);
         }
 
         if (allowNoMatch != null) {

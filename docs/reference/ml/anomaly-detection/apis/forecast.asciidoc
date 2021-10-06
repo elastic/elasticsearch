@@ -16,17 +16,17 @@ Predicts the future behavior of a time series by using its historical behavior.
 [[ml-forecast-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-forecast-desc]]
 == {api-description-title}
 
 You can create a forecast job based on an {anomaly-job} to extrapolate future 
 behavior. Refer to
-{ml-docs}/ml-overview.html#ml-forecasting[Forecasting the future] and 
-{ml-docs}/ml-limitations.html#ml-forecast-limitations[forecast limitations] to 
+{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-forecast[Forecasting the future]
+and 
+{ml-docs}/ml-limitations.html#ml-forecast-limitations[Forecast limitations] to 
 learn more.
 
 You can delete a forecast by using the 

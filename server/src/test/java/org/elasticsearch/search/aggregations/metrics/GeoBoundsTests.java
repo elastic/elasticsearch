@@ -19,10 +19,10 @@ public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregation
         factory.field(field);
         if (randomBoolean()) {
             factory.wrapLongitude(randomBoolean());
-    }
+        }
         if (randomBoolean()) {
             factory.missing("0,0");
-    }
+        }
         return factory;
     }
 

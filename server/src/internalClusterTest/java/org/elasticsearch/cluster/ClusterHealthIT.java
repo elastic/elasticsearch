@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -19,7 +20,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -317,9 +318,11 @@ public class ClusterHealthIT extends ESIntegTestCase {
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
         // without exceptions
         final int iterations = withIndex ? 10 : 20;
+        // CI darwin workers are sometimes very slow, give them extra time.
+        int timeoutMinutes = Constants.MAC_OS_X ? 2 : 1;
         for (int i = 0; i < iterations; ++i) {
             responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                .setWaitForGreenStatus().setMasterNodeTimeout(TimeValue.timeValueMinutes(1)).execute());
+                .setWaitForGreenStatus().setMasterNodeTimeout(TimeValue.timeValueMinutes(timeoutMinutes)).execute());
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         if (withIndex) {

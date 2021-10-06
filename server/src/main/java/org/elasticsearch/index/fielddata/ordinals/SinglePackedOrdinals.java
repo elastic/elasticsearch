@@ -49,7 +49,7 @@ public class SinglePackedOrdinals extends Ordinals {
 
     @Override
     public SortedSetDocValues ordinals(ValuesHolder values) {
-        return (SortedSetDocValues) DocValues.singleton(new Docs(this, values));
+        return DocValues.singleton(new Docs(this, values));
     }
 
     private static class Docs extends AbstractSortedDocValues {

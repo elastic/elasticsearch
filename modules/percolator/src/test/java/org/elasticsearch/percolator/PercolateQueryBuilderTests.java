@@ -22,7 +22,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -185,10 +189,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //document contains arbitrary content, no error expected when an object is added to it
-        return new HashSet<>(Arrays.asList(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName(),
-                PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()));
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName(), null);
+        objects.put(PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName(), null);
+        return objects;
     }
 
     public void testRequiredParameters() {
@@ -345,5 +351,30 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
                 () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());
+    }
+
+    public void testFromJsonWithDocumentType() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        String queryAsString = "{\"percolate\" : { \"document\": {}, \"document_type\":\"" + docType  + "\", \"field\":\"" +
+            queryField + "\"}}";
+        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
+        QueryBuilder queryBuilder = parseQuery(parser);
+        queryBuilder.toQuery(searchExecutionContext);
+        assertWarnings(PercolateQueryBuilder.DOCUMENT_TYPE_DEPRECATION_MESSAGE);
+    }
+
+    public void testFromJsonWithType() throws IOException {
+        indexedDocumentIndex = randomAlphaOfLength(4);
+        indexedDocumentId = randomAlphaOfLength(4);
+        indexedDocumentVersion = Versions.MATCH_ANY;
+        documentSource = Collections.singletonList(randomSource(new HashSet<>()));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        String  queryAsString =  "{\"percolate\" : { \"index\": \"" + indexedDocumentIndex +
+            "\", \"type\": \"_doc\", \"id\": \"" + indexedDocumentId + "\", \"field\":\"" + queryField + "\"}}";
+        XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
+         QueryBuilder queryBuilder = parseQuery(parser);
+        rewriteAndFetch(queryBuilder, searchExecutionContext).toQuery(searchExecutionContext);
+        assertWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
     }
 }

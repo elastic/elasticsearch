@@ -11,26 +11,29 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
@@ -41,9 +44,9 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -95,6 +98,30 @@ public abstract class AggregationContext implements Releasable {
     }
 
     /**
+     * Returns an existing registered analyzer that should NOT be closed when finished being used.
+     * @param analyzer The custom analyzer name
+     * @return The existing named analyzer.
+     */
+    public abstract Analyzer getNamedAnalyzer(String analyzer) throws IOException;
+
+    /**
+     * Creates a new custom analyzer that should be closed when finished being used.
+     * @param indexSettings The current index settings or null
+     * @param normalizer Is a normalizer
+     * @param tokenizer The tokenizer name or definition to use
+     * @param charFilters The char filter name or definition to use
+     * @param tokenFilters The token filter name or definition to use
+     * @return A new custom analyzer
+     */
+    public abstract Analyzer buildCustomAnalyzer(
+        IndexSettings indexSettings,
+        boolean normalizer,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> charFilters,
+        List<NameOrDefinition> tokenFilters
+    ) throws IOException;
+
+    /**
      * Lookup the context for an already resolved field type.
      */
     public final FieldContext buildFieldContext(MappedFieldType ft) {
@@ -112,9 +139,10 @@ public abstract class AggregationContext implements Releasable {
     public abstract MappedFieldType getFieldType(String path);
 
     /**
-     * Returns the registered mapped field types.
+     * Returns a set of field names that match a regex-like pattern
+     * All field names in the returned set are guaranteed to resolve to a field
      */
-    public abstract Collection<MappedFieldType> getFieldTypes();
+    public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -158,6 +186,13 @@ public abstract class AggregationContext implements Releasable {
      * Build a query.
      */
     public abstract Query buildQuery(QueryBuilder builder) throws IOException;
+
+    /**
+     * Add filters from slice or filtered aliases. If you make a new query
+     * and don't combine it with the {@link #query() top level query} then
+     * you must provide it to this method.
+     */
+    public abstract Query filterQuery(Query query);
 
     /**
      * The settings for the index against which this search is running.
@@ -238,6 +273,16 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean isCacheable();
 
     /**
+     * Are aggregations allowed to try to rewrite themselves into
+     * {@link FilterByFilterAggregator} aggregations? <strong>Often</strong>
+     * {@linkplain FilterByFilterAggregator} is faster to execute, but it isn't
+     * always. For now this just hooks into a cluster level setting
+     * so users can disable the behavior when the existing heuristics
+     * don't detect cases where its slower.
+     */
+    public abstract boolean enableRewriteToFilterByFilter();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -256,10 +301,14 @@ public abstract class AggregationContext implements Releasable {
         private final int randomSeed;
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
+        private final Function<Query, Query> filterQuery;
+        private final boolean enableRewriteToFilterByFilter;
+        private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
         public ProductionAggregationContext(
+            AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
             long bytesToPreallocate,
@@ -270,8 +319,11 @@ public abstract class AggregationContext implements Releasable {
             BitsetFilterCache bitsetFilterCache,
             int randomSeed,
             LongSupplier relativeTimeInMillis,
-            Supplier<Boolean> isCancelled
+            Supplier<Boolean> isCancelled,
+            Function<Query, Query> filterQuery,
+            boolean enableRewriteToFilterByFilter
         ) {
+            this.analysisRegistry = analysisRegistry;
             this.context = context;
             if (bytesToPreallocate == 0) {
                 /*
@@ -300,6 +352,8 @@ public abstract class AggregationContext implements Releasable {
             this.randomSeed = randomSeed;
             this.relativeTimeInMillis = relativeTimeInMillis;
             this.isCancelled = isCancelled;
+            this.filterQuery = filterQuery;
+            this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
         }
 
         @Override
@@ -326,6 +380,22 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
+        public Analyzer getNamedAnalyzer(String analyzer) throws IOException {
+            return analysisRegistry.getAnalyzer(analyzer);
+        }
+
+        @Override
+        public Analyzer buildCustomAnalyzer(
+            IndexSettings indexSettings,
+            boolean normalizer,
+            NameOrDefinition tokenizer,
+            List<NameOrDefinition> charFilters,
+            List<NameOrDefinition> tokenFilters
+        ) throws IOException {
+            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
+        }
+
+        @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             return context.getForField(ft);
         }
@@ -336,8 +406,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Collection<MappedFieldType> getFieldTypes() {
-            return context.getFieldTypes();
+        public Set<String> getMatchingFieldNames(String pattern) {
+            return context.getMatchingFieldNames(pattern);
         }
 
         @Override
@@ -373,6 +443,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
             return Rewriteable.rewrite(builder, context, true).toQuery(context);
+        }
+
+        @Override
+        public Query filterQuery(Query query) {
+            return filterQuery.apply(query);
         }
 
         @Override
@@ -449,6 +524,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean isCacheable() {
             return context.isCacheable();
+        }
+
+        @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return enableRewriteToFilterByFilter;
         }
 
         @Override

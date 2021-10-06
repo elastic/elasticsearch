@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -23,7 +24,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testIndexRequest() throws IOException {
         BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
             (indexRequest, type) -> {
@@ -59,7 +60,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testDeleteRequest() throws IOException {
         BytesArray request = new BytesArray("{ \"delete\":{ \"_id\": \"bar\" } }\n");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
             (req, type) -> fail(), req -> fail(),
@@ -74,7 +75,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testUpdateRequest() throws IOException {
         BytesArray request = new BytesArray("{ \"update\":{ \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
             (req, type) -> fail(),
@@ -114,7 +115,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testBarfOnLackOfTrailingNewline() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
                     (req, type) -> fail(), req -> fail(), req -> fail()));
@@ -123,7 +124,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testFailOnExplicitIndex() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_index\": \"foo\", \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse(request, null, null, null, null, null, false, XContentType.JSON,
@@ -133,7 +134,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testTypesStillParsedForBulkMonitoring() throws IOException {
         BytesArray request = new BytesArray("{ \"index\":{ \"_type\": \"quux\", \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(false);
+        BulkRequestParser parser = new BulkRequestParser(false, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
             (indexRequest, type) -> {
@@ -151,7 +152,7 @@ public class BulkRequestParserTests extends ESTestCase {
         BytesArray request = new BytesArray(
                 "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\"} }\n{}\n"
                 + "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final List<IndexRequest> indexRequests = new ArrayList<>();
         parser.parse(request, null, null, null, null, null, true, XContentType.JSON,
                 (indexRequest, type) -> indexRequests.add(indexRequest),

@@ -17,8 +17,11 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -309,9 +312,58 @@ public class IndexingIT extends ESRestTestCase {
         try (RestClient newNodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
             Request request = new Request("POST", index + "/_flush/synced");
-            List<String> warningMsg = List.of("Synced flush was removed and a normal flush was performed instead. " +
-                "This transition will be removed in a future version.");
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(warningMsg) == false));
+            final String v7MediaType = XContentType.VND_JSON.toParsedMediaType()
+                .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
+                    String.valueOf(RestApiVersion.minimumSupported().major)));
+            List<String> warningMsg = List.of("Synced flush is deprecated and will be removed in 8.0." +
+                " Use flush at /_flush or /{index}/_flush instead.");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder()
+                        .setWarningsHandler(warnings -> warnings.equals(warningMsg) == false)
+                        .addHeader("Accept", v7MediaType));
+
+            assertBusy(() -> {
+                Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(totalShards));
+                assertThat(result.get("failed"), equalTo(0));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+    }
+
+    public void testFlushTransition() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
+        assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
+        // Allocate shards to new nodes then verify flush requests processed by old nodes/new nodes
+        String newNodes = nodes.getNewNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+        int numShards = randomIntBetween(1, 10);
+        int numOfReplicas = randomIntBetween(0, nodes.getNewNodes().size() - 1);
+        int totalShards = numShards * (numOfReplicas + 1);
+        final String index = "test_flush";
+        createIndex(index, Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put("index.routing.allocation.include._name", newNodes).build());
+        ensureGreen(index);
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient oldNodeClient = buildClient(restClientSettings(),
+            nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush");
+            assertBusy(() -> {
+                Map<String, Object> result = ObjectPath.createFromResponse(oldNodeClient.performRequest(request)).evaluate("_shards");
+                assertThat(result.get("total"), equalTo(totalShards));
+                assertThat(result.get("successful"), equalTo(totalShards));
+                assertThat(result.get("failed"), equalTo(0));
+            });
+            Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+            assertThat(XContentMapValues.extractValue("indices." + index + ".total.translog.uncommitted_operations", stats), equalTo(0));
+        }
+        indexDocs(index, randomIntBetween(0, 100), between(1, 100));
+        try (RestClient newNodeClient = buildClient(restClientSettings(),
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            Request request = new Request("POST", index + "/_flush");
             assertBusy(() -> {
                 Map<String, Object> result = ObjectPath.createFromResponse(newNodeClient.performRequest(request)).evaluate("_shards");
                 assertThat(result.get("total"), equalTo(totalShards));

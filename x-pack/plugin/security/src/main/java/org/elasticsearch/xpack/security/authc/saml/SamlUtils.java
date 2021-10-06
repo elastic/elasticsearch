@@ -42,7 +42,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
@@ -54,6 +54,7 @@ import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.xmlsec.signature.impl.X509CertificateBuilder;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
@@ -89,6 +90,8 @@ public class SamlUtils {
                 logger.debug("Initializing OpenSAML");
                 try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
                     InitializationService.initialize();
+                    // Force load this now, because it has a static field that needs to run inside the doPrivileged block
+                    var ignore2 = new X509CertificateBuilder().buildObject();
                 }
                 logger.debug("Initialized OpenSAML");
                 return null;

@@ -13,8 +13,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -25,10 +26,12 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 
 public class DatafeedNodeSelector {
 
@@ -36,6 +39,8 @@ public class DatafeedNodeSelector {
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_ASSIGNMENT =
         new PersistentTasksCustomMetadata.Assignment(null, "datafeed awaiting job assignment.");
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_JOB_RELOCATION =
+        new PersistentTasksCustomMetadata.Assignment(null, "datafeed awaiting job relocation.");
 
     private final String datafeedId;
     private final String jobId;
@@ -74,9 +79,20 @@ public class DatafeedNodeSelector {
         }
     }
 
-    public PersistentTasksCustomMetadata.Assignment selectNode() {
+    /**
+     * Select which node to run the datafeed on.  The logic is to always choose the same node that the job
+     * is already running on <em>unless</em> this node is not permitted for some reason or there is some
+     * problem in the cluster that would stop the datafeed working.
+     * @param candidateNodes Only nodes in this collection may be chosen as the executor node.
+     * @return The assignment for the datafeed, containing either an executor node or a reason why an
+     *         executor node was not returned.
+     */
+    public PersistentTasksCustomMetadata.Assignment selectNode(Collection<DiscoveryNode> candidateNodes) {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return AWAITING_UPGRADE;
+        }
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            return RESET_IN_PROGRESS;
         }
 
         AssignmentFailure assignmentFailure = checkAssignment();
@@ -84,6 +100,13 @@ public class DatafeedNodeSelector {
             String jobNode = jobTask.getExecutorNode();
             if (jobNode == null) {
                 return AWAITING_JOB_ASSIGNMENT;
+            }
+            // During node shutdown the datafeed will have been unassigned but the job will still be gracefully persisting state.
+            // During this time the datafeed will be trying to select the job's node, but we must disallow this.  Instead the
+            // datafeed must remain in limbo until the job has finished persisting state and can move to a different node.
+            // Nodes that are shutting down will have been excluded from the candidate nodes.
+            if (candidateNodes.stream().anyMatch(candidateNode -> candidateNode.getId().equals(jobNode)) == false) {
+                return AWAITING_JOB_RELOCATION;
             }
             return new PersistentTasksCustomMetadata.Assignment(jobNode, "");
         }

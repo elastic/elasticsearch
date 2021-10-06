@@ -53,11 +53,17 @@ public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid 
         return builder;
     }
 
-    private static final ObjectParser<ParsedGeoCentroid, Void> PARSER = new ObjectParser<>(ParsedGeoCentroid.class.getSimpleName(), true,
-            ParsedGeoCentroid::new);
+    private static final ObjectParser<ParsedGeoCentroid, Void> PARSER = new ObjectParser<>(
+        ParsedGeoCentroid.class.getSimpleName(),
+        true,
+        ParsedGeoCentroid::new
+    );
 
     private static final ObjectParser<GeoPoint, Void> GEO_POINT_PARSER = new ObjectParser<>(
-            ParsedGeoCentroid.class.getSimpleName() + "_POINT", true, GeoPoint::new);
+        ParsedGeoCentroid.class.getSimpleName() + "_POINT",
+        true,
+        GeoPoint::new
+    );
 
     static {
         declareAggregationFields(PARSER);

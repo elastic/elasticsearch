@@ -15,10 +15,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
 
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -88,7 +91,7 @@ public class TestShardRouting {
             case UNASSIGNED:
             case INITIALIZING:
                 if (primary) {
-                    return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    return randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                         RecoverySource.ExistingStoreRecoverySource.INSTANCE);
                 } else {
                     return RecoverySource.PeerRecoverySource.INSTANCE;
@@ -120,7 +123,7 @@ public class TestShardRouting {
         switch (state) {
             case UNASSIGNED:
             case INITIALIZING:
-                return new UnassignedInfo(ESTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
+                return randomUnassignedInfo("auto generated for test");
             case STARTED:
             case RELOCATING:
                 return null;
@@ -129,8 +132,33 @@ public class TestShardRouting {
         }
     }
 
+    public static UnassignedInfo randomUnassignedInfo(String message) {
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.values());
+        String lastAllocatedNodeId = null;
+        boolean delayed = false;
+        if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            if (randomBoolean()) {
+                delayed = true;
+            }
+            lastAllocatedNodeId = randomAlphaOfLength(10);
+        }
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        return new UnassignedInfo(
+            reason,
+            message,
+            null,
+            failedAllocations,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            delayed,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastAllocatedNodeId
+        );
+    }
+
     public static RecoverySource randomRecoverySource() {
-        return ESTestCase.randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+        return randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,

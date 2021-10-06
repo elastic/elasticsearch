@@ -63,6 +63,7 @@ public class ExecutableJiraAction extends ExecutableAction<JiraAction> {
      * Merges the defaults provided as the second parameter into the content of the first
      * while applying a {@link Function} on both map key and map value.
      */
+    @SuppressWarnings("unchecked")
     static Map<String, Object> merge(final Map<String, Object> fields, final Map<String, ?> defaults, final Function<String, String> fn) {
         if (defaults != null) {
             for (Map.Entry<String, ?> defaultEntry : defaults.entrySet()) {
@@ -85,8 +86,8 @@ public class ExecutableJiraAction extends ExecutableAction<JiraAction> {
 
                 } else if (value instanceof List) {
                     // Apply the transformation to a list of strings
-                    List<Object> newValues = new ArrayList<>(((List) value).size());
-                    for (Object v : (List) value) {
+                    List<Object> newValues = new ArrayList<>(((List<?>) value).size());
+                    for (Object v : (List<?>) value) {
                         if (v instanceof String) {
                             newValues.add(fn.apply((String) v));
                         } else if (v instanceof Map) {

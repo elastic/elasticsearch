@@ -9,8 +9,8 @@
 package org.elasticsearch.systemd;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.OptionalMatchers;
 import org.elasticsearch.threadpool.Scheduler;

@@ -60,7 +60,7 @@ public final class ScriptDetector {
         }
 
         public static Script fromCodePoint(int codePoint) {
-            // Using blocks for the HANGUL vs HANGUL_JANO distinctions
+            // Using blocks for the HANGUL vs HANGUL_JAMO distinctions
             // If one exists. Needs investigated
             Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
             if (GREEK.equals(block)) {

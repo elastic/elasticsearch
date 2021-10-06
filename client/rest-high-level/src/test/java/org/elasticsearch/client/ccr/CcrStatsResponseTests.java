@@ -11,7 +11,7 @@ package org.elasticsearch.client.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;

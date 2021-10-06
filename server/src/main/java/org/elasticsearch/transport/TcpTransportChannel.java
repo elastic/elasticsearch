@@ -9,7 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,18 +22,18 @@ public final class TcpTransportChannel implements TransportChannel {
     private final String action;
     private final long requestId;
     private final Version version;
-    private final boolean compressResponse;
+    private final Compression.Scheme compressionScheme;
     private final boolean isHandshake;
     private final Releasable breakerRelease;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        boolean compressResponse, boolean isHandshake, Releasable breakerRelease) {
+                        Compression.Scheme compressionScheme, boolean isHandshake, Releasable breakerRelease) {
         this.version = version;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;
         this.requestId = requestId;
-        this.compressResponse = compressResponse;
+        this.compressionScheme = compressionScheme;
         this.isHandshake = isHandshake;
         this.breakerRelease = breakerRelease;
     }
@@ -46,7 +46,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, isHandshake);
+            outboundHandler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
         } finally {
             release(false);
         }

@@ -8,6 +8,10 @@ After adding password protection in the <<security-minimal-setup,minimal securit
 (TLS). The transport layer handles all internal communication between nodes in
 your cluster.
 
+IMPORTANT: If your cluster has multiple nodes, then you must configure
+TLS between nodes. <<dev-vs-prod-mode,Production mode>> clusters will not start
+if you do not enable TLS.
+
 The transport layer relies on mutual TLS for both encryption and
 authentication of nodes. Correctly applying TLS ensures that a malicious node
 cannot join the cluster and exchange data with other nodes. While implementing
@@ -68,7 +72,8 @@ For the transport layer, we recommend using a separate, dedicated CA instead
 of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
 
-. Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
+. On any single node, use the `elasticsearch-certutil` tool to generate a CA for
+your cluster.
 +
 [source,shell]
 ----
@@ -80,13 +85,18 @@ generate a CA for your cluster.
    b. Enter a password for your CA. You can choose to leave the password blank
    if you're not deploying to a production environment.
 
-. Generate a certificate and private key for your node. You include the
-   `elastic-stack-ca.p12` output file that you generated in the previous step.
+. On any single node, generate a certificate and private key for the nodes in
+your cluster. You include the `elastic-stack-ca.p12` output file that you
+generated in the previous step.
 +
 [source,shell]
 ----
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
++
+   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
+   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
++
 
    a. Enter the password for your CA, or press *Enter* if you did not configure one in the previous step.
 
@@ -94,14 +104,9 @@ generate a CA for your cluster.
 +
 The output file is a keystore named `elastic-certificates.p12`. This file
 contains a node certificate, node key, and CA certificate.
-+
-   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
-   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
 
-. Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
-   directory on every node in your cluster.
-
-*Next*: <<encrypt-internode-communication>>
+. On *every* node in your cluster, copy the `elastic-certificates.p12` file to
+the `$ES_PATH_CONF` directory.
 
 [[encrypt-internode-communication]]
 ==== Encrypt internode communications with TLS
@@ -123,19 +128,18 @@ changes at a frequency determined by the global {es}
 Complete the following steps *for each node in your cluster*. To join the
 same cluster, all nodes must share the same `cluster.name` value.
 
-. Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
+. Open the `$ES_PATH_CONF/elasticsearch.yml` file and make the following
 changes:
 
-   a. Add the `cluster-name` setting and enter a name for your cluster:
+   a. Add the <<cluster-name,`cluster-name`>> setting and enter a name for your cluster:
 +
 [source,yaml]
 ----
 cluster.name: my-cluster
 ----
 
-b. Add the `node.name` setting and enter the name of the certificate that
-you generated for this node. For simplicity, it's good practice for this value
-to match the certificate name that you defined in your `certificates.yaml` file:
+b. Add the <<node-name,`node.name`>> setting and enter a name for the node.
+The node name defaults to the hostname of the machine when {es} starts. 
 +
 [source,yaml]
 ----
@@ -143,16 +147,23 @@ node.name: node-1
 ----
 
 c. Add the following settings to enable internode communication and provide
-access to the node's certificate:
+access to the node's certificate.
++
+Because you are using the same `elastic-certificates.p12` file on every node in
+your cluster, set the verification mode to `certificate`:
 +
 [source,yaml]
 ----
 xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.verification_mode: certificate <1>
 xpack.security.transport.ssl.client_authentication: required
-xpack.security.transport.ssl.keystore.path: <node-name>.p12
-xpack.security.transport.ssl.truststore.path: <node-name>.p12
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
 ----
+<1> If you want to use hostname verification, set the verification mode to
+`full`. You should generate a different certificate for each host that
+matches the DNS or IP address. See the 
+`xpack.security.transport.ssl.verification_mode` parameter in {ref}/security-settings.html#transport-tls-ssl-settings[TLS settings].
 
 . If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
 +
@@ -170,7 +181,9 @@ xpack.security.transport.ssl.truststore.path: <node-name>.p12
 
 . Complete the previous steps for each node in your cluster.
 
-. Restart {es}. The method for <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es} varies depending on how you installed it.
+. On *every* node in your cluster, restart {es}. The method for
+<<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es}
+varies depending on how you installed it.
 +
 For example, if you installed {es} with an archive distribution
 (`tar.gz` or `.zip`), you can enter `Ctrl+C` on the command line to stop

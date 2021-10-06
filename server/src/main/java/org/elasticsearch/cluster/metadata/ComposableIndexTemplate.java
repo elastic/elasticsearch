@@ -10,8 +10,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -198,12 +199,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
+        builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
             builder.field(TEMPLATE.getPreferredName(), this.template);
         }
         if (this.componentTemplates != null) {
-            builder.field(COMPOSED_OF.getPreferredName(), this.componentTemplates);
+            builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
         }
         if (this.priority != null) {
             builder.field(PRIORITY.getPreferredName(), priority);
@@ -290,7 +291,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
          */
         public Map<String, Object> getDataStreamMappingSnippet() {
             // _data_stream_timestamp meta fields default to @timestamp:
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_data_stream_timestamp", Map.of("enabled", true)));
+            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)));
         }
 
         public boolean isHidden() {

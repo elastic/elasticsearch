@@ -14,6 +14,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SingleServerSet;
 import com.unboundid.ldap.sdk.schema.Schema;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -51,7 +53,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNa
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.DownLevelADAuthenticator;
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.UpnADAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -70,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -236,7 +238,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         // verify one and only one session as further attempts should be returned from cache
-        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingCanBeDisabled() throws Exception {
@@ -258,7 +260,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         // verify one and only one session as second attempt should be returned from cache
-        verify(sessionFactory, times(count)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(count)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
     }
 
     public void testAuthenticateCachingClearsCacheOnRoleMapperRefresh() throws Exception {
@@ -278,7 +280,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         }
 
         // verify one and only one session as further attempts should be returned from cache
-        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
 
         // Refresh the role mappings
         roleMapper.notifyRefresh();
@@ -289,7 +291,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             future.actionGet();
         }
 
-        verify(sessionFactory, times(2)).session(eq("CN=ironman"), any(SecureString.class), any(ActionListener.class));
+        verify(sessionFactory, times(2)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
     }
 
     public void testUnauthenticatedLookupWithConnectionPool() throws Exception {
@@ -538,10 +540,10 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 .put(getFullSettingKey(realmIdentifier, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true);
         if (inFipsJvm()) {
             builder.put(getFullSettingKey(realmIdentifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    VerificationMode.CERTIFICATE);
+                    SslVerificationMode.CERTIFICATE);
         } else {
             builder.put(getFullSettingKey(realmIdentifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    randomBoolean() ? VerificationMode.CERTIFICATE : VerificationMode.NONE);
+                    randomBoolean() ? SslVerificationMode.CERTIFICATE : SslVerificationMode.NONE);
         }
         return builder.put(extraSettings).build();
     }

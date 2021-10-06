@@ -1,0 +1,59 @@
+[discrete]
+[[match-only-text-field-type]]
+=== Match-only text field type
+
+A variant of <<text-field-type,`text`>> that trades scoring and efficiency of
+positional queries for space efficiency. This field effectively stores data the
+same way as a `text` field that only indexes documents (`index_options: docs`)
+and disables norms (`norms: false`). Term queries perform as fast if not faster
+as on `text` fields, however queries that need positions such as the
+<<query-dsl-match-query-phrase,`match_phrase` query>> perform slower as they
+need to look at the `_source` document to verify whether a phrase matches. All
+queries return constant scores that are equal to 1.0.
+
+Analysis is not configurable: text is always analyzed with the
+<<specify-index-time-default-analyzer,default analyzer>>
+(<<analysis-standard-analyzer,`standard`>> by default).
+
+<<span-queries,span queries>> are not supported with this field, use
+<<query-dsl-intervals-query,interval queries>> instead, or the
+<<text-field-type,`text`>> field type if you absolutely need span queries.
+
+Other than that, `match_only_text` supports the same queries as `text`. And
+like `text`, it does not support sorting and has only limited support for aggregations.
+
+[source,console]
+----
+PUT logs
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "message": {
+        "type": "match_only_text"
+      }
+    }
+  }
+}
+----
+
+[discrete]
+[[match-only-text-params]]
+==== Parameters for match-only text fields
+
+The following mapping parameters are accepted:
+
+[horizontal]
+
+<<multi-fields,`fields`>>::
+
+    Multi-fields allow the same string value to be indexed in multiple ways for
+    different purposes, such as one field for search and a multi-field for
+    sorting and aggregations, or the same string value analyzed by different
+    analyzers.
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

@@ -84,33 +84,32 @@ public class GeometryValidatorTests extends ESTestCase {
     }
 
     public void testNoopValidator() throws Exception {
-        WellKnownText parser = new WellKnownText(true, new NoopValidator());
-        parser.fromWKT("CIRCLE (10000 20000 30000)");
-        parser.fromWKT("POINT (10000 20000)");
-        parser.fromWKT("LINESTRING (10000 20000, 0 0)");
-        parser.fromWKT("POLYGON ((300 100, 400 200, 500 300, 300 100), (50 150, 250 150, 200 100))");
-        parser.fromWKT("MULTIPOINT (10000 20000, 20000 30000)");
+        GeometryValidator validator = new NoopValidator();
+        WellKnownText.fromWKT(validator, true, "CIRCLE (10000 20000 30000)");
+        WellKnownText.fromWKT(validator, true, "POINT (10000 20000)");
+        WellKnownText.fromWKT(validator, true, "LINESTRING (10000 20000, 0 0)");
+        WellKnownText.fromWKT(validator, true, "POLYGON ((300 100, 400 200, 500 300, 300 100), (50 150, 250 150, 200 100))");
+        WellKnownText.fromWKT(validator, true, "MULTIPOINT (10000 20000, 20000 30000)");
     }
 
     public void testOneValidator() throws Exception {
-        WellKnownText parser = new WellKnownText(true, new OneValidator());
-        parser.fromWKT("POINT (0 1)");
-        parser.fromWKT("POINT (0 1 0.5)");
+        GeometryValidator validator = new OneValidator();
+        WellKnownText.fromWKT(validator, true, "POINT (0 1)");
+        WellKnownText.fromWKT(validator, true, "POINT (0 1 0.5)");
         IllegalArgumentException ex;
-        ex = expectThrows(IllegalArgumentException.class, () -> parser.fromWKT("CIRCLE (1 2 3)"));
+        ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "CIRCLE (1 2 3)"));
         assertEquals("invalid latitude 2.0; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () -> parser.fromWKT("POINT (2 1)"));
+        ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "POINT (2 1)"));
         assertEquals("invalid longitude 2.0; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () -> parser.fromWKT("LINESTRING (1 -1 0, 0 0 2)"));
+        ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "LINESTRING (1 -1 0, 0 0 2)"));
         assertEquals("invalid altitude 2.0; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () -> parser.fromWKT("POLYGON ((0.3 0.1, 0.4 0.2, 5 0.3, 0.3 0.1))"));
+        ex = expectThrows(IllegalArgumentException.class, () ->
+            WellKnownText.fromWKT(validator, true, "POLYGON ((0.3 0.1, 0.4 0.2, 5 0.3, 0.3 0.1))"));
         assertEquals("invalid longitude 5.0; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () -> parser.fromWKT(
-            "POLYGON ((0.3 0.1, 0.4 0.2, 0.5 0.3, 0.3 0.1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
+        ex = expectThrows(IllegalArgumentException.class, () ->
+            WellKnownText.fromWKT(validator, true, "POLYGON ((0.3 0.1, 0.4 0.2, 0.5 0.3, 0.3 0.1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
         assertEquals("invalid latitude 1.5; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () -> parser.fromWKT("MULTIPOINT (0 1, -2 1)"));
+        ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "MULTIPOINT (0 1, -2 1)"));
         assertEquals("invalid longitude -2.0; must be between -1.0 and 1.0", ex.getMessage());
     }
-
-
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -133,8 +132,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectCursor<IndexMetadata> cursor : state.metadata().indices().values()) {
-            final IndexMetadata indexMetadata = cursor.value;
+        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -547,19 +545,17 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         });
 
         if (corrupt) {
-            for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
-                final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
-                if (Files.exists(indexPath)) { // multi data path might only have one path in use
-                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                        for (Path item : stream) {
-                            if (item.getFileName().toString().startsWith("segments_")) {
-                                logger.debug("--> deleting [{}]", item);
-                                Files.delete(item);
-                            }
+            Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId);
+            final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+            if (Files.exists(indexPath)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                    for (Path item : stream) {
+                        if (item.getFileName().toString().startsWith("segments_")) {
+                            logger.debug("--> deleting [{}]", item);
+                            Files.delete(item);
                         }
                     }
                 }
-
             }
         }
 

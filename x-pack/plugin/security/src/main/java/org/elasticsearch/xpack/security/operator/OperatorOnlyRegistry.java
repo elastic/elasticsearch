@@ -35,7 +35,11 @@ public class OperatorOnlyRegistry {
         // Repository analysis actions are not mentioned in core, literal strings are needed.
         "cluster:admin/repository/analyze",
         "cluster:admin/repository/analyze/blob",
-        "cluster:admin/repository/analyze/blob/read"
+        "cluster:admin/repository/analyze/blob/read",
+        // Node shutdown APIs are operator only
+        "cluster:admin/shutdown/create",
+        "cluster:admin/shutdown/get",
+        "cluster:admin/shutdown/delete"
         );
 
     private final ClusterSettings clusterSettings;

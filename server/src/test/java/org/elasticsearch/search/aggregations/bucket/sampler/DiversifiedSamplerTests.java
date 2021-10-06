@@ -143,25 +143,36 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         }
     }
 
-    private void testCase(IndexSearcher indexSearcher, MappedFieldType genreFieldType, String executionHint,
-                          Consumer<InternalSampler> verify) throws IOException {
+    private void testCase(
+        IndexSearcher indexSearcher,
+        MappedFieldType genreFieldType,
+        String executionHint,
+        Consumer<InternalSampler> verify
+    ) throws IOException {
         testCase(indexSearcher, genreFieldType, executionHint, verify, 100, 1);
     }
 
-    private void testCase(IndexSearcher indexSearcher, MappedFieldType genreFieldType, String executionHint,
-                          Consumer<InternalSampler> verify, int shardSize, int maxDocsPerValue) throws IOException {
+    private void testCase(
+        IndexSearcher indexSearcher,
+        MappedFieldType genreFieldType,
+        String executionHint,
+        Consumer<InternalSampler> verify,
+        int shardSize,
+        int maxDocsPerValue
+    ) throws IOException {
         MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("price", IndexNumericFieldData.NumericType.DOUBLE);
-        FunctionScoreQuery query = new FunctionScoreQuery(new MatchAllDocsQuery(),
-                new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData));
+        FunctionScoreQuery query = new FunctionScoreQuery(
+            new MatchAllDocsQuery(),
+            new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData)
+        );
 
-        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name")
-                .field(genreFieldType.name())
-                .executionHint(executionHint)
-                .maxDocsPerValue(maxDocsPerValue)
-                .shardSize(shardSize)
-                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
+        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
+            .executionHint(executionHint)
+            .maxDocsPerValue(maxDocsPerValue)
+            .shardSize(shardSize)
+            .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
         InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreFieldType, idFieldType);
         verify.accept(result);
@@ -178,9 +189,8 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
 
         MappedFieldType genreFieldType = new KeywordFieldMapper.KeywordFieldType("genre");
 
-        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name")
-                .field(genreFieldType.name())
-                .subAggregation(new TermsAggregationBuilder("terms").field("id"));
+        DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
+            .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
         InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
         Terms terms = result.getAggregations().get("terms");

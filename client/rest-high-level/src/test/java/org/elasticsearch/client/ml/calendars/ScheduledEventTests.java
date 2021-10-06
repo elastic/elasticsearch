@@ -8,7 +8,8 @@
 
 package org.elasticsearch.client.ml.calendars;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -17,8 +18,9 @@ import java.util.Date;
 public class ScheduledEventTests extends AbstractXContentTestCase<ScheduledEvent> {
 
     public static ScheduledEvent testInstance(String calendarId, @Nullable String eventId) {
-        Date start = new Date(randomNonNegativeLong());
-        Date end = new Date(start.getTime() + randomIntBetween(1, 10000) * 1000);
+        int duration = randomIntBetween(1, 10000) * 1000;
+        Date start = new Date(randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999) - duration );
+        Date end = new Date(start.getTime() + duration);
 
         return new ScheduledEvent(randomAlphaOfLength(10), start, end, calendarId, eventId);
     }

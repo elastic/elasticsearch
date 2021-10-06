@@ -11,10 +11,10 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -49,6 +49,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
+        assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
     }
 
@@ -69,6 +70,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     @Override
     public boolean decRef() {
         return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     public ReleasableBytesReference retain() {
@@ -216,7 +222,6 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         private final Releasable releasable;
 
         RefCountedReleasable(Releasable releasable) {
-            super("bytes-reference");
             this.releasable = releasable;
         }
 

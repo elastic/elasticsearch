@@ -95,7 +95,7 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
         AnalysisConfig analysisConfig =
             createCountAnalysisConfig(randomAlphaOfLength(10), randomBoolean() ? "part" : null);
         assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality),
-            is(10L * 1024 * 1024));
+            is(40L * 1024 * 1024));
     }
 
     public void testCalculateCategorizationRequirementBytesPerPartitionCategorization() {
@@ -108,7 +108,7 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
         AnalysisConfig analysisConfig = createCountAnalysisConfigBuilder(randomAlphaOfLength(10), "part")
             .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, isStopOnWarn)).build();
         assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality),
-            is(partitionCardinality * 10L * (isStopOnWarn ? 1 : 2) * 1024 * 1024));
+            is(partitionCardinality * 20L * (isStopOnWarn ? 1 : 2) * 1024 * 1024));
     }
 
     public void testRoundUpToNextMb() {

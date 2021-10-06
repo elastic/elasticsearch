@@ -8,7 +8,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;

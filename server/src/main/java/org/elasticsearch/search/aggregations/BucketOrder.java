@@ -94,7 +94,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * @throws AggregationExecutionException when the ordering is invalid
      *         for this {@linkplain Aggregator}.
      */
-    public final void validate(Aggregator aggregator) throws AggregationExecutionException{
+    public final void validate(Aggregator aggregator) throws AggregationExecutionException {
         /*
          * Building partiallyBuiltBucketComparator and throwing it away is enough
          * to validate this order because doing so checks all of the appropriate
@@ -125,6 +125,11 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * Build a comparator for fully built buckets.
      */
     public abstract Comparator<Bucket> comparator();
+
+    /**
+     * Build a comparator for {@link DelayedBucket}, a wrapper that delays bucket reduction.
+     */
+    abstract Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator();
 
     /**
      * @return unique internal ID used for reading/writing this order from/to a stream.

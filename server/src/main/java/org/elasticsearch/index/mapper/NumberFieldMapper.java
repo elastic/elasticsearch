@@ -10,17 +10,18 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -44,7 +46,6 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,33 +82,41 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Number> nullValue;
 
-        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
-        private final Parameter<String> onScriptError = Parameter.restrictedStringParam(
-            "on_script_error",
-            true,
-            m -> toType(m).onScriptError,
-            "reject", "ignore"
-        );
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
+        private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+
+        /**
+         * Parameter that marks this field as a time series dimension.
+         */
+        private final Parameter<Boolean> dimension;
+
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * For the numeric fields gauge and counter metric types are
+         * supported
+         */
+        private final Parameter<MetricType> metric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
+        private final ScriptCompiler scriptCompiler;
         private final NumberType type;
-        private final ScriptCompiler compiler;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings) {
             this(name, type, compiler, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
-            Builder builder = new Builder(name, type, null, false, false);
+            Builder builder = new Builder(name, type, ScriptCompiler.NONE, false, false);
             builder.indexed.setValue(false);
+            builder.dimension.setValue(false);
             return builder;
         }
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.type = type;
-            this.compiler = compiler;
+            this.scriptCompiler = Objects.requireNonNull(compiler);
 
             this.ignoreMalformed
                 = Parameter.explicitBoolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
@@ -115,13 +125,35 @@ public class NumberFieldMapper extends FieldMapper {
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
 
-            this.onScriptError.requiresParameters(this.script);
-            this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
-            this.script.setValidator(s -> {
-                if (s != null && indexed.get() == false && hasDocValues.get() == false) {
-                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
+                    throw new IllegalArgumentException(
+                        "Parameter [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] cannot be set to numeric type [" + type.name + "]"
+                    );
+                }
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
                 }
             });
+
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            }).precludesParameters(dimension);
+
+            this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
+            addScriptValidation(script, indexed, hasDocValues);
         }
 
         Builder nullValue(Number number) {
@@ -138,19 +170,40 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.script.get() == null) {
                 return null;
             }
-            assert compiler != null;
-            return type.compile(name, script.get(), compiler);
+            return type.compile(name, script.get(), scriptCompiler);
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
+        public Builder metric(MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, onScriptError, meta);
+            return List.of(
+                indexed,
+                hasDocValues,
+                stored,
+                ignoreMalformed,
+                coerce,
+                nullValue,
+                script,
+                onScriptError,
+                meta,
+                dimension,
+                metric
+            );
         }
 
         @Override
-        public NumberFieldMapper build(ContentPath contentPath) {
-            MappedFieldType ft = new NumberFieldType(buildFullName(contentPath), this);
-            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        public NumberFieldMapper build(MapperBuilderContext context) {
+            MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
+            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -956,25 +1009,30 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean coerce;
         private final Number nullValue;
         private final FieldValues<Number> scriptValues;
+        private final boolean isDimension;
+        private final MetricType metricType;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean isStored,
                                boolean hasDocValues, boolean coerce, Number nullValue, Map<String, String> meta,
-                               FieldValues<Number> script) {
+                               FieldValues<Number> script, boolean isDimension, MetricType metricType) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
             this.scriptValues = script;
+            this.isDimension = isDimension;
+            this.metricType = metricType;
         }
 
         NumberFieldType(String name, Builder builder) {
             this(name, builder.type, builder.indexed.getValue(), builder.stored.getValue(), builder.hasDocValues.getValue(),
                 builder.coerce.getValue().value(), builder.nullValue.getValue(), builder.meta.getValue(),
-                builder.scriptValues());
+                builder.scriptValues(), builder.dimension.getValue(),
+                builder.metric.getValue());
         }
 
         public NumberFieldType(String name, NumberType type) {
-            this(name, type, true, false, true, true, null, Collections.emptyMap(), null);
+            this(name, type, true, false, true, true, null, Collections.emptyMap(), null, false, null);
         }
 
         @Override
@@ -1033,28 +1091,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
-                return new ValueFetcher() {
-                    LeafReaderContext ctx;
-
-                    @Override
-                    public void setNextReader(LeafReaderContext context) {
-                        this.ctx = context;
-                    }
-
-                    @Override
-                    public List<Object> fetchValues(SourceLookup lookup) {
-                        List<Object> values = new ArrayList<>();
-                        try {
-                            scriptValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), values::add);
-                        } catch (Exception e) {
-                            // ignore errors - if they exist here then they existed at index time
-                            // and so on_script_error must have been set to `ignore`
-                        }
-                        return values;
-                    }
-                };
+                return FieldValues.valueFetcher(this.scriptValues, context);
             }
-
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
@@ -1068,15 +1106,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoTimeZone(timeZone);
             if (format == null) {
                 return DocValueFormat.RAW;
-            } else {
-                return new DocValueFormat.Decimal(format);
             }
+            return new DocValueFormat.Decimal(format);
         }
 
         public Number parsePoint(byte[] value) {
@@ -1087,9 +1121,23 @@ public class NumberFieldMapper extends FieldMapper {
         public CollapseType collapseType() {
             return CollapseType.NUMERIC;
         }
+
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
+
+        /**
+         * If field is a time series metric field, returns its metric type
+         * @return the metric type or null
+         */
+        public MetricType getMetricType() {
+            return metricType;
+        }
     }
 
-    private final Builder builder;
     private final NumberType type;
 
     private final boolean indexed;
@@ -1099,10 +1147,12 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
     private final FieldValues<Number> scriptValues;
-    private final String onScriptError;
-
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final boolean dimension;
+    private final ScriptCompiler scriptCompiler;
+    private final Script script;
+    private final MetricType metricType;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1110,7 +1160,7 @@ public class NumberFieldMapper extends FieldMapper {
             MultiFields multiFields,
             CopyTo copyTo,
             Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1121,8 +1171,10 @@ public class NumberFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.scriptValues = builder.scriptValues();
-        this.onScriptError = builder.onScriptError.get();
-        this.builder = builder;
+        this.dimension = builder.dimension.getValue();
+        this.scriptCompiler = builder.scriptCompiler;
+        this.script = builder.script.getValue();
+        this.metricType = builder.metric.getValue();
     }
 
     boolean coerce() {
@@ -1131,10 +1183,6 @@ public class NumberFieldMapper extends FieldMapper {
 
     boolean ignoreMalformed() {
         return ignoreMalformed.value();
-    }
-
-    String onScriptError() {
-        return onScriptError;
     }
 
     @Override
@@ -1148,82 +1196,73 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
-
-        if (this.scriptValues != null) {
-            throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
-        }
-
-        XContentParser parser = context.parser();
-        Object value;
-        Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
-            value = null;
-        } else if (coerce.value()
-                && parser.currentToken() == Token.VALUE_STRING
-                && parser.textLength() == 0) {
-            value = null;
-        } else {
-            try {
-                numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
-                    context.addIgnoredField(mappedFieldType.name());
-                    return;
-                } else {
-                    throw e;
-                }
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        Number value;
+        try {
+            value = value(context.parser(), type, nullValue, coerce.value());
+        } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
+                context.addIgnoredField(mappedFieldType.name());
+                return;
+            } else {
+                throw e;
             }
-            value = numericValue;
         }
-
-        if (value == null) {
-            value = nullValue;
+        if (value != null) {
+            indexValue(context, value);
         }
-
-        if (value == null) {
-            return;
-        }
-
-        if (numericValue == null) {
-            numericValue = fieldType().type.parse(value, coerce.value());
-        }
-
-        indexValue(context, numericValue);
     }
 
-    private void indexValue(ParseContext context, Number numericValue) {
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
-            indexed, hasDocValues, stored));
+    /**
+     * Read the value at the current position of the parser.
+     * @throws InputCoercionException if xcontent couldn't convert the value in the required type, for example, integer overflow
+     * @throws JsonParseException if there was any error parsing the json
+     * @throws IllegalArgumentException if there was an error parsing the value from the json
+     * @throws IOException if there was any other IO error
+     */
+    private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
+        throws InputCoercionException, JsonParseException, IllegalArgumentException, IOException {
+
+        if (parser.currentToken() == Token.VALUE_NULL) {
+            return nullValue;
+        }
+        if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
+            return nullValue;
+        }
+        return numberType.parse(parser, coerce);
+    }
+
+    private void indexValue(DocumentParserContext context, Number numericValue) {
+        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        if (dimension) {
+            // Check that a dimension field is single-valued and not an array
+            if (context.doc().getByKey(fieldType().name()) != null) {
+                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
+            }
+            if (fields.size() > 0) {
+                // Add the first field by key so that we can validate if it has been added
+                context.doc().addWithKey(fieldType().name(), fields.get(0));
+                context.doc().addAll(fields.subList(1, fields.size()));
+            }
+        } else {
+            context.doc().addAll(fields);
+        }
 
         if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
     @Override
-    public boolean hasScript() {
-        return this.scriptValues != null;
-    }
-
-    @Override
-    public void executeScript(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
-        assert this.scriptValues != null;
-        try {
-            this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(parseContext, value));
-        } catch (Exception e) {
-            if ("ignore".equals(onScriptError)) {
-                parseContext.addIgnoredField(name());
-            } else {
-                throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
-            }
-        }
+    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
+                                     DocumentParserContext documentParserContext) {
+        this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, builder.compiler, ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).dimension(dimension)
+            .metric(metricType)
+            .init(this);
     }
 }

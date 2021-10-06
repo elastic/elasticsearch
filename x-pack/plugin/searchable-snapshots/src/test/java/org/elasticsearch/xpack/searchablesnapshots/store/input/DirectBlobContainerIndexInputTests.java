@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
-import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -67,7 +67,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         final String fileName = randomAlphaOfLength(5) + randomFileExtension();
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(5),
-            new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST),
+            new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST.toString()),
             partSize == input.length
                 ? randomFrom(
                     new ByteSizeValue(partSize, ByteSizeUnit.BYTES),
@@ -133,8 +133,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             fileInfo,
             randomIOContext(),
             new IndexInputStats(1L, fileInfo.length(), fileInfo.length(), fileInfo.length(), () -> 0L),
-            minimumReadSize,
-            randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
+            minimumReadSize
         );
         assertEquals(input.length, indexInput.length());
         return indexInput;

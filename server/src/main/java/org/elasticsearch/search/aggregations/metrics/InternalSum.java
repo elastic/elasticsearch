@@ -21,7 +21,7 @@ import java.util.Objects;
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
 
-    public  InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
         this.sum = sum;
         this.format = formatter;

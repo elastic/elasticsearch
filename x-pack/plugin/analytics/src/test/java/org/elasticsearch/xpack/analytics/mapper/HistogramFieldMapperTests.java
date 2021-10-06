@@ -10,6 +10,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -24,7 +25,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-
 
 public class HistogramFieldMapperTests extends MapperTestCase {
 
@@ -45,12 +45,16 @@ public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((HistogramFieldMapper)m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((HistogramFieldMapper) m).ignoreMalformed()));
     }
 
     @Override
     protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
         return false;
     }
 
@@ -102,9 +106,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", true))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
     }
@@ -152,7 +154,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
             {
                 b.startObject("values");
                 {
-                    b.field("values", new double[] {2, 2});
+                    b.field("values", new double[] { 2, 2 });
                     b.startObject("otherData");
                     {
                         b.startObject("more").field("toto", 1).endObject();
@@ -160,10 +162,10 @@ public class HistogramFieldMapperTests extends MapperTestCase {
                     b.endObject();
                 }
                 b.endObject();
-                b.field("counts", new double[] {2, 2});
+                b.field("counts", new double[] { 2, 2 });
             }
             b.endObject();
-            b.field("otherField","value");
+            b.field("otherField", "value");
         }));
         assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
         assertThat(doc.rootDoc().getField("otherField"), notNullValue());
@@ -269,32 +271,26 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     public void testValuesNotInOrder() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
-            b -> b.field("field")
-                .startObject()
-                .field("counts", new int[] { 2, 8, 4 })
-                .field("values", new double[] { 2, 3, 2 })
-                .endObject()
+            b -> b.field("field").startObject().field("counts", new int[] { 2, 8, 4 }).field("values", new double[] { 2, 3, 2 }).endObject()
         );
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString(" values must be in increasing order, " +
-            "got [2.0] but previous value was [3.0]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(" values must be in increasing order, " + "got [2.0] but previous value was [3.0]")
+        );
     }
 
     public void testFieldNotObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(b -> b.field("field", "bah"));
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_OBJECT] " +
-            "but found [VALUE_STRING]"));
+        assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_OBJECT] " + "but found [VALUE_STRING]"));
     }
 
     public void testNegativeCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(
-            b -> b.startObject("field")
-                .field("counts", new int[] { 2, 2, -3 })
-                .field("values", new double[] { 2, 2, 3 })
-                .endObject()
+            b -> b.startObject("field").field("counts", new int[] { 2, 2, -3 }).field("values", new double[] { 2, 2, 3 }).endObject()
         );
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
@@ -305,4 +301,48 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("hist");
+            b.field("type", "histogram");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [hist] of type [histogram] can't be used in multifields"));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        HistogramFieldMapper.HistogramFieldType ft = (HistogramFieldMapper.HistogramFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+        assertMetricType("histogram", HistogramFieldMapper.HistogramFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "gauge");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [gauge] for field [time_series_metric] - accepted values are [histogram]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [histogram]")
+            );
+        }
+    }
+
 }

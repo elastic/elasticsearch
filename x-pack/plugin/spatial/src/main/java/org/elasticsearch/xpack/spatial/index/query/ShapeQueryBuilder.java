@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +22,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -34,22 +34,6 @@ import java.util.function.Supplier;
  */
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
-
-    /**
-     * Creates a new ShapeQueryBuilder whose Query will be against the given
-     * field name using the given Shape
-     *
-     * @param fieldName
-     *            Name of the field that will be queried
-     * @param shape
-     *            Shape used in the Query
-     * @deprecated use {@link #ShapeQueryBuilder(String, Geometry)} instead
-     */
-    @Deprecated
-    @SuppressWarnings({ "rawtypes" })
-    protected ShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
-        super(fieldName, shape);
-    }
 
     /**
      * Creates a new ShapeQueryBuilder whose Query will be against the given
@@ -137,10 +121,16 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     private static class ParsedShapeQueryParams extends ParsedGeometryQueryParams {
+        private final GeometryParser geometryParser = new GeometryParser(true, true, true);
+
         @Override
         protected boolean parseXContentField(XContentParser parser) throws IOException {
             if (SHAPE_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
-                this.shape = ShapeParser.parse(parser);
+                try {
+                    this.shape = geometryParser.parse(parser);
+                } catch (ParseException e) {
+                    throw new IOException(e);
+                }
                 return true;
             }
             return false;

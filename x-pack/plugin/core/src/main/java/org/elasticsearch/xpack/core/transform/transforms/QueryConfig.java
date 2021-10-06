@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -24,12 +26,19 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.deprecation.LoggingDeprecationAccumulationHandler;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(QueryConfig.class);
@@ -80,10 +89,8 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
         Map<String, Object> source = parser.mapOrdered();
         QueryBuilder query = null;
 
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-                XContentParser sourceParser = XContentType.JSON.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(xContentBuilder).streamInput())) {
-            query = AbstractQueryBuilder.parseInnerQueryBuilder(sourceParser);
+        try {
+            query = queryFromXContent(source, registry, LoggingDeprecationHandler.INSTANCE);
         } catch (Exception e) {
             if (lenient) {
                 logger.warn(TransformMessages.LOG_TRANSFORM_CONFIGURATION_BAD_QUERY, e);
@@ -93,6 +100,20 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
         }
 
         return new QueryConfig(source, query);
+    }
+
+    private static QueryBuilder queryFromXContent(
+        Map<String, Object> source,
+        NamedXContentRegistry namedXContentRegistry,
+        DeprecationHandler deprecationHandler
+    ) throws IOException {
+        QueryBuilder query = null;
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+        XContentParser sourceParser = XContentType.JSON.xContent()
+            .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
+        query = AbstractQueryBuilder.parseInnerQueryBuilder(sourceParser);
+
+        return query;
     }
 
     @Override
@@ -115,7 +136,43 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
         return Objects.equals(this.source, that.source) && Objects.equals(this.query, that.query);
     }
 
-    public boolean isValid() {
-        return this.query != null;
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (query == null) {
+            validationException = addValidationError("source.query must not be null", validationException);
+        }
+        return validationException;
+    }
+
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {
+        LoggingDeprecationAccumulationHandler deprecationLogger = new LoggingDeprecationAccumulationHandler();
+
+        try {
+            queryFromXContent(source, namedXContentRegistry, deprecationLogger);
+        } catch (IOException e) {
+            onDeprecation.accept(
+                new DeprecationIssue(
+                    Level.CRITICAL,
+                    "Transform [" + id + "]: " + TransformMessages.LOG_TRANSFORM_CONFIGURATION_BAD_QUERY,
+                    TransformDeprecations.QUERY_BREAKING_CHANGES_URL,
+                    e.getMessage(),
+                    false,
+                    null
+                )
+            );
+        }
+
+        deprecationLogger.getDeprecations().forEach(deprecationMessage -> {
+            onDeprecation.accept(
+                new DeprecationIssue(
+                    Level.CRITICAL,
+                    "Transform [" + id + "] uses deprecated query options",
+                    TransformDeprecations.QUERY_BREAKING_CHANGES_URL,
+                    deprecationMessage,
+                    false,
+                    null
+                )
+            );
+        });
+
     }
 }

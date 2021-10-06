@@ -7,33 +7,19 @@
 
 package org.elasticsearch.xpack.vectors;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
-import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
-public class Vectors extends Plugin implements MapperPlugin, ActionPlugin {
+public class Vectors extends Plugin implements MapperPlugin {
 
     public Vectors() { }
-
-    @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-            new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.VECTORS, VectorsUsageTransportAction.class),
-            new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.VECTORS, VectorsInfoTransportAction.class));
-    }
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

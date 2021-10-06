@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -138,11 +138,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ShardRouting shardRouting = unassignedIterator.next();
             final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
             if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
-                unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(), AllocationStatus.DECIDERS_NO,
-                        unassignedInfo.getFailedNodeIds()),
-                    shardRouting.recoverySource(), allocation.changes());
+                unassignedIterator.updateUnassigned(
+                    new UnassignedInfo(
+                        unassignedInfo.getReason(),
+                        unassignedInfo.getMessage(),
+                        unassignedInfo.getFailure(),
+                        unassignedInfo.getNumFailedAllocations(),
+                        unassignedInfo.getUnassignedTimeInNanos(),
+                        unassignedInfo.getUnassignedTimeInMillis(),
+                        unassignedInfo.isDelayed(),
+                        AllocationStatus.DECIDERS_NO,
+                        unassignedInfo.getFailedNodeIds(),
+                        unassignedInfo.getLastAllocatedNodeId()
+                    ),
+                    shardRouting.recoverySource(),
+                    allocation.changes()
+                );
             }
         }
     }

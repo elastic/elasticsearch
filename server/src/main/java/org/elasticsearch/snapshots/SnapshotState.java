@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-
 /**
  * Represents the state that a snapshot can be in
  */
@@ -64,7 +63,6 @@ public enum SnapshotState {
         return completed;
     }
 
-
     /**
      * Returns true if snapshot can be restored (at least partially)
      *
@@ -97,4 +95,3 @@ public enum SnapshotState {
         }
     }
 }
-

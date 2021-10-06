@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -55,7 +56,6 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         }
     }
 
-
     public List<ProfileResult> getProfileResults() {
         return Collections.unmodifiableList(aggProfileResults);
     }
@@ -68,6 +68,25 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         }
         builder.endArray();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AggregationProfileShardResult other = (AggregationProfileShardResult) obj;
+        return aggProfileResults.equals(other.aggProfileResults);
+    }
+
+    @Override
+    public int hashCode() {
+        return aggProfileResults.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toString(this);
     }
 
     public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {

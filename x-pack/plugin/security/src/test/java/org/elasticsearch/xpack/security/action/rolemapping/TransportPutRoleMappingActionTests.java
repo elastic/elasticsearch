@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -40,6 +41,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     private TransportPutRoleMappingAction action;
     private AtomicReference<PutRoleMappingRequest> requestRef;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
@@ -53,7 +55,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
             requestRef.set((PutRoleMappingRequest) args[0]);
-            ActionListener<Boolean> listener = (ActionListener) args[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
             listener.onResponse(true);
             return null;
         }).when(store).putRoleMapping(any(PutRoleMappingRequest.class), any(ActionListener.class)
@@ -76,7 +78,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getName(), equalTo("anarchy"));
         assertThat(mapping.getRoles(), iterableWithSize(1));
         assertThat(mapping.getRoles(), contains("superuser"));
-        assertThat(mapping.getMetadata().size(), equalTo(1));
+        assertThat(mapping.getMetadata(), aMapWithSize(1));
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }
 

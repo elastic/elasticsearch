@@ -47,7 +47,10 @@ public class ParsedBucketMetricValue extends ParsedSingleValueNumericMetricsAggr
     }
 
     private static final ObjectParser<ParsedBucketMetricValue, Void> PARSER = new ObjectParser<>(
-            ParsedBucketMetricValue.class.getSimpleName(), true, ParsedBucketMetricValue::new);
+        ParsedBucketMetricValue.class.getSimpleName(),
+        true,
+        ParsedBucketMetricValue::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.NEGATIVE_INFINITY);

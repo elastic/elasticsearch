@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -32,7 +32,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -62,7 +61,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         dataMasterSettings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            nodePaths = new Path[] { nodeEnvironment.nodeDataPath() };
             final String nodeId = randomAlphaOfLength(10);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
@@ -90,7 +89,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         if (randomBoolean()) {
             try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
                 try (PersistedClusterStateService.Writer writer =
-                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPath()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
                 }
             }
@@ -121,7 +120,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         String messageText = NodeRepurposeCommand.noMasterMessage(
             1,
-            environment.dataFiles().length*shardCount,
+            shardCount,
             0);
 
         Matcher<String> outputMatcher = allOf(
@@ -148,7 +147,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
+            containsString(NodeRepurposeCommand.shardMessage(shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
@@ -218,7 +217,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
             if (writeClusterState) {
                 try (PersistedClusterStateService.Writer writer =
-                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
+                         ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPath()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
                         .metadata(Metadata.builder().put(IndexMetadata.builder(INDEX.getName())
                             .settings(Settings.builder().put("index.version.created", Version.CURRENT)
@@ -228,11 +227,10 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                         .build());
                 }
             }
-            for (Path path : env.indexPaths(INDEX)) {
-                for (int i = 0; i < shardCount; ++i) {
-                    Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
-                    shardDataDirNumber += randomIntBetween(1,10);
-                }
+            Path path = env.indexPath(INDEX);
+            for (int i = 0; i < shardCount; ++i) {
+                Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
+                shardDataDirNumber += randomIntBetween(1,10);
             }
         }
     }
@@ -245,8 +243,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     private long digestPaths() {
-        // use a commutative digest to avoid dependency on file system order.
-        return Arrays.stream(environment.dataFiles()).mapToLong(this::digestPath).sum();
+        return digestPath(environment.dataFile());
     }
 
     private long digestPath(Path path) {

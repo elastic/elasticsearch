@@ -676,6 +676,55 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFlattenedField() throws IOException {
+        XContentBuilder mapping = mapping(b -> b.startObject("flat").field("type", "flattened").endObject());
+        MapperService mapperService = createMapperService(mapping);
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("flat")
+              .field("f1", "value1")
+              .field("f2", 1)
+            .endObject()
+          .endObject();
+
+        // requesting via wildcard should retrieve the root field as a structured map
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat"));
+        Map<String, Object> flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
+
+        // direct retrieval of subfield is possible
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
+        fieldAndFormatList.add(new FieldAndFormat("flat.f1", null));
+        fields = fetchFields(mapperService, source, fieldAndFormatList);
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat.f1"));
+        assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
+
+        // direct retrieval of root field and subfield is possible
+        fieldAndFormatList.add(new FieldAndFormat("*", null));
+        fields = fetchFields(mapperService, source, fieldAndFormatList);
+        assertEquals(2, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("flat", "flat.f1"));
+        flattenedValue = (Map<String, Object>) fields.get("flat").getValue();
+        assertThat(flattenedValue.keySet(), containsInAnyOrder("f1", "f2"));
+        assertEquals("value1", flattenedValue.get("f1"));
+        assertEquals(1, flattenedValue.get("f2"));
+        assertThat(fields.get("flat.f1").getValue(), equalTo("value1"));
+
+        // retrieval of subfield with wildcard is not possible
+        fields = fetchFields(mapperService, source, fieldAndFormatList("flat.f*", null, false));
+        assertEquals(0, fields.size());
+
+        // retrieval of non-existing subfield returns empty result
+        fields = fetchFields(mapperService, source, fieldAndFormatList("flat.baz", null, false));
+        assertEquals(0, fields.size());
+    }
+
     public void testUnmappedFieldsInsideObject() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("_doc")
@@ -863,10 +912,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("a", "foo").endObject();
 
-        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>();
-        boolean includeUnmapped = true;
-        for (int i = 0; i < 1000; i++) {
-            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, includeUnmapped));
+        List<FieldAndFormat> fieldAndFormatList = new ArrayList<>(8_000);
+        for (int i = 0; i < 8000; i++) {
+            fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }

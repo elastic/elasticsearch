@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.apache.lucene.util.SuppressForbidden;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -20,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -28,6 +29,9 @@ import org.junit.Before;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +47,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -586,8 +591,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                             if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                                 // once the audit file rolled over, it will stay like this
                                 auditFileRolledOver = true;
+                                // unzip the file
+                                InputStream gzipStream = new GZIPInputStream(Files.newInputStream(ROLLED_OVER_AUDIT_LOG_FILE));
+                                Reader decoder = new InputStreamReader(gzipStream, StandardCharsets.UTF_8);
                                 // the order in the array matters, as the readers will be used in that order
-                                logReaders[0] = Files.newBufferedReader(ROLLED_OVER_AUDIT_LOG_FILE, StandardCharsets.UTF_8);
+                                logReaders[0] = new BufferedReader(decoder);
                             }
                             logReaders[1] = Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
                             return null;
@@ -641,13 +649,16 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                     List<String> castIndices = (ArrayList<String>) log.get("indices");
                                     indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
+                                        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(
+                                            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON
+                                        );
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
                                         indices = indices.stream()
-                                            .filter(idx -> false == RestrictedIndicesNames.isRestricted(idx))
+                                            .filter(idx -> false == restrictedAutomaton.run(idx))
                                             .collect(Collectors.toList());
                                     }
                                 }

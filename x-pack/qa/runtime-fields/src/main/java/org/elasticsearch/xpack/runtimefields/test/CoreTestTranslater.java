@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -329,7 +330,7 @@ public abstract class CoreTestTranslater {
                     bos.write(JsonXContent.jsonXContent.streamSeparator());
                 }
                 List<IndexRequest> indexRequests = new ArrayList<>();
-                new BulkRequestParser(false).parse(
+                new BulkRequestParser(false, RestApiVersion.current()).parse(
                     bos.bytes(),
                     defaultIndex,
                     defaultRouting,

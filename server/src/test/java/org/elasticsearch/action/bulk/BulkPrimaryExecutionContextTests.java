@@ -59,7 +59,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
     private BulkShardRequest generateRandomRequest() {
         BulkItemRequest[] items = new BulkItemRequest[randomInt(20)];
         for (int i = 0; i < items.length; i++) {
-            final DocWriteRequest request;
+            final DocWriteRequest<?> request;
             switch (randomFrom(DocWriteRequest.OpType.values())) {
                 case INDEX:
                     request = new IndexRequest("index").id("id_" + i);

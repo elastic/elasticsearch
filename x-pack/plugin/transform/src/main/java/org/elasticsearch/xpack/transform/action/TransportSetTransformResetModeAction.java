@@ -40,12 +40,20 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
 
     @Override
     protected ClusterState setState(ClusterState oldState, SetResetModeActionRequest request) {
-        TransformMetadata.Builder builder = TransformMetadata.Builder
-            .from(oldState.metadata().custom(TransformMetadata.TYPE))
-            .isResetMode(request.isEnabled());
         ClusterState.Builder newState = ClusterState.builder(oldState);
-        newState.metadata(Metadata.builder(oldState.getMetadata())
-            .putCustom(TransformMetadata.TYPE, builder.build()).build());
+        if (request.shouldDeleteMetadata()) {
+            assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
+            newState.metadata(Metadata.builder(oldState.getMetadata())
+                .removeCustom(TransformMetadata.TYPE)
+                .build());
+        } else {
+            TransformMetadata.Builder builder = TransformMetadata.Builder
+                .from(oldState.metadata().custom(TransformMetadata.TYPE))
+                .isResetMode(request.isEnabled());
+            newState.metadata(Metadata.builder(oldState.getMetadata())
+                .putCustom(TransformMetadata.TYPE, builder.build())
+                .build());
+        }
         return newState.build();
     }
 }

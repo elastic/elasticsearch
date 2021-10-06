@@ -8,7 +8,7 @@
 
 package org.elasticsearch.join.spi;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;

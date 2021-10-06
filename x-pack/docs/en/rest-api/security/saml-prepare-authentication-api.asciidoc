@@ -34,8 +34,9 @@ the authentication process (see <<security-api-saml-authenticate,SAML authentica
 These APIs are used internally by {kib} in order to provide SAML based
 authentication, but can also be used by other custom web applications or other
 clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
-<<security-api-saml-invalidate,SAML invalidate API>>, and
-<<security-api-saml-logout,SAML logout API>>.
+<<security-api-saml-invalidate,SAML invalidate API>>,
+<<security-api-saml-logout,SAML logout API>>, and
+<<security-api-saml-complete-logout, SAML complete logout API>>.
 
 [[security-api-saml-prepare-authentication-request-body]]
 ==== {api-request-body-title}
@@ -51,7 +52,7 @@ clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
   parameter.
 
 [[security-api-saml-prepare-authentication-response-body]]
-==== {api-response-body-title}  
+==== {api-response-body-title}
 
 `id`::
   (string) A unique identifier for the SAML Request to be stored by the caller

@@ -10,14 +10,15 @@
 #       $1=1         : indicates an upgrade
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 REMOVE_DIRS=false
 REMOVE_JVM_OPTIONS_DIRECTORY=false
+REMOVE_ELASTICSEARCH_KEYSTORE=false
 REMOVE_USER_AND_GROUP=false
 
 case "$1" in
@@ -30,6 +31,7 @@ case "$1" in
     purge)
         REMOVE_DIRS=true
         REMOVE_JVM_OPTIONS_DIRECTORY=true
+        REMOVE_ELASTICSEARCH_KEYSTORE=true
         REMOVE_USER_AND_GROUP=true
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
@@ -97,6 +99,15 @@ if [ "$REMOVE_DIRS" = "true" ]; then
       fi
     fi
 
+    # delete the elasticsearch keystore if we are purging
+    if [ "$REMOVE_ELASTICSEARCH_KEYSTORE" = "true" ]; then
+      if [ -e "${ES_PATH_CONF}/elasticsearch.keystore" ]; then
+        echo -n "Deleting elasticsearch.keystore..."
+        rm -f "${ES_PATH_CONF}/elasticsearch.keystore"
+        echo "OK"
+      fi
+    fi
+
     # delete the conf directory if and only if empty
     if [ -d "${ES_PATH_CONF}" ]; then
         rmdir --ignore-fail-on-non-empty "${ES_PATH_CONF}"
@@ -114,4 +125,4 @@ if [ "$REMOVE_USER_AND_GROUP" = "true" ]; then
     fi
 fi
 
-${scripts.footer}
+@scripts.footer@

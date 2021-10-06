@@ -9,7 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,7 +68,7 @@ public class ScriptContextInfoTests extends ESTestCase {
             assertEquals(eparams.get(i).v2(), info.execute.parameters.get(i).name);
         }
         assertEquals(2, info.getters.size());
-        HashMap<String,String> getters = new HashMap(Map.of("getByte","byte", "getChar","char"));
+        HashMap<String,String> getters = new HashMap<>(Map.of("getByte","byte", "getChar","char"));
         for (ScriptContextInfo.ScriptMethodInfo getter: info.getters) {
             assertEquals(0, getter.parameters.size());
             String returnType = getters.remove(getter.name);
@@ -109,7 +109,7 @@ public class ScriptContextInfoTests extends ESTestCase {
             assertEquals(eparams.get(i).v2(), info.execute.parameters.get(i).name);
         }
         assertEquals(2, info.getters.size());
-        HashMap<String,String> getters = new HashMap(Map.of("getCustom1",ct1, "getCustom2",ct2));
+        HashMap<String,String> getters = new HashMap<>(Map.of("getCustom1",ct1, "getCustom2",ct2));
         for (ScriptContextInfo.ScriptMethodInfo getter: info.getters) {
             assertEquals(0, getter.parameters.size());
             String returnType = getters.remove(getter.name);
@@ -118,7 +118,7 @@ public class ScriptContextInfoTests extends ESTestCase {
         }
         assertEquals(0, getters.size());
 
-        HashMap<String,String> methods = new HashMap(Map.of("getCustom1",ct1, "getCustom2",ct2, "execute",ct0));
+        HashMap<String,String> methods = new HashMap<>(Map.of("getCustom1",ct1, "getCustom2",ct2, "execute",ct0));
         for (ScriptContextInfo.ScriptMethodInfo method: info.methods()) {
             String returnType = methods.remove(method.name);
             assertNotNull(returnType);
@@ -199,7 +199,7 @@ public class ScriptContextInfoTests extends ESTestCase {
         Set<ScriptMethodInfo> getters =
             new ScriptContextInfo("getter_conditional", GetterConditional.class).getters;
         assertEquals(2, getters.size());
-        HashMap<String,String> methods = new HashMap(Map.of("getNonDefault1","boolean", "getNonDefault2","float"));
+        HashMap<String,String> methods = new HashMap<>(Map.of("getNonDefault1","boolean", "getNonDefault2","float"));
         for (ScriptContextInfo.ScriptMethodInfo method: getters) {
             String returnType = methods.remove(method.name);
             assertNotNull(returnType);

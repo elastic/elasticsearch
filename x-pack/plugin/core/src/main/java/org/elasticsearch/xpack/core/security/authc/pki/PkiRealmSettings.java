@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.pki;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.CompositeRoleMapperSettings;
@@ -51,19 +51,13 @@ public final class PkiRealmSettings {
 
     static {
         final String prefix = "xpack.security.authc.realms." + TYPE + ".";
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
-        TRUST_STORE_PATH = Setting.affixKeySetting(prefix, ssl.truststorePath.getKey(),
-                SSLConfigurationSettings.TRUST_STORE_PATH_TEMPLATE);
-        TRUST_STORE_TYPE = Setting.affixKeySetting(prefix, ssl.truststoreType.getKey(),
-                SSLConfigurationSettings.TRUST_STORE_TYPE_TEMPLATE);
-        TRUST_STORE_PASSWORD = Setting.affixKeySetting(prefix, ssl.truststorePassword.getKey(),
-                SSLConfigurationSettings.TRUSTSTORE_PASSWORD_TEMPLATE);
-        LEGACY_TRUST_STORE_PASSWORD = Setting.affixKeySetting(prefix, ssl.legacyTruststorePassword.getKey(),
-                SSLConfigurationSettings.LEGACY_TRUSTSTORE_PASSWORD_TEMPLATE);
-        TRUST_STORE_ALGORITHM = Setting.affixKeySetting(prefix, ssl.truststoreAlgorithm.getKey(),
-                SSLConfigurationSettings.TRUST_STORE_ALGORITHM_TEMPLATE);
-        CAPATH_SETTING = Setting.affixKeySetting(prefix, ssl.caPaths.getKey(),
-                SSLConfigurationSettings.CAPATH_SETTING_TEMPLATE);
+        // Can't use the "realm" settings because they have the format "ssl.{setting}" which isn't the setting format for PKI trust
+        TRUST_STORE_PATH = SSLConfigurationSettings.TRUSTSTORE_PATH.affixSetting(prefix, "");
+        TRUST_STORE_TYPE = SSLConfigurationSettings.TRUSTSTORE_TYPE.affixSetting(prefix, "");
+        TRUST_STORE_PASSWORD = SSLConfigurationSettings.TRUSTSTORE_PASSWORD.affixSetting(prefix, "");
+        LEGACY_TRUST_STORE_PASSWORD = SSLConfigurationSettings.LEGACY_TRUSTSTORE_PASSWORD.affixSetting(prefix, "");
+        TRUST_STORE_ALGORITHM = SSLConfigurationSettings.TRUSTSTORE_ALGORITHM.affixSetting(prefix, "");
+        CAPATH_SETTING = SSLConfigurationSettings.CERT_AUTH_PATH.affixSetting(prefix, "");
     }
 
     private PkiRealmSettings() {

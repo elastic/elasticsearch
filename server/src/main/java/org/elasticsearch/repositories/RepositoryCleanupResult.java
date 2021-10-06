@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -21,8 +21,11 @@ import java.io.IOException;
 
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
-    public static final ObjectParser<RepositoryCleanupResult, Void> PARSER =
-        new ObjectParser<>(RepositoryCleanupResult.class.getName(), true, RepositoryCleanupResult::new);
+    public static final ObjectParser<RepositoryCleanupResult, Void> PARSER = new ObjectParser<>(
+        RepositoryCleanupResult.class.getName(),
+        true,
+        RepositoryCleanupResult::new
+    );
 
     private static final String DELETED_BLOBS = "deleted_blobs";
 

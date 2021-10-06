@@ -10,15 +10,15 @@ package org.elasticsearch.common.ssl;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -32,10 +32,13 @@ import java.util.stream.Collectors;
  * {@link java.security.cert.CertificateFactory#generateCertificate(InputStream)}.
  */
 public final class PemTrustConfig implements SslTrustConfig {
-    private final List<Path> certificateAuthorities;
+
+    private static final String CA_FILE_TYPE = "PEM " + SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
+    private final List<String> certificateAuthorities;
+    private final Path basePath;
 
     /**
-     * Construct a new trust config for the provided paths.
+     * Construct a new trust config for the provided paths (which will be resolved relative to the basePath).
      * The paths are stored as-is, and are not read until {@link #createTrustManager()} is called.
      * This means that
      * <ol>
@@ -47,41 +50,67 @@ public final class PemTrustConfig implements SslTrustConfig {
      * </li>
      * </ol>
      */
-    public PemTrustConfig(List<Path> certificateAuthorities) {
+    public PemTrustConfig(List<String> certificateAuthorities, Path basePath) {
         this.certificateAuthorities = Collections.unmodifiableList(certificateAuthorities);
+        this.basePath = basePath;
     }
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return certificateAuthorities;
+        return resolveFiles();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        final List<StoredCertificate> info = new ArrayList<>(certificateAuthorities.size());
+        for (String caPath : certificateAuthorities) {
+            for (Certificate cert : readCertificates(List.of(resolveFile(caPath)))) {
+                if (cert instanceof X509Certificate) {
+                    info.add(new StoredCertificate((X509Certificate) cert, caPath, "PEM", null, false));
+                }
+            }
+        }
+        return info;
     }
 
     @Override
     public X509ExtendedTrustManager createTrustManager() {
+        final List<Path> paths = resolveFiles();
         try {
-            final List<Certificate> certificates = loadCertificates();
-            KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
+            final List<Certificate> certificates = readCertificates(paths);
+            final KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
             return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("cannot create trust using PEM certificates [" + caPathsAsString() + "]", e);
+            throw new SslConfigException(
+                "cannot create trust using PEM certificates [" + SslFileUtil.pathsToString(paths) + "]", e);
         }
     }
 
-    private List<Certificate> loadCertificates() throws CertificateException {
+    private List<Path> resolveFiles() {
+        return this.certificateAuthorities.stream().map(this::resolveFile).collect(Collectors.toUnmodifiableList());
+    }
+
+    private Path resolveFile(String other) {
+        return basePath.resolve(other);
+    }
+
+    private List<Certificate> readCertificates(List<Path> paths) {
         try {
-            return PemUtils.readCertificates(this.certificateAuthorities);
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
-                + "] because one or more files do not exist", e);
+            return PemUtils.readCertificates(paths);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
         } catch (IOException e) {
-            throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
-                + "] because one or more files cannot be read", e);
+            throw SslFileUtil.ioException(CA_FILE_TYPE, paths, e);
+        } catch (GeneralSecurityException e) {
+            throw SslFileUtil.securityException(CA_FILE_TYPE, paths, e);
+        } catch (SslConfigException e) {
+            throw SslFileUtil.configException(CA_FILE_TYPE, paths, e);
         }
     }
 
     @Override
     public String toString() {
-        return "PEM-trust{" + caPathsAsString() + "}";
+        return "PEM-trust{" + SslFileUtil.pathsToString(resolveFiles()) + "}";
     }
 
     @Override
@@ -99,13 +128,6 @@ public final class PemTrustConfig implements SslTrustConfig {
     @Override
     public int hashCode() {
         return Objects.hash(certificateAuthorities);
-    }
-
-    private String caPathsAsString() {
-        return certificateAuthorities.stream()
-            .map(Path::toAbsolutePath)
-            .map(Object::toString)
-            .collect(Collectors.joining(","));
     }
 
 }

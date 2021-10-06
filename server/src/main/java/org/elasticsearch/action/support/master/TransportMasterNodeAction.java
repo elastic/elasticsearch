@@ -21,16 +21,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -38,6 +43,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.CancellationException;
 import java.util.function.Predicate;
 
 /**
@@ -82,11 +88,35 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract void masterOperation(Task task, Request request, ClusterState state,
                                             ActionListener<Response> listener) throws Exception;
 
+    private void executeMasterOperation(Task task, Request request, ClusterState state,
+                                        ActionListener<Response> listener) throws Exception {
+        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+            throw new CancellationException("Task was cancelled");
+        }
+
+        masterOperation(task, request, state, listener);
+    }
+
     protected boolean localExecute(Request request) {
         return false;
     }
 
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
+
+    private ClusterBlockException checkBlockIfStateRecovered(Request request, ClusterState state) {
+        try {
+            return checkBlock(request, state);
+        } catch (IndexNotFoundException e) {
+            if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                // no index metadata is exposed yet, but checkBlock depends on an index, so keep trying until the cluster forms
+                assert GatewayService.STATE_NOT_RECOVERED_BLOCK.contains(ClusterBlockLevel.METADATA_READ);
+                assert state.blocks().global(ClusterBlockLevel.METADATA_READ).stream().allMatch(ClusterBlock::retryable);
+                return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+            } else {
+                throw e;
+            }
+        }
+    }
 
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
@@ -114,11 +144,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         protected void doStart(ClusterState clusterState) {
+            if (isTaskCancelled()) {
+                listener.onFailure(new CancellationException("Task was cancelled"));
+                return;
+            }
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
-                    final ClusterBlockException blockException = checkBlock(request, clusterState);
+                    final ClusterBlockException blockException = checkBlockIfStateRecovered(request, clusterState);
                     if (blockException != null) {
                         if (blockException.retryable() == false) {
                             logger.trace("can't execute due to a non-retryable cluster block", blockException);
@@ -127,7 +161,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             logger.debug("can't execute due to a cluster block, retrying", blockException);
                             retry(clusterState, blockException, newState -> {
                                 try {
-                                    ClusterBlockException newException = checkBlock(request, newState);
+                                    ClusterBlockException newException = checkBlockIfStateRecovered(request, newState);
                                     return (newException == null || newException.retryable() == false);
                                 } catch (Exception e) {
                                     // accept state as block will be rechecked by doStart() and listener.onFailure() then called
@@ -148,7 +182,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             }
                         });
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> masterOperation(task, request, clusterState, l)));
+                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
@@ -218,7 +252,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             actionName, timeout), failure);
                         listener.onFailure(new MasterNotDiscoveredException(failure));
                     }
-                }, statePredicate);
+                }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));
+        }
+
+        private boolean isTaskCancelled() {
+            return task instanceof CancellableTask && ((CancellableTask) task).isCancelled();
         }
     }
 }

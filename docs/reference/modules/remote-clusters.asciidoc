@@ -1,29 +1,42 @@
-[[modules-remote-clusters]]
+[[remote-clusters]]
 == Remote clusters
-
 You can connect a local cluster to other {es} clusters, known as _remote
-clusters_. Once connected, you can search remote clusters using
-<<modules-cross-cluster-search,{ccs}>>. You can also sync data between clusters
-using <<xpack-ccr,{ccr}>>.
+clusters_. Remote clusters can be located in different datacenters or 
+geographic regions, and contain indices or data streams that can be replicated
+with {ccr} or searched by a local cluster using {ccs}.
 
-To register a remote cluster, connect the local cluster to nodes in the
-remote cluster using one of two connection modes:
+With <<xpack-ccr,{ccr}>>, you ingest data to an index on a remote cluster. This 
+_leader_ index is replicated to one or more read-only _follower_ indices on your local cluster. Creating a multi-cluster architecture with {ccr} enables you to 
+configure disaster recovery, bring data closer to your users, or establish a 
+centralized reporting cluster to process reports locally.
 
-* <<sniff-mode,Sniff mode>>
-* <<proxy-mode,Proxy mode>>
+<<modules-cross-cluster-search,{ccs-cap}>> enables you to run a search request 
+against one or more remote clusters. This capability provides each region
+with a global view of all clusters, allowing you to send a search request from
+a local cluster and return results from all connected remote clusters. 
 
-Your local cluster uses the <<modules-network,transport layer>> to establish
-communication with remote clusters. The coordinating nodes in the local cluster
-establish <<long-lived-connections,long-lived>> TCP connections with specific
-nodes in the remote cluster. {es} requires these connections to remain open,
-even if the connections are idle for an extended period.
+Enabling and configuring security is important on both local and remote
+clusters. When connecting a local cluster to remote clusters, an {es} superuser
+(such as the `elastic` user) on the local cluster gains total read access to the
+remote clusters. To use {ccr} and {ccs} safely, 
+<<remote-clusters-security,enable security>> on all connected clusters 
+and configure Transport Layer Security (TLS) on at least the transport level on
+every node.
 
-You can use the <<cluster-remote-info, remote cluster info API>> to get
-information about registered remote clusters.
+Furthermore, a local administrator at the operating system level
+with sufficient access to {es} configuration files and private keys can
+potentially take over a remote cluster. Ensure that your security strategy
+includes securing local _and_ remote clusters at the operating system level.
+
+To register a remote cluster,
+<<remote-clusters-connect,connect the local cluster>> to nodes in the
+remote cluster using sniff mode (default) or proxy mode. After registering
+remote clusters, <<remote-clusters-privileges,configure privileges>> for {ccr} 
+and {ccs}.
 
 [[sniff-mode]]
 [discrete]
-==== Sniff mode
+=== Sniff mode
 
 In sniff mode, a cluster is created using a name and a list of seed nodes. When
 a remote cluster is registered, its cluster state is retrieved from one of the
@@ -38,7 +51,7 @@ The _gateway nodes_ selection depends on the following criteria:
 
 * *version*: Remote nodes must be compatible with the cluster they are
 registered to, similar to the rules for
-<<rolling-upgrades>>:
+<<rolling-upgrades,rolling upgrades>>:
 ** Any node can communicate with another node on the same
 major version. For example, 7.0 can talk to any 7.x node.
 ** Only nodes on the last minor version of a certain major version can
@@ -49,34 +62,20 @@ symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
 communicate with 6.7. The following table depicts version compatibility between
 local and remote nodes.
 +
-[%collapsible]
+[%collapsible%open]
 .Version compatibility table
 ====
-// tag::remote-cluster-compatibility-matrix[]
-[cols="^,^,^,^,^,^,^,^"]
-|====
-| 7+^h| Local cluster
-h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
-| 5.0->5.5      | {yes-icon} | {yes-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon} | {no-icon}
-| 5.6           | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
-| 6.0->6.6      | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
-| 6.7           | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
-| 6.8           | {no-icon} | {yes-icon} |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 7.0           | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 7.1->7.x      | {no-icon} | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-|====
-// end::remote-cluster-compatibility-matrix[]
+include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
 * *role*: Dedicated master nodes are never selected as gateway nodes.
 * *attributes*: You can tag which nodes should be selected
-(see <<remote-cluster-settings>>), though such tagged nodes still have
+(see <<remote-clusters-settings,remote cluster settings>>), though such tagged nodes still have
 to satisfy the two above requirements.
 
 [[proxy-mode]]
 [discrete]
-==== Proxy mode
-
+=== Proxy mode
 In proxy mode, a cluster is created using a name and a single proxy address.
 When you register a remote cluster, a configurable number of socket connections
 are opened to the proxy address. The proxy is required to route those
@@ -86,252 +85,18 @@ nodes to have accessible publish addresses.
 The proxy mode is not the default connection mode and must be configured. Similar
 to the sniff <<gateway-nodes-selection,gateway nodes>>, the remote
 connections are subject to the same version compatibility rules as
-<<rolling-upgrades>>.
+<<rolling-upgrades,rolling upgrades>>.
 
-[discrete]
-[[configuring-remote-clusters]]
-=== Configuring remote clusters
+Proxy mode has the same version compatibility requirements as sniff mode.
 
-You can configure remote clusters settings <<configure-remote-clusters-dynamic,globally>>, or configure
-settings <<configure-remote-clusters-static,on individual nodes>> in the
-`elasticsearch.yml` file.
+[%collapsible]
+[[proxy-mode-version-compatibility]]
+.Version compatibility matrix
+====
+include::remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
+====
 
-[discrete]
-[[configure-remote-clusters-dynamic]]
-===== Dynamically configure remote clusters
-Use the <<cluster-update-settings,cluster update settings API>> to dynamically
-configure remote settings on every node in the cluster. For example:
-
-[source,console]
---------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "cluster": {
-      "remote": {
-        "cluster_one": {
-          "seeds": [
-            "127.0.0.1:9300"
-          ],
-          "transport.ping_schedule": "30s"
-        },
-        "cluster_two": {
-          "mode": "sniff",
-          "seeds": [
-            "127.0.0.1:9301"
-          ],
-          "transport.compress": true,
-          "skip_unavailable": true
-        },
-        "cluster_three": {
-          "mode": "proxy",
-          "proxy_address": "127.0.0.1:9302"
-        }
-      }
-    }
-  }
-}
---------------------------------
-// TEST[setup:host]
-// TEST[s/127.0.0.1:9300/\${transport_host}/]
-
-You can dynamically update the compression and ping schedule settings. However,
-you must re-include seeds or `proxy_address` in the settings update request.
-For example:
-
-[source,console]
---------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "cluster": {
-      "remote": {
-        "cluster_one": {
-          "seeds": [
-            "127.0.0.1:9300"
-          ],
-          "transport.ping_schedule": "60s"
-        },
-        "cluster_two": {
-          "mode": "sniff",
-          "seeds": [
-            "127.0.0.1:9301"
-          ],
-          "transport.compress": false
-        },
-        "cluster_three": {
-          "mode": "proxy",
-          "proxy_address": "127.0.0.1:9302",
-          "transport.compress": true
-        }
-      }
-    }
-  }
-}
---------------------------------
-// TEST[continued]
-
-NOTE: When the compression or ping schedule settings change, all the existing
-node connections must close and re-open, which can cause in-flight requests to
-fail.
-
-You can delete a remote cluster from the cluster settings by passing `null`
-values for each remote cluster setting:
-
-[source,console]
---------------------------------
-PUT _cluster/settings
-{
-  "persistent": {
-    "cluster": {
-      "remote": {
-        "cluster_two": { <1>
-          "mode": null,
-          "seeds": null,
-          "skip_unavailable": null,
-          "transport": {
-            "compress": null
-          }
-        }
-      }
-    }
-  }
-}
---------------------------------
-// TEST[continued]
-
-<1> `cluster_two` would be removed from the cluster settings, leaving
-`cluster_one` and `cluster_three` intact.
-
-[discrete]
-[[configure-remote-clusters-static]]
-===== Statically configure remote clusters
-If you specify settings in `elasticsearch.yml` files, only the nodes with
-those settings can connect to the remote cluster and serve remote cluster requests. For example:
-
-[source,yaml]
---------------------------------
-cluster:
-    remote:
-        cluster_one: <1>
-            seeds: 127.0.0.1:9300 <2>
-            transport.ping_schedule: 30s <3>
-        cluster_two: <1>
-            mode: sniff <4>
-            seeds: 127.0.0.1:9301 <2>
-            transport.compress: true <5>
-            skip_unavailable: true <6>
-        cluster_three: <1>
-            mode: proxy <4>
-            proxy_address: 127.0.0.1:9302 <7>
-
---------------------------------
-<1> `cluster_one`, `cluster_two`, and `cluster_three` are arbitrary _cluster aliases_
-representing the connection to each cluster. These names are subsequently used to
-distinguish between local and remote indices.
-<2> The hostname and <<transport-settings,transport port>> (default: 9300) of a
-seed node in the remote cluster.
-<3> A keep-alive ping is configured for `cluster_one`.
-<4> The configured connection mode. By default, this is <<sniff-mode,`sniff`>>, so
-the mode is implicit for `cluster_one`. However, it can be explicitly configured
-as demonstrated by `cluster_two` and must be explicitly configured for
-<<proxy-mode,proxy mode>> as demonstrated by `cluster_three`.
-<5> Compression is explicitly enabled for requests to `cluster_two`.
-<6> Disconnected remote clusters are optional for `cluster_two`.
-<7> The address for the proxy endpoint used to connect to `cluster_three`.
-
-[discrete]
-[[remote-cluster-settings]]
-=== Global remote cluster settings
-
-These settings apply to both <<sniff-mode,sniff mode>> and
-<<proxy-mode,proxy mode>>. <<remote-cluster-sniff-settings,Sniff mode settings>>
-and <<remote-cluster-proxy-settings,proxy mode settings>> are described
-separately.
-
-`cluster.remote.<cluster_alias>.mode`::
-  The mode used for a remote cluster connection. The only supported modes are
-  `sniff` and `proxy`.
-
-`cluster.remote.initial_connect_timeout`::
-
-  The time to wait for remote connections to be established when the node
-  starts. The default is `30s`.
-
-`remote_cluster_client` <<node-roles,role>>::
-
-  By default, any node in the cluster can act as a cross-cluster client and
-  connect to remote clusters. To prevent a node from connecting to remote
-  clusters, specify the <<node-roles,node.roles>> setting in `elasticsearch.yml`
-  and exclude `remote_cluster_client` from the listed roles. Search requests
-  targeting remote clusters must be sent to a node that is allowed to act as a
-  cross-cluster client. Other features such as {ml} <<general-ml-settings,data
-  feeds>>, <<general-transform-settings,transforms>>, and
-  <<ccr-getting-started,{ccr}>> require the `remote_cluster_client` role.
-
-`cluster.remote.<cluster_alias>.skip_unavailable`::
-
-  Per cluster boolean setting that allows to skip specific clusters when no
-  nodes belonging to them are available and they are the target of a remote
-  cluster request. Default is `false`, meaning that all clusters are mandatory
-  by default, but they can selectively be made optional by setting this setting
-  to `true`.
-
-`cluster.remote.<cluster_alias>.transport.ping_schedule`::
-
-  Sets the time interval between regular application-level ping messages that
-  are sent to ensure that transport connections to nodes belonging to remote
-  clusters are kept alive. If set to `-1`, application-level ping messages to
-  this remote cluster are not sent. If unset, application-level ping messages
-  are sent according to the global `transport.ping_schedule` setting, which
-  defaults to `-1` meaning that pings are not sent.
-
-`cluster.remote.<cluster_alias>.transport.compress`::
-
-  Per cluster boolean setting that enables you to configure compression for
-  requests to a specific remote cluster. This setting impacts only requests
-  sent to the remote cluster. If the inbound request is compressed,
-  Elasticsearch compresses the response. If unset, the global
-  `transport.compress` is used as the fallback setting.
-
-[discrete]
-[[remote-cluster-sniff-settings]]
-=== Sniff mode remote cluster settings
-
-`cluster.remote.<cluster_alias>.seeds`::
-
-  The list of seed nodes used to sniff the remote cluster state.
-
-`cluster.remote.<cluster_alias>.node_connections`::
-
-  The number of gateway nodes to connect to for this remote cluster. The default
-  is `3`.
-
-`cluster.remote.node.attr`::
-
-  A node attribute to filter out nodes that are eligible as a gateway node in
-  the remote cluster. For instance a node can have a node attribute
-  `node.attr.gateway: true` such that only nodes with this attribute will be
-  connected to if `cluster.remote.node.attr` is set to `gateway`.
-
-[discrete]
-[[remote-cluster-proxy-settings]]
-=== Proxy mode remote cluster settings
-
-`cluster.remote.<cluster_alias>.proxy_address`::
-
-  The address used for all remote connections.
-
-`cluster.remote.<cluster_alias>.proxy_socket_connections`::
-
-  The number of socket connections to open per remote cluster. The default is
-  `18`.
-
-[role="xpack"]
-`cluster.remote.<cluster_alias>.server_name`::
-
-  An optional hostname string which is sent in the `server_name` field of
-  the TLS Server Name Indication extension if
-  <<encrypt-internode-communication,TLS is enabled>>. The TLS transport will fail to open
-  remote connections if this field is not a valid hostname as defined by the
-  TLS SNI specification.
+include::cluster/remote-clusters-security.asciidoc[]
+include::cluster/remote-clusters-connect.asciidoc[]
+include::../../../x-pack/docs/en/security/authentication/remote-clusters-privileges.asciidoc[]
+include::cluster/remote-clusters-settings.asciidoc[]

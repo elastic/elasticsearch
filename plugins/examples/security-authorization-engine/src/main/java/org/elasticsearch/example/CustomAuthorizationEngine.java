@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -98,11 +97,11 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
+                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
         if (isSuperuser(requestInfo.getAuthentication().getUser())) {
-            listener.onResponse(new ArrayList<>(indicesLookup.keySet()));
+            listener.onResponse(indicesLookup.keySet());
         } else {
-            listener.onResponse(Collections.emptyList());
+            listener.onResponse(Collections.emptySet());
         }
     }
 

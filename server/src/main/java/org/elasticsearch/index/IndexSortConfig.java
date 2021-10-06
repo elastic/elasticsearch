@@ -190,7 +190,7 @@ public final class IndexSortConfig {
                 if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {
                     throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
                 } else {
-                    DEPRECATION_LOGGER.deprecate(
+                    DEPRECATION_LOGGER.critical(
                         DeprecationCategory.MAPPINGS,
                         "index-sort-aliases",
                         "Index sort for index [" + indexName + "] defined on field [" + sortSpec.field +

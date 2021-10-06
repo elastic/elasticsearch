@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -73,7 +72,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return DiscoveryNode.getPossibleRoles().stream().collect(Collectors.toUnmodifiableList());
+        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
     }
 
     @Override

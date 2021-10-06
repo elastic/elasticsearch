@@ -14,7 +14,7 @@ import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -401,7 +401,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index_patterns", indexPatterns);
+        builder.stringListField("index_patterns", indexPatterns);
         builder.field("order", order);
         if (version != null) {
             builder.field("version", version);

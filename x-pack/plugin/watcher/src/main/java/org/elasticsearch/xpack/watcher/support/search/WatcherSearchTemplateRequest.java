@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.watcher.support.search;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -140,7 +140,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 builder.rawField(BODY_FIELD.getPreferredName(), stream);
             }
         }
-        if (indicesOptions != DEFAULT_INDICES_OPTIONS) {
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
             builder.startObject(INDICES_OPTIONS_FIELD.getPreferredName());
             indicesOptions.toXContent(builder, params);
             builder.endObject();

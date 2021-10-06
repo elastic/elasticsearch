@@ -19,7 +19,7 @@
 
 package org.elasticsearch.core.internal.io;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;

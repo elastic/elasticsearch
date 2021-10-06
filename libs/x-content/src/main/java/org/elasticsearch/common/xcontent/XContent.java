@@ -8,7 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,6 +60,17 @@ public interface XContent {
         throws IOException;
 
     /**
+     * Creates a parser over the provided input stream.
+     */
+    XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException;
+
+    /**
      * Creates a parser over the provided bytes.
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
@@ -83,5 +95,9 @@ public interface XContent {
      */
     XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
                                                 InputStream is, RestApiVersion restApiVersion) throws IOException;
+
+    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
+                                                RestApiVersion restApiVersion) throws IOException;
 
 }

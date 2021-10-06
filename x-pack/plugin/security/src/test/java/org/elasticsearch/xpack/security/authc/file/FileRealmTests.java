@@ -48,6 +48,7 @@ public class FileRealmTests extends ESTestCase {
 
     private static final Answer<AuthenticationResult> VERIFY_PASSWORD_ANSWER = inv -> {
         assertThat(inv.getArguments().length, is(3));
+        @SuppressWarnings("unchecked")
         Supplier<User> supplier = (Supplier<User>) inv.getArguments()[2];
         return AuthenticationResult.success(supplier.get());
     };
@@ -72,7 +73,7 @@ public class FileRealmTests extends ESTestCase {
     }
 
     public void testAuthenticate() throws Exception {
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[] { "role1", "role2" });
         RealmConfig config = getRealmConfig(globalSettings);
@@ -100,7 +101,7 @@ public class FileRealmTests extends ESTestCase {
             .put(globalSettings)
             .build();
         RealmConfig config = getRealmConfig(settings);
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
@@ -117,7 +118,7 @@ public class FileRealmTests extends ESTestCase {
         RealmConfig config = getRealmConfig(globalSettings);
         userPasswdStore = spy(new UserPasswdStore(config));
         userRolesStore = spy(new UserRolesStore(config));
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
                 .thenAnswer(VERIFY_PASSWORD_ANSWER);
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
@@ -154,7 +155,7 @@ public class FileRealmTests extends ESTestCase {
 
     public void testToken() throws Exception {
         RealmConfig config = getRealmConfig(globalSettings);
-        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), any(Supplier.class)))
+        when(userPasswdStore.verifyPassword(eq("user1"), eq(new SecureString("longtestpassword")), anySupplier()))
             .thenAnswer(VERIFY_PASSWORD_ANSWER);
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore, threadPool);
@@ -274,6 +275,11 @@ public class FileRealmTests extends ESTestCase {
         UserRolesStore(RealmConfig config) {
             super(config, mock(ResourceWatcherService.class));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Supplier<T> anySupplier() {
+        return any(Supplier.class);
     }
 
 }

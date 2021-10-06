@@ -25,10 +25,11 @@ import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RequestMatcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,6 +45,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -61,17 +63,18 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     public void initClients() throws IOException {
         if (restHighLevelClient == null) {
             final RestClient restClient = mock(RestClient.class);
+            RestHighLevelClientTests.mockGetRoot(restClient);
             restHighLevelClient = new CustomRestClient(restClient);
 
             doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
                     .when(restClient)
-                    .performRequest(any(Request.class));
+                    .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)));
 
             doAnswer(inv -> mockPerformRequestAsync(
                         ((Request) inv.getArguments()[0]),
                         (ResponseListener) inv.getArguments()[1]))
                     .when(restClient)
-                    .performRequestAsync(any(Request.class), any(ResponseListener.class));
+                    .performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)), any(ResponseListener.class));
         }
     }
 

@@ -8,8 +8,8 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;

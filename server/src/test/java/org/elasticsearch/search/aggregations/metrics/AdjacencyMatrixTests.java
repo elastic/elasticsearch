@@ -28,8 +28,7 @@ public class AdjacencyMatrixTests extends BaseAggregationTestCase<AdjacencyMatri
         for (String key : randomUnique(() -> randomAlphaOfLengthBetween(1, 20), size)) {
             filters.put(key, QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }
-        factory = new AdjacencyMatrixAggregationBuilder(randomAlphaOfLengthBetween(1, 20), filters)
-                .separator(randomFrom("&","+","\t"));
+        factory = new AdjacencyMatrixAggregationBuilder(randomAlphaOfLengthBetween(1, 20), filters).separator(randomFrom("&", "+", "\t"));
         return factory;
     }
 

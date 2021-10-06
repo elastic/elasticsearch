@@ -8,7 +8,7 @@
 package org.elasticsearch.test.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.junit.Test;

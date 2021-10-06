@@ -69,13 +69,16 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.BUILD_AGGREGATION);
+        InternalAggregation[] result;
         timer.start();
         try {
-            return delegate.buildAggregations(owningBucketOrds);
+            result = delegate.buildAggregations(owningBucketOrds);
         } finally {
             timer.stop();
-            delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
         }
+        profileBreakdown.addDebugInfo("built_buckets", result.length);
+        delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
+        return result;
     }
 
     @Override

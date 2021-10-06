@@ -111,6 +111,25 @@ setup:
 
   - do:
       ml.preview_datafeed:
+        datafeed_id: preview-datafeed-feed
+        body: >
+          {}
+  - length: { $body: 4 }
+  - match: { 0.time: 1487376000000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }
+  - match: { 1.time: 1487377800000 }
+  - match: { 1.airline: foo }
+  - match: { 1.responsetime: 1.0 }
+  - match: { 2.time: 1487379600000 }
+  - match: { 2.airline: bar }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }
+
+  - do:
+      ml.preview_datafeed:
         body: >
           {
             "datafeed_config": {
@@ -147,6 +166,37 @@ setup:
               },
               "data_description": {
                 "time_field":"time"
+              }
+            }
+          }
+  - length: { $body: 4 }
+  - match: { 0.time: 1487376000000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }
+  - match: { 1.time: 1487377800000 }
+  - match: { 1.airline: foo }
+  - match: { 1.responsetime: 1.0 }
+  - match: { 2.time: 1487379600000 }
+  - match: { 2.airline: bar }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }
+
+  - do:
+      ml.preview_datafeed:
+        body: >
+          {
+            "job_config": {
+              "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description": {
+                "time_field":"time"
+              },
+              "datafeed_config": {
+                "indexes":"airline-data"
               }
             }
           }
@@ -294,6 +344,65 @@ setup:
   - match: { 2.responsetime: 42.0 }
   - match: { 2.doc_count: 1 }
 
+  - do:
+      ml.preview_datafeed:
+        body: >
+          {
+            "job_config": {
+              "analysis_config" : {
+                  "bucket_span": "1h",
+                  "summary_count_field_name": "doc_count",
+                  "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description" : {
+                  "time_field":"time"
+              },
+              "datafeed_config": {
+                "indexes":"airline-data",
+                "aggregations": {
+                  "buckets": {
+                    "histogram": {
+                      "field": "time",
+                      "interval": 3600000
+                    },
+                    "aggregations": {
+                      "time": {
+                        "max": {
+                          "field": "time"
+                        }
+                      },
+                      "airline": {
+                        "terms": {
+                          "field": "airline",
+                          "size": 100
+                        },
+                        "aggregations": {
+                          "responsetime": {
+                            "sum": {
+                               "field": "responsetime"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { $body: 3 }
+  - match: { 0.time: 1487377800000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 2.0 }
+  - match: { 0.doc_count: 2 }
+  - match: { 1.time: 1487379660000 }
+  - match: { 1.airline: bar }
+  - match: { 1.responsetime: 42.0 }
+  - match: { 1.doc_count: 1 }
+  - match: { 1.time: 1487379660000 }
+  - match: { 2.airline: foo }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 2.doc_count: 1 }
 ---
 "Test preview single metric aggregation datafeed with different summary count field":
 
@@ -477,6 +586,30 @@ setup:
              }
           }
 ---
+"Test preview with datafeed config and job config with datafeed config":
+
+  - do:
+      catch: bad_request
+      ml.preview_datafeed:
+        body: >
+          {
+            "datafeed_config": {
+              "indexes":"airline-data"
+            },
+            "job_config": {
+              "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description" : {
+                "time_field":"time"
+              },
+              "datafeed_config": {
+                "indexes":"airline-data"
+              }
+            }
+          }
+---
 "Test preview datafeed with unavailable index":
 
   - do:
@@ -619,3 +752,104 @@ setup:
   - match: { 2.airline: foo }
   - match: { 2.responsetime_x_2: 84.0 }
   - match: { 2.doc_count: 1 }
+
+---
+"Test preview datafeed where time field is data_nanos":
+
+  - do:
+      indices.create:
+        index: index-airline-data-date-nanos
+        body:
+          mappings:
+            properties:
+              time:
+                type: date_nanos
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+
+  - do:
+      index:
+        index: index-airline-data-date-nanos
+        id: 1
+        body: >
+          {
+            "time": "2017-02-18T00:00:00Z",
+            "airline": "foo",
+            "responsetime": 1.0,
+            "event_rate": 5
+          }
+
+  - do:
+      index:
+        index: index-airline-data-date-nanos
+        id: 2
+        body: >
+          {
+            "time": "2017-02-18T00:30:00Z",
+            "airline": "foo",
+            "responsetime": 1.0,
+            "event_rate": 6
+          }
+
+  - do:
+      index:
+        index: index-airline-data-date-nanos
+        id: 3
+        body: >
+          {
+            "time": "2017-02-18T01:00:00Z",
+            "airline": "bar",
+            "responsetime": 42.0,
+            "event_rate": 8
+          }
+
+  - do:
+      index:
+        index: index-airline-data-date-nanos
+        id: 4
+        body: >
+          {
+            "time": "2017-02-18T01:01:00Z",
+            "airline": "foo",
+            "responsetime": 42.0,
+            "event_rate": 7
+          }
+
+  - do:
+      indices.refresh:
+        index: index-airline-data-date-nanos
+
+  - do:
+      ml.preview_datafeed:
+        body: >
+          {
+            "datafeed_config": {
+              "indexes":"index-airline-data-date-nanos"
+            },
+            "job_config": {
+              "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
+              },
+              "data_description": {
+                "time_field":"time"
+              }
+            }
+          }
+  - length: { $body: 4 }
+  - match: { 0.time: 1487376000000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }
+  - match: { 1.time: 1487377800000 }
+  - match: { 1.airline: foo }
+  - match: { 1.responsetime: 1.0 }
+  - match: { 2.time: 1487379600000 }
+  - match: { 2.airline: bar }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }

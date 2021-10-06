@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.basic;
 
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -65,10 +67,12 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                             while (stop.get() == false) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
                                 if (sr.getHits().getTotalHits().value != numDocs) {
-                                    // if we did not search all shards but had no failures that is potentially fine
+                                    // if we did not search all shards but had no serious failures that is potentially fine
                                     // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                     // request comes in. It's a small window but a known limitation.
-                                    if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
+                                    if (sr.getTotalShards() != sr.getSuccessfulShards() &&
+                                        Stream.of(sr.getShardFailures()).allMatch(
+                                            ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
                                         nonCriticalExceptions.add("Count is " + sr.getHits().getTotalHits().value + " but " + numDocs +
                                             " was expected. " + formatShardStatus(sr));
                                     } else {
@@ -84,8 +88,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                             }
                         } catch (SearchPhaseExecutionException ex) {
                             // it's possible that all shards fail if we have a small number of shards.
-                            // with replicas this should not happen
-                            if (numberOfReplicas == 1 || ex.getMessage().contains("all shards failed") == false) {
+                            if (ex.getMessage().contains("all shards failed") == false) {
                                 throw ex;
                             }
                         }

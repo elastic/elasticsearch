@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.jira;
 
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;

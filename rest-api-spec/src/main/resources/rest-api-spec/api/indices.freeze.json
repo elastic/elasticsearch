@@ -21,6 +21,10 @@
               "type":"string",
               "description":"The name of the index to freeze"
             }
+          },
+          "deprecated":{
+            "version":"7.14.0",
+            "description":"Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
           }
         }
       ]

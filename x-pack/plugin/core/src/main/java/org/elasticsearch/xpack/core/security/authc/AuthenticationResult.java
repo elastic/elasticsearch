@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
@@ -132,6 +132,20 @@ public final class AuthenticationResult {
      */
     public static AuthenticationResult terminate(String message, @Nullable Exception cause) {
         return new AuthenticationResult(Status.TERMINATE, null, message, cause, null);
+    }
+
+    /**
+     * Creates an {@code AuthenticationResult} that indicates that the realm attempted to handle the authentication request, was
+     * unsuccessful and wants to terminate this authentication request.
+     * The reason for the failure is given in the supplied message.
+     * <p>
+     * The {@link #getStatus() status} is set to {@link Status#TERMINATE}.
+     * </p><p>
+     * The {@link #getUser() user} is not populated.
+     * </p>
+     */
+    public static AuthenticationResult terminate(String message) {
+        return terminate(message, null);
     }
 
     public boolean isAuthenticated() {

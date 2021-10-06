@@ -35,12 +35,10 @@ FROM (
 )
 ORDER BY e DESC;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-multiLevelSelectStar-Ignore
+multiLevelSelectStar
 SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ));
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-multiLevelSelectStarWithAlias-Ignore
+multiLevelSelectStarWithAlias
 SELECT * FROM (SELECT * FROM ( SELECT * FROM test_emp ) b) c;
 
 filterAfterGroupBy
@@ -92,8 +90,7 @@ SELECT GREATEST(10096, ABS(emp_no + 1)) AS gt FROM (SELECT * FROM test_emp) ORDE
 inAndIsNotNull
 SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM (SELECT * FROM test_emp WHERE emp_no IN (10019, 10020, 10021)) WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-filterOnColumn-Ignore
+filterOnColumn
 SELECT * FROM (
     SELECT * FROM test_emp
 )
@@ -139,8 +136,7 @@ SELECT * FROM (
 )
 WHERE languages < 5
 ;
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/71442
-filterOnColumnFunctionWithOutsideFilter-Ignore
+filterOnColumnFunctionWithOutsideFilter
 SELECT * FROM (
     SELECT * FROM test_emp WHERE languages + 1 > 1
 )
@@ -190,7 +186,7 @@ filterOnAggregateInFunction
 SELECT * FROM (
     SELECT gender, MAX(salary) / 100 AS max FROM test_emp WHERE languages > 1 GROUP BY gender
 )
-WHERE max > 746 AND gender IS NOT NULL ORDER BY gender
+WHERE max > 745 AND gender IS NOT NULL ORDER BY gender
 ;
 
 // AwaitsFix : https://github.com/elastic/elasticsearch/issues/71394

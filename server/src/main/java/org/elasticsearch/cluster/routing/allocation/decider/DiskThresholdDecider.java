@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -26,15 +25,16 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -66,23 +66,35 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdDecider.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiskThresholdDecider.class);
 
     public static final String NAME = "disk_threshold";
 
     public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE =
-        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", false, Setting.Property.NodeScope);
+        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", true,
+            new Setting.Validator<>() {
+                @Override
+                public void validate(Boolean value) {
+                    if (value == Boolean.FALSE) {
+                        throw new SettingsException("setting [{}=false] is not allowed, only true is valid",
+                            ENABLE_FOR_SINGLE_DATA_NODE.getKey());
+                    }
+                }
+            },
+            Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS =
         Setting.boolSetting("index.routing.allocation.disk.watermark.ignore", false,
                 Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final DiskThresholdSettings diskThresholdSettings;
-    private final boolean enableForSingleDataNode;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
-        this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
+        // get deprecation warnings.
+        boolean enabledForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
+        assert enabledForSingleDataNode;
     }
 
     /**
@@ -100,13 +112,14 @@ public class DiskThresholdDecider extends AllocationDecider {
         // no longer initializing because their recovery failed or was cancelled.
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
-        final List<ShardRouting> initializingShards = node.shardsWithState(ShardRoutingState.INITIALIZING);
-        initializingShards.removeIf(shardRouting -> reservedSpace.containsShardId(shardRouting.shardId()));
-        for (ShardRouting routing : initializingShards) {
+        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
             if (routing.relocatingNodeId() == null) {
                 // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
                 // any additional space and can be ignored here
+                continue;
+            }
+            if (reservedSpace.containsShardId(routing.shardId())) {
                 continue;
             }
 
@@ -148,7 +161,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (SETTING_IGNORE_DISK_WATERMARKS.get(allocation.metadata().index(shardRouting.index()).getSettings())) {
+        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -319,7 +332,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (SETTING_IGNORE_DISK_WATERMARKS.get(allocation.metadata().index(shardRouting.index()).getSettings())) {
+        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -407,9 +420,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         long totalBytes = 0;
         long freeBytes = 0;
-        for (ObjectCursor<DiskUsage> du : usages.values()) {
-            totalBytes += du.value.getTotalBytes();
-            freeBytes += du.value.getFreeBytes();
+        for (DiskUsage du : usages.values()) {
+            totalBytes += du.getTotalBytes();
+            freeBytes += du.getFreeBytes();
         }
         return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }
@@ -430,21 +443,12 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Decision YES_DISABLED = Decision.single(Decision.Type.YES, NAME, "the disk threshold decider is disabled");
 
-    private static final Decision YES_SINGLE_DATA_NODE =
-            Decision.single(Decision.Type.YES, NAME, "there is only a single data node present");
-
     private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
 
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return YES_DISABLED;
-        }
-
-        // Allow allocation regardless if only a single data node is available
-        if (enableForSingleDataNode == false && allocation.nodes().getDataNodes().size() <= 1) {
-            logger.trace("only a single data node is present, allowing allocation");
-            return YES_SINGLE_DATA_NODE;
         }
 
         // Fail open if there are no disk usages available

@@ -91,6 +91,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
 
     private synchronized void onChange(Path file) {
         if (file.equals(licenseModePath)) {
+            final OperationMode savedOperationMode = this.currentOperationMode;
             OperationMode newOperationMode = defaultOperationMode;
             try {
                 if (Files.exists(licenseModePath)
@@ -116,11 +117,13 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                     }
                 }
             } finally {
-                // set this after the fact to prevent that we are jumping back and forth first setting to defautl and then reading the
+                // set this after the fact to prevent that we are jumping back and forth first setting to default and then reading the
                 // actual op mode resetting it.
                 this.currentOperationMode = newOperationMode;
             }
-            onChange.run();
+            if (savedOperationMode != newOperationMode) {
+                onChange.run();
+            }
         }
     }
 }

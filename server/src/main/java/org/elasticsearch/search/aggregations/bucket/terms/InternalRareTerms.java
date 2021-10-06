@@ -26,11 +26,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>>
-    extends InternalMultiBucketAggregation<A, B> implements RareTerms {
+public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
+    InternalMultiBucketAggregation<A, B>
+    implements
+        RareTerms {
 
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
-        implements RareTerms.Bucket, KeyComparable<B> {
+        implements
+            RareTerms.Bucket,
+            KeyComparable<B> {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -97,8 +101,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            return Objects.equals(docCount, that.docCount)
-                && Objects.equals(aggregations, that.aggregations);
+            return Objects.equals(docCount, that.docCount) && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -172,9 +175,8 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        InternalRareTerms<?,?> that = (InternalRareTerms<?,?>) obj;
-        return Objects.equals(maxDocCount, that.maxDocCount)
-            && Objects.equals(order, that.order);
+        InternalRareTerms<?, ?> that = (InternalRareTerms<?, ?>) obj;
+        return Objects.equals(maxDocCount, that.maxDocCount) && Objects.equals(order, that.order);
     }
 
     @Override
@@ -182,10 +184,10 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         return Objects.hash(super.hashCode(), maxDocCount, order);
     }
 
-    protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,
-                                                      List<? extends Bucket> buckets) throws IOException {
+    protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params, List<? extends Bucket<?>> buckets)
+        throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
+        for (Bucket<?> bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();

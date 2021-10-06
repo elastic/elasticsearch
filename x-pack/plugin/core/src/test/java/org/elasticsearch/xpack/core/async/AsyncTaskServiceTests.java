@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -43,9 +44,10 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         indexService = new AsyncTaskIndexService<>(index, clusterService,
             transportService.getThreadPool().getThreadContext(),
-            client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
+            client(), "test_origin", AsyncSearchResponse::new, writableRegistry(), bigArrays);
     }
 
     @Override

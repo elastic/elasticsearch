@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -20,7 +19,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,9 +42,9 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         index = in.readOptionalString();
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
-        runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis =  in.readLong();
+        runtimeFields = in.readMap();
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
@@ -112,19 +110,9 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         out.writeOptionalString(index);
         out.writeStringArray(fields);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeLong(nowInMillis);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeMap(runtimeFields);
-        } else {
-            if (false == runtimeFields.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
-                    + "with version [" + out.getVersion()+ "]");
-            }
-        }
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeLong(nowInMillis);
+        out.writeMap(runtimeFields);
     }
 
     @Override

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -419,6 +419,7 @@ public class RestTable {
             this.ordering = ordering;
         }
 
+        @SuppressWarnings("unchecked")
         private int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;

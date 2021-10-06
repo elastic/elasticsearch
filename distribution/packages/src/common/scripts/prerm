@@ -10,11 +10,11 @@
 #       $1=1         : indicates an upgrade
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
 
-export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 STOP_REQUIRED=false
 REMOVE_SERVICE=false
@@ -58,16 +58,10 @@ if [ "$STOP_REQUIRED" = "true" ]; then
     echo " OK"
 fi
 
-if [ -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
-  if md5sum --status -c "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum; then
-    rm "${ES_PATH_CONF}"/elasticsearch.keystore "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
-  fi
-fi
-
 if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v systemctl >/dev/null; then
         systemctl disable elasticsearch.service > /dev/null 2>&1 || true
     fi
 fi
 
-${scripts.footer}
+@scripts.footer@

@@ -8,17 +8,23 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -29,15 +35,16 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         ToXContentObject,
         Diffable<SingleNodeShutdownMetadata> {
 
-    private static final ParseField NODE_ID_FIELD = new ParseField("node_id");
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField REASON_FIELD = new ParseField("reason");
-    private static final ParseField STATUS_FIELD = new ParseField("shutdown_status");
-    private static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
-    private static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
-    private static final ParseField SHARD_MIGRATION_FIELD = new ParseField("shard_migration");
-    private static final ParseField PERSISTENT_TASKS_FIELD = new ParseField("persistent_tasks");
-    private static final ParseField PLUGINS_STATUS = new ParseField("plugins");
+    public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_7_16_0;
+
+    public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField REASON_FIELD = new ParseField("reason");
+    public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
+    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
+    public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
+    public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -45,11 +52,10 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (String) a[0],
             Type.valueOf((String) a[1]),
             (String) a[2],
-            Status.valueOf((String) a[3]),
-            (long) a[4],
-            (NodeShutdownComponentStatus) a[5],
-            (NodeShutdownComponentStatus) a[6],
-            (NodeShutdownComponentStatus) a[7]
+            (long) a[3],
+            (boolean) a[4],
+            (TimeValue) a[5],
+            (String) a[6]
         )
     );
 
@@ -57,77 +63,75 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
-            SHARD_MIGRATION_FIELD
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), NODE_SEEN_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), ALLOCATION_DELAY_FIELD.getPreferredName()), ALLOCATION_DELAY_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
-            PERSISTENT_TASKS_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
-            PLUGINS_STATUS
-        );
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TARGET_NODE_NAME_FIELD);
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
+    public static final TimeValue DEFAULT_RESTART_SHARD_ALLOCATION_DELAY = TimeValue.timeValueMinutes(5);
+
     private final String nodeId;
     private final Type type;
     private final String reason;
-    private final Status status;
     private final long startedAtMillis;
-    private final NodeShutdownComponentStatus shardMigrationStatus;
-    private final NodeShutdownComponentStatus persistentTasksStatus;
-    private final NodeShutdownComponentStatus pluginsStatus;
+    private final boolean nodeSeen;
+    @Nullable private final TimeValue allocationDelay;
+    @Nullable private final String targetNodeName;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
      * @param type The type of shutdown. See {@link Type}.
      * @param reason The reason for the shutdown, per the original shutdown request.
-     * @param status The overall status of this shutdown.
      * @param startedAtMillis The timestamp at which this shutdown was requested.
-     * @param shardMigrationStatus The status of shard migrations away from this node.
-     * @param persistentTasksStatus The status of persistent task migration away from this node.
-     * @param pluginsStatus The status of plugin shutdown on this node.
      */
     private SingleNodeShutdownMetadata(
         String nodeId,
         Type type,
         String reason,
-        Status status,
         long startedAtMillis,
-        NodeShutdownComponentStatus shardMigrationStatus,
-        NodeShutdownComponentStatus persistentTasksStatus,
-        NodeShutdownComponentStatus pluginsStatus
+        boolean nodeSeen,
+        @Nullable TimeValue allocationDelay,
+        @Nullable String targetNodeName
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
-        this.status = status;
         this.startedAtMillis = startedAtMillis;
-        this.shardMigrationStatus = Objects.requireNonNull(shardMigrationStatus, "shard migration status must not be null");
-        this.persistentTasksStatus = Objects.requireNonNull(persistentTasksStatus, "persistent tasks status must not be null");
-        this.pluginsStatus = Objects.requireNonNull(pluginsStatus, "plugins status must not be null");
+        this.nodeSeen = nodeSeen;
+        if (allocationDelay != null && Type.RESTART.equals(type) == false) {
+            throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
+        }
+        this.allocationDelay = allocationDelay;
+        if (targetNodeName != null && type != Type.REPLACE) {
+            throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
+                "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
+        } else if (targetNodeName == null && type == Type.REPLACE) {
+            throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
+        }
+        this.targetNodeName = targetNodeName;
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
-        this.status = in.readEnum(Status.class);
         this.startedAtMillis = in.readVLong();
-        this.shardMigrationStatus = new NodeShutdownComponentStatus(in);
-        this.persistentTasksStatus = new NodeShutdownComponentStatus(in);
-        this.pluginsStatus = new NodeShutdownComponentStatus(in);
+        this.nodeSeen = in.readBoolean();
+        this.allocationDelay = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            this.targetNodeName = in.readOptionalString();
+        } else {
+            this.targetNodeName = null;
+        }
     }
 
     /**
@@ -152,13 +156,6 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     /**
-     * @return The status of this node's shutdown.
-     */
-    public Status getStatus() {
-        return status;
-    }
-
-    /**
      * @return The timestamp that this shutdown procedure was started.
      */
     public long getStartedAtMillis() {
@@ -166,36 +163,48 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     /**
-     * @return The status of shard migrations off of this node.
+     * @return A boolean indicated whether this node has been seen in the cluster since the shutdown was registered.
      */
-    public NodeShutdownComponentStatus getShardMigrationStatus() {
-        return shardMigrationStatus;
+    public boolean getNodeSeen() {
+        return nodeSeen;
     }
 
     /**
-     * @return The status of persistent task shutdown on this node.
+     * @return The name of the node to be used as a replacement for this node, or null.
      */
-    public NodeShutdownComponentStatus getPersistentTasksStatus() {
-        return persistentTasksStatus;
+    public String getTargetNodeName() {
+        return targetNodeName;
     }
 
     /**
-     * @return The status of plugin shutdown on this node.
+     * @return The amount of time shard reallocation should be delayed for shards on this node, so that they will not be automatically
+     * reassigned while the node is restarting. Will be {@code null} for non-restart shutdowns.
      */
-    public NodeShutdownComponentStatus getPluginsStatus() {
-        return pluginsStatus;
+    @Nullable
+    public TimeValue getAllocationDelay() {
+        if (allocationDelay != null) {
+            return allocationDelay;
+        } else if (Type.RESTART.equals(type)) {
+            return DEFAULT_RESTART_SHARD_ALLOCATION_DELAY;
+        }
+        return null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        out.writeEnum(type);
+        if (out.getVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+            out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
+        } else {
+            out.writeEnum(type);
+        }
         out.writeString(reason);
-        out.writeEnum(status);
         out.writeVLong(startedAtMillis);
-        shardMigrationStatus.writeTo(out);
-        persistentTasksStatus.writeTo(out);
-        pluginsStatus.writeTo(out);
+        out.writeBoolean(nodeSeen);
+        out.writeOptionalTimeValue(allocationDelay);
+        if (out.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            out.writeOptionalString(targetNodeName);
+        }
     }
 
     @Override
@@ -205,11 +214,14 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
-            builder.field(STATUS_FIELD.getPreferredName(), status);
             builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
-            builder.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
-            builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
-            builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
+            builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
+            if (allocationDelay != null) {
+                builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());
+            }
+            if (targetNodeName != null) {
+                builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), targetNodeName);
+            }
         }
         builder.endObject();
 
@@ -225,10 +237,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
             && getReason().equals(that.getReason())
-            && status == that.status
-            && shardMigrationStatus.equals(that.shardMigrationStatus)
-            && persistentTasksStatus.equals(that.persistentTasksStatus)
-            && pluginsStatus.equals(that.pluginsStatus);
+            && getNodeSeen() == that.getNodeSeen()
+            && Objects.equals(allocationDelay, that.allocationDelay)
+            && Objects.equals(targetNodeName, that.targetNodeName);
     }
 
     @Override
@@ -237,11 +248,10 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getNodeId(),
             getType(),
             getReason(),
-            status,
             getStartedAtMillis(),
-            shardMigrationStatus,
-            persistentTasksStatus,
-            pluginsStatus
+            getNodeSeen(),
+            allocationDelay,
+            targetNodeName
         );
     }
 
@@ -257,11 +267,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             .setNodeId(original.getNodeId())
             .setType(original.getType())
             .setReason(original.getReason())
-            .setStatus(original.getStatus())
             .setStartedAtMillis(original.getStartedAtMillis())
-            .setShardMigrationStatus(original.getShardMigrationStatus())
-            .setPersistentTasksStatus(original.getPersistentTasksStatus())
-            .setPluginsStatus(original.getPluginsStatus());
+            .setNodeSeen(original.getNodeSeen())
+            .setTargetNodeName(original.getTargetNodeName());
     }
 
     public static class Builder {
@@ -269,10 +277,9 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
-        private Status status = Status.IN_PROGRESS;
-        private NodeShutdownComponentStatus shardMigrationStatus = new NodeShutdownComponentStatus();
-        private NodeShutdownComponentStatus persistentTasksStatus = new NodeShutdownComponentStatus();
-        private NodeShutdownComponentStatus pluginsStatus = new NodeShutdownComponentStatus();
+        private boolean nodeSeen = false;
+        private TimeValue allocationDelay;
+        private String targetNodeName;
 
         private Builder() {}
 
@@ -313,38 +320,29 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         }
 
         /**
-         * @param status The status of this shutdown.
+         * @param nodeSeen Whether or not the node has been seen since the shutdown was registered.
          * @return This builder.
          */
-        public Builder setStatus(Status status) {
-            this.status = status;
+        public Builder setNodeSeen(boolean nodeSeen) {
+            this.nodeSeen = nodeSeen;
             return this;
         }
 
         /**
-         * @param shardMigrationStatus An object describing the status of shard migration away from this node.
+         * @param allocationDelay The amount of time shard reallocation should be delayed while this node is offline.
          * @return This builder.
          */
-        public Builder setShardMigrationStatus(NodeShutdownComponentStatus shardMigrationStatus) {
-            this.shardMigrationStatus = shardMigrationStatus;
+        public Builder setAllocationDelay(TimeValue allocationDelay) {
+            this.allocationDelay = allocationDelay;
             return this;
         }
 
         /**
-         * @param persistentTasksStatus An object describing the status of persistent task migration away from this node.
+         * @param targetNodeName The name of the node which should be used to replcae this one. Only valid if the shutdown type is REPLACE.
          * @return This builder.
          */
-        public Builder setPersistentTasksStatus(NodeShutdownComponentStatus persistentTasksStatus) {
-            this.persistentTasksStatus = persistentTasksStatus;
-            return this;
-        }
-
-        /**
-         * @param pluginsStatus An object describing the status of plugin shutdown on this node.
-         * @return
-         */
-        public Builder setPluginsStatus(NodeShutdownComponentStatus pluginsStatus) {
-            this.pluginsStatus = pluginsStatus;
+        public Builder setTargetNodeName(String targetNodeName) {
+            this.targetNodeName = targetNodeName;
             return this;
         }
 
@@ -352,15 +350,15 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
             }
+
             return new SingleNodeShutdownMetadata(
                 nodeId,
                 type,
                 reason,
-                status,
                 startedAtMillis,
-                shardMigrationStatus,
-                persistentTasksStatus,
-                pluginsStatus
+                nodeSeen,
+                allocationDelay,
+                targetNodeName
             );
         }
     }
@@ -370,16 +368,55 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
      */
     public enum Type {
         REMOVE,
-        RESTART
+        RESTART,
+        REPLACE;
+
+        public static Type parse(String type) {
+            if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
+                return REMOVE;
+            } else if ("restart".equals(type.toLowerCase(Locale.ROOT))) {
+                return RESTART;
+            } else if ("replace".equals(type.toLowerCase(Locale.ROOT))) {
+                return REPLACE;
+            } else {
+                throw new IllegalArgumentException("unknown shutdown type: " + type);
+            }
+        }
     }
 
     /**
      * Describes the status of a component of shutdown.
      */
     public enum Status {
+        // These are ordered (see #combine(...))
         NOT_STARTED,
         IN_PROGRESS,
         STALLED,
-        COMPLETE
+        COMPLETE;
+
+        /**
+         * Merges multiple statuses into a single, final, status
+         *
+         * For example, if called with NOT_STARTED, IN_PROGRESS, and STALLED, the returned state is STALLED.
+         * Called with IN_PROGRESS, IN_PROGRESS, NOT_STARTED, the returned state is IN_PROGRESS.
+         * Called with IN_PROGRESS, NOT_STARTED, COMPLETE, the returned state is IN_PROGRESS
+         * Called with COMPLETE, COMPLETE, COMPLETE, the returned state is COMPLETE
+         * Called with an empty array, the returned state is COMPLETE
+         */
+        public static Status combine(Status... statuses) {
+            int statusOrd = -1;
+            for (Status status : statuses) {
+                // Max the status up to, but not including, "complete"
+                if (status != COMPLETE) {
+                    statusOrd = Math.max(status.ordinal(), statusOrd);
+                }
+            }
+            if (statusOrd == -1) {
+                // Either all the statuses were complete, or there were no statuses given
+                return COMPLETE;
+            } else {
+                return Status.values()[statusOrd];
+            }
+        }
     }
 }

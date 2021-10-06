@@ -133,9 +133,9 @@ public class TransportMlInfoActionTests extends ESTestCase {
 
     public void testCalculateEffectiveMaxModelMemoryLimitSmallMlNodesButMaxMlNodeSizeBiggerAndLazyNodesExhausted() {
 
-        int mlMemoryPercent = randomIntBetween(5, 90);
+        int mlMemoryPercent = randomIntBetween(10, 90);
         long mlMaxNodeSize = randomLongBetween(2000000000L, 100000000000L);
-        long mlMachineMemory = mlMaxNodeSize / randomLongBetween(3, 5);
+        long mlMachineMemory = mlMaxNodeSize / randomLongBetween(3, 4);
         int numMlNodes = randomIntBetween(2, 10);
         int numNonMlNodes = randomIntBetween(0, 10);
         ClusterSettings clusterSettings = new ClusterSettings(

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.CompletableContext;
 
 import java.io.IOException;
 import java.net.BindException;

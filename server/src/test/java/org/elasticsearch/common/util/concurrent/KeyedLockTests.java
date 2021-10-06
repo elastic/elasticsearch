@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

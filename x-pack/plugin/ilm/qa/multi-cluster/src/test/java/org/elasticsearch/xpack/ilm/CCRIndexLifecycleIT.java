@@ -17,7 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -189,15 +189,15 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             // Create a policy on the leader
             putILMPolicy(policyName, null, 1, null);
-            Request templateRequest = new Request("PUT", "_template/my_template");
+            Request templateRequest = new Request("PUT", "/_index_template/my_template");
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
-            templateRequest.setJsonEntity("{\"index_patterns\":  [\"mymetrics-*\"], \"settings\":  " +
-                Strings.toString(indexSettings) + "}");
+            templateRequest.setJsonEntity("{\"index_patterns\":  [\"mymetrics-*\"], \"template\":{\"settings\":  " +
+                Strings.toString(indexSettings) + "}}");
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
@@ -275,7 +275,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 });
 
                 // Clean up
-                leaderClient.performRequest(new Request("DELETE", "/_template/my_template"));
+                leaderClient.performRequest(new Request("DELETE", "/_index_template/my_template"));
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -800,8 +800,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        Map<String, Object> repoResponse = ((List<Map<String, Object>>) responseMap.get("responses")).get(0);
-        Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
     }

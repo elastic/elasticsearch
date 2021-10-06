@@ -8,84 +8,148 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
-import java.io.FileNotFoundException;
+import org.elasticsearch.core.Tuple;
+
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+
+
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.
  */
 public final class PemKeyConfig implements SslKeyConfig {
-    private final Path certificate;
-    private final Path key;
-    private final char[] keyPassword;
 
-    public PemKeyConfig(Path certificate, Path key, char[] keyPassword) {
-        this.certificate = Objects.requireNonNull(certificate, "Certificate cannot be null");
-        this.key = Objects.requireNonNull(key, "Key cannot be null");
+    private static final String KEY_FILE_TYPE = "PEM private key";
+    private static final String CERT_FILE_TYPE = "PEM certificate";
+
+    private final String certificate;
+    private final String key;
+    private final char[] keyPassword;
+    private final Path configBasePath;
+
+    /**
+     * @param certificatePath Path to the PEM formatted certificate
+     * @param keyPath         Path to the PEM formatted private key for {@code certificate}
+     * @param keyPassword     Password for the private key (or empty is the key is not encrypted)
+     * @param configBasePath  The base directory from which config files should be read (used for diagnostic exceptions)
+     */
+    public PemKeyConfig(String certificatePath, String keyPath, char[] keyPassword, Path configBasePath) {
+        this.certificate = Objects.requireNonNull(certificatePath, "Certificate path cannot be null");
+        this.key = Objects.requireNonNull(keyPath, "Key path cannot be null");
         this.keyPassword = Objects.requireNonNull(keyPassword, "Key password cannot be null (but may be empty)");
+        this.configBasePath = Objects.requireNonNull(configBasePath, "Config base path cannot be null");
+    }
+
+    @Override
+    public boolean hasKeyMaterial() {
+        return true;
     }
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Arrays.asList(certificate, key);
+        return Arrays.asList(resolve(certificate), resolve(key));
+    }
+
+    private Path resolve(String fileName) {
+        return configBasePath.resolve(fileName);
+    }
+
+    @Override
+    public Collection<StoredCertificate> getConfiguredCertificates() {
+        final List<Certificate> certificates = getCertificates(resolve(this.certificate));
+        final List<StoredCertificate> info = new ArrayList<>(certificates.size());
+        boolean first = true;
+        for (Certificate cert : certificates) {
+            if (cert instanceof X509Certificate) {
+                info.add(new StoredCertificate((X509Certificate) cert, this.certificate, "PEM", null, first));
+            }
+            first = false;
+        }
+        return info;
     }
 
     @Override
     public X509ExtendedKeyManager createKeyManager() {
-        PrivateKey privateKey = getPrivateKey();
-        List<Certificate> certificates = getCertificates();
+        final Path keyPath = resolve(key);
+        final PrivateKey privateKey = getPrivateKey(keyPath);
+        final Path certPath = resolve(this.certificate);
+        final List<Certificate> certificates = getCertificates(certPath);
         try {
             final KeyStore keyStore = KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("failed to load a KeyManager for certificate/key pair [" + certificate + "], [" + key + "]", e);
+            throw new SslConfigException(
+                "failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
         }
     }
 
-    private PrivateKey getPrivateKey() {
+    @Override
+    public List<Tuple<PrivateKey, X509Certificate>> getKeys() {
+        final Path keyPath = resolve(key);
+        final Path certPath = resolve(this.certificate);
+        final List<Certificate> certificates = getCertificates(certPath);
+        if (certificates.isEmpty()) {
+            return List.of();
+        }
+        final Certificate leafCertificate = certificates.get(0);
+        if (leafCertificate instanceof X509Certificate) {
+            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) leafCertificate));
+        } else {
+            return List.of();
+        }
+    }
+
+    @Override
+    public SslTrustConfig asTrustConfig() {
+        return new PemTrustConfig(List.of(certificate), configBasePath);
+    }
+
+    private PrivateKey getPrivateKey(Path path) {
         try {
-            final PrivateKey privateKey = PemUtils.readPrivateKey(key, () -> keyPassword);
+            final PrivateKey privateKey = PemUtils.parsePrivateKey(path, () -> keyPassword);
             if (privateKey == null) {
-                throw new SslConfigException("could not load ssl private key file [" + key + "]");
+                throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }
             return privateKey;
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("the configured ssl private key file [" + key.toAbsolutePath() + "] does not exist", e);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
-            throw new SslConfigException("the configured ssl private key file [" + key.toAbsolutePath() + "] cannot be read", e);
+            throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("cannot load ssl private key file [" + key.toAbsolutePath() + "]", e);
+            throw SslFileUtil.securityException(KEY_FILE_TYPE, List.of(path), e);
         }
     }
 
-    private List<Certificate> getCertificates() {
+    private List<Certificate> getCertificates(Path path) {
         try {
-            return PemUtils.readCertificates(Collections.singleton(certificate));
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] does not exist", e);
+            return PemUtils.readCertificates(Collections.singleton(path));
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(CERT_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
-            throw new SslConfigException("the configured ssl certificate file [" + certificate .toAbsolutePath()+ "] cannot be read", e);
+            throw SslFileUtil.ioException(CERT_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("cannot load ssl certificate from [" + certificate.toAbsolutePath() + "]", e);
+            throw SslFileUtil.securityException(CERT_FILE_TYPE, List.of(path), e);
         }
     }
 
     @Override
     public String toString() {
-        return "PEM-key-config{cert=" + certificate.toAbsolutePath() + " key=" + key.toAbsolutePath() + "}";
+        return "PEM-key-config{cert=" + certificate + " key=" + key + "}";
     }
 
     @Override

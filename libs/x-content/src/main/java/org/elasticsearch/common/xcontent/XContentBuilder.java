@@ -8,10 +8,12 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.FilterOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,9 +23,12 @@ import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -77,7 +82,6 @@ public final class XContentBuilder implements Closeable, Flushable {
      * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
      * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
-     * <p>
      *
      * @param xContentType the {@link XContentType}
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
@@ -95,6 +99,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
+        writers.put(boolean[].class, (b, v) -> b.values((boolean[]) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
         writers.put(Date.class, XContentBuilder::timeValue);
@@ -276,8 +281,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Set the "human readable" flag. Once set, some types of values are written in a
      * format easier to read for a human.
      */
-    public XContentBuilder humanReadable(boolean humanReadable) {
-        this.humanReadable = humanReadable;
+    public XContentBuilder humanReadable(boolean isHumanReadable) {
+        this.humanReadable = isHumanReadable;
         return this;
     }
 
@@ -293,6 +298,12 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Structure (object, array, field, null values...)
     //////////////////////////////////
 
+    public XContentBuilder object(String name, CheckedConsumer<XContentBuilder, IOException> callback) throws IOException {
+        field(name).startObject();
+        callback.accept(this);
+        return endObject();
+    }
+
     public XContentBuilder startObject() throws IOException {
         generator.writeStartObject();
         return this;
@@ -305,6 +316,12 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder endObject() throws IOException {
         generator.writeEndObject();
         return this;
+    }
+
+    public XContentBuilder array(String name, CheckedConsumer<XContentBuilder, IOException> callback) throws IOException {
+        field(name).startArray();
+        callback.accept(this);
+        return endArray();
     }
 
     public XContentBuilder startArray() throws IOException {
@@ -906,12 +923,90 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Maps & Iterable
     //////////////////////////////////
 
+    public XContentBuilder stringListField(String name, Collection<String> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (String value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, ToXContent... values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder enumSet(String name, EnumSet<?> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (Enum<?> value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
         return field(name).map(values);
     }
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
         return map(values, true, true);
+    }
+
+    public XContentBuilder stringStringMap(String name, Map<String, String> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startObject();
+        for (Map.Entry<String, String> value : values.entrySet()) {
+            field(value.getKey());
+            value(value.getValue());
+        }
+        return endObject();
+    }
+
+    public XContentBuilder xContentValuesMap(String name, Map<String, ? extends ToXContent> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startObject();
+        for (Map.Entry<String, ? extends ToXContent> value : values.entrySet()) {
+            field(value.getKey());
+            value(value.getValue());
+        }
+        return endObject();
     }
 
     /** writes a map without the start object and end object headers */
@@ -1011,6 +1106,11 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    public XContentBuilder field(String name, Enum<?> value) throws IOException {
+        field(name);
+        return value(value == null ? null : value.toString());
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Raw fields
     //////////////////////////////////
@@ -1046,6 +1146,32 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    /**
+     * Write the content that is written to the output stream by the {@code writer} as a string encoded in Base64 format.
+     * This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
+     * Note that this method supports only JSON.
+     */
+    public XContentBuilder directFieldAsBase64(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        if (contentType() != XContentType.JSON) {
+            assert false : "directFieldAsBase64 supports only JSON format";
+            throw new UnsupportedOperationException("directFieldAsBase64 supports only JSON format");
+        }
+        generator.writeDirectField(name, os -> {
+            os.write('\"');
+            final FilterOutputStream noClose = new FilterOutputStream(os) {
+                @Override
+                public void close() {
+                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
+                    // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
+                }
+            };
+            final OutputStream encodedOutput = Base64.getEncoder().wrap(noClose);
+            writer.accept(encodedOutput);
+            encodedOutput.close(); // close to flush the outstanding buffer used in the Base64 Encoder
+            os.write('\"');
+        });
+        return this;
+    }
 
     /**
      * Returns a version used for serialising a response.

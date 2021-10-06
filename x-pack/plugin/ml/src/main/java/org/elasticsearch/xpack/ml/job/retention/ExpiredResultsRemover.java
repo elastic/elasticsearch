@@ -14,12 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -57,10 +57,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Removes all results that have expired the configured retention time
- * of their respective job. A result is deleted if its timestamp is earlier
- * than the start of the current day (local time-zone) minus the retention
- * period.
+ * Removes all results that have expired the configured retention time of their respective job.
+ * A result is deleted if its timestamp is earlier than the timestamp of the latest bucket minus the retention period.
  *
  * This is expected to be used by actions requiring admin rights. Thus,
  * it is also expected that the provided client will be a client with the
@@ -117,23 +115,25 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest();
-        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
-
-        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
+    private DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+        QueryBuilder excludeFilter = QueryBuilders.termsQuery(
+            Result.RESULT_TYPE.getPreferredName(),
+            ModelSizeStats.RESULT_TYPE_VALUE,
+            ForecastRequestStats.RESULT_TYPE_VALUE,
+            Forecast.RESULT_TYPE_VALUE);
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+            .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
+            .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
+            .mustNot(excludeFilter);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()))
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
             .setTimeout(DEFAULT_MAX_DURATION)
-            .setRequestsPerSecond(requestsPerSec);
-
-        request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
-        QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
-                ModelSizeStats.RESULT_TYPE_VALUE, ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE);
-        QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
-                .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
-                .mustNot(excludeFilter);
-        request.setQuery(query);
+            .setRequestsPerSecond(requestsPerSec)
+            .setQuery(query);
 
         // _doc is the most efficient sort order and will also disable scoring
         request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
@@ -144,7 +144,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
         ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
-        latestBucketTime(jobId, ActionListener.wrap(
+        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(
                 latestTime -> {
                     if (latestTime == null) {
                         threadedActionListener.onResponse(null);
@@ -157,7 +157,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         ));
     }
 
-    private void latestBucketTime(String jobId, ActionListener<Long> listener) {
+    static void latestBucketTime(OriginSettingClient client, TaskId parentTaskId, String jobId, ActionListener<Long> listener) {
         SortBuilder<?> sortBuilder = new FieldSortBuilder(Result.TIMESTAMP.getPreferredName()).order(SortOrder.DESC);
         QueryBuilder bucketType = QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE);
 
@@ -171,7 +171,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        searchRequest.setParentTask(getParentTaskId());
+        searchRequest.setParentTask(parentTaskId);
 
         client.search(searchRequest, ActionListener.wrap(
                 response -> {

@@ -24,8 +24,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
+import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
+import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
+import static org.elasticsearch.xpack.core.DataTier.getPreferredTiersConfiguration;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -38,43 +42,37 @@ public class DataTierTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
         final String[] dataNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] contentNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isContentNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] hotNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isHotNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] warmNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isWarmNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] coldNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isColdNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] frozenNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isFrozenNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
@@ -110,6 +108,14 @@ public class DataTierTests extends ESTestCase {
         assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
     }
 
+    public void testGetPreferredTiersConfiguration() {
+        assertThat(getPreferredTiersConfiguration(DATA_HOT), is(DATA_HOT));
+        assertThat(getPreferredTiersConfiguration(DATA_WARM), is(DATA_WARM + "," + DATA_HOT));
+        assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
+        assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
+    }
+
     private static DiscoveryNodes buildDiscoveryNodes() {
         int numNodes = randomIntBetween(3, 15);
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -128,7 +134,7 @@ public class DataTierTests extends ESTestCase {
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
-        Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
+        Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.roles());
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {

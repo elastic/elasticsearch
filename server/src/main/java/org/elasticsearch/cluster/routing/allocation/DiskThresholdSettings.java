@@ -16,7 +16,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Iterator;
 import java.util.List;
@@ -45,6 +46,21 @@ public class DiskThresholdSettings {
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
             new FloodStageValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<RelativeByteSizeValue> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING =
+        new Setting<>("cluster.routing.allocation.disk.watermark.flood_stage.frozen", "95%",
+            (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s,  "cluster.routing.allocation.disk.watermark.flood_stage.frozen"),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING =
+        new Setting<>("cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom",
+            (settings) -> {
+                if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.exists(settings)) {
+                    return "-1";
+                } else {
+                    return "20GB";
+                }
+            },
+            (s) -> ByteSizeValue.parseBytesSizeValue(s,  "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom"),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -59,6 +75,8 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
+    private volatile RelativeByteSizeValue frozenFloodStage;
+    private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
 
     static {
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
@@ -69,6 +87,7 @@ public class DiskThresholdSettings {
         }
     }
 
+
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
         final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings);
@@ -76,11 +95,16 @@ public class DiskThresholdSettings {
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         setFloodStage(floodStage);
+        setFrozenFloodStage(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings));
+        setFrozenFloodStageMaxHeadroom(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings));
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING, this::setFrozenFloodStage);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+            this::setFrozenFloodStageMaxHeadroom);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
     }
@@ -158,11 +182,13 @@ public class DiskThresholdSettings {
     }
 
     private static void doValidate(String low, String high, String flood) {
-        try {
-            doValidateAsPercentage(low, high, flood);
-            return; // early return so that we do not try to parse as bytes
-        } catch (final ElasticsearchParseException e) {
-            // swallow as we are now going to try to parse as bytes
+        if (definitelyNotPercentage(low) == false) { // only try to validate as percentage if it isn't obviously a byte size value
+            try {
+                doValidateAsPercentage(low, high, flood);
+                return; // early return so that we do not try to parse as bytes
+            } catch (final ElasticsearchParseException e) {
+                // swallow as we are now going to try to parse as bytes
+            }
         }
         try {
             doValidateAsBytes(low, high, flood);
@@ -242,6 +268,15 @@ public class DiskThresholdSettings {
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey());
     }
 
+    private void setFrozenFloodStage(RelativeByteSizeValue floodStage) {
+        this.frozenFloodStage = floodStage;
+    }
+
+    private void setFrozenFloodStageMaxHeadroom(ByteSizeValue maxHeadroom) {
+        this.frozenFloodStageMaxHeadroom = maxHeadroom;
+    }
+
+
     /**
      * Gets the raw (uninterpreted) low watermark value as found in the settings.
      */
@@ -280,6 +315,14 @@ public class DiskThresholdSettings {
         return freeBytesThresholdFloodStage;
     }
 
+    public ByteSizeValue getFreeBytesThresholdFrozenFloodStage(ByteSizeValue total) {
+        // flood stage bytes are reversed compared to percentage, so we special handle it.
+        RelativeByteSizeValue frozenFloodStage = this.frozenFloodStage;
+        if (frozenFloodStage.isAbsolute()) {
+            return frozenFloodStage.getAbsolute();
+        }
+        return ByteSizeValue.ofBytes(total.getBytes() - frozenFloodStage.calculateValue(total, frozenFloodStageMaxHeadroom).getBytes());
+    }
     public boolean isEnabled() {
         return enabled;
     }
@@ -306,6 +349,18 @@ public class DiskThresholdSettings {
             : freeBytesThresholdFloodStage.toString();
     }
 
+    String describeFrozenFloodStageThreshold(ByteSizeValue total) {
+        ByteSizeValue maxHeadroom = this.frozenFloodStageMaxHeadroom;
+        RelativeByteSizeValue floodStage = this.frozenFloodStage;
+        if (floodStage.isAbsolute()) {
+            return floodStage.getStringRep();
+        } else if (floodStage.calculateValue(total, maxHeadroom).equals(floodStage.calculateValue(total, null))) {
+            return Strings.format1Decimals(floodStage.getRatio().getAsPercent(), "%");
+        } else {
+            return "max_headroom=" + maxHeadroom;
+        }
+    }
+
     /**
      * Attempts to parse the watermark into a percentage, returning 100.0% if
      * it cannot be parsed.
@@ -323,6 +378,10 @@ public class DiskThresholdSettings {
      * @return the parsed percentage
      */
     private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
+        if (lenient && definitelyNotPercentage(watermark)) {
+            // obviously not a percentage so return lenient fallback value like we would below on a parse failure
+            return 100.0;
+        }
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
         } catch (ElasticsearchParseException ex) {
@@ -359,7 +418,7 @@ public class DiskThresholdSettings {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
             if (lenient) {
-                return ByteSizeValue.parseBytesSizeValue("0b", settingName);
+                return ByteSizeValue.ZERO;
             }
             throw ex;
         }
@@ -370,6 +429,11 @@ public class DiskThresholdSettings {
      * @return the watermark value given
      */
     private static String validWatermarkSetting(String watermark, String settingName) {
+        if (definitelyNotPercentage(watermark)) {
+            // short circuit to save expensive exception on obvious byte size value below
+            ByteSizeValue.parseBytesSizeValue(watermark, settingName);
+            return watermark;
+        }
         try {
             RatioValue.parseRatioValue(watermark);
         } catch (ElasticsearchParseException e) {
@@ -381,5 +445,14 @@ public class DiskThresholdSettings {
             }
         }
         return watermark;
+    }
+
+    // Checks that a value is definitely not a percentage by testing if it ends on `b` which implies that it is probably a byte size value
+    // instead. This is used to make setting validation skip attempting to parse a value as a percentage/ration for the settings in this
+    // class that accept either a byte size value. The main motivation of this method is to make tests faster. Some tests call this method
+    // frequently when starting up internal cluster nodes and using exception throwing and catching when trying to parse as a ratio as a
+    // means of identifying that a string is not a ratio is quite slow.
+    private static boolean definitelyNotPercentage(String value) {
+        return value.endsWith("b");
     }
 }

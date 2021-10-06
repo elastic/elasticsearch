@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.plan.logical;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;

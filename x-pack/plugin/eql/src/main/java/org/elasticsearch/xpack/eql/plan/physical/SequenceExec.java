@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.execution.assembler.ExecutionManager;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.session.EqlSession;

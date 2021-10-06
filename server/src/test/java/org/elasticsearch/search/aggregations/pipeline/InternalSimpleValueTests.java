@@ -16,13 +16,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class InternalSimpleValueTests extends InternalAggregationTestCase<InternalSimpleValue>{
+public class InternalSimpleValueTests extends InternalAggregationTestCase<InternalSimpleValue> {
 
     @Override
     protected InternalSimpleValue createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
-        double value = frequently() ? randomDoubleBetween(0, 100000, true)
-                : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
+        double value = frequently()
+            ? randomDoubleBetween(0, 100000, true)
+            : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         return new InternalSimpleValue(name, value, formatter, metadata);
     }
 
@@ -56,26 +57,26 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(value)) {
-                value += between(1, 100);
-            } else {
-                value = randomDoubleBetween(0, 100000, true);
-            }
-            break;
-        case 2:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(value)) {
+                    value += between(1, 100);
+                } else {
+                    value = randomDoubleBetween(0, 100000, true);
+                }
+                break;
+            case 2:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalSimpleValue(name, value, formatter, metadata);
     }

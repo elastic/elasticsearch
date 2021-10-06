@@ -1,0 +1,46 @@
+{
+  "ml.start_trained_model_deployment":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
+      "description":"Start a trained model deployment."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/deployment/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The unique identifier of the trained model.",
+              "required":true
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the amount of time to wait for the model to deploy.",
+        "default": "20s"
+      },
+      "wait_for":{
+        "type":"string",
+        "required":false,
+        "description":"The allocation status for which to wait",
+        "options": ["starting", "started", "fully_allocated"],
+        "default": "started"
+      }
+    }
+  }
+}

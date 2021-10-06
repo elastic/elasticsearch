@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 
 import java.io.IOException;
@@ -124,6 +124,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                     + ","
                     + "\"cancellable\":"
                     + executingPolicy.getTaskInfo().isCancellable()
+                    + (executingPolicy.getTaskInfo().isCancellable() ? ",\"cancelled\":" + executingPolicy.getTaskInfo().isCancelled() : "")
                     + ","
                     + header.map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
                         .orElse("\"headers\":{}")
@@ -141,9 +142,12 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
         builder.endObject();
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
+        byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
         Map<String, Object> template = XContentHelper.convertToMap(
             XContentType.JSON.xContent(),
-            MonitoringTemplateUtils.loadTemplate("es"),
+            loadedTemplate,
+            0,
+            loadedTemplate.length,
             false
         );
         Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(

@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics.html",
       "description":"Retrieves configuration information for data frame analytics jobs."
     },
-    "stability":"beta",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"]

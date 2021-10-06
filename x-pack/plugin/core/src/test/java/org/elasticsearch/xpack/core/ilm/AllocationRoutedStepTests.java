@@ -71,9 +71,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testConditionMet() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> excludes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> includes = AllocateActionTests.randomAllocationRoutingMap(1, 5);
+        Map<String, String> excludes = AllocateActionTests.randomAllocationRoutingMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder node1Settings = Settings.builder();
@@ -204,7 +204,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testConditionNotMetDueToRelocation() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> requires = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
@@ -231,12 +231,12 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExecuteAllocateNotComplete() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> includes = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Map<String, String> excludes = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey),
-            () -> AllocateActionTests.randomMap(1, 5));
+            () -> AllocateActionTests.randomAllocationRoutingMap(1, 5));
         Map<String, String> requires = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey) ||
                 map.keySet().stream().anyMatch(excludes::containsKey),
-            () -> AllocateActionTests.randomMap(1, 5));
+            () -> AllocateActionTests.randomAllocationRoutingMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder node1Settings = Settings.builder();
@@ -266,12 +266,12 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> includes = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Map<String, String> excludes = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey),
-            () -> AllocateActionTests.randomMap(1, 5));
+            () -> AllocateActionTests.randomAllocationRoutingMap(1, 5));
         Map<String, String> requires = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey) ||
                 map.keySet().stream().anyMatch(excludes::containsKey),
-            () -> AllocateActionTests.randomMap(1, 5));
+            () -> AllocateActionTests.randomAllocationRoutingMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder node1Settings = Settings.builder();
@@ -304,12 +304,12 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExecuteAllocateUnassigned() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> includes = AllocateActionTests.randomAllocationRoutingMap(1, 5);
         Map<String, String> excludes = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey),
-            () -> AllocateActionTests.randomMap(1, 5));
+            () -> AllocateActionTests.randomAllocationRoutingMap(1, 5));
         Map<String, String> requires = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey) ||
                 map.keySet().stream().anyMatch(excludes::containsKey),
-            () -> AllocateActionTests.randomMap(1, 5));
+            () -> AllocateActionTests.randomAllocationRoutingMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder node1Settings = Settings.builder();
@@ -329,7 +329,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), null, null, true, ShardRoutingState.UNASSIGNED,
-                        new UnassignedInfo(randomFrom(Reason.values()), "the shard is intentionally unassigned")));
+                        TestShardRouting.randomUnassignedInfo("the shard is intentionally unassigned")));
 
         logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
             includes, excludes, requires);

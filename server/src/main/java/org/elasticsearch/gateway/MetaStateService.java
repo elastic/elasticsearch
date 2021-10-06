@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -58,7 +58,7 @@ public class MetaStateService {
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
     public Tuple<Manifest, Metadata> loadFullState() throws IOException {
-        final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        final Manifest manifest = MANIFEST_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPath());
         if (manifest == null) {
             return loadFullStateBWC();
         }
@@ -68,7 +68,7 @@ public class MetaStateService {
             metadataBuilder = Metadata.builder();
         } else {
             final Metadata globalMetadata = METADATA_FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
-                    nodeEnv.nodeDataPaths());
+                    nodeEnv.nodeDataPath());
             if (globalMetadata != null) {
                 metadataBuilder = Metadata.builder(globalMetadata);
             } else {
@@ -101,7 +101,7 @@ public class MetaStateService {
         Metadata.Builder metadataBuilder;
 
         Tuple<Metadata, Long> metadataAndGeneration =
-                METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+                METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPath());
         Metadata globalMetadata = metadataAndGeneration.v1();
         long globalStateGeneration = metadataAndGeneration.v2();
 
@@ -142,7 +142,7 @@ public class MetaStateService {
      */
     @Nullable
     public IndexMetadata loadIndexState(Index index) throws IOException {
-        return INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
+        return INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPath(index));
     }
 
     /**
@@ -173,7 +173,7 @@ public class MetaStateService {
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     Metadata loadGlobalState() throws IOException {
-        return METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        return METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPath());
     }
 
     /**
@@ -185,7 +185,7 @@ public class MetaStateService {
     public void writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
         logger.trace("[_meta] writing state, reason [{}]", reason);
         try {
-            long generation = MANIFEST_FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
+            long generation = MANIFEST_FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPath());
             logger.trace("[_meta] state written (generation: {})", generation);
         } catch (WriteStateException ex) {
             throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
@@ -205,7 +205,7 @@ public class MetaStateService {
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
             long generation = INDEX_METADATA_FORMAT.write(indexMetadata,
-                    nodeEnv.indexPaths(indexMetadata.getIndex()));
+                    nodeEnv.indexPath(indexMetadata.getIndex()));
             logger.trace("[{}] state written", index);
             return generation;
         } catch (WriteStateException ex) {
@@ -222,7 +222,7 @@ public class MetaStateService {
     long writeGlobalState(String reason, Metadata metadata) throws WriteStateException {
         logger.trace("[_global] writing state, reason [{}]", reason);
         try {
-            long generation = METADATA_FORMAT.write(metadata, nodeEnv.nodeDataPaths());
+            long generation = METADATA_FORMAT.write(metadata, nodeEnv.nodeDataPath());
             logger.trace("[_global] state written");
             return generation;
         } catch (WriteStateException ex) {
@@ -236,7 +236,7 @@ public class MetaStateService {
      * @param currentGeneration current state generation to keep in the directory.
      */
     void cleanupGlobalState(long currentGeneration) {
-        METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
+        METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPath());
     }
 
     /**
@@ -246,7 +246,7 @@ public class MetaStateService {
      * @param currentGeneration current state generation to keep in the index directory.
      */
     public void cleanupIndex(Index index, long currentGeneration) {
-        INDEX_METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPaths(index));
+        INDEX_METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPath(index));
     }
 
     /**
@@ -254,8 +254,8 @@ public class MetaStateService {
      * (only used for dangling indices at that point).
      */
     public void unreferenceAll() throws IOException {
-        MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        METADATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPath()); // write empty file so that indices become unreferenced
+        METADATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPath());
     }
 
     /**
@@ -270,6 +270,6 @@ public class MetaStateService {
             // delete meta state directories of indices
             MetadataStateFormat.deleteMetaState(nodeEnv.resolveIndexFolder(indexFolderName));
         }
-        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
+        MANIFEST_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPath()); // finally delete manifest
     }
 }

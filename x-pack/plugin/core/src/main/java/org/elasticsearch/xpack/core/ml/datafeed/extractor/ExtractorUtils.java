@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -139,11 +139,7 @@ public final class ExtractorUtils {
             return validateAndGetCalendarInterval(dateHistogram.getCalendarInterval().toString());
         } else if (dateHistogram.getFixedInterval() != null) {
             return dateHistogram.getFixedInterval().estimateMillis();
-        } else if (dateHistogram.dateHistogramInterval() != null) {
-            return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
-        } else if (dateHistogram.interval() != 0) {
-            return dateHistogram.interval();
-        } else {
+        }  else {
             throw new IllegalArgumentException("Must specify an interval for date_histogram");
         }
     }
@@ -226,20 +222,5 @@ public final class ExtractorUtils {
                 agg.getCalendarInterval() :
                 sourceBuilder.getIntervalAsCalendar();
         }
-
-        @Deprecated
-        private DateHistogramInterval dateHistogramInterval() {
-            return agg != null ?
-                agg.dateHistogramInterval() :
-                sourceBuilder.dateHistogramInterval();
-        }
-
-        @Deprecated
-        private long interval() {
-            return agg != null ?
-                agg.interval() :
-                sourceBuilder.interval();
-        }
     }
-
 }

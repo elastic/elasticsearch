@@ -8,7 +8,9 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 
 import java.io.IOException;
@@ -41,4 +43,13 @@ final class SearchableSnapshotsRequestConverters {
         return request;
     }
 
+    static Request cacheStats(final CachesStatsRequest cacheStatsRequest) {
+        final RequestConverters.EndpointBuilder endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_searchable_snapshots");
+        if (cacheStatsRequest.getNodesIds() != null) {
+            endpoint.addCommaSeparatedPathParts(cacheStatsRequest.getNodesIds());
+        }
+        endpoint.addPathPartAsIs("cache", "stats");
+        return new Request(HttpGet.METHOD_NAME, endpoint.build());
+    }
 }

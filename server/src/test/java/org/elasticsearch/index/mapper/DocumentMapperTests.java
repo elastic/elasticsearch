@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -22,11 +23,17 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -56,9 +63,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = createIndexAnalyzers(indexSettings);
-        DocumentMapper mergedMapper = new DocumentMapper(indexSettings, indexAnalyzers, null, merged);
+        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -76,18 +82,18 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     public void testMergeObjectAndNested() throws Exception {
         DocumentMapper objectMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "object").endObject()));
-        DocumentMapper nestedMapper = createDocumentMapper((mapping(b -> b.startObject("obj").field("type", "nested").endObject())));
+        DocumentMapper nestedMapper = createDocumentMapper(mapping(b -> b.startObject("obj").field("type", "nested").endObject()));
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(objectMapper, nestedMapper.mapping(), reason));
-            assertThat(e.getMessage(), containsString("cannot change object mapping from non-nested to nested"));
+            assertThat(e.getMessage(), containsString("can't merge a nested mapping [obj] with a non-nested mapping"));
         }
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(nestedMapper, objectMapper.mapping(), reason));
-            assertThat(e.getMessage(), containsString("cannot change object mapping from nested to non-nested"));
+            assertThat(e.getMessage(), containsString("can't merge a non nested mapping [obj] with a nested mapping"));
         }
     }
 
@@ -274,5 +280,70 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         expected = Map.of("field", "value",
             "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(merged.getMeta(), equalTo(expected));
+    }
+
+    public void testEmptyDocumentMapper() {
+        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+        DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
+        assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
+        assertTrue(documentMapper.mappers().hasMappings());
+        assertNotNull(documentMapper.idFieldMapper());
+        assertNotNull(documentMapper.sourceMapper());
+        assertNotNull(documentMapper.IndexFieldMapper());
+        List<Class<?>> metadataMappers = new ArrayList<>(documentMapper.mappers().getMapping().getMetadataMappersMap().keySet());
+        Collections.sort(metadataMappers, Comparator.comparing(c -> c.getSimpleName()));
+        assertMap(
+            metadataMappers,
+            matchesList().item(DocCountFieldMapper.class)
+                .item(FieldNamesFieldMapper.class)
+                .item(IdFieldMapper.class)
+                .item(IgnoredFieldMapper.class)
+                .item(IndexFieldMapper.class)
+                .item(NestedPathFieldMapper.class)
+                .item(RoutingFieldMapper.class)
+                .item(SeqNoFieldMapper.class)
+                .item(SourceFieldMapper.class)
+                .item(VersionFieldMapper.class)
+        );
+        List<String> matching = new ArrayList<>(documentMapper.mappers().getMatchingFieldNames("*"));
+        Collections.sort(matching);
+        assertMap(
+            matching,
+            matchesList().item(DocCountFieldMapper.CONTENT_TYPE)
+                .item(FieldNamesFieldMapper.CONTENT_TYPE)
+                .item(IdFieldMapper.CONTENT_TYPE)
+                .item(IgnoredFieldMapper.CONTENT_TYPE)
+                .item(IndexFieldMapper.CONTENT_TYPE)
+                .item(NestedPathFieldMapper.NAME)
+                .item(RoutingFieldMapper.CONTENT_TYPE)
+                .item(SeqNoFieldMapper.CONTENT_TYPE)
+                .item(SourceFieldMapper.CONTENT_TYPE)
+                .item(VersionFieldMapper.CONTENT_TYPE)
+        );
+    }
+
+    public void testTooManyDimensionFields() {
+        int max;
+        Settings settings;
+        if (randomBoolean()) {
+            max = 16; // By default no more than 16 dimensions per document are supported
+            settings = getIndexSettings();
+        } else {
+            max = between(1, 10000);
+            settings = Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), max)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), max + 1)
+                .build();
+        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mapping(b -> {
+            for (int i = 0; i <= max; i++) {
+                b.startObject("field" + i)
+                    .field("type", randomFrom("ip", "keyword", "long", "integer", "byte", "short"))
+                    .field("time_series_dimension", true)
+                    .endObject();
+            }
+        })));
+        assertThat(e.getMessage(), containsString("Limit of total dimension fields [" + max + "] has been exceeded"));
     }
 }

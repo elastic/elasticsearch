@@ -13,19 +13,19 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 
 import java.util.Map;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class SearchableSnapshotDataTierIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static final String repoName = "test-repo";
     private static final String indexName = "test-index";
     private static final String snapshotName = "test-snapshot";
     private static final String mountedIndexName = "test-index-mounted";
     private static final Settings frozenSettings = Settings.builder()
-        .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_FROZEN)
+        .put(DataTierAllocationDecider.TIER_PREFERENCE, DataTier.DATA_FROZEN)
         .build();
 
     public void testPartialLegalOnFrozen() throws Exception {
@@ -64,7 +64,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseSearchableSnapshot
             Settings.EMPTY,
             Settings.builder()
                 .put(
-                    DataTierAllocationDecider.INDEX_ROUTING_PREFER,
+                    DataTierAllocationDecider.TIER_PREFERENCE,
                     randomValueOtherThan(DataTier.DATA_FROZEN, () -> randomFrom(DataTier.ALL_DATA_TIERS))
                 )
                 .build()
@@ -77,9 +77,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseSearchableSnapshot
     private void updatePreference(String tier) {
         client().admin()
             .indices()
-            .updateSettings(
-                new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))
-            )
+            .updateSettings(new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.TIER_PREFERENCE, tier)))
             .actionGet();
     }
 }

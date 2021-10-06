@@ -44,13 +44,12 @@ public class AvailableIndexFoldersBenchmark {
     @Setup
     public void setup() throws IOException {
         Path path = Files.createTempDirectory("test");
-        String[] paths = new String[] { path.toString() };
         nodePath = new NodeEnvironment.NodePath(path);
 
         LogConfigurator.setNodeName("test");
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .put(Environment.PATH_DATA_SETTING.getKey(), path.resolve("data"))
             .build();
         nodeEnv = new NodeEnvironment(settings, new Environment(settings, null));
 

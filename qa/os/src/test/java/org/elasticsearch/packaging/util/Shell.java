@@ -10,7 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,7 +36,7 @@ public class Shell {
     public static final Result NO_OP = new Shell.Result(0, "", "");
     protected final Logger logger = LogManager.getLogger(getClass());
 
-    final Map<String, String> env = new HashMap<>();
+    protected final Map<String, String> env = new HashMap<>();
     String umask;
     Path workingDirectory;
 

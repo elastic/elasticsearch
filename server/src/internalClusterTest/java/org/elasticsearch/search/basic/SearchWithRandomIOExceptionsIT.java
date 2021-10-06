@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -41,9 +41,6 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
-    }
-
-    public void testRemoveWhenAwaitsFixIsResolved() {
     }
 
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {

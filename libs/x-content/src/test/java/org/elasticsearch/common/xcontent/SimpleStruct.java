@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;

@@ -30,7 +30,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     private AzureRepository azureRepository(Settings settings) {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
             .put(settings)
             .build();
         final AzureRepository azureRepository = new AzureRepository(new RepositoryMetadata("foo", "azure", internalSettings),

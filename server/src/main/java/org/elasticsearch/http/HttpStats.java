@@ -8,7 +8,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.LongAdder;
 
 public class HttpStats implements Writeable, ToXContentFragment {
 
@@ -38,20 +36,14 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            clientStats = in.readList(ClientStats::new);
-        } else {
-            clientStats = List.of();
-        }
+        clientStats = in.readList(ClientStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeList(clientStats);
-        }
+        out.writeList(clientStats);
     }
 
     public long getServerOpen() {
@@ -100,28 +92,36 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     public static class ClientStats implements Writeable, ToXContentFragment {
+        public static final long NOT_CLOSED = -1L;
+
         final int id;
-        String agent;
-        String localAddress;
-        String remoteAddress;
-        String lastUri;
-        String forwardedFor;
-        String opaqueId;
-        long openedTimeMillis;
-        long closedTimeMillis = -1;
-        volatile long lastRequestTimeMillis = -1;
-        final LongAdder requestCount = new LongAdder();
-        final LongAdder requestSizeBytes = new LongAdder();
+        final String agent;
+        final String localAddress;
+        final String remoteAddress;
+        final String lastUri;
+        final String forwardedFor;
+        final String opaqueId;
+        final long openedTimeMillis;
+        final long closedTimeMillis;
+        final long lastRequestTimeMillis;
+        final long requestCount;
+        final long requestSizeBytes;
 
-        ClientStats(long openedTimeMillis) {
-            this.id = System.identityHashCode(this);
-            this.openedTimeMillis = openedTimeMillis;
-        }
-
-        // visible for testing
-        public ClientStats(String agent, String localAddress, String remoteAddress, String lastUri, String forwardedFor, String opaqueId,
-            long openedTimeMillis, long closedTimeMillis, long lastRequestTimeMillis, long requestCount, long requestSizeBytes) {
-            this.id = System.identityHashCode(this);
+        public ClientStats(
+            int id,
+            String agent,
+            String localAddress,
+            String remoteAddress,
+            String lastUri,
+            String forwardedFor,
+            String opaqueId,
+            long openedTimeMillis,
+            long closedTimeMillis,
+            long lastRequestTimeMillis,
+            long requestCount,
+            long requestSizeBytes
+        ) {
+            this.id = id;
             this.agent = agent;
             this.localAddress = localAddress;
             this.remoteAddress = remoteAddress;
@@ -131,23 +131,23 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.openedTimeMillis = openedTimeMillis;
             this.closedTimeMillis = closedTimeMillis;
             this.lastRequestTimeMillis = lastRequestTimeMillis;
-            this.requestCount.add(requestCount);
-            this.requestSizeBytes.add(requestSizeBytes);
+            this.requestCount = requestCount;
+            this.requestSizeBytes = requestSizeBytes;
         }
 
         ClientStats(StreamInput in) throws IOException {
             this.id = in.readInt();
             this.agent = in.readOptionalString();
-            this.localAddress = in.readString();
-            this.remoteAddress = in.readString();
-            this.lastUri = in.readString();
+            this.localAddress = in.readOptionalString();
+            this.remoteAddress = in.readOptionalString();
+            this.lastUri = in.readOptionalString();
             this.forwardedFor = in.readOptionalString();
             this.opaqueId = in.readOptionalString();
             this.openedTimeMillis = in.readLong();
             this.closedTimeMillis = in.readLong();
             this.lastRequestTimeMillis = in.readLong();
-            this.requestCount.add(in.readLong());
-            this.requestSizeBytes.add(in.readLong());
+            this.requestCount = in.readLong();
+            this.requestSizeBytes = in.readLong();
         }
 
         @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -156,9 +156,15 @@ public class HttpStats implements Writeable, ToXContentFragment {
             if (agent != null) {
                 builder.field(Fields.CLIENT_AGENT, agent);
             }
-            builder.field(Fields.CLIENT_LOCAL_ADDRESS, localAddress);
-            builder.field(Fields.CLIENT_REMOTE_ADDRESS, remoteAddress);
-            builder.field(Fields.CLIENT_LAST_URI, lastUri);
+            if (localAddress != null) {
+                builder.field(Fields.CLIENT_LOCAL_ADDRESS, localAddress);
+            }
+            if (remoteAddress != null) {
+                builder.field(Fields.CLIENT_REMOTE_ADDRESS, remoteAddress);
+            }
+            if (lastUri != null) {
+                builder.field(Fields.CLIENT_LAST_URI, lastUri);
+            }
             if (forwardedFor != null) {
                 builder.field(Fields.CLIENT_FORWARDED_FOR, forwardedFor);
             }
@@ -166,12 +172,12 @@ public class HttpStats implements Writeable, ToXContentFragment {
                 builder.field(Fields.CLIENT_OPAQUE_ID, opaqueId);
             }
             builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, openedTimeMillis);
-            if (closedTimeMillis != -1) {
+            if (closedTimeMillis != NOT_CLOSED) {
                 builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, closedTimeMillis);
             }
             builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, lastRequestTimeMillis);
-            builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount.longValue());
-            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes.longValue());
+            builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount);
+            builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes);
             builder.endObject();
             return builder;
         }
@@ -180,24 +186,16 @@ public class HttpStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             out.writeOptionalString(agent);
-            out.writeString(localAddress);
-            out.writeString(remoteAddress);
-            out.writeString(lastUri);
+            out.writeOptionalString(localAddress);
+            out.writeOptionalString(remoteAddress);
+            out.writeOptionalString(lastUri);
             out.writeOptionalString(forwardedFor);
             out.writeOptionalString(opaqueId);
             out.writeLong(openedTimeMillis);
             out.writeLong(closedTimeMillis);
             out.writeLong(lastRequestTimeMillis);
-            out.writeLong(requestCount.longValue());
-            out.writeLong(requestSizeBytes.longValue());
-        }
-
-        /**
-         * Returns a key suitable for use in a hash table for the specified HttpChannel
-         */
-        public static int getChannelKey(HttpChannel channel) {
-            // always use an identity-based hash code rather than one based on object state
-            return System.identityHashCode(channel);
+            out.writeLong(requestCount);
+            out.writeLong(requestSizeBytes);
         }
     }
 }

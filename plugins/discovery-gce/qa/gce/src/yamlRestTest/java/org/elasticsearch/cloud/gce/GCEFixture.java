@@ -9,7 +9,7 @@ package org.elasticsearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.rest.RestStatus;

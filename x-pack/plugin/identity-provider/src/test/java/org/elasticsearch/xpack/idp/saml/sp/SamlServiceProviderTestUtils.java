@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.HashSet;
 import java.util.Set;

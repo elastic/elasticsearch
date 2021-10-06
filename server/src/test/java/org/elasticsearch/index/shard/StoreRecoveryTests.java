@@ -30,7 +30,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -195,11 +195,15 @@ public class StoreRecoveryTests extends ESTestCase {
             BytesRef ref;
             while((ref = iterator.next()) != null) {
                 String value = ref.utf8ToString();
-                assertEquals("value has wrong shards: " + value, targetShardId, OperationRouting.generateShardId(metadata, value, null));
+                assertEquals(
+                    "value has wrong shards: " + value,
+                    targetShardId,
+                    IndexRouting.fromIndexMetadata(metadata).shardId(value, null)
+                );
             }
             for (int i = 0; i < numDocs; i++) {
                 ref = new BytesRef(Integer.toString(i));
-                int shardId = OperationRouting.generateShardId(metadata, ref.utf8ToString(), null);
+                int shardId = IndexRouting.fromIndexMetadata(metadata).shardId(ref.utf8ToString(), null);
                 if (shardId == targetShardId) {
                     assertTrue(ref.utf8ToString() + " is missing", terms.iterator().seekExact(ref));
                 } else {

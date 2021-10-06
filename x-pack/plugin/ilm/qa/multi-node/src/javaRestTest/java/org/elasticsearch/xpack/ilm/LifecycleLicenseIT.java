@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -129,7 +129,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
     }
 
     private void putTrialLicense() throws Exception {
-        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueDays(7));
+        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueDays(14));
         Request putTrialRequest = new Request("PUT", "/_license");
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder = signedLicense.toXContent(builder, ToXContent.EMPTY_PARAMS);

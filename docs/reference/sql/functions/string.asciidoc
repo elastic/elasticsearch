@@ -16,7 +16,7 @@ ASCII(string_exp) <1>
 
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -37,7 +37,7 @@ BIT_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -58,11 +58,12 @@ CHAR(code) <1>
 --------------------------------------------------
 *Input*:
 
-<1> integer expression
+<1> integer expression between `0` and `255`. If `null`, negative, or greater
+than `255`, the function returns `null`.
 
 *Output*: string
 
-*Description*: Returns the character that has the ASCII code value specified by the numeric input. The value should be between 0 and 255; otherwise, the return value is data source–dependent.
+*Description*: Returns the character that has the ASCII code value specified by the numeric input.
 
 [source, sql]
 --------------------------------------------------
@@ -79,7 +80,7 @@ CHAR_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -102,12 +103,12 @@ CONCAT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. Treats `null` as an empty string.
+<2> string expression. Treats `null` as an empty string.
 
 *Output*: string
 
-*Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`. `NULL` input strings are treated as empty strings.
+*Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`.
 
 [source, sql]
 --------------------------------------------------
@@ -128,10 +129,10 @@ INSERT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
-<3> integer expression
-<4> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
+<3> integer expression. If `null`, the function returns `null`.
+<4> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -152,7 +153,7 @@ LCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -175,8 +176,9 @@ LEFT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`. If `0` or
+negative, the function returns an empty string.
 
 *Output*: string
 
@@ -197,7 +199,7 @@ LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -222,13 +224,17 @@ LOCATE(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
-<3> integer expression; optional
+<1> string expression.  If `null`, the function returns `null`.
+<2> string expression.  If `null`, the function returns `null`.
+<3> integer expression; optional. If `null`, `0`, `1`, negative, or not
+specified, the search starts at the first character position.
 
 *Output*: integer
 
-*Description*: Returns the starting position of the first occurrence of `pattern` within `source`. The optional `start` specifies the character position to start the search with. The first character position in `source` is indicated by the value 1. Not specifying `start` or specifying it as `NULL`, any negative value, 0 or 1, starts the search at the first character position. If `pattern` is not found within `source`, the value 0 is returned.
+*Description*: Returns the starting position of the first occurrence of
+`pattern` within `source`. The optional `start` specifies the character position
+to start the search with. If the `pattern` is not found within `source`, the
+function returns `0`.
 
 [source, sql]
 --------------------------------------------------
@@ -250,7 +256,7 @@ LTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -271,7 +277,7 @@ OCTET_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -294,8 +300,8 @@ POSITION(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -318,8 +324,8 @@ REPEAT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `0`, negative, or `null`, the function returns `null`.
 
 *Output*: string
 
@@ -343,9 +349,9 @@ REPLACE(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
-<3> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
+<3> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -368,8 +374,9 @@ RIGHT(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`. If `0` or
+negative, the function returns an empty string.
 
 *Output*: string
 
@@ -390,7 +397,7 @@ RTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -411,7 +418,7 @@ SPACE(count) <1>
 --------------------------------------------------
 *Input*:
 
-<1> integer expression
+<1> integer expression. If `null` or negative, the function returns `null`.
 
 *Output*: string
 
@@ -434,13 +441,13 @@ STARTS_WITH(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> string expression
+<1> string expression. If `null`, the function returns `null`.
+<2> string expression. If `null`, the function returns `null`.
 
 *Output*: boolean value
 
-*Description*: Returns `true` if the source expression starts with the specified pattern, `false` otherwise. The matching is case sensitive.
-If either parameters is `null`, the function returns `null`.
+*Description*: Returns `true` if the source expression starts with the specified
+pattern, `false` otherwise. The matching is case sensitive.
 
 [source, sql]
 --------------------------------------------------
@@ -465,9 +472,9 @@ SUBSTRING(
 --------------------------------------------------
 *Input*:
 
-<1> string expression
-<2> integer expression
-<3> integer expression
+<1> string expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
+<3> integer expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -487,7 +494,7 @@ TRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -508,7 +515,7 @@ UCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
-<1> string expression
+<1> string expression. If `null`, the function returns `null`.
 
 *Output*: string
 

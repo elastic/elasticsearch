@@ -96,7 +96,7 @@ public class IncidentEventTests extends ESTestCase {
         }
 
         List<IncidentEventContext> actualLinks = new ArrayList<>();
-        List<Map<String, String>> linkMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
+        List<Map<String, String>> linkMap = objectPath.evaluate(IncidentEvent.Fields.LINKS.getPreferredName());
         if (linkMap != null) {
             for (Map<String, String> iecValue : linkMap) {
                 actualLinks.add(IncidentEventContext.link(iecValue.get("href"), iecValue.get("text")));
@@ -104,7 +104,7 @@ public class IncidentEventTests extends ESTestCase {
         }
 
         List<IncidentEventContext> actualImages = new ArrayList<>();
-        List<Map<String, String>> imgMap = (List<Map<String, String>>) objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
+        List<Map<String, String>> imgMap = objectPath.evaluate(IncidentEvent.Fields.IMAGES.getPreferredName());
         if (imgMap != null) {
             for (Map<String, String> iecValue : imgMap) {
                 actualImages.add(IncidentEventContext.image(iecValue.get("src"), iecValue.get("href"), iecValue.get("alt")));

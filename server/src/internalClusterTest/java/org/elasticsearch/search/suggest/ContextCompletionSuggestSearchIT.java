@@ -599,7 +599,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("suggestions", completionSuggestionBuilder, expectedModulo);
     }
 
-    public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
+    public void assertSuggestions(String suggestionName, SuggestionBuilder<?> suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(
             new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)
         ).get();

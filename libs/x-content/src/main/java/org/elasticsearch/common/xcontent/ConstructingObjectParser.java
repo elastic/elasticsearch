@@ -8,8 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -476,12 +475,11 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          * Queue a consumer that we'll call once the targetObject is built. If targetObject has been built this will fail because the caller
          * should have just applied the consumer immediately.
          */
+        @SuppressWarnings({"unchecked", "rawtypes"})
         private void queue(Consumer<Value> queueMe) {
             assert targetObject == null: "Don't queue after the targetObject has been built! Just apply the consumer directly.";
             if (queuedFields == null) {
-                @SuppressWarnings({"unchecked", "rawtypes"})
-                Consumer<Value>[] queuedFields = new Consumer[numberOfFields];
-                this.queuedFields = queuedFields;
+                this.queuedFields = (Consumer<Value>[]) new Consumer[numberOfFields];
             }
             queuedFields[queuedFieldsCount] = queueMe;
             queuedFieldsCount++;

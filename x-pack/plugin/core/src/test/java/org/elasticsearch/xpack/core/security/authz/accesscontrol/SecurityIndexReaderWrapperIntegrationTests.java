@@ -93,7 +93,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
 
         Directory directory = newDirectory();
@@ -223,7 +222,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
                 bitsetCache, securityContext, licenseState, scriptService) {
@@ -290,6 +288,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
     }
 }

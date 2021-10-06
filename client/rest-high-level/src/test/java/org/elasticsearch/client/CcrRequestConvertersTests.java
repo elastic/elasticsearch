@@ -28,7 +28,7 @@ import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -101,7 +101,10 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
     public void testPutAutofollowPattern() throws Exception {
         PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(randomAlphaOfLength(4),
-            randomAlphaOfLength(4), Arrays.asList(generateRandomStringArray(4, 4, false)));
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false)),
+            Arrays.asList(generateRandomStringArray(4, 4, false))
+        );
         if (randomBoolean()) {
             putAutoFollowPatternRequest.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }

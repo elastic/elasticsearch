@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         this.queryBuilder = new MultiMatchQueryParser(context);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
-        this.queryBuilder.setZeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NULL);
+        this.queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
         }
@@ -253,11 +254,12 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
-                Term[] terms = new Term[plist.size()];
-                for (int i = 0; i < plist.size(); i++) {
-                    terms[i] = new Term(field, plist.get(i));
+                SynonymQuery.Builder sb = new SynonymQuery.Builder(field);
+                for (BytesRef bytesRef : plist) {
+                    sb.addTerm(new Term(field, bytesRef));
+
                 }
-                posQuery = new SynonymQuery(terms);
+                posQuery = sb.build();
             } else {
                 BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
                 for (BytesRef token : plist) {

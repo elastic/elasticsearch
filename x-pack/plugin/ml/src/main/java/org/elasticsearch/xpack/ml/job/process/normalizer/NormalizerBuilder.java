@@ -62,6 +62,9 @@ public class NormalizerBuilder {
             command.add(AutodetectBuilder.MODEL_CONFIG_ARG + modelConfigFile);
         }
 
+        // License was validated when the corresponding job was opened
+        command.add(AutodetectBuilder.LICENSE_KEY_VALIDATED_ARG + true);
+
         return command;
     }
 }

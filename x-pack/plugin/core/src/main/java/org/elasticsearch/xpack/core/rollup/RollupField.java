@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.rollup;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;

@@ -8,7 +8,7 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 

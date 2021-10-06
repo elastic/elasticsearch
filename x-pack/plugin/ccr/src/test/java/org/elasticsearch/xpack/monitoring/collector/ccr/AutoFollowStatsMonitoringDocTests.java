@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.monitoring.collector.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.junit.Before;
 
@@ -146,8 +146,9 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
+        byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
         Map<String, Object> template =
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
+            XContentHelper.convertToMap(XContentType.JSON.xContent(), loadedTemplate, 0, loadedTemplate.length, false);
         Map<?, ?> autoFollowStatsMapping =
             (Map<?, ?>) XContentMapValues.extractValue("mappings._doc.properties.ccr_auto_follow_stats.properties", template);
 

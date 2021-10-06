@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -184,7 +185,7 @@ public class DatafeedConfigProvider {
      * @param jobIds    The jobs to find the datafeeds of
      * @param listener  Datafeed Id listener
      */
-    public void findDatafeedsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
+    public void findDatafeedIdsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
@@ -210,6 +211,31 @@ public class DatafeedConfigProvider {
                         },
                         listener::onFailure)
                 , client::search);
+    }
+
+    public void findDatafeedsByJobIds(Collection<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSize(jobIds.size())
+            .setSource(new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds))).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+            ActionListener.<SearchResponse>wrap(
+                response -> {
+                    Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
+                    // There cannot be more than one datafeed per job
+                    assert response.getHits().getTotalHits().value <= jobIds.size();
+                    SearchHit[] hits = response.getHits().getHits();
+                    for (SearchHit hit : hits) {
+                        DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());
+                        datafeedsByJobId.put(builder.getJobId(), builder);
+                    }
+                    listener.onResponse(datafeedsByJobId);
+                },
+                listener::onFailure)
+            ,
+            client::search
+        );
     }
 
     /**

@@ -44,8 +44,8 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().indicesOptions() == SearchRequest.DEFAULT_INDICES_OPTIONS
-            && request().indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+        if (request.request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS)
+                && request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
             request.request().indicesOptions(request().indicesOptions());
         }
 

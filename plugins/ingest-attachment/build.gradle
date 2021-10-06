@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -7,7 +7,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -16,10 +16,10 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '1.24',
-  'pdfbox': '2.0.19',
+  'tika'  : '1.27',
+  'pdfbox': '2.0.24',
   'poi'   : '4.1.2',
-  'mime4j': '0.8.3'
+  'mime4j': '0.8.5'
 ]
 
 dependencies {
@@ -96,6 +96,6 @@ if (BuildParams.inFipsJvm) {
   tasks.named("jarHell").configure { enabled = false }
   tasks.named("test").configure { enabled = false }
   tasks.named("yamlRestTest").configure { enabled = false };
-  tasks.named("yamlRestCompatTest").configure { enabled = false };
+  tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
   tasks.named("testingConventions").configure { enabled = false };
 }

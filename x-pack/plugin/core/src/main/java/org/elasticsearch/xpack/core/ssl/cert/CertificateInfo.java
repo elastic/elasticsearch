@@ -6,23 +6,33 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
- * Simple model of an X.509 certificate that is known to X-Pack
+ * Simple model of an X.509 certificate that is known to Elasticsearch
  */
-public class CertificateInfo implements ToXContentObject, Writeable {
+public class CertificateInfo implements ToXContentObject, Writeable, Comparable<CertificateInfo> {
+
+    private static final Comparator<CertificateInfo> COMPARATOR =
+        Comparator.comparing(CertificateInfo::path, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(CertificateInfo::alias, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(CertificateInfo::serialNumber);
+
     private final String path;
     private final String format;
     private final String alias;
@@ -33,7 +43,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
 
     public CertificateInfo(String path, String format, String alias, boolean hasPrivateKey, X509Certificate certificate) {
         Objects.requireNonNull(certificate, "Certificate cannot be null");
-        this.path = Objects.requireNonNull(path, "Certificate path cannot be null");
+        this.path = path;
         this.format = Objects.requireNonNull(format, "Certificate format cannot be null");
         this.alias = alias;
         this.subjectDn = Objects.requireNonNull(certificate.getSubjectDN().getName());
@@ -43,7 +53,11 @@ public class CertificateInfo implements ToXContentObject, Writeable {
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
-        this.path = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.path = in.readOptionalString();
+        } else {
+            this.path = in.readString();
+        }
         this.format = in.readString();
         this.alias = in.readOptionalString();
         this.subjectDn = in.readString();
@@ -54,7 +68,11 @@ public class CertificateInfo implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(path);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(this.path);
+        } else {
+            out.writeString(this.path == null ? "" : this.path);
+        }
         out.writeString(format);
         out.writeOptionalString(alias);
         out.writeString(subjectDn);
@@ -63,6 +81,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         out.writeLong(expiry.toInstant().toEpochMilli());
     }
 
+    @Nullable
     public String path() {
         return path;
     }
@@ -105,6 +124,11 @@ public class CertificateInfo implements ToXContentObject, Writeable {
     }
 
     @Override
+    public String toString() {
+        return "Certificate" + Strings.toString(this);
+    }
+
+    @Override
     public boolean equals(Object other) {
         if (this == other) {
             return true;
@@ -114,7 +138,7 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         }
 
         final CertificateInfo that = (CertificateInfo) other;
-        return this.path.equals(that.path)
+        return  Objects.equals(this.path, that.path)
                 && this.format.equals(that.format)
                 && this.hasPrivateKey == that.hasPrivateKey
                 && Objects.equals(this.alias, that.alias)
@@ -125,9 +149,14 @@ public class CertificateInfo implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        int result = path.hashCode();
+        int result = Objects.hashCode(path);
         result = 31 * result + (alias != null ? alias.hashCode() : 0);
         result = 31 * result + (serialNumber != null ? serialNumber.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public int compareTo(CertificateInfo o) {
+        return COMPARATOR.compare(this, o);
     }
 }

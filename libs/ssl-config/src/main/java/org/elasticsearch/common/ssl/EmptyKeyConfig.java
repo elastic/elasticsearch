@@ -8,17 +8,22 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.X509ExtendedKeyManager;
+import org.elasticsearch.core.Tuple;
+
 import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
+
+import javax.net.ssl.X509ExtendedKeyManager;
 
 /**
  * A {@link SslKeyConfig} that does nothing (provides a null key manager)
  */
-final class EmptyKeyConfig implements SslKeyConfig {
+public final class EmptyKeyConfig implements SslKeyConfig {
 
-    static final EmptyKeyConfig INSTANCE = new EmptyKeyConfig();
+    public static final EmptyKeyConfig INSTANCE = new EmptyKeyConfig();
 
     private EmptyKeyConfig() {
         // Enforce a single instance
@@ -26,7 +31,22 @@ final class EmptyKeyConfig implements SslKeyConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public List<Tuple<PrivateKey, X509Certificate>> getKeys() {
+        return List.of();
+    }
+
+    @Override
+    public Collection<StoredCertificate> getConfiguredCertificates() {
+        return List.of();
+    }
+
+    @Override
+    public boolean hasKeyMaterial() {
+        return false;
     }
 
     @Override

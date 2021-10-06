@@ -14,7 +14,7 @@ import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -106,12 +106,12 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));
         assertFalse(util.exists(root));
-        BlobPath blobPath = BlobPath.cleanPath().add("path");
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
 
         // blobContainer() will not create path if read only
         hdfsBlobStore.blobContainer(blobPath);
         Path hdfsPath = root;
-        for (String p : blobPath) {
+        for (String p : blobPath.parts()) {
             hdfsPath = new Path(hdfsPath, p);
         }
         assertFalse(util.exists(hdfsPath));
@@ -135,12 +135,12 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));
         assertFalse(util.exists(root));
-        BlobPath blobPath = BlobPath.cleanPath().add("path");
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
 
         // blobContainer() will not create path if read only
         hdfsBlobStore.blobContainer(blobPath);
         Path hdfsPath = root;
-        for (String p : blobPath) {
+        for (String p : blobPath.parts()) {
             hdfsPath = new Path(hdfsPath, p);
         }
         assertFalse(util.exists(hdfsPath));
@@ -157,6 +157,41 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         int len = randomIntBetween(pos, data.length) - pos;
         assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos+len));
         assertTrue(container.blobExists("foo"));
+    }
+
+    public void testListBlobsByPrefix() throws Exception {
+        FileContext fileContext = createTestContext();
+        HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
+        FileContext.Util util = fileContext.util();
+        Path root = fileContext.makeQualified(new Path("dir"));
+        assertTrue(util.exists(root));
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
+
+        hdfsBlobStore.blobContainer(blobPath);
+        Path hdfsPath = root;
+        for (String p : blobPath.parts()) {
+            hdfsPath = new Path(hdfsPath, p);
+        }
+        assertTrue(util.exists(hdfsPath));
+
+        BlobContainer container = hdfsBlobStore.blobContainer(blobPath);
+
+        byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        writeBlob(container, "foo", new BytesArray(data), randomBoolean());
+        assertArrayEquals(readBlobFully(container, "foo", data.length), data);
+        assertTrue(container.blobExists("foo"));
+        writeBlob(container, "bar", new BytesArray(data), randomBoolean());
+        assertArrayEquals(readBlobFully(container, "bar", data.length), data);
+        assertTrue(container.blobExists("bar"));
+
+        assertEquals(2, container.listBlobsByPrefix(null).size());
+        assertEquals(1, container.listBlobsByPrefix("fo").size());
+        assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
+
+        container.delete();
+        assertEquals(0, container.listBlobsByPrefix(null).size());
+        assertEquals(0, container.listBlobsByPrefix("fo").size());
+        assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
     }
 
     public static byte[] readBlobPartially(BlobContainer container, String name, int pos, int length) throws IOException {

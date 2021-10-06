@@ -1,0 +1,65 @@
+{
+  "security.create_service_token":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-service-token.html",
+      "description":"Creates a service account token for access without requiring basic authentication."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/service/{namespace}/{service}/credential/token/{name}",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "namespace":{
+              "type":"string",
+              "description":"An identifier for the namespace"
+            },
+            "service":{
+              "type":"string",
+              "description":"An identifier for the service name"
+            },
+            "name":{
+              "type":"string",
+              "description":"An identifier for the token name"
+            }
+          }
+        },
+        {
+          "path":"/_security/service/{namespace}/{service}/credential/token",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "namespace":{
+              "type":"string",
+              "description":"An identifier for the namespace"
+            },
+            "service":{
+              "type":"string",
+              "description":"An identifier for the service name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` (the default) then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+      }
+    }
+  }
+}

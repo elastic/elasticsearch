@@ -18,9 +18,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.binaryGeoShapeDo
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>> extends AggregatorTestCase {
+public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
     private static final String FIELD_NAME = "location";
 
     /**
@@ -191,9 +191,9 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
             GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
             GeoRelation tileRelation =  value.relate(pointTile);
-            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
-                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
-                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
+            boolean intersectsBounds = boundsTop > pointTile.getMinY() && boundsBottom < pointTile.getMaxY()
+                && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
+                || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
             if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
                 numDocsWithin += 1;
             }
@@ -293,7 +293,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         }
 
         MappedFieldType fieldType
-            = new GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            = new GeoShapeWithDocValuesFieldType(FIELD_NAME, true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();

@@ -9,7 +9,7 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Base request builder for master node operations that support acknowledgements

@@ -13,6 +13,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.SecureString;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -106,7 +107,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     findUser(user, connection, ActionListener.wrap((entry) -> {
@@ -117,10 +118,10 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                             final String dn = entry.getDN();
                             final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                             final SimpleBindRequest userBind = new SimpleBindRequest(dn, passwordBytes);
-                            LdapUtils.maybeForkThenBind(connection, userBind, threadPool, new AbstractRunnable() {
+                            LdapUtils.maybeForkThenBind(connection, userBind, false, threadPool, new AbstractRunnable() {
                                 @Override
                                 protected void doRun() throws Exception {
-                                    LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+                                    LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
 
                                         @Override
                                         protected void doRun() throws Exception {
@@ -183,7 +184,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     findUser(user, connection, ActionListener.wrap((entry) -> {

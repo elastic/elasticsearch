@@ -21,10 +21,21 @@ import java.util.Optional;
 
 public class PreviewTransformRequest implements ToXContentObject, Validatable {
 
+    private final String transformId;
     private final TransformConfig config;
 
+    public PreviewTransformRequest(String transformId) {
+        this.transformId = Objects.requireNonNull(transformId);
+        this.config = null;
+    }
+
     public PreviewTransformRequest(TransformConfig config) {
-        this.config = config;
+        this.transformId = null;
+        this.config = Objects.requireNonNull(config);
+    }
+
+    public String getTransformId() {
+        return transformId;
     }
 
     public TransformConfig getConfig() {
@@ -33,16 +44,20 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return config.toXContent(builder, params);
+        if (this.config != null) {
+            return this.config.toXContent(builder, params);
+        } else {
+            return builder
+                .startObject()
+                .field(TransformConfig.ID.getPreferredName(), this.transformId)
+                .endObject();
+        }
     }
 
     @Override
     public Optional<ValidationException> validate() {
         ValidationException validationException = new ValidationException();
-        if (config == null) {
-            validationException.addValidationError("preview requires a non-null transform config");
-            return Optional.of(validationException);
-        } else {
+        if (config != null) {
             if (config.getSource() == null) {
                 validationException.addValidationError("transform source cannot be null");
             }
@@ -57,7 +72,7 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(config);
+        return Objects.hash(transformId, config);
     }
 
     @Override
@@ -69,6 +84,7 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
             return false;
         }
         PreviewTransformRequest other = (PreviewTransformRequest) obj;
-        return Objects.equals(config, other.config);
+        return Objects.equals(transformId, other.transformId)
+            && Objects.equals(config, other.config);
     }
 }

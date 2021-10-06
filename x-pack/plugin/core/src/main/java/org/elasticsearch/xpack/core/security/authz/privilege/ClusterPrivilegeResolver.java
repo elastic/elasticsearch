@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
@@ -152,7 +153,7 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/logstash/pipeline/*"));
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
-        Set.of("cluster:admin/tasks/cancel"));
+        Set.of(CancelTasksAction.NAME + "*"));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,

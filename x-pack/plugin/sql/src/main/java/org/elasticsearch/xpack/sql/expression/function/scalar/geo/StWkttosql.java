@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
@@ -39,7 +39,7 @@ public class StWkttosql extends UnaryScalarFunction {
         if (DataTypes.isString(field().dataType())) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return isString(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        return isString(field(), sourceText(), DEFAULT);
     }
 
     @Override

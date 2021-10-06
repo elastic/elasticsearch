@@ -48,6 +48,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 public class TransportAckWatchActionTests extends ESTestCase {
 
     private TransportAckWatchAction action;

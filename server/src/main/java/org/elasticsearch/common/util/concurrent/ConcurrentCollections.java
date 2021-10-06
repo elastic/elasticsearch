@@ -46,17 +46,6 @@ public abstract class ConcurrentCollections {
         return new ConcurrentHashMap<>();
     }
 
-    /**
-     * Creates a new CHM with an aggressive concurrency level, aimed at highly updateable long living maps.
-     */
-    public static <V> ConcurrentMapLong<V> newConcurrentMapLongWithAggressiveConcurrency() {
-        return new ConcurrentHashMapLong<>(ConcurrentCollections.<Long, V>newConcurrentMapWithAggressiveConcurrency());
-    }
-
-    public static <V> ConcurrentMapLong<V> newConcurrentMapLong() {
-        return new ConcurrentHashMapLong<>(ConcurrentCollections.<Long, V>newConcurrentMap());
-    }
-
     public static <V> Set<V> newConcurrentSet() {
         return Collections.newSetFromMap(ConcurrentCollections.<V, Boolean>newConcurrentMap());
     }

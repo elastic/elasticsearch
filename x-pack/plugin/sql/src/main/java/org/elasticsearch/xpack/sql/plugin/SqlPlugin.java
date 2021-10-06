@@ -20,7 +20,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -49,17 +51,20 @@ import java.util.function.Supplier;
 
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
+    private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
+    private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
+
     private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
         (mode) -> {
             XPackLicenseState licenseState = getLicenseState();
             switch (mode) {
                 case JDBC:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.JDBC) == false) {
+                    if (JDBC_FEATURE.check(licenseState) == false) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
                     break;
                 case ODBC:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.ODBC) == false) {
+                    if (ODBC_FEATURE.check(licenseState) == false) {
                         throw LicenseUtils.newComplianceException("odbc");
                     }
                     break;
@@ -106,7 +111,10 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new RestSqlQueryAction(),
                 new RestSqlTranslateAction(),
                 new RestSqlClearCursorAction(),
-                new RestSqlStatsAction());
+                new RestSqlStatsAction(),
+                new RestSqlAsyncGetResultsAction(),
+                new RestSqlAsyncGetStatusAction(),
+                new RestSqlAsyncDeleteResultsAction());
     }
 
     @Override
@@ -118,6 +126,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
                 new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
                 new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
+                new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
+                new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class),
                 usageAction,
                 infoAction);
     }

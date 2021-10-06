@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
@@ -31,6 +32,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+        "Specifying types in term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -38,7 +41,20 @@ public class RestTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/{index}/_termvectors"),
             new Route(POST, "/{index}/_termvectors"),
             new Route(GET, "/{index}/_termvectors/{id}"),
-            new Route(POST, "/{index}/_termvectors/{id}"));
+            new Route(POST, "/{index}/_termvectors/{id}"),
+            Route.builder(GET, "/{index}/{type}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/{type}/{id}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/{id}/_termvectors")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -48,12 +64,15 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
+        }
         TermVectorsRequest termVectorsRequest;
         termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
 
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {
-                TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                TermVectorsRequest.parseRequest(termVectorsRequest, parser, request.getRestApiVersion());
             }
         }
         readURIParameters(termVectorsRequest, request);

@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -181,6 +181,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     public abstract static class DisruptedLinks {
         private final Set<String> nodes;
 
+        @SafeVarargs
         protected DisruptedLinks(Set<String>... nodeSets) {
             Set<String> allNodes = new HashSet<>();
             for (Set<String> nodeSet : nodeSets) {

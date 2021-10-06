@@ -39,6 +39,6 @@ public class MatchAssertionTests extends ESTestCase  {
         matchAssertion.doAssert(singletonMap("a", null), matchAssertion.getExpectedValue());
         AssertionError e = expectThrows(AssertionError.class, () ->
             matchAssertion.doAssert(emptyMap(), matchAssertion.getExpectedValue()));
-        assertThat(e.getMessage(), containsString("expected [null] but not found"));
+        assertThat(e.getMessage(), containsString("Expected a map containing\na: expected null but was <missing>"));
     }
 }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.monitoring;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 

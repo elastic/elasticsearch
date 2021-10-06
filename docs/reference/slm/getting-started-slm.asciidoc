@@ -59,7 +59,7 @@ You can define and manage policies through {kib} Management or with the create
 or update policy API.
 
 For example, you could define a `nightly-snapshots` policy 
-to back up all of your data streams and indices daily at 2:30AM UTC.
+to back up all of your data streams and indices daily at 1:30AM UTC.
 
 A create or update policy request defines the policy configuration in JSON:
 
@@ -82,7 +82,7 @@ PUT /_slm/policy/nightly-snapshots
 --------------------------------------------------
 // TEST[continued]
 <1> When the snapshot should be taken in
-    <<schedule-cron,Cron syntax>>: daily at 2:30AM UTC
+    <<schedule-cron,Cron syntax>>: daily at 1:30AM UTC
 <2> How to name the snapshot: use  
     <<date-math-index-names,date math>> to include the current date in the snapshot name
 <3> Where to store the snapshot

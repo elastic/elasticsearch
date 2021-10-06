@@ -731,7 +731,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest itemRequest = new BulkItemRequest(0, new IndexRequest("index").source(Requests.INDEX_CONTENT_TYPE));
         final String failureMessage = "simulated primary failure";
         final IOException exception = new IOException(failureMessage);
-        itemRequest.setPrimaryResponse(new BulkItemResponse(0,
+        itemRequest.setPrimaryResponse(BulkItemResponse.failure(0,
             randomFrom(
                 DocWriteRequest.OpType.CREATE,
                 DocWriteRequest.OpType.DELETE,
@@ -956,7 +956,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
         if (randomBoolean()) {
             // add a response to the request and thereby check that it is ignored for the primary.
-            primaryRequest.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, new IndexResponse(shardId,
+            primaryRequest.setPrimaryResponse(BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, new IndexResponse(shardId,
                 "ignore-primary-response-on-primary", 42, 42, 42, false)));
         }
     }

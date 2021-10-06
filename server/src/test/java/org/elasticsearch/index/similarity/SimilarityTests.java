@@ -20,7 +20,6 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
-import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -203,12 +203,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject().endObject());
 
         IndexService indexService = createIndex("foo");
-        try {
-            indexService.mapperService().parse("type", new CompressedXContent(mapping));
-            fail("Expected MappingParsingException");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for field [field1]"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().parseMapping("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: Unknown Similarity type [unknown_similarity] for field [field1]"));
     }
 
     public void testUnknownParameters() throws IOException {

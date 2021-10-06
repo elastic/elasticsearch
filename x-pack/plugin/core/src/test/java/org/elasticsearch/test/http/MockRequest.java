@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.test.http;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Locale;
 
@@ -19,13 +20,15 @@ public class MockRequest {
     private final String method;
     private final URI uri;
     private final Headers headers;
+    private final InetSocketAddress remoteAddress;
     private String body = null;
 
     @SuppressForbidden(reason = "use http server header class")
-    MockRequest(String method, URI uri, com.sun.net.httpserver.Headers headers) {
+    MockRequest(String method, URI uri, com.sun.net.httpserver.Headers headers, InetSocketAddress remoteAddress) {
         this.method = method;
         this.uri = uri;
         this.headers = new Headers(headers);
+        this.remoteAddress = remoteAddress;
     }
 
     /**
@@ -61,6 +64,13 @@ public class MockRequest {
      */
     public String getBody() {
         return body;
+    }
+
+    /**
+     * @return The address of the client
+     */
+    public InetSocketAddress getRemoteAddress() {
+        return remoteAddress;
     }
 
     @Override

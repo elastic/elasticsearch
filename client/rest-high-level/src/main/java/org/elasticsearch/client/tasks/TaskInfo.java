@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -29,6 +29,7 @@ public class TaskInfo {
     private long startTime;
     private long runningTimeNanos;
     private boolean cancellable;
+    private boolean cancelled;
     private TaskId parentTaskId;
     private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
@@ -93,6 +94,14 @@ public class TaskInfo {
         this.cancellable = cancellable;
     }
 
+    public boolean isCancelled() {
+        return cancelled;
+    }
+
+    void setCancelled(boolean cancelled) {
+        this.cancelled = cancelled;
+    }
+
     public TaskId getParentTaskId() {
         return parentTaskId;
     }
@@ -134,6 +143,7 @@ public class TaskInfo {
         parser.declareLong(TaskInfo::setStartTime, new ParseField("start_time_in_millis"));
         parser.declareLong(TaskInfo::setRunningTimeNanos, new ParseField("running_time_in_nanos"));
         parser.declareBoolean(TaskInfo::setCancellable, new ParseField("cancellable"));
+        parser.declareBoolean(TaskInfo::setCancelled, new ParseField("cancelled"));
         parser.declareString(TaskInfo::setParentTaskId, new ParseField("parent_task_id"));
         parser.declareObject(TaskInfo::setHeaders, (p, c) -> p.mapStrings(), new ParseField("headers"));
         PARSER = (XContentParser p, Void v, String name) -> parser.parse(p, new TaskInfo(new TaskId(name)), null);
@@ -147,6 +157,7 @@ public class TaskInfo {
         return getStartTime() == taskInfo.getStartTime() &&
             getRunningTimeNanos() == taskInfo.getRunningTimeNanos() &&
             isCancellable() == taskInfo.isCancellable() &&
+            isCancelled() == taskInfo.isCancelled() &&
             Objects.equals(getTaskId(), taskInfo.getTaskId()) &&
             Objects.equals(getType(), taskInfo.getType()) &&
             Objects.equals(getAction(), taskInfo.getAction()) &&
@@ -159,8 +170,17 @@ public class TaskInfo {
     @Override
     public int hashCode() {
         return Objects.hash(
-            getTaskId(), getType(), getAction(), getDescription(), getStartTime(),
-            getRunningTimeNanos(), isCancellable(), getParentTaskId(), status, getHeaders()
+                getTaskId(),
+                getType(),
+                getAction(),
+                getDescription(),
+                getStartTime(),
+                getRunningTimeNanos(),
+                isCancellable(),
+                isCancelled(),
+                getParentTaskId(),
+                status,
+                getHeaders()
         );
     }
 
@@ -175,6 +195,7 @@ public class TaskInfo {
             ", startTime=" + startTime +
             ", runningTimeNanos=" + runningTimeNanos +
             ", cancellable=" + cancellable +
+            ", cancelled=" + cancelled +
             ", parentTaskId=" + parentTaskId +
             ", status=" + status +
             ", headers=" + headers +

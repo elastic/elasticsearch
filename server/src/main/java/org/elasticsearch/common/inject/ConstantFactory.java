@@ -35,7 +35,7 @@ class ConstantFactory<T> implements InternalFactory<T> {
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency dependency)
+    public T get(Errors errors, InternalContext context, Dependency<?> dependency)
             throws ErrorsException {
         return initializable.get(errors);
     }

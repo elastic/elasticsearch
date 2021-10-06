@@ -472,12 +472,10 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_flush/synced");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
                 } else {
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                 }
                 break;
@@ -590,16 +588,32 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", "{ \"" +
                         UUIDs.randomBase64UUID() + "\" : \"foo\" }");
                     String warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("the index privilege [index] allowed the update mapping action " +
-                        "[indices:admin/mapping/auto_put] on index [" + index + "], this privilege will not permit mapping updates in" +
-                        " the next major release - users who require access to update mappings must be granted explicit privileges"));
+                    assertThat(
+                        warningHeader,
+                        containsString(
+                            "the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index ["
+                                + index
+                                + "], this privilege will not permit mapping updates in the next major release - users who require"
+                                + " access to update mappings must be granted explicit privileges"
+                        )
+                    );
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                     response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321",
                         "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
                     warningHeader = response.getHeader("Warning");
                     assertThat(warningHeader, containsString("the index privilege [index] allowed the update mapping action " +
                         "[indices:admin/mapping/auto_put] on index [" + index + "], this privilege will not permit mapping updates in" +
-                        " the next major release - users who require access to update mappings must be granted explicit privileges"));
+                        " the next major release - users who require access to update mappings must be" +
+                        " granted explicit privileges"));
+                    assertThat(
+                        warningHeader,
+                        containsString(
+                            "the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index ["
+                                + index
+                                + "], this privilege will not permit mapping updates in the next major release - users who require"
+                                + " access to update mappings must be granted explicit privileges"
+                        )
+                    );
                 } else {
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");

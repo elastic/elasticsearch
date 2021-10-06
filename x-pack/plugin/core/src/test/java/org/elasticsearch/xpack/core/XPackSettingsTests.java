@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import javax.crypto.SecretKeyFactory;
@@ -61,7 +61,7 @@ public class XPackSettingsTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder();
         if (inFipsJvm()) {
             builder.put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true);
-            assertThat(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(builder.build()), equalTo("PBKDF2"));
+            assertThat(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(builder.build()), equalTo("PBKDF2_STRETCH"));
         } else {
             assertThat(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(builder.build()), equalTo("BCRYPT"));
         }

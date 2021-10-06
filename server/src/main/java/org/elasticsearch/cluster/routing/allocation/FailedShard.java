@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A class representing a failed shard.

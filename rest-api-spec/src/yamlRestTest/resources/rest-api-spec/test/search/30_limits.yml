@@ -30,7 +30,7 @@ setup:
 
   - skip:
       version: " - 7.99.99"
-      reason: waiting for backport
+      reason: change was only made in 8.0.0
 
   - do:
       catch:      /\[from\] parameter cannot be negative but was \[-1\]/
@@ -44,7 +44,7 @@ setup:
 
   - skip:
       version: " - 7.99.99"
-      reason: waiting for backport
+      reason: change was only made in 8.0.0
 
   - do:
       catch:      /\[from\] parameter cannot be negative but was \[-1\]/

@@ -1,0 +1,50 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+full-bwc"
+    display-name: "elastic / elasticsearch - pull request full-bwc"
+    description: "Testing of Elasticsearch pull requests - full-bwc"
+    project-type: matrix
+    node: master
+    child-workspace: "/dev/shm/elastic+elasticsearch+pull-request+full-bwc"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/full-bwc.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/full-bwc
+          cancel-builds-on-update: true
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - 'test-full-bwc'
+          black-list-labels:
+            - '>test-mute'
+    axes:
+      - axis:
+          type: slave
+          name: nodes
+          values:
+            - "general-purpose"
+      - axis:
+          type: yaml
+          filename: ".ci/bwcVersions"
+          name: "BWC_VERSION"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA11_HOME=$HOME/.java/java11
+            JAVA15_HOME=$HOME/.java/openjdk15
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed v$BWC_VERSION#bwcTest

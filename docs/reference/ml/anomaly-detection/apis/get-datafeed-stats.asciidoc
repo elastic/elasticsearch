@@ -19,14 +19,13 @@ Retrieves usage information for {dfeeds}.
 
 `GET _ml/datafeeds/_stats`  +
 
-`GET _ml/datafeeds/_all/_stats` 
+`GET _ml/datafeeds/_all/_stats`
 
 [[ml-get-datafeed-stats-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
+`machine_learning_user` built-in role.
 
 [[ml-get-datafeed-stats-desc]]
 == {api-description-title}
@@ -104,6 +103,24 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ====
 --
 
+`running_state`::
+(object) An object containing the running state for this {dfeed}. It is only
+provided if the {dfeed} is started.
++
+--
+[%collapsible%open]
+====
+`real_time_configured`:::
+(boolean) Indicates if the {dfeed} is "real-time"; meaning that the {dfeed}
+has no configured `end` time.
+
+`real_time_running`:::
+(boolean) Indicates whether the {dfeed} has finished running on the available
+past data. For {dfeeds} without a configured `end` time, this means that
+the {dfeed} is now running on "real-time" data.
+====
+--
+
 `state`::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=state-datafeed]
@@ -144,7 +161,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
-  resources that match the request or only partial matches for the request. 
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-datafeed-stats-example]]
 == {api-examples-title}
@@ -172,7 +189,7 @@ The API returns the following results:
         "transport_address" : "127.0.0.1:9300",
         "attributes" : {
           "ml.machine_memory" : "17179869184",
-          "ml.max_open_jobs" : "20"
+          "ml.max_open_jobs" : "512"
         }
       },
       "assignment_explanation" : "",

@@ -105,7 +105,13 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(sh, distribution, fullInstallPath);
+        Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
+        ServerUtils.disableGeoIpDownloader(installation);
+        // TODO: Adjust all tests so that they can run with security on, which is the default behavior
+        // https://github.com/elastic/elasticsearch/issues/75940
+        ServerUtils.possiblyDisableSecurityFeatures(installation);
+
+        return installation;
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
@@ -194,6 +200,7 @@ public class Archives {
             "elasticsearch-certutil",
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
+            "elasticsearch-security-config",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",

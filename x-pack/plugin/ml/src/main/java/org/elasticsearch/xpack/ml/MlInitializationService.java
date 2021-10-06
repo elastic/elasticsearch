@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -96,12 +97,13 @@ class MlInitializationService implements ClusterStateListener {
         // The atomic flag prevents multiple simultaneous attempts to create the
         // index if there is a flurry of cluster state updates in quick succession
         if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
-            AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), ActionListener.wrap(
-                r -> isIndexCreationInProgress.set(false),
-                e -> {
-                    isIndexCreationInProgress.set(false);
-                    logger.error("Error creating ML annotations index or aliases", e);
-                }));
+            AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+                ActionListener.wrap(
+                    r -> isIndexCreationInProgress.set(false),
+                    e -> {
+                        isIndexCreationInProgress.set(false);
+                        logger.error("Error creating ML annotations index or aliases", e);
+                    }));
         }
     }
 

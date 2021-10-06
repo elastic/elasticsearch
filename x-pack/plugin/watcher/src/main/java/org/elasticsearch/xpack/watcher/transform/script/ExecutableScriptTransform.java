@@ -50,7 +50,9 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         Object value = transformScript.execute();
         // TODO: deprecate one of these styles (returning a map or returning an opaque value below)
         if (value instanceof Map) {
-            return new ScriptTransform.Result(new Payload.Simple((Map<String, Object>) value));
+            @SuppressWarnings("unchecked")
+            final Payload.Simple simplePayload = new Payload.Simple((Map<String, Object>) value);
+            return new ScriptTransform.Result(simplePayload);
         }
         Map<String, Object> data = new HashMap<>();
         data.put("_value", value);

@@ -8,10 +8,9 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -667,7 +666,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         }
 
         private static BiConsumer<StructRemovalField, Integer> logWarningDoNothing(String old_name) {
-            return (struct,value) -> deprecationLogger.compatibleApiWarning("struct_removal",
+            return (struct,value) -> deprecationLogger.compatibleCritical("struct_removal",
                 "The field old_name has been removed and is being ignored");
         }
 

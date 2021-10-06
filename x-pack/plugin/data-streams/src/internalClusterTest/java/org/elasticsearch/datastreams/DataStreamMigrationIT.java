@@ -8,6 +8,7 @@
 package org.elasticsearch.datastreams;
 
 import joptsimple.internal.Strings;
+
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;

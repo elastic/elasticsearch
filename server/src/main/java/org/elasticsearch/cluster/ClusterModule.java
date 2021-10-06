@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -48,7 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -165,17 +166,17 @@ public class ClusterModule extends AbstractModule {
     }
 
     private static <T extends ClusterState.Custom> void registerClusterCustom(List<Entry> entries, String name, Reader<? extends T> reader,
-                                                                       Reader<NamedDiff> diffReader) {
+                                                                       Reader<NamedDiff<?>> diffReader) {
         registerCustom(entries, ClusterState.Custom.class, name, reader, diffReader);
     }
 
     private static <T extends Metadata.Custom> void registerMetadataCustom(List<Entry> entries, String name, Reader<? extends T> reader,
-                                                                           Reader<NamedDiff> diffReader) {
+                                                                           Reader<NamedDiff<?>> diffReader) {
         registerCustom(entries, Metadata.Custom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(List<Entry> entries, Class<T> category, String name,
-                                                                  Reader<? extends T> reader, Reader<NamedDiff> diffReader) {
+                                                                  Reader<? extends T> reader, Reader<NamedDiff<?>> diffReader) {
         entries.add(new Entry(category, name, reader));
         entries.add(new Entry(NamedDiff.class, name, diffReader));
     }
@@ -189,7 +190,7 @@ public class ClusterModule extends AbstractModule {
     public static Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings,
                                                                          List<ClusterPlugin> clusterPlugins) {
         // collect deciders by class so that we can detect duplicates
-        Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
+        Map<Class<?>, AllocationDecider> deciders = new LinkedHashMap<>();
         addAllocationDecider(deciders, new MaxRetryAllocationDecider());
         addAllocationDecider(deciders, new ResizeAllocationDecider());
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
@@ -200,6 +201,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
+        addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
@@ -215,7 +217,7 @@ public class ClusterModule extends AbstractModule {
     }
 
     /** Add the given allocation decider to the given deciders collection, erroring if the class name is already used. */
-    private static void addAllocationDecider(Map<Class, AllocationDecider> deciders, AllocationDecider decider) {
+    private static void addAllocationDecider(Map<Class<?>, AllocationDecider> deciders, AllocationDecider decider) {
         if (deciders.put(decider.getClass(), decider) != null) {
             throw new IllegalArgumentException("Cannot specify allocation decider [" + decider.getClass().getName() + "] twice");
         }

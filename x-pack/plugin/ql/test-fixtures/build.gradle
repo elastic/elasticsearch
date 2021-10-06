@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(xpackModule('ql'))

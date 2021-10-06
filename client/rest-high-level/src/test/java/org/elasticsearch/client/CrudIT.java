@@ -48,15 +48,17 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.io.IOException;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -539,6 +541,19 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[with_create_op_type]: " +
                          "version conflict, document already exists (current version [1])]", exception.getMessage());
         }
+        {
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                IndexRequest indexRequest = new IndexRequest("index").id("require_alias");
+                indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
+                indexRequest.setRequireAlias(true);
+
+                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+            });
+
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index] and [require_alias]" +
+                " request flag is [true] and [index] is not an alias]", exception.getMessage());
+        }
     }
 
     public void testUpdate() throws IOException {
@@ -716,6 +731,17 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             });
             assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
                     exception.getMessage());
+        }
+        {
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                UpdateRequest updateRequest = new UpdateRequest("index", "id");
+                updateRequest.setRequireAlias(true);
+                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+                execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+            });
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index] and [require_alias]" +
+                " request flag is [true] and [index] is not an alias]", exception.getMessage());
         }
     }
 
@@ -899,7 +925,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testUrlEncode() throws IOException {
         String indexPattern = "<logstash-{now/M}>";
         String expectedIndex = "logstash-" +
-                DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+            DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT)
+                .format(ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1).with(LocalTime.MIN));
         {
             IndexRequest indexRequest = new IndexRequest(indexPattern).id("id#1");
             indexRequest.source("field", "value");

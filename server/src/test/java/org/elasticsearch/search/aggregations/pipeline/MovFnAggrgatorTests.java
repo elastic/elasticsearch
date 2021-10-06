@@ -63,15 +63,18 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
         "2017-01-07T13:47:43",
         "2017-01-08T16:14:34",
         "2017-01-09T17:09:50",
-        "2017-01-10T22:55:46");
+        "2017-01-10T22:55:46"
+    );
 
-    private static final List<Integer> datasetValues = Arrays.asList(1,2,3,4,5,6,7,8,9,10);
+    private static final List<Integer> datasetValues = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
     @Override
     protected ScriptService getMockScriptService() {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
             Collections.singletonMap("test", script -> MovingFunctions.max((double[]) script.get("_values"))),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
@@ -111,9 +114,7 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
         });
     }
 
-    private void executeTestCase(Query query,
-                                 DateHistogramAggregationBuilder aggBuilder,
-                                 Consumer<Histogram> verify) throws IOException {
+    private void executeTestCase(Query query, DateHistogramAggregationBuilder aggBuilder, Consumer<Histogram> verify) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -134,12 +135,10 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
-                MappedFieldType valueFieldType
-                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
+                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalDateHistogram histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000,
-                    new MappedFieldType[]{fieldType, valueFieldType});
+                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000, new MappedFieldType[] { fieldType, valueFieldType });
                 verify.accept(histogram);
             }
         }

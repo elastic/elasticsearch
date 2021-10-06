@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -25,8 +24,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -49,10 +51,13 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
+import org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.shards.FrozenShardsDeciderService;
+import org.elasticsearch.xpack.autoscaling.storage.FrozenStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ProactiveStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 
@@ -75,6 +80,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             throw new IllegalArgumentException("es.autoscaling_feature_flag_registered is no longer supported");
         }
     }
+
+    static final LicensedFeature.Momentary AUTOSCALING_FEATURE = LicensedFeature.momentary(
+        null,
+        "autoscaling",
+        License.OperationMode.ENTERPRISE
+    );
 
     private final List<AutoscalingExtension> autoscalingExtensions;
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
@@ -164,6 +175,21 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 ProactiveStorageDeciderService.NAME,
                 ProactiveStorageDeciderService.ProactiveReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenShardsDeciderService.NAME,
+                FrozenShardsDeciderService.FrozenShardsReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenStorageDeciderService.NAME,
+                FrozenStorageDeciderService.FrozenReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenExistenceDeciderService.NAME,
+                FrozenExistenceDeciderService.FrozenExistenceReason::new
             )
         );
     }
@@ -194,7 +220,10 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 clusterService.get().getSettings(),
                 clusterService.get().getClusterSettings(),
                 allocationDeciders.get()
-            )
+            ),
+            new FrozenShardsDeciderService(),
+            new FrozenStorageDeciderService(),
+            new FrozenExistenceDeciderService()
         );
     }
 

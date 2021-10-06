@@ -44,7 +44,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<PutAutoFollowPatternAction.Request> {
-
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -142,10 +141,18 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metadata(),
-                previousPattern, followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(),
+                request.getLeaderIndexExclusionPatterns(),
+                remoteClusterState.metadata(),
+                previousPattern,
+                followedIndexUUIDs
+            );
         } else {
-            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metadata(), followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(),
+                request.getLeaderIndexExclusionPatterns(),
+                remoteClusterState.metadata(),
+                followedIndexUUIDs
+            );
         }
 
         if (filteredHeaders != null) {
@@ -155,6 +162,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
+            request.getLeaderIndexExclusionPatterns(),
             request.getFollowIndexNamePattern(),
             request.getSettings(),
             true,
@@ -178,6 +186,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
 
     private static void markExistingIndicesAsAutoFollowedForNewPatterns(
         List<String> leaderIndexPatterns,
+        List<String> leaderIndexExclusionPatterns,
         Metadata leaderMetadata,
         AutoFollowPattern previousPattern,
         List<String> followedIndexUUIDS) {
@@ -186,17 +195,18 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             .stream()
             .filter(p -> previousPattern.getLeaderIndexPatterns().contains(p) == false)
             .collect(Collectors.toList());
-        markExistingIndicesAsAutoFollowed(newPatterns, leaderMetadata, followedIndexUUIDS);
+        markExistingIndicesAsAutoFollowed(newPatterns, leaderIndexExclusionPatterns, leaderMetadata, followedIndexUUIDS);
     }
 
     private static void markExistingIndicesAsAutoFollowed(
         List<String> patterns,
+        List<String> exclusionPatterns,
         Metadata leaderMetadata,
         List<String> followedIndexUUIDS) {
 
         for (final IndexMetadata indexMetadata : leaderMetadata) {
             IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
-            if (AutoFollowPattern.match(patterns, indexAbstraction)) {
+            if (AutoFollowPattern.match(patterns, exclusionPatterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }
         }

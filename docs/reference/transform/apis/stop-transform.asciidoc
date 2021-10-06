@@ -24,14 +24,8 @@ Stops one or more {transforms}.
 [[stop-transform-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
-
-* `manage_transform` 
-
-The built-in `transform_admin` role has this privilege. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+Requires the `manage_transform` cluster privilege. This privilege is included 
+in the `transform_admin` built-in role.
 
 
 [[stop-transform-desc]]

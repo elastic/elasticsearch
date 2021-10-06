@@ -58,4 +58,14 @@ public class NullInferenceConfig implements InferenceConfig {
     public boolean requestingImportance() {
         return requestingFeatureImportance;
     }
+
+    @Override
+    public boolean isAllocateOnly() {
+        return false;
+    }
+
+    @Override
+    public String getResultsField() {
+        return null;
+    }
 }

@@ -1,0 +1,76 @@
+setup:
+  - skip:
+      features: close_to
+
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+---
+"Basic test":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_1
+              _id:    1
+          - location: "52.374081,4.912350"
+          - index:
+              _index: test_1
+              _id:    2
+          - location: "52.369219,4.901618"
+          - index:
+              _index: test_1
+              _id:    3
+          - location: "52.371667,4.914722"
+          - index:
+              _index: test_1
+              _id:    4
+          - location: "51.222900,4.405200"
+          - index:
+              _index: test_1
+              _id:    5
+          - location: "48.861111,2.336389"
+          - index:
+              _index: test_1
+              _id:    6
+          - location: "48.860000,2.327000"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggregations:
+            view_port:
+              geo_bounds:
+                field: location
+                wrap_longitude: true
+
+
+  - match: { hits.total: 6 }
+  - close_to: { aggregations.view_port.bounds.top_left.lat: { value: 52.374081, error: 0.00001 } }
+  - close_to: { aggregations.view_port.bounds.top_left.lon: { value: 2.327000, error: 0.00001 } }
+  - close_to: { aggregations.view_port.bounds.bottom_right.lat: { value: 48.860000, error: 0.00001 } }
+  - close_to: { aggregations.view_port.bounds.bottom_right.lon: { value: 4.914722, error: 0.00001 } }
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggregations:
+            centroid:
+              geo_centroid:
+                field: location
+
+  - match: { hits.total: 6 }
+  - close_to: { aggregations.centroid.location.lat: { value: 51.00982967, error: 0.00001 } }
+  - close_to: { aggregations.centroid.location.lon: { value: 3.966213167, error: 0.00001 } }

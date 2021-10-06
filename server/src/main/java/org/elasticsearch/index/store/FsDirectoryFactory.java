@@ -18,7 +18,6 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -58,7 +57,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         final String storeType =
-                indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
+            indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
         if (IndexModule.Type.FS.match(storeType)) {
             type = IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAP.get(indexSettings.getNodeSettings()));
@@ -80,7 +79,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case MMAPFS:
                 return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
             case SIMPLEFS:
-                return new SimpleFSDirectory(location, lockFactory);
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
             default:
@@ -89,7 +87,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
-            Set<String> preLoadExtensions) throws IOException {
+                                           Set<String> preLoadExtensions) throws IOException {
         assert mMapDirectory.getPreload() == false;
         if (preLoadExtensions.isEmpty() == false) {
             if (preLoadExtensions.contains("*")) {
@@ -145,35 +143,14 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 return false;
             }
 
-            String extension = FileSwitchDirectory.getExtension(name);
-            switch(extension) {
-                // Norms, doc values and term dictionaries are typically performance-sensitive and hot in the page
-                // cache, so we use mmap, which provides better performance.
-                case "nvd":
-                case "dvd":
-                case "tim":
-                // We want to open the terms index and KD-tree index off-heap to save memory, but this only performs
-                // well if using mmap.
-                case "tip":
-                // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
-                case "dim":
-                case "kdd":
-                case "kdi":
-                // Compound files are tricky because they store all the information for the segment. Benchmarks
-                // suggested that not mapping them hurts performance.
-                case "cfs":
-                // MMapDirectory has special logic to read long[] arrays in little-endian order that helps speed
-                // up the decoding of postings. The same logic applies to positions (.pos) of offsets (.pay) but we
-                // are not mmaping them as queries that leverage positions are more costly and the decoding of postings
-                // tends to be less a bottleneck.
-                case "doc":
-                    return true;
+            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(FileSwitchDirectory.getExtension(name));
+            if (extension == null || extension.shouldMmap() == false) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing
                 // (e.g. stored fields and term vectors).
-                default:
-                    return false;
+                return false;
             }
+            return true;
         }
 
         MMapDirectory getDelegate() {

@@ -1,0 +1,52 @@
+---
+setup:
+  - skip:
+      features:
+        - "headers"
+        - "allowed_warnings_regex"
+---
+type query throws exception when used:
+  - do:
+      index:
+        index: "test1"
+        id: 1
+        type: "cat"
+        refresh: true
+        body:
+          foo: "bar"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+
+  - do:
+      catch: /\[types removal\] Type queries are deprecated, prefer to filter on a field instead./
+      search:
+        rest_total_hits_as_int: true
+        index: "test1"
+        body:
+          query:
+            type:
+              value: "cat"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+
+  - do:
+      catch: /\[types removal\] Type queries are deprecated, prefer to filter on a field instead./
+      search:
+        rest_total_hits_as_int: true
+        index: "test1"
+        body:
+          query:
+            type:
+              value: "_doc"
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
+

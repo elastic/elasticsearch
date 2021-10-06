@@ -27,6 +27,7 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
@@ -47,10 +48,8 @@ public class RpmPreservationTests extends PackagingTestCase {
 
     public void test20Remove() throws Exception {
         setHeap(null); // remove test heap options, so the config directory can be removed
+        enableGeoIpDownloader(installation);
         remove(distribution());
-
-        // config was removed
-        assertThat(installation.config, fileDoesNotExist());
 
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());

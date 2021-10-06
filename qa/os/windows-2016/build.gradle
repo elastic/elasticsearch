@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.test.GradleDistroTestTask
+import org.elasticsearch.gradle.internal.test.GradleDistroTestTask
 
 String boxId = project.properties.get('vagrant.windows-2016.id')
 if (boxId != null) {

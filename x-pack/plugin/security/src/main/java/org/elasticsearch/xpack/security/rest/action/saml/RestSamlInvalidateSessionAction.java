@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +38,7 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
         new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
 
     static {
-        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("queryString"));
+        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("query_string", "queryString"));
         PARSER.declareString(SamlInvalidateSessionRequest::setAssertionConsumerServiceURL, new ParseField("acs"));
         PARSER.declareString(SamlInvalidateSessionRequest::setRealmName, new ParseField("realm"));
     }

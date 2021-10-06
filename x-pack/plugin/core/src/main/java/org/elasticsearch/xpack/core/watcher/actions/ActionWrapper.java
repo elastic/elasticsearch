@@ -10,15 +10,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ThrottlerField;
@@ -44,7 +43,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class ActionWrapper implements ToXContentObject {
 
@@ -235,7 +234,7 @@ public class ActionWrapper implements ToXContentObject {
         Map<String, Object> model = new HashMap<>();
         model.put("id", ctx.id().value());
         model.put("watch_id", ctx.id().watchId());
-        model.put("execution_time", new JodaCompatibleZonedDateTime(ctx.executionTime().toInstant(), ZoneOffset.UTC));
+        model.put("execution_time", ZonedDateTime.ofInstant(ctx.executionTime().toInstant(), ZoneOffset.UTC));
         model.put("trigger", ctx.triggerEvent().data());
         model.put("metadata", ctx.watch().metadata());
         model.put("vars", ctx.vars());

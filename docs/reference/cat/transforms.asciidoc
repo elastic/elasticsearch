@@ -1,3 +1,4 @@
+[role="xpack"]
 [[cat-transforms]]
 === cat {transforms} API
 ++++

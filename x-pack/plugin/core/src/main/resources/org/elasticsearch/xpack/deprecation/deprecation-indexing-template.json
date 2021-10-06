@@ -1,5 +1,5 @@
 {
-  "index_patterns": [".logs-deprecation-elasticsearch"],
+  "index_patterns": [".logs-deprecation.*"],
   "priority": 1000,
   "data_stream": {
     "hidden": true
@@ -10,7 +10,7 @@
   ],
   "allow_auto_create": true,
   "_meta": {
-    "description": "default template for ES deprecation logs index template installed by x-pack",
+    "description": "default template for Stack deprecation logs index template installed by x-pack",
     "managed": true
   },
   "version": ${xpack.deprecation.indexing.template.version}

@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -86,11 +87,11 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new ActionListener<>() {
 
             @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
+            public void onResponse(Void complete) {
+                actionCompleted.set(true);
             }
 
             @Override
@@ -127,23 +128,9 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
+            f -> step.performAction(indexMetadata, null, null, f))));
 
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).close(Mockito.any(), Mockito.any());

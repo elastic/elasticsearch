@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
@@ -89,6 +92,14 @@ public class XPackUsageIT extends ESCCRRestTestCase {
         assertThat(actualFollowerIndex, equalTo(expectedFollowerIndex));
         String followStatus = ObjectPath.eval("follower_indices.0.status", response);
         assertThat(followStatus, equalTo("active"));
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 
 }

@@ -202,3 +202,78 @@ teardown:
         id: 1
   - match: { _source.source_field: "foo%20bar" }
   - match: { _source.target_field: "foo bar" }
+
+---
+"Test invoke community_id processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field1 = Processors.communityId('128.232.110.120', '66.35.250.204', null, 'TCP', 34855, 80, null, null, 123);"
+                }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field2 = Processors.communityId('128.232.110.120', '66.35.250.204', null, 'TCP', 34855, 80, null, null);"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "foo"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "foo" }
+  - match: { _source.target_field1: "1:hTSGlFQnR58UCk+NfKRZzA32dPg=" }
+  - match: { _source.target_field2: "1:LQU9qZlK+B5F3KDmev6m5PMibrg=" }
+
+---
+"Test invoke uri_parts processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.uriParts(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "http://www.example.com/index.html"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "http://www.example.com/index.html" }
+  - match: { _source.target_field.scheme: "http" }
+  - match: { _source.target_field.domain: "www.example.com" }
+  - match: { _source.target_field.path: "/index.html" }

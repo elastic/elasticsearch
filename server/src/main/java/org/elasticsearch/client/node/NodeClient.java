@@ -34,8 +34,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    @SuppressWarnings("rawtypes")
-    private Map<ActionType, TransportAction> actions;
+    private Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions;
 
     private TaskManager taskManager;
 
@@ -52,10 +51,14 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
-    @SuppressWarnings("rawtypes")
-    public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           Transport.Connection localConnection, RemoteClusterService remoteClusterService,
-                           NamedWriteableRegistry namedWriteableRegistry) {
+    public void initialize(
+        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions,
+        TaskManager taskManager,
+        Supplier<String> localNodeId,
+        Transport.Connection localConnection,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         this.actions = actions;
         this.taskManager = taskManager;
         this.localNodeId = localNodeId;
@@ -137,14 +140,14 @@ public class NodeClient extends AbstractClient {
     /**
      * Get the {@link TransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
      */
-    @SuppressWarnings("unchecked")
     private <    Request extends ActionRequest,
                 Response extends ActionResponse
             > TransportAction<Request, Response> transportAction(ActionType<Response> action) {
         if (actions == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        @SuppressWarnings("unchecked")
+        TransportAction<Request, Response> transportAction = (TransportAction<Request, Response>) actions.get(action);
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }

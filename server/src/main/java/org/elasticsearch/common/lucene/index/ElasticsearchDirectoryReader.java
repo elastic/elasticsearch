@@ -11,8 +11,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ESCacheHelper;
 
 import java.io.IOException;
 
@@ -24,12 +26,15 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     private final ShardId shardId;
     private final FilterDirectoryReader.SubReaderWrapper wrapper;
+    @Nullable
+    private final ESCacheHelper esCacheHelper;
 
     private ElasticsearchDirectoryReader(DirectoryReader in, FilterDirectoryReader.SubReaderWrapper wrapper,
-            ShardId shardId) throws IOException {
+                                         ShardId shardId, @Nullable ESCacheHelper esCacheHelper) throws IOException {
         super(in, wrapper);
         this.wrapper = wrapper;
         this.shardId = shardId;
+        this.esCacheHelper = esCacheHelper;
     }
 
     /**
@@ -47,7 +52,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new ElasticsearchDirectoryReader(in, wrapper, shardId);
+        return new ElasticsearchDirectoryReader(in, wrapper, shardId, esCacheHelper);
     }
 
     /**
@@ -59,7 +64,35 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
      * @param shardId the shard ID to expose via the elasticsearch internal reader wrappers.
      */
     public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId) throws IOException {
-        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
+        return wrap(reader, shardId, null);
+    }
+
+    /**
+     * Wraps the given reader in a {@link ElasticsearchDirectoryReader} as
+     * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
+     * expose the given shard Id.
+     * @param reader        the reader to wrap
+     * @param shardId       the shard ID to expose via the elasticsearch internal reader wrappers.
+     * @param esCacheHelper the custom {@link ESCacheHelper} implementation that doesn't tie
+     *                      its lifecycle to that of the underlying reader
+     */
+    public static ElasticsearchDirectoryReader wrap(DirectoryReader reader, ShardId shardId, @Nullable ESCacheHelper esCacheHelper)
+        throws IOException {
+        return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId, esCacheHelper);
+    }
+
+    /**
+     * Retrieves Elasticsearch's version of the reader cache helper (see {@link ESCacheHelper})
+     */
+    public static ESCacheHelper getESReaderCacheHelper(DirectoryReader reader) {
+        ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(reader);
+        assert esReader != null;
+        // even though we assert that the reader is non-null, we are a bit lenient here,
+        // as falling back to the underlying cache helper does not affect correctness
+        if (esReader == null || esReader.esCacheHelper == null) {
+            return new ESCacheHelper.Wrapper(reader.getReaderCacheHelper());
+        }
+        return esReader.esCacheHelper;
     }
 
     private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {

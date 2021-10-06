@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.ToIntFunction;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
 public class DatePart extends BinaryDateTimeDatePartFunction {
@@ -94,7 +94,7 @@ public class DatePart extends BinaryDateTimeDatePartFunction {
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isDate(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isDate(right(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

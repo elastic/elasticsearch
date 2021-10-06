@@ -48,15 +48,7 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false,
-    "ssl" : {
-      "http" : {
-        "enabled" : false
-      },
-      "transport" : {
-        "enabled" : false
-      }
-    }
+    "enabled" : false
   },
   "monitoring" : {
     "available" : true,
@@ -279,12 +271,6 @@ GET /_xpack/usage
   "transform" : {
     "available" : true,
     "enabled" : true
-  },
-  "vectors" : {
-    "available" : true,
-    "enabled" : true,
-    "dense_vector_fields_count" : 0,
-    "dense_vector_dims_avg_count" : 0
   },
   "voting_only" : {
     "available" : true,

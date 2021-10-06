@@ -12,7 +12,6 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -38,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -115,15 +113,6 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Returns parsers with compatible logic for named objects this plugin will parse from
-     * {@link XContentParser#namedObject(Class, String, Object)}.
-     * @see NamedWriteableRegistry
-     */
-    public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Called before a new index is created on a node. The given module can be used to register index-level
      * extensions.
      */
@@ -155,7 +144,7 @@ public abstract class Plugin implements Closeable {
      * <p>
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
-     * <p>
+     *
      * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
      * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
@@ -182,10 +171,6 @@ public abstract class Plugin implements Closeable {
      * configurations like OS settings or 3rd party resources.
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
-
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Set.of();
-    }
 
     /**
      * Close the resources opened by this plugin.

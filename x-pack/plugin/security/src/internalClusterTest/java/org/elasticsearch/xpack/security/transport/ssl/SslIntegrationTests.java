@@ -19,12 +19,12 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import javax.net.ssl.SSLContext;
@@ -75,7 +75,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().getChars())));
-        SSLConfiguration sslConfiguration = service.getSSLConfiguration("xpack.security.http.ssl");
+        SslConfiguration sslConfiguration = service.getSSLConfiguration("xpack.security.http.ssl");
         try (CloseableHttpClient client = HttpClients.custom()
                 .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(sslConfiguration),
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier()))

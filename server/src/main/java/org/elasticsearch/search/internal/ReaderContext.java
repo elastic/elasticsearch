@@ -8,9 +8,10 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -28,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Holds a reference to a point in time {@link Engine.Searcher} that will be used to construct {@link SearchContext}.
- * This class also implements {@link org.elasticsearch.common.util.concurrent.RefCounted} since in some situations like
+ * This class also implements {@link RefCounted} since in some situations like
  * in {@link org.elasticsearch.search.SearchService} a SearchContext can be closed concurrently due to independent events
  * ie. when an index gets removed. To prevent accessing closed IndexReader / IndexSearcher instances the SearchContext
  * can be guarded by a reference count and fail if it's been closed by an external event.
@@ -65,12 +66,7 @@ public class ReaderContext implements Releasable {
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
-        this.refCounted = new AbstractRefCounted("reader_context") {
-            @Override
-            protected void closeInternal() {
-                doClose();
-            }
-        };
+        this.refCounted = AbstractRefCounted.of(this::doClose);
     }
 
     public void validate(TransportRequest request) {

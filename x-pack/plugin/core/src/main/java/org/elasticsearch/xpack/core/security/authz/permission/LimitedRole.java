@@ -53,7 +53,27 @@ public final class LimitedRole extends Role {
 
     @Override
     public RunAsPermission runAs() {
-        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+        throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        LimitedRole that = (LimitedRole) o;
+        return this.limitedBy.equals(that.limitedBy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), limitedBy);
     }
 
     @Override

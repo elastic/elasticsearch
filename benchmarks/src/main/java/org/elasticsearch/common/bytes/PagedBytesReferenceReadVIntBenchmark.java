@@ -32,10 +32,10 @@ import java.util.concurrent.TimeUnit;
 @Fork(value = 1)
 public class PagedBytesReferenceReadVIntBenchmark {
 
-    private BytesReference pagedBytes;
-
     @Param(value = { "10000000" })
     int entries;
+
+    private StreamInput streamInput;
 
     @Setup
     public void initResults() throws IOException {
@@ -46,19 +46,19 @@ public class PagedBytesReferenceReadVIntBenchmark {
         for (int i = 0; i < entries / 2; i++) {
             tmp.writeVInt(Integer.MAX_VALUE - i);
         }
-        pagedBytes = tmp.bytes();
+        BytesReference pagedBytes = tmp.bytes();
         if (pagedBytes instanceof PagedBytesReference == false) {
-            throw new AssertionError("expected paged PagedBytesReference but saw [" + pagedBytes.getClass() + "]");
+            throw new AssertionError("expected PagedBytesReference but saw [" + pagedBytes.getClass() + "]");
         }
+        this.streamInput = pagedBytes.streamInput();
     }
 
     @Benchmark
     public int readVInt() throws IOException {
         int res = 0;
-        try (StreamInput streamInput = pagedBytes.streamInput()) {
-            for (int i = 0; i < entries; i++) {
-                res = res ^ streamInput.readVInt();
-            }
+        streamInput.reset();
+        for (int i = 0; i < entries; i++) {
+            res = res ^ streamInput.readVInt();
         }
         return res;
     }

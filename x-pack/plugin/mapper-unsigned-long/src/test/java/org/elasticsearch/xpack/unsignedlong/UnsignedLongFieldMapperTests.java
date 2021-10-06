@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
@@ -96,7 +97,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
             MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: [10.5]"));
+            assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
     }
 
@@ -205,6 +206,28 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testDecimalParts() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> b.field("type", "unsigned_long"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("100.5", 100.5, 100.5f))));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
+        }
+        {
+            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("0.9", 0.9, 0.9f))));
+            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
+        }
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+
+        doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
+        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+    }
+
     public void testIndexingOutOfRangeValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         for (Object outOfRangeValue : new Object[] { "-1", -1L, "18446744073709551616", new BigInteger("18446744073709551616") }) {
@@ -220,6 +243,114 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
+        assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
+    }
+
+    public void testDimensionIndexedAndDocvalues() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
+        }
+    }
+
+    public void testDimensionMultiValuedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }));
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);
+        assertMetricType("counter", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "histogram");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
+    }
+
+    public void testMetricAndDimension() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("time_series_dimension", true);
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
+        );
     }
 
     @Override

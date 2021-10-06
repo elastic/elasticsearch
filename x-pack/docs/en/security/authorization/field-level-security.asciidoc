@@ -217,7 +217,7 @@ The resulting permission is equal to:
 --------------------------------------------------
 // NOTCONSOLE
 
-NOTE: Field-level security should not be set on <<alias,`alias`>> fields.
+NOTE: Field-level security should not be set on <<field-alias,`alias`>> fields.
 To secure a
 concrete field, its field name must be used directly.
 

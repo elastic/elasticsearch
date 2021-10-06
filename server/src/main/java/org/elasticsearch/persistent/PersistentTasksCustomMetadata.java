@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,12 +128,12 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             this.taskName = taskName;
         }
 
-        private TaskDescriptionBuilder setParams(Params params) {
+        private TaskDescriptionBuilder<Params> setParams(Params params) {
             this.params = params;
             return this;
         }
 
-        private TaskDescriptionBuilder setState(PersistentTaskState state) {
+        private TaskDescriptionBuilder<Params> setState(PersistentTaskState state) {
             this.state = state;
             return this;
         }
@@ -579,7 +579,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
 
         private <Params extends PersistentTaskParams> Builder setTasks(List<TaskBuilder<Params>> tasks) {
-            for (TaskBuilder builder : tasks) {
+            for (TaskBuilder<Params> builder : tasks) {
                 PersistentTask<?> task = builder.build();
                 this.tasks.put(task.getId(), task);
             }

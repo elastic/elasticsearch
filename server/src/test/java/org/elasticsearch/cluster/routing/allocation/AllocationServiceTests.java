@@ -250,9 +250,13 @@ public class AllocationServiceTests extends ESTestCase {
             assertThat(nodeAllocationResult.getNodeDecision(), equalTo(AllocationDecision.NO));
             assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
             assertThat(nodeAllocationResult.getCanAllocateDecision().label(), equalTo("allocator_plugin"));
-            assertThat(nodeAllocationResult.getCanAllocateDecision().getExplanation(), equalTo("finding the previous copies of this " +
-                "shard requires an allocator called [unknown] but that allocator was not found; perhaps the corresponding plugin is " +
-                "not installed"));
+            assertThat(
+                nodeAllocationResult.getCanAllocateDecision().getExplanation(),
+                equalTo(
+                    "finding the previous copies of this shard requires an allocator called [unknown] but that allocator "
+                        + "was not found; perhaps the corresponding plugin is not installed"
+                )
+            );
         }
     }
 

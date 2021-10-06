@@ -70,13 +70,13 @@ public class TransportForceMergeAction
     @Override
     protected void shardOperation(ForceMergeRequest request, ShardRouting shardRouting, Task task,
                                   ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener) {
-        threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.run(listener,
+        assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
+        threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(listener,
             () -> {
-                assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
                 IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                     .getShard(shardRouting.shardId().id());
                 indexShard.forceMerge(request);
-                listener.onResponse(EmptyResult.INSTANCE);
+                return EmptyResult.INSTANCE;
             }));
     }
 

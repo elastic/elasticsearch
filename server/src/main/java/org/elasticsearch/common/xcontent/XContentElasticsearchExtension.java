@@ -12,8 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.core.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Instant;
@@ -82,7 +81,6 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         writers.put(Year.class, (b, v) -> b.value(v.toString()));
         writers.put(Duration.class, (b, v) -> b.value(v.toString()));
         writers.put(Period.class, (b, v) -> b.value(v.toString()));
-        writers.put(JodaCompatibleZonedDateTime.class, XContentBuilder::timeValue);
 
         writers.put(BytesReference.class, (b, v) -> {
             if (v == null) {
@@ -131,8 +129,6 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
             d -> DEFAULT_FORMATTER.format(ZonedDateTime.ofInstant((java.time.Instant) d, ZoneOffset.UTC)));
         transformers.put(LocalDate.class, d -> ((LocalDate) d).toString());
         transformers.put(LocalTime.class, d -> LOCAL_TIME_FORMATTER.format((LocalTime) d));
-        transformers.put(JodaCompatibleZonedDateTime.class,
-            d -> DEFAULT_FORMATTER.format(((JodaCompatibleZonedDateTime) d).getZonedDateTime()));
         return transformers;
     }
 }

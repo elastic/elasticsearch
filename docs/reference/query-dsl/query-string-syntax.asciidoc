@@ -116,13 +116,15 @@ Use with caution!
 [[query-string-fuzziness]]
 ====== Fuzziness
 
-We can search for terms that are
-similar to, but not exactly like our search terms, using the ``fuzzy''
-operator:
+You can run <<query-dsl-fuzzy-query,`fuzzy` queries>> using the `~` operator:
 
     quikc~ brwn~ foks~
 
-This uses the
+For these queries, the query string is <<analysis-normalizers,normalized>>. If
+present, only certain filters from the analyzer are applied. For a list of
+applicable filters, see <<analysis-normalizers>>.
+
+The query uses the
 {wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
 to find all terms with a maximum of
 two changes, where a change is the insertion, deletion

@@ -26,7 +26,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71502")
     public void testXContent() throws IOException {
         final String name = randomAlphaOfLengthBetween(4, 10);
         final String id = randomAlphaOfLength(20);
@@ -49,9 +48,9 @@ public class ApiKeyTests extends ESTestCase {
 
         assertThat(map.get("name"), equalTo(name));
         assertThat(map.get("id"), equalTo(id));
-        assertThat(map.get("creation"), equalTo(creation.toEpochMilli()));
+        assertThat(Long.valueOf(map.get("creation").toString()), equalTo(creation.toEpochMilli()));
         if (expiration != null) {
-            assertThat(map.get("expiration"), equalTo(expiration.toEpochMilli()));
+            assertThat(Long.valueOf(map.get("expiration").toString()), equalTo(expiration.toEpochMilli()));
         } else {
             assertThat(map.containsKey("expiration"), is(false));
         }

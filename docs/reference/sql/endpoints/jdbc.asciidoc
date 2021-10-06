@@ -145,7 +145,7 @@ will be - typically the first in natural ascending order) for fields with multip
 
 [discrete]
 ==== Index
-`index.include.frozen` (default `false`):: Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
+`index.include.frozen` (default `false`):: Whether to include <<freeze-index-api, frozen-indices>> in the query execution or not (default).
 
 [discrete]
 ==== Additional

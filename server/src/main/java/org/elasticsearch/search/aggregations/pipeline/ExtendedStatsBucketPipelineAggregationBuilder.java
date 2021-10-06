@@ -16,8 +16,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ExtendedStatsBucketPipelineAggregationBuilder
-        extends BucketMetricsPipelineAggregationBuilder<ExtendedStatsBucketPipelineAggregationBuilder> {
+public class ExtendedStatsBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<
+    ExtendedStatsBucketPipelineAggregationBuilder> {
     public static final String NAME = "extended_stats_bucket";
 
     private double sigma = 2.0;

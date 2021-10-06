@@ -46,7 +46,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     public static MockDeprecatedQueryBuilder fromXContent(XContentParser parser) {
         try {
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
 
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

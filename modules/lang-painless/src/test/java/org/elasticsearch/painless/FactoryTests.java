@@ -18,22 +18,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class FactoryTests extends ScriptTestCase {
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        contexts.put(StatefulFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DeterministicFactoryTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(EmptyTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(TemplateScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(VoidReturnTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(DocFieldsTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(StatefulFactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(FactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(DeterministicFactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(EmptyTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(TemplateScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(VoidReturnTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(FactoryTestConverterScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
 
         return contexts;
     }
@@ -177,8 +174,6 @@ public class FactoryTests extends ScriptTestCase {
         FactoryTestScript script = factory.newInstance(Collections.singletonMap("test", 2));
         assertEquals(4, script.execute(2));
         assertEquals(5, script.execute(3));
-        // The factory interface doesn't define `docFields` so we don't generate it.
-        expectThrows(NoSuchMethodException.class, () -> factory.getClass().getMethod("docFields"));
         script = factory.newInstance(Collections.singletonMap("test", 3));
         assertEquals(5, script.execute(2));
         assertEquals(2, script.execute(-1));
@@ -484,32 +479,5 @@ public class FactoryTests extends ScriptTestCase {
         }
         assertNotNull(ise);
         assertEquals("convertFromDef must take a single Object as an argument, not [int]", ise.getMessage());
-    }
-
-    public abstract static class DocFieldsTestScript {
-        public static final ScriptContext<DocFieldsTestScript.Factory> CONTEXT = new ScriptContext<>(
-            "test",
-            DocFieldsTestScript.Factory.class
-        );
-
-        public interface Factory {
-            DocFieldsTestScript newInstance();
-
-            List<String> docFields();
-        }
-
-        public static final String[] PARAMETERS = new String[] {};
-
-        public abstract String execute();
-
-        public final Map<String, String> getDoc() {
-            return Map.of("cat", "meow", "dog", "woof");
-        }
-    }
-
-    public void testDocFields() {
-        DocFieldsTestScript.Factory f = scriptEngine.compile("test", "doc['cat'] + doc['dog']", DocFieldsTestScript.CONTEXT, Map.of());
-        assertThat(f.docFields(), equalTo(List.of("cat", "dog")));
-        assertThat(f.newInstance().execute(), equalTo("meowwoof"));
     }
 }

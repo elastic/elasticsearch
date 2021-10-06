@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -17,8 +18,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -88,25 +89,32 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                     throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
                         + "removed. Please remove it from your mappings and templates.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES,
+                    deprecationLogger.critical(DeprecationCategory.TEMPLATES,
                         "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
-            FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType(enabled.getValue().value());
-            return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated, fieldNamesFieldType);
+            return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated);
         }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new FieldNamesFieldMapper(Defaults.ENABLED, c.indexVersionCreated(), new FieldNamesFieldType(Defaults.ENABLED.value())),
+        c -> new FieldNamesFieldMapper(Defaults.ENABLED, c.indexVersionCreated()),
         c -> new Builder(c.indexVersionCreated())
     );
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
+        private static final FieldNamesFieldType ENABLED = new FieldNamesFieldType(true);
+
+        private static final FieldNamesFieldType DISABLED = new FieldNamesFieldType(false);
+
         private final boolean enabled;
 
-        public FieldNamesFieldType(boolean enabled) {
+        public static FieldNamesFieldType get(boolean enabled) {
+            return enabled ? ENABLED : DISABLED;
+        }
+
+        private FieldNamesFieldType(boolean enabled) {
             super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
@@ -135,7 +143,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "terms_query_on_field_names",
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "terms_query_on_field_names",
                 "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
             return super.termQuery(value, context);
         }
@@ -144,8 +152,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private final Explicit<Boolean> enabled;
     private final Version indexVersionCreated;
 
-    private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated, FieldNamesFieldType mappedFieldType) {
-        super(mappedFieldType);
+    private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated) {
+        super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
         this.indexVersionCreated = indexVersionCreated;
     }
@@ -155,40 +163,20 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return (FieldNamesFieldType) super.fieldType();
     }
 
-    static Iterable<String> extractFieldNames(final String fullPath) {
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return new Iterator<>() {
-                    int endIndex = nextEndIndex(0);
+    @Override
+    public void postParse(DocumentParserContext context) throws IOException {
+        if (enabled.value() == false) {
+            return;
+        }
+        for (String field : context.getFieldNames()) {
+            assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+        }
+    }
 
-                    private int nextEndIndex(int index) {
-                        while (index < fullPath.length() && fullPath.charAt(index) != '.') {
-                            index += 1;
-                        }
-                        return index;
-                    }
-
-                    @Override
-                    public boolean hasNext() {
-                        return endIndex <= fullPath.length();
-                    }
-
-                    @Override
-                    public String next() {
-                        final String result = fullPath.substring(0, endIndex);
-                        endIndex = nextEndIndex(endIndex + 1);
-                        return result;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                };
-            }
-        };
+    private static boolean noDocValues(String field, DocumentParserContext context) {
+        MappedFieldType ft = context.mappingLookup().getFieldType(field);
+        return ft == null || ft.hasDocValues() == false;
     }
 
     @Override

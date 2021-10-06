@@ -11,14 +11,15 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
 import java.util.Arrays;
+
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 public class DecryptionPacketsInputStreamTests extends ESTestCase {
 

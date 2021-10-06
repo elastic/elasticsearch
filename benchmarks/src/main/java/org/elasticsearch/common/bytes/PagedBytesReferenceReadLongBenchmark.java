@@ -39,6 +39,8 @@ public class PagedBytesReferenceReadLongBenchmark {
 
     private BytesReference pagedBytes;
 
+    private StreamInput streamInput;
+
     @Setup
     public void initResults() throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
@@ -48,18 +50,18 @@ public class PagedBytesReferenceReadLongBenchmark {
         }
         pagedBytes = tmp.bytes();
         if (pagedBytes instanceof PagedBytesReference == false) {
-            throw new AssertionError("expected paged PagedBytesReference but saw [" + pagedBytes.getClass() + "]");
+            throw new AssertionError("expected PagedBytesReference but saw [" + pagedBytes.getClass() + "]");
         }
+        this.streamInput = pagedBytes.streamInput();
     }
 
     @Benchmark
     public long readLong() throws IOException {
         long res = 0L;
+        streamInput.reset();
         final int reads = pagedBytes.length() / 8;
-        try (StreamInput streamInput = pagedBytes.streamInput()) {
-            for (int i = 0; i < reads; i++) {
-                res = res ^ streamInput.readLong();
-            }
+        for (int i = 0; i < reads; i++) {
+            res = res ^ streamInput.readLong();
         }
         return res;
     }

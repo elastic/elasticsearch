@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -101,7 +101,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(POLICY.getPreferredName(), policy);
-        builder.field(HEADERS.getPreferredName(), headers);
+        builder.stringStringMap(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
         builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
         builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());

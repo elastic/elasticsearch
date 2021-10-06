@@ -12,18 +12,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -45,7 +43,6 @@ import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -57,7 +54,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final AuthorizationService authzService;
     private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
-    private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
@@ -68,7 +64,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                               ThreadPool threadPool,
                                               AuthenticationService authcService,
                                               AuthorizationService authzService,
-                                              XPackLicenseState licenseState,
                                               SSLService sslService,
                                               SecurityContext securityContext,
                                               DestructiveOperations destructiveOperations,
@@ -77,7 +72,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.threadPool = threadPool;
         this.authcService = authcService;
         this.authzService = authzService;
-        this.licenseState = licenseState;
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
@@ -90,7 +84,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                final boolean requireAuth = shouldRequireExistingAuthentication();
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -100,45 +93,29 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                             new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                    , handler), sender, requireAuth), minVersion);
+                                    , handler), sender), minVersion);
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
                             (original) -> sendWithUser(connection, action, request, options,
                                     new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                            , handler), sender, requireAuth));
+                                            , handler), sender));
                 } else if (securityContext.getAuthentication() != null &&
                         securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
                     // re-write the authentication since we want the authentication version to match the version of the connection
                     securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
-                        requireAuth), minVersion);
+                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender),
+                        minVersion);
                 } else {
-                    sendWithUser(connection, action, request, options, handler, sender, requireAuth);
+                    sendWithUser(connection, action, request, options, handler, sender);
                 }
             }
         };
     }
 
-    /**
-     * Based on the current cluster state &amp; license, should we require that all outgoing actions have an authentication header
-     * of some sort?
-     */
-    private boolean shouldRequireExistingAuthentication() {
-        // If the license state is MISSING, then auth is not allowed.
-        // However this makes it difficult to installing a valid license, because that might implicitly turn on security.
-        // When security is enabled on the master node it will then reject any actions that do not have authentication headers
-        // but there may be in-flight internal actions (that will not have authentication headers) such as "cluster/shard/started"
-        // which we don't want to reject.
-        // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
-        // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
-        // current license allows authentication.
-        return licenseState.isSecurityEnabled() && isStateNotRecovered == false;
-    }
-
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
-                                                            AsyncSender sender, final boolean requireAuthentication) {
-        if (securityContext.getAuthentication() == null && requireAuthentication) {
+                                                            AsyncSender sender) {
+        if (securityContext.getAuthentication() == null) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
             assertNoAuthentication(action);
@@ -148,7 +125,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         try {
             sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
-            handler.handleException(new TransportException("failed sending request", e));
+            handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
     }
 
@@ -162,21 +139,21 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                                                                     boolean forceExecution,
                                                                                     TransportRequestHandler<T> actualHandler) {
         return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters,
-                licenseState, threadPool);
+                settings, threadPool);
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
-        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(setting("transport.ssl"));
+        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, sslConfiguration);
 
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileConfigurations.size() + 1);
 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-        for (Map.Entry<String, SSLConfiguration> entry : profileConfigurations.entrySet()) {
-            final SSLConfiguration profileConfiguration = entry.getValue();
+        for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
+            final SslConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
             profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
-                extractClientCert, destructiveOperations, securityContext, licenseState));
+                extractClientCert, destructiveOperations, securityContext));
         }
 
         return Collections.unmodifiableMap(profileFilters);
@@ -187,7 +164,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final String action;
         private final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final XPackLicenseState licenseState;
         private final ThreadContext threadContext;
         private final String executorName;
         private final ThreadPool threadPool;
@@ -196,13 +172,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         ProfileSecuredRequestHandler(Logger logger, String action, boolean forceExecution, String executorName,
                                      TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
-                                     XPackLicenseState licenseState, ThreadPool threadPool) {
+                                     Settings settings, ThreadPool threadPool) {
             this.logger = logger;
             this.action = action;
             this.executorName = executorName;
             this.handler = handler;
             this.profileFilters = profileFilters;
-            this.licenseState = licenseState;
             this.threadContext = threadPool.getThreadContext();
             this.threadPool = threadPool;
             this.forceExecution = forceExecution;
@@ -249,51 +224,74 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         @Override
-        public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(T request, TransportChannel channel, Task task) {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isSecurityEnabled()) {
-                    String profile = channel.getProfileName();
-                    ServerTransportFilter filter = profileFilters.get(profile);
+                String profile = channel.getProfileName();
+                ServerTransportFilter filter = profileFilters.get(profile);
 
-                    if (filter == null) {
-                        if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
-                            // apply the default filter to local requests. We never know what the request is or who sent it...
-                            filter = profileFilters.get("default");
-                        } else {
-                            String msg = "transport profile [" + profile + "] is not associated with a transport filter";
-                            throw new IllegalStateException(msg);
-                        }
+                if (filter == null) {
+                    if (TransportService.DIRECT_RESPONSE_PROFILE.equals(profile)) {
+                        // apply the default filter to local requests. We never know what the request is or who sent it...
+                        filter = profileFilters.get("default");
+                    } else {
+                        String msg = "transport profile [" + profile + "] is not associated with a transport filter";
+                        throw new IllegalStateException(msg);
                     }
-                    assert filter != null;
-                    final Thread executingThread = Thread.currentThread();
-
-                    final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
-                    CheckedConsumer<Void, Exception> consumer = (x) -> {
-                        final Executor executor;
-                        if (executingThread == Thread.currentThread()) {
-                            // only fork off if we get called on another thread this means we moved to
-                            // an async execution and in this case we need to go back to the thread pool
-                            // that was actually executing it. it's also possible that the
-                            // thread-pool we are supposed to execute on is `SAME` in that case
-                            // the handler is OK with executing on a network thread and we can just continue even if
-                            // we are on another thread due to async operations
-                            executor = threadPool.executor(ThreadPool.Names.SAME);
-                        } else {
-                            executor = threadPool.executor(executorName);
-                        }
-
-                        try {
-                            executor.execute(receiveMessage);
-                        } catch (Exception e) {
-                            receiveMessage.onFailure(e);
-                        }
-
-                    };
-                    ActionListener<Void> filterListener = ActionListener.wrap(consumer, receiveMessage::onFailure);
-                    filter.inbound(action, request, channel, filterListener);
-                } else {
-                    getReceiveRunnable(request, channel, task).run();
                 }
+                assert filter != null;
+
+                final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
+                final ActionListener<Void> filterListener;
+                if (ThreadPool.Names.SAME.equals(executorName)) {
+                    filterListener = new AbstractFilterListener(receiveMessage) {
+                        @Override
+                        public void onResponse(Void unused) {
+                            receiveMessage.run();
+                        }
+                    };
+                } else {
+                    final Thread executingThread = Thread.currentThread();
+                    filterListener = new AbstractFilterListener(receiveMessage) {
+                        @Override
+                        public void onResponse(Void unused) {
+                            if (executingThread == Thread.currentThread()) {
+                                // only fork off if we get called on another thread this means we moved to
+                                // an async execution and in this case we need to go back to the thread pool
+                                // that was actually executing it. it's also possible that the
+                                // thread-pool we are supposed to execute on is `SAME` in that case
+                                // the handler is OK with executing on a network thread and we can just continue even if
+                                // we are on another thread due to async operations
+                                receiveMessage.run();
+                            } else {
+                                try {
+                                    threadPool.executor(executorName).execute(receiveMessage);
+                                } catch (Exception e) {
+                                    onFailure(e);
+                                }
+                            }
+                        }
+                    };
+                }
+                filter.inbound(action, request, channel, filterListener);
+
+            }
+        }
+    }
+
+    private abstract static class AbstractFilterListener implements ActionListener<Void> {
+
+        protected final AbstractRunnable receiveMessage;
+
+        protected AbstractFilterListener(AbstractRunnable receiveMessage) {
+            this.receiveMessage = receiveMessage;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                receiveMessage.onFailure(e);
+            } finally {
+                receiveMessage.onAfter();
             }
         }
     }

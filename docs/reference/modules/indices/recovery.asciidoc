@@ -23,18 +23,16 @@ as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb`
 unless the node is a dedicated <<cold-tier, cold>> or
 <<frozen-tier, frozen>> node, in which case the default relates to the
 total memory available to the node:
-
-.Recovery Rate for Cold Nodes
++
 [options="header"]
 |======
-|total memory         | default value
-|<= 4 GB              | 40 MB/s
-|> 4 GB and <= 8 GB   | 60 MB/s
-|> 8 GB and <= 16 GB  | 90 MB/s
-|> 16 GB and <= 32 GB | 125 MB/s
-|> 32 GB              | 250 MB/s
+|Total memory           | Default recovery rate on cold and frozen nodes
+|&le; 4 GB              | 40 MB/s
+|> 4 GB and &le; 8 GB   | 60 MB/s
+|> 8 GB and &le; 16 GB  | 90 MB/s
+|> 16 GB and &le; 32 GB | 125 MB/s
+|> 32 GB                | 250 MB/s
 |======
-
 +
 This limit applies to each node separately. If multiple nodes in a cluster
 perform recoveries at the same time, the cluster's total recovery traffic may
@@ -59,11 +57,12 @@ You can use the following _expert_ setting to manage resources for peer
 recoveries.
 
 `indices.recovery.max_concurrent_file_chunks`::
-(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunk requests
-sent in parallel for each recovery. Defaults to `2`.
+(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunks sent in
+parallel for each recovery. Defaults to `2`.
 +
 You can increase the value of this setting when the recovery of a single shard
-is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.
+is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`,
+up to a maximum of `8`.
 
 `indices.recovery.max_concurrent_operations`::
 (<<cluster-update-settings,Dynamic>>, Expert) Number of operations sent
@@ -74,3 +73,30 @@ and may interfere with indexing, search, and other activities in your cluster.
 Do not increase this setting without carefully verifying that your cluster has
 the resources available to handle the extra load that will result.
 
+`indices.recovery.use_snapshots`::
+(<<cluster-update-settings,Dynamic>>, Expert) Enables snapshot-based peer recoveries.
++
+{es} recovers replicas and relocates primary shards using the _peer recovery_
+process, which involves constructing a new copy of a shard on the target node.
+When `indices.recovery.use_snapshots` is `false` {es} will construct this new
+copy by transferring the index data from the current primary. When this setting
+is `true` {es} will attempt to copy the index data from a recent snapshot
+first, and will only copy data from the primary if it cannot identify a
+suitable snapshot. Defaults to `true`.
++
+Setting this option to `true` reduces your operating costs if your cluster runs
+in an environment where the node-to-node data transfer costs are higher than
+the costs of recovering data from a snapshot. It also reduces the amount of
+work that the primary must do during a recovery.
++
+Additionally, repositories having the setting `use_for_peer_recovery=true`
+will be consulted to find a good snapshot when recovering a shard. If none
+of the registered repositories have this setting defined, index files will
+be recovered from the source node.
+
+`indices.recovery.max_concurrent_snapshot_file_downloads`::
+(<<cluster-update-settings,Dynamic>>, Expert) Number of snapshot file downloads requests
+sent in parallel to the target node for each recovery. Defaults to `5`.
++
+Do not increase this setting without carefully verifying that your cluster has
+the resources available to handle the extra load that will result.

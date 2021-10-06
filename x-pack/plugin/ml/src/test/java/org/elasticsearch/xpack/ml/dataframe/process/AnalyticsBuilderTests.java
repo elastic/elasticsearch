@@ -54,6 +54,7 @@ public class AnalyticsBuilderTests extends ESTestCase {
 
         List<String> command = commandCaptor.getValue();
         assertThat(command, not(hasItem("--memoryUsageEstimationOnly")));
+        assertThat(command, hasItem("--validElasticLicenseKeyConfirmed=true"));
     }
 
     public void testBuild_MemoryUsageEstimation() throws Exception {
@@ -67,5 +68,6 @@ public class AnalyticsBuilderTests extends ESTestCase {
 
         List<String> command = commandCaptor.getValue();
         assertThat(command, hasItem("--memoryUsageEstimationOnly"));
+        assertThat(command, hasItem("--validElasticLicenseKeyConfirmed=true"));
     }
 }

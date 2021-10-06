@@ -328,11 +328,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
-    }
-
-    @Override
     protected InternalMultiTerms create(
         String name,
         List<Bucket> buckets,
@@ -378,7 +373,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
-    protected long getDocCountError() {
+    protected Long getDocCountError() {
         return docCountError;
     }
 

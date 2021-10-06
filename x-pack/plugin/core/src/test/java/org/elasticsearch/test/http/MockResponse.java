@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.test.http;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * A response to be sent via the mock webserver. Parts of the response can be configured

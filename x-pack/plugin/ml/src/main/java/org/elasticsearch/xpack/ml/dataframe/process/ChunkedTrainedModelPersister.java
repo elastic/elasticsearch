@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -101,14 +102,14 @@ public class ChunkedTrainedModelPersister {
         }
     }
 
-    public String createAndIndexInferenceModelConfig(ModelSizeInfo inferenceModelSize) {
+    public String createAndIndexInferenceModelConfig(ModelSizeInfo inferenceModelSize, TrainedModelType trainedModelType) {
         if (readyToStoreNewModel.compareAndSet(true, false) == false) {
             failureHandler.accept(ExceptionsHelper.serverError(
                 "new inference model is attempting to be stored before completion previous model storage"
             ));
             return null;
         }
-        TrainedModelConfig trainedModelConfig = createTrainedModelConfig(inferenceModelSize);
+        TrainedModelConfig trainedModelConfig = createTrainedModelConfig(trainedModelType, inferenceModelSize);
         CountDownLatch latch = storeTrainedModelConfig(trainedModelConfig);
         try {
             if (latch.await(STORE_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
@@ -295,7 +296,7 @@ public class ChunkedTrainedModelPersister {
             + RamUsageEstimator.NUM_BYTES_OBJECT_REF * preProcessors.size();
     }
 
-    private TrainedModelConfig createTrainedModelConfig(ModelSizeInfo modelSize) {
+    private TrainedModelConfig createTrainedModelConfig(TrainedModelType trainedModelType, ModelSizeInfo modelSize) {
         Instant createTime = Instant.now();
         // The native process does not provide estimates for the custom feature_processor objects
         long customProcessorSize = customProcessorSize();
@@ -312,6 +313,7 @@ public class ChunkedTrainedModelPersister {
             .collect(Collectors.toMap(ExtractedField::getParentField, ExtractedField::getName));
         return TrainedModelConfig.builder()
             .setModelId(modelId)
+            .setModelType(trainedModelType)
             .setCreatedBy(XPackUser.NAME)
             .setVersion(Version.CURRENT)
             .setCreateTime(createTime)

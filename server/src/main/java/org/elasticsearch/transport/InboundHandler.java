@@ -18,9 +18,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -30,8 +29,7 @@ import java.nio.ByteBuffer;
 
 /**
  * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
- * it to the appropriate handler. Any deserialized {@code TransportMessage} that is found to implement {@link RefCounted} will have its
- * reference count decremented by one after having been passed to its handler.
+ * it to the appropriate handler.
  */
 public class InboundHandler {
 
@@ -162,7 +160,7 @@ public class InboundHandler {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+                header.getCompressionScheme(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
@@ -177,7 +175,7 @@ public class InboundHandler {
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+                header.getCompressionScheme(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
                 messageListener.onRequestReceived(requestId, action);
                 if (message.isShortCircuit()) {
@@ -206,9 +204,7 @@ public class InboundHandler {
                             }
                         } else {
                             boolean success = false;
-                            if (request instanceof RefCounted) {
-                                ((RefCounted) request).incRef();
-                            }
+                            request.incRef();
                             try {
                                 threadPool.executor(executor).execute(new AbstractRunnable() {
                                     @Override

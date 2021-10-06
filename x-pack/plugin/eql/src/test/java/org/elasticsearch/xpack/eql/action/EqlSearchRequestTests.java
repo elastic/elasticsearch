@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
@@ -37,6 +38,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         "}";
 
     static String defaultTestIndex = "endgame-*";
+    boolean ccsMinimizeRoundtrips;
 
     @Before
     public void setup() {
@@ -66,6 +68,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 randomFetchFields = null;
             }
             QueryBuilder filter = parseFilter(defaultTestFilter);
+            ccsMinimizeRoundtrips = randomBoolean();
             return new EqlSearchRequest()
                 .indices(defaultTestIndex)
                 .filter(filter)
@@ -74,6 +77,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
+                .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
                 .fetchFields(randomFetchFields)
                 .runtimeMappings(randomRuntimeMappings());
         } catch (IOException ex) {
@@ -100,7 +104,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex);
+        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex).ccsMinimizeRoundtrips(ccsMinimizeRoundtrips);
     }
 
     @Override
@@ -115,11 +119,12 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.size(instance.size());
         mutatedInstance.fetchSize(instance.fetchSize());
         mutatedInstance.query(instance.query());
+        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(Version.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
-        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : null);
+        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
 
         return mutatedInstance;
     }

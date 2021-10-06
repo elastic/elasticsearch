@@ -68,7 +68,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             batchedRerouteService.reroute("iteration " + i, randomFrom(EnumSet.allOf(Priority.class)),
                 ActionListener.wrap(countDownLatch::countDown));
         }
-        countDownLatch.await(10, TimeUnit.SECONDS);
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         assertThat(rerouteCountBeforeReroute, lessThan(rerouteCount.get()));
     }
 
@@ -204,11 +204,14 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             }
 
             if (rarely()) {
-                clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
-                    ClusterState state = clusterService.state();
-                    return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes())
-                        .masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId())).build();
-                }, (source, e) -> { });
+                clusterService.getClusterApplierService().onNewClusterState(
+                    "simulated",
+                    () -> {
+                        ClusterState state = clusterService.state();
+                        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes())
+                            .masterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId())).build();
+                    },
+                    ActionListener.wrap(() -> {}));
             }
         }
 

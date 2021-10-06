@@ -9,20 +9,16 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
-import java.math.BigInteger;
-import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -109,9 +105,9 @@ public final class ShardPath {
      */
     public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
                                           ShardId shardId, String customDataPath) throws IOException {
-        final Path[] paths = env.availableShardPaths(shardId);
+        final Path shardPath = env.availableShardPath(shardId);
         final Path sharedDataPath = env.sharedDataPath();
-        return loadShardPath(logger, shardId, customDataPath, paths, sharedDataPath);
+        return loadShardPath(logger, shardId, customDataPath, new Path[] { shardPath }, sharedDataPath);
     }
 
     /**
@@ -167,21 +163,19 @@ public final class ShardPath {
         final NodeEnvironment env,
         final ShardLock lock,
         final IndexSettings indexSettings,
-        final Consumer<Path[]> listener
+        final Consumer<Path> listener
     ) throws IOException {
         final String indexUUID = indexSettings.getUUID();
-        final Path[] paths = env.availableShardPaths(lock.getShardId());
-        for (Path path : paths) {
-            // EMPTY is safe here because we never call namedObject
-            ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
-            if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
-                    logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
-                    assert Files.isDirectory(path) : path + " is not a directory";
-                    NodeEnvironment.acquireFSLockForPaths(indexSettings, path);
-                    listener.accept(new Path[]{path});
-                    IOUtils.rm(path);
-                }
+        final Path path = env.availableShardPath(lock.getShardId());
+        // EMPTY is safe here because we never call namedObject
+        ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+        if (load != null) {
+            if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
+                assert Files.isDirectory(path) : path + " is not a directory";
+                NodeEnvironment.acquireFSLockForPaths(indexSettings, path);
+                listener.accept(path);
+                IOUtils.rm(path);
             }
         }
     }
@@ -194,83 +188,11 @@ public final class ShardPath {
 
         if (indexSettings.hasCustomDataPath()) {
             dataPath = env.resolveCustomLocation(indexSettings.customDataPath(), shardId);
-            statePath = env.nodePaths()[0].resolve(shardId);
+            statePath = env.nodePath().resolve(shardId);
         } else {
-            BigInteger totFreeSpace = BigInteger.ZERO;
-            for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
-                totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodePath.fileStore.getUsableSpace()));
-            }
-
-            // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
-            // how large they will be once they're done copying, instead of a silly guess for such cases:
-
-            // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
-            // shard size across the cluster and 5% of the total available free space on this node:
-            BigInteger estShardSizeInBytes = BigInteger.valueOf(avgShardSizeInBytes).max(totFreeSpace.divide(BigInteger.valueOf(20)));
-
-            // TODO - do we need something more extensible? Yet, this does the job for now...
-            final NodeEnvironment.NodePath[] paths = env.nodePaths();
-
-            // If no better path is chosen, use the one with the most space by default
-            NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);
-
-            if (paths.length != 1) {
-                Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
-
-                // Compute how much space there is on each path
-                final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = new HashMap<>(paths.length);
-                for (NodeEnvironment.NodePath nodePath : paths) {
-                    FileStore fileStore = nodePath.fileStore;
-                    BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
-                    pathsToSpace.put(nodePath, usableBytes);
-                }
-
-                bestPath = Arrays.stream(paths)
-                        // Filter out paths that have enough space
-                        .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
-                        // Sort by the number of shards for this index
-                        .sorted((p1, p2) -> {
-                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),
-                                    pathToShardCount.getOrDefault(p2, 0L));
-                                if (cmp == 0) {
-                                    // if the number of shards is equal, tie-break with the number of total shards
-                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
-                                            dataPathToShardCount.getOrDefault(p2.path, 0));
-                                    if (cmp == 0) {
-                                        // if the number of shards is equal, tie-break with the usable bytes
-                                        cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
-                                    }
-                                }
-                                return cmp;
-                            })
-                        // Return the first result
-                        .findFirst()
-                        // Or the existing best path if there aren't any that fit the criteria
-                        .orElse(bestPath);
-            }
-
-            statePath = bestPath.resolve(shardId);
-            dataPath = statePath;
+            dataPath = statePath = env.nodePath().resolve(shardId);
         }
         return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
-    }
-
-    static NodeEnvironment.NodePath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {
-        final NodeEnvironment.NodePath[] paths = env.nodePaths();
-        NodeEnvironment.NodePath bestPath = null;
-        long maxUsableBytes = Long.MIN_VALUE;
-        for (NodeEnvironment.NodePath nodePath : paths) {
-            FileStore fileStore = nodePath.fileStore;
-            long usableBytes = fileStore.getUsableSpace(); // NB usable bytes doesn't account for reserved space (e.g. incoming recoveries)
-            assert usableBytes >= 0 : "usable bytes must be >= 0, got: " + usableBytes;
-
-            if (bestPath == null || usableBytes > maxUsableBytes) {
-                // This path has been determined to be "better" based on the usable bytes
-                maxUsableBytes = usableBytes;
-                bestPath = nodePath;
-            }
-        }
-        return bestPath;
     }
 
     @Override

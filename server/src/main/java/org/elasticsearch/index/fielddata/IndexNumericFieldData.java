@@ -12,9 +12,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
@@ -33,6 +33,7 @@ import java.util.function.LongUnaryOperator;
  * Base class for numeric field data.
  */
 public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumericFieldData> {
+
     /**
      * The type of number.
      */
@@ -103,6 +104,28 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
+
+        // TODO: Now that numeric sort uses indexed points to skip over non-competitive documents,
+        //  Lucene 9 requires that the same data/type is stored in points and doc values.
+        //  We break this assumption in ES by using the wider numeric sort type for every field,
+        //  (e.g. shorts use longs and floats use doubles). So for now we forbid the usage of
+        //  points in numeric sort on field types that use a different sort type.
+        //  We could expose these optimizations for all numeric types but that would require
+        //  to rewrite the logic to handle types when merging results coming from different
+        //  indices.
+        switch (getNumericType()) {
+            case DATE_NANOSECONDS:
+            case DATE:
+            case LONG:
+            case DOUBLE:
+                // longs, doubles and dates use the same type for doc-values and points.
+                break;
+
+            default:
+                sortField.setOptimizeSortWithPoints(false);
+                break;
+        }
+
         return sortField;
     }
 
@@ -156,16 +179,31 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return dateNanosComparatorSource(missingValue, sortMode, nested);
         default:
             assert targetNumericType.isFloatingPoint() == false;
-            return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+            return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
         }
     }
 
-    protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+    protected XFieldComparatorSource dateComparatorSource(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
     }
 
-    protected XFieldComparatorSource dateNanosComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds));
+    protected XFieldComparatorSource dateNanosComparatorSource(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
+        return new LongValuesComparatorSource(
+            this,
+            missingValue,
+            sortMode,
+            nested,
+            dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
+            NumericType.DATE_NANOSECONDS
+        );
     }
 
     /**

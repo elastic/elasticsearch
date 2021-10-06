@@ -38,8 +38,12 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
                 params.put("foo", "bar");
             }
             ScriptType type = randomFrom(ScriptType.values());
-            script = new Script(type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG),
-                "script", params);
+            script = new Script(
+                type,
+                type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG),
+                "script",
+                params
+            );
         }
         BucketScriptPipelineAggregationBuilder factory = new BucketScriptPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {
@@ -51,48 +55,54 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
         return factory;
     }
 
-    public void testParseBucketPath() throws IOException  {
+    public void testParseBucketPath() throws IOException {
         XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
-              .field("buckets_path", "_count")
-              .startObject("script")
-                   .field("source", "value")
-                   .field("lang", "expression")
-              .endObject()
+            .field("buckets_path", "_count")
+            .startObject("script")
+            .field("source", "value")
+            .field("lang", "expression")
+            .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder builder1 = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-                createParser(content), "count");
-        assertEquals(builder1.getBucketsPaths().length , 1);
+            createParser(content),
+            "count"
+        );
+        assertEquals(builder1.getBucketsPaths().length, 1);
         assertEquals(builder1.getBucketsPaths()[0], "_count");
 
         content = XContentFactory.jsonBuilder()
             .startObject()
-              .startObject("buckets_path")
-                .field("path1", "_count1")
-                .field("path2", "_count2")
-              .endObject()
-              .startObject("script")
-                .field("source", "value")
-                .field("lang", "expression")
-              .endObject()
+            .startObject("buckets_path")
+            .field("path1", "_count1")
+            .field("path2", "_count2")
+            .endObject()
+            .startObject("script")
+            .field("source", "value")
+            .field("lang", "expression")
+            .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder builder2 = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-                createParser(content), "count");
-        assertEquals(builder2.getBucketsPaths().length , 2);
+            createParser(content),
+            "count"
+        );
+        assertEquals(builder2.getBucketsPaths().length, 2);
         assertEquals(builder2.getBucketsPaths()[0], "_count1");
         assertEquals(builder2.getBucketsPaths()[1], "_count2");
 
         content = XContentFactory.jsonBuilder()
             .startObject()
-              .array("buckets_path","_count1", "_count2")
-              .startObject("script")
-                .field("source", "value")
-                .field("lang", "expression")
-               .endObject()
+            .array("buckets_path", "_count1", "_count2")
+            .startObject("script")
+            .field("source", "value")
+            .field("lang", "expression")
+            .endObject()
             .endObject();
         BucketScriptPipelineAggregationBuilder builder3 = BucketScriptPipelineAggregationBuilder.PARSER.parse(
-                createParser(content), "count");
-        assertEquals(builder3.getBucketsPaths().length , 2);
+            createParser(content),
+            "count"
+        );
+        assertEquals(builder3.getBucketsPaths().length, 2);
         assertEquals(builder3.getBucketsPaths()[0], "_count1");
         assertEquals(builder3.getBucketsPaths()[1], "_count2");
     }

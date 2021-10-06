@@ -12,8 +12,8 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -118,7 +118,7 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.array(INDEX.getPreferredName(), indices.toArray());
+        builder.stringListField(INDEX.getPreferredName(), indices);
         if (queryConfig != null) {
             builder.field(QUERY.getPreferredName(), queryConfig.getQuery());
         }

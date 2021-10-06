@@ -8,8 +8,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
@@ -23,6 +30,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,14 +96,33 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
      */
     @Override
     public void testCacheability() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+        iw.addDocument(new Document());
+        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        iw.close();
+        assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
+
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
         ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(
             new TermQueryBuilder(KEYWORD_FIELD_NAME, "value"), script);
 
-        SearchExecutionContext context = createSearchExecutionContext();
+        SearchExecutionContext context = createSearchExecutionContext(searcher);
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
-        assertNotNull(rewriteQuery.toQuery(context));
+        Query luceneQuery = rewriteQuery.toQuery(context);
+        assertNotNull(luceneQuery);
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse("" + searcher.rewrite(luceneQuery) + " " + rewriteQuery.toString(), queryWeight.isCacheable(ctx));
+            }
+        }
+
+        searcher.getIndexReader().close();
+        directory.close();
     }
 
     @Override

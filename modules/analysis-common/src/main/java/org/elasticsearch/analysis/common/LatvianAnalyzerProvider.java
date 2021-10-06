@@ -26,7 +26,6 @@ public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Latvi
             Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

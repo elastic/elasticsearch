@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -248,8 +248,8 @@ public class IndexResolver {
         Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
         // filter aliases (if present)
         if (aliases != null) {
-            for (ObjectCursor<List<AliasMetadata>> cursor : aliases.getAliases().values()) {
-                for (AliasMetadata amd : cursor.value) {
+            for (List<AliasMetadata> aliasList : aliases.getAliases().values()) {
+                for (AliasMetadata amd : aliasList) {
                     String alias = amd.alias();
                     if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
                         result.add(new IndexInfo(alias, IndexType.ALIAS));
@@ -709,7 +709,7 @@ public class IndexResolver {
         // iterate over each type
         for (Entry<String, FieldCapabilities> type : types.entrySet()) {
             String esFieldType = type.getKey();
-            if (esFieldType == UNMAPPED) {
+            if (Objects.equals(esFieldType, UNMAPPED)) {
                 continue;
             }
             String[] indices = type.getValue().indices();
@@ -748,7 +748,7 @@ public class IndexResolver {
             } else {
                 // if the field type is the same across all this alias' indices, check the field's capabilities (searchable/aggregatable)
                 for (Entry<String, FieldCapabilities> type : types.entrySet()) {
-                    if (type.getKey() == UNMAPPED) {
+                    if (Objects.equals(type.getKey(), UNMAPPED)) {
                         continue;
                     }
                     FieldCapabilities f = type.getValue();

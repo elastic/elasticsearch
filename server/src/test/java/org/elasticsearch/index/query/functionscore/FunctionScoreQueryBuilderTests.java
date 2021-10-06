@@ -10,11 +10,18 @@ package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,17 +54,17 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -70,6 +77,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -108,11 +116,15 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected Set<String> getObjectsHoldingArbitraryContent() {
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
         //script_score.script.params can contain arbitrary parameters. no error is expected when adding additional objects
         //within the params object. Score functions get parsed in the data nodes, so they are not validated in the coord node.
-        return new HashSet<>(Arrays.asList(Script.PARAMS_PARSE_FIELD.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
-                LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME));
+        final Map<String, String> objects = new HashMap<>();
+        objects.put(Script.PARAMS_PARSE_FIELD.getPreferredName(), null);
+        objects.put(ExponentialDecayFunctionBuilder.NAME, null);
+        objects.put(LinearDecayFunctionBuilder.NAME, null);
+        objects.put(GaussDecayFunctionBuilder.NAME, null);
+        return objects;
     }
 
     /**
@@ -219,7 +231,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             offset = randomFrom(DistanceUnit.values()).toString(randomDouble());
             break;
         case DATE_FIELD_NAME:
-            origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
+            origin = ZonedDateTime.ofInstant(
+                Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)), ZoneOffset.UTC).toString();
             scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
             offset = randomPositiveTimeValue();
             break;
@@ -815,34 +828,72 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
      */
     @Override
     public void testCacheability() throws IOException {
+        Directory directory = newDirectory();
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+        iw.addDocument(new Document());
+        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        iw.close();
+        assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
+
         FunctionScoreQueryBuilder queryBuilder = createTestQueryBuilder();
-        boolean isCacheable = isCacheable(queryBuilder);
-        SearchExecutionContext context = createSearchExecutionContext();
+        boolean requestCache = isCacheable(queryBuilder);
+        SearchExecutionContext context = createSearchExecutionContext(searcher);
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        // we occasionally need to update the expected "isCacheable" flag after rewrite for MatchNoneQueryBuilder
+        // we occasionally need to update the expected request cache flag after rewrite to MatchNoneQueryBuilder
         if (rewriteQuery instanceof MatchNoneQueryBuilder) {
-            isCacheable = true;
+            requestCache = true;
         }
-        assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
-                context.isCacheable());
+        assertEquals("query should " + (requestCache ? "" : "not") + " be eligible for the request cache: " + queryBuilder.toString(),
+            requestCache, context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Query luceneQuery = rewriteQuery.toQuery(context);
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse(queryWeight.isCacheable(ctx));
+            }
+        }
 
         ScoreFunctionBuilder<?> scriptScoreFunction = new ScriptScoreFunctionBuilder(
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
         queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
             new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), scriptScoreFunction) });
-        context = createSearchExecutionContext();
+        context = createSearchExecutionContext(searcher);
         rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertTrue("function script query should be cacheable" + queryBuilder.toString(), context.isCacheable());
+        assertTrue("function script query should be eligible for the request cache: " + queryBuilder.toString(),
+            context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Query luceneQuery = rewriteQuery.toQuery(context);
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse(queryWeight.isCacheable(ctx));
+            }
+        }
 
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
         queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
             new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunctionBuilder) });
-        context = createSearchExecutionContext();
+        context = createSearchExecutionContext(searcher);
         rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertFalse("function random query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        assertFalse("function random query should not be eligible for the request cache: " + queryBuilder.toString(),
+            context.isCacheable());
+
+        // test query cache
+        if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
+            Query luceneQuery = rewriteQuery.toQuery(context);
+            Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
+            for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
+                assertFalse(queryWeight.isCacheable(ctx));
+            }
+        }
+        searcher.getIndexReader().close();
+        directory.close();
     }
 
     private boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {

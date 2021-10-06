@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -43,9 +43,11 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
         Map<String, Map<String, String>> headers = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             List<String> leaderPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
+            List<String> leaderExclusionPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
             AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
                 randomAlphaOfLength(4),
                 leaderPatterns,
+                leaderExclusionPatterns,
                 randomAlphaOfLength(4),
                 Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build(),
                 true,

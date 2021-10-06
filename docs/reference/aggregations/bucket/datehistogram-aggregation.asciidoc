@@ -35,26 +35,6 @@ be tacked onto a particular year.
 Fixed intervals are, by contrast, always multiples of SI units and do not change
 based on calendaring context.
 
-[NOTE]
-.Combined `interval` field is deprecated
-==================================
-deprecated[7.2, `interval` field is deprecated] Historically both calendar and fixed
-intervals were configured in a single `interval` field, which led to confusing
-semantics. Specifying `1d` would be assumed as a calendar-aware time,
-whereas `2d` would be interpreted as fixed time. To get "one day" of fixed time,
-the user would need to specify the next smaller unit (in this case, `24h`).
-
-This combined behavior was often unknown to users, and even when knowledgeable about
-the behavior it was difficult to use and confusing.
-
-This behavior has been deprecated in favor of two new, explicit fields: `calendar_interval`
-and `fixed_interval`.
-
-By forcing a choice between calendar and intervals up front, the semantics of the interval
-are clear to the user immediately and there is no ambiguity. The old `interval` field
-will be removed in the future.
-==================================
-
 [[calendar_intervals]]
 ==== Calendar intervals
 

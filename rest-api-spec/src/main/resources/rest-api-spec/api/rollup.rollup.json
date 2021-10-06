@@ -1,10 +1,10 @@
 {
   "rollup.rollup":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-api.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-rollup.html",
       "description":"Rollup an index"
     },
-    "stability":"stable",
+    "stability":"experimental",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],

@@ -29,6 +29,6 @@ public abstract class MovingFunctionScript {
         MovingFunctionScript newInstance();
     }
 
-    public static final String[] PARAMETERS = new String[] {"params", "values"};
+    public static final String[] PARAMETERS = new String[] { "params", "values" };
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("moving-function", Factory.class);
 }

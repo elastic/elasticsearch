@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -23,12 +23,17 @@ import java.util.Map;
 public class ReverseNestedAggregatorFactory extends AggregatorFactory {
 
     private final boolean unmapped;
-    private final ObjectMapper parentObjectMapper;
+    private final NestedObjectMapper parentObjectMapper;
 
-    public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
-                                          AggregationContext context, AggregatorFactory parent,
-                                          AggregatorFactories.Builder subFactories,
-                                          Map<String, Object> metadata) throws IOException {
+    public ReverseNestedAggregatorFactory(
+        String name,
+        boolean unmapped,
+        NestedObjectMapper parentObjectMapper,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactories, metadata);
         this.unmapped = unmapped;
         this.parentObjectMapper = parentObjectMapper;
@@ -46,11 +51,8 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
 
     private static final class Unmapped extends NonCollectingAggregator {
 
-        Unmapped(String name,
-                    AggregationContext context,
-                    Aggregator parent,
-                    AggregatorFactories factories,
-                    Map<String, Object> metadata) throws IOException {
+        Unmapped(String name, AggregationContext context, Aggregator parent, AggregatorFactories factories, Map<String, Object> metadata)
+            throws IOException {
             super(name, context, parent, factories, metadata);
         }
 

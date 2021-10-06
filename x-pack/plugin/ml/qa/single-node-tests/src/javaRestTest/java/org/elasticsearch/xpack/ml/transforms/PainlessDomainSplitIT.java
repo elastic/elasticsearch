@@ -253,9 +253,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
                 "    },\n" +
                 "    \"data_description\" : {\n" +
-                "        \"field_delimiter\":\",\",\n" +
                 "        \"time_field\":\"time\"\n" +
-                "        \n" +
                 "    }\n" +
                 "}");
         client().performRequest(createJobRequest);

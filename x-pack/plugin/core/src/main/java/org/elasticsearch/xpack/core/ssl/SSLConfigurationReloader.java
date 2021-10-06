@@ -9,29 +9,30 @@ package org.elasticsearch.xpack.core.ssl;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 
 import javax.net.ssl.SSLContext;
+
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 /**
- * Ensures that the files backing an {@link SSLConfiguration} are monitored for changes and the underlying key/trust material is reloaded
+ * Ensures that the files backing an {@link SslConfiguration} are monitored for changes and the underlying key/trust material is reloaded
  * and the {@link SSLContext} has existing sessions invalidated to force the use of the new key/trust material
  */
 public final class SSLConfigurationReloader {
@@ -40,18 +41,16 @@ public final class SSLConfigurationReloader {
 
     private final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
 
-    public SSLConfigurationReloader(Environment environment,
-                                    ResourceWatcherService resourceWatcherService,
-                                    Collection<SSLConfiguration> sslConfigurations) {
-        startWatching(environment, reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);
+    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService,
+                                    Collection<SslConfiguration> sslConfigurations) {
+        startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);
     }
 
     // for testing
-    SSLConfigurationReloader(Environment environment,
-                             Consumer<SSLConfiguration> reloadConsumer,
+    SSLConfigurationReloader(Consumer<SslConfiguration> reloadConsumer,
                              ResourceWatcherService resourceWatcherService,
-                             Collection<SSLConfiguration> sslConfigurations) {
-        startWatching(environment, reloadConsumer, resourceWatcherService, sslConfigurations);
+                             Collection<SslConfiguration> sslConfigurations) {
+        startWatching(reloadConsumer, resourceWatcherService, sslConfigurations);
     }
 
     public void setSSLService(SSLService sslService) {
@@ -61,7 +60,7 @@ public final class SSLConfigurationReloader {
         }
     }
 
-    private static Consumer<SSLConfiguration> reloadConsumer(CompletableFuture<SSLService> future) {
+    private static Consumer<SslConfiguration> reloadConsumer(CompletableFuture<SSLService> future) {
         return sslConfiguration -> {
             try {
                 final SSLService sslService = future.get();
@@ -76,14 +75,15 @@ public final class SSLConfigurationReloader {
     }
 
     /**
-     * Collects all of the directories that need to be monitored for the provided {@link SSLConfiguration} instances and ensures that
+     * Collects all of the directories that need to be monitored for the provided {@link SslConfiguration} instances and ensures that
      * they are being watched for changes
      */
-    private static void startWatching(Environment environment, Consumer<SSLConfiguration> reloadConsumer,
-                                      ResourceWatcherService resourceWatcherService, Collection<SSLConfiguration> sslConfigurations) {
-        Map<Path, List<SSLConfiguration>> pathToConfigurationsMap = new HashMap<>();
-        for (SSLConfiguration sslConfiguration : sslConfigurations) {
-            for (Path directory : directoriesToMonitor(sslConfiguration.filesToMonitor(environment))) {
+    private static void startWatching(Consumer<SslConfiguration> reloadConsumer,
+                                      ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
+        Map<Path, List<SslConfiguration>> pathToConfigurationsMap = new HashMap<>();
+        for (SslConfiguration sslConfiguration : sslConfigurations) {
+            final Collection<Path> filesToMonitor = sslConfiguration.getDependentFiles();
+            for (Path directory : directoriesToMonitor(filesToMonitor)) {
                 pathToConfigurationsMap.compute(directory, (path, list) -> {
                     if (list == null) {
                         list = new ArrayList<>();
@@ -94,22 +94,22 @@ public final class SSLConfigurationReloader {
             }
         }
 
-        for (Entry<Path, List<SSLConfiguration>> entry : pathToConfigurationsMap.entrySet()) {
-            ChangeListener changeListener = new ChangeListener(environment, List.copyOf(entry.getValue()), reloadConsumer);
-            FileWatcher fileWatcher = new FileWatcher(entry.getKey());
+        pathToConfigurationsMap.forEach((path, configurations) -> {
+            ChangeListener changeListener = new ChangeListener(List.copyOf(configurations), reloadConsumer);
+            FileWatcher fileWatcher = new FileWatcher(path);
             fileWatcher.addListener(changeListener);
             try {
                 resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-            } catch (IOException e) {
-                logger.error("failed to start watching directory [{}] for ssl configurations [{}]", entry.getKey(), sslConfigurations);
+            } catch (IOException | AccessControlException e) {
+                logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
             }
-        }
+        });
     }
 
     /**
      * Returns a unique set of directories that need to be monitored based on the provided file paths
      */
-    private static Set<Path> directoriesToMonitor(List<Path> filePaths) {
+    private static Set<Path> directoriesToMonitor(Iterable<Path> filePaths) {
         Set<Path> paths = new HashSet<>();
         for (Path path : filePaths) {
             paths.add(path.getParent());
@@ -119,13 +119,10 @@ public final class SSLConfigurationReloader {
 
     private static class ChangeListener implements FileChangesListener {
 
-        private final Environment environment;
-        private final List<SSLConfiguration> sslConfigurations;
-        private final Consumer<SSLConfiguration> reloadConsumer;
+        private final List<SslConfiguration> sslConfigurations;
+        private final Consumer<SslConfiguration> reloadConsumer;
 
-        private ChangeListener(Environment environment, List<SSLConfiguration> sslConfigurations,
-                               Consumer<SSLConfiguration> reloadConsumer) {
-            this.environment = environment;
+        private ChangeListener(List<SslConfiguration> sslConfigurations, Consumer<SslConfiguration> reloadConsumer) {
             this.sslConfigurations = sslConfigurations;
             this.reloadConsumer = reloadConsumer;
         }
@@ -143,8 +140,8 @@ public final class SSLConfigurationReloader {
         @Override
         public void onFileChanged(Path file) {
             boolean reloaded = false;
-            for (SSLConfiguration sslConfiguration : sslConfigurations) {
-                if (sslConfiguration.filesToMonitor(environment).contains(file)) {
+            for (SslConfiguration sslConfiguration : sslConfigurations) {
+                if (sslConfiguration.getDependentFiles().contains(file)) {
                     reloadConsumer.accept(sslConfiguration);
                     reloaded = true;
                 }

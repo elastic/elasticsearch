@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -51,6 +51,7 @@ public class AnalysisConfig implements ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField MULTIVARIATE_BY_FIELDS = new ParseField("multivariate_by_fields");
+    public static final ParseField MODEL_PRUNE_WINDOW = new ParseField("model_prune_window");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(),
@@ -75,6 +76,8 @@ public class AnalysisConfig implements ToXContentObject {
         PARSER.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
         PARSER.declareStringArray(Builder::setInfluencers, INFLUENCERS);
         PARSER.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
+        PARSER.declareString((builder, val) ->
+            builder.setModelPruneWindow(TimeValue.parseTimeValue(val, MODEL_PRUNE_WINDOW.getPreferredName())), MODEL_PRUNE_WINDOW);
     }
 
     /**
@@ -90,11 +93,13 @@ public class AnalysisConfig implements ToXContentObject {
     private final List<Detector> detectors;
     private final List<String> influencers;
     private final Boolean multivariateByFields;
+    private final TimeValue modelPruneWindow;
 
     private AnalysisConfig(TimeValue bucketSpan, String categorizationFieldName, List<String> categorizationFilters,
                            CategorizationAnalyzerConfig categorizationAnalyzerConfig,
                            PerPartitionCategorizationConfig perPartitionCategorizationConfig, TimeValue latency,
-                           String summaryCountFieldName, List<Detector> detectors, List<String> influencers, Boolean multivariateByFields) {
+                           String summaryCountFieldName, List<Detector> detectors, List<String> influencers, Boolean multivariateByFields,
+                           TimeValue modelPruneWindow) {
         this.detectors = Collections.unmodifiableList(detectors);
         this.bucketSpan = bucketSpan;
         this.latency = latency;
@@ -105,6 +110,7 @@ public class AnalysisConfig implements ToXContentObject {
         this.summaryCountFieldName = summaryCountFieldName;
         this.influencers = Collections.unmodifiableList(influencers);
         this.multivariateByFields = multivariateByFields;
+        this.modelPruneWindow = modelPruneWindow;
     }
 
     /**
@@ -169,6 +175,10 @@ public class AnalysisConfig implements ToXContentObject {
 
     public Boolean getMultivariateByFields() {
         return multivariateByFields;
+    }
+
+    public TimeValue getModelPruneWindow() {
+        return modelPruneWindow;
     }
 
     private static void addIfNotNull(Set<String> fields, String field) {
@@ -243,6 +253,9 @@ public class AnalysisConfig implements ToXContentObject {
         if (multivariateByFields != null) {
             builder.field(MULTIVARIATE_BY_FIELDS.getPreferredName(), multivariateByFields);
         }
+        if (modelPruneWindow != null) {
+            builder.field(MODEL_PRUNE_WINDOW.getPreferredName(), modelPruneWindow.getStringRep());
+        }
         builder.endObject();
         return builder;
     }
@@ -267,14 +280,15 @@ public class AnalysisConfig implements ToXContentObject {
             Objects.equals(summaryCountFieldName, that.summaryCountFieldName) &&
             Objects.equals(detectors, that.detectors) &&
             Objects.equals(influencers, that.influencers) &&
-            Objects.equals(multivariateByFields, that.multivariateByFields);
+            Objects.equals(multivariateByFields, that.multivariateByFields) &&
+            Objects.equals(modelPruneWindow, that.modelPruneWindow);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
             bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig, perPartitionCategorizationConfig,
-            latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
+            latency, summaryCountFieldName, detectors, influencers, multivariateByFields, modelPruneWindow);
     }
 
     public static Builder builder(List<Detector> detectors) {
@@ -293,6 +307,7 @@ public class AnalysisConfig implements ToXContentObject {
         private String summaryCountFieldName;
         private List<String> influencers = new ArrayList<>();
         private Boolean multivariateByFields;
+        private TimeValue modelPruneWindow;
 
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);
@@ -310,6 +325,7 @@ public class AnalysisConfig implements ToXContentObject {
             this.summaryCountFieldName = analysisConfig.summaryCountFieldName;
             this.influencers = new ArrayList<>(analysisConfig.influencers);
             this.multivariateByFields = analysisConfig.multivariateByFields;
+            this.modelPruneWindow = analysisConfig.modelPruneWindow;
         }
 
         public Builder setDetectors(List<Detector> detectors) {
@@ -376,10 +392,16 @@ public class AnalysisConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setModelPruneWindow(TimeValue modelPruneWindow) {
+            this.modelPruneWindow = modelPruneWindow;
+            return this;
+        }
+
         public AnalysisConfig build() {
 
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters, categorizationAnalyzerConfig,
-                perPartitionCategorizationConfig, latency, summaryCountFieldName, detectors, influencers, multivariateByFields);
+                perPartitionCategorizationConfig, latency, summaryCountFieldName, detectors, influencers, multivariateByFields,
+                modelPruneWindow);
         }
     }
 }

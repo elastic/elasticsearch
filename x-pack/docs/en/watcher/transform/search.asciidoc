@@ -96,7 +96,7 @@ The following table lists all available settings for the search
 The search {watcher-transform} support mustache <<templates, templates>>. This
 can either be as part of the body definition or alternatively point to an
 existing template (either defined in a file or
-<<pre-registered-templates,registered>> as a script in Elasticsearch).
+<<create-search-template,stored>> as a script in Elasticsearch).
 
 For example, the following snippet shows a search that refers to the scheduled
 time of the watch:

@@ -44,7 +44,7 @@ GET /_component_template/template_1
 [[get-component-template-api-request]]
 ==== {api-request-title}
 
-`GET /_component-template/<component-template>`
+`GET /_component_template/<component-template>`
 
 [[get-component-template-api-prereqs]]
 ==== {api-prereq-title}

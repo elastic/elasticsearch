@@ -66,7 +66,7 @@ public class CompensatedSumTests extends ESTestCase {
 
     public void testInfiniteAndNaN() {
         CompensatedSum compensatedResult1 = new CompensatedSum(0, 0);
-        double[] doubles = {Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN};
+        double[] doubles = { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN };
         for (double d : doubles) {
             compensatedResult1.add(d);
 

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -19,6 +19,8 @@ dependencies {
   compileOnly project(':modules:lang-painless')
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 }
 
 restResources {
@@ -27,7 +29,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
   module ':modules:lang-mustache'
@@ -35,23 +37,13 @@ testClusters.all {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-          // from log4j
-          'org.osgi.framework.AdaptPermission',
-          'org.osgi.framework.AdminPermission',
-          'org.osgi.framework.Bundle',
-          'org.osgi.framework.BundleActivator',
-          'org.osgi.framework.BundleContext',
-          'org.osgi.framework.BundleEvent',
-          'org.osgi.framework.SynchronousBundleListener',
-          'org.osgi.framework.wiring.BundleWire',
-          'org.osgi.framework.wiring.BundleWiring'
+    //commons-logging
+    'org.apache.commons.codec.binary.Base64',
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
   )
 }
 
-tasks.named("yamlRestCompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-    'ingest/80_foreach/Test foreach Processor',
-    'ingest/230_change_target_index/Test Change Target Index with Explicit Pipeline',
-    'ingest/230_change_target_index/Test Change Target Index with Default Pipeline'
-  ].join(',')
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.addAllowedWarningRegex("\\[types removal\\].*")
 }

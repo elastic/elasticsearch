@@ -18,9 +18,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -57,8 +57,11 @@ public abstract class MetadataStateFormat<T> {
     public static final String STATE_FILE_EXTENSION = ".st";
 
     private static final String STATE_FILE_CODEC = "state";
+    // original version format
     private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 1;
-    private static final int STATE_FILE_VERSION = 1;
+    // Lucene directory API changed to LE, ES 8.0
+    private static final int LE_VERSION = 2;
+    private static final int CURRENT_VERSION = LE_VERSION;
     private final String prefix;
     private final Pattern stateFilePattern;
 
@@ -94,7 +97,7 @@ public abstract class MetadataStateFormat<T> {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
-                CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
+                CodecUtil.writeHeader(out, STATE_FILE_CODEC, CURRENT_VERSION);
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
                     @Override
@@ -277,8 +280,14 @@ public abstract class MetadataStateFormat<T> {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
-                final XContentType xContentType = XContentType.values()[indexInput.readInt()];
+                final int format =
+                    CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, CURRENT_VERSION);
+                final XContentType xContentType;
+                if (format < LE_VERSION) {
+                    xContentType = XContentType.values()[Integer.reverseBytes(indexInput.readInt())];
+                } else {
+                    xContentType = XContentType.values()[indexInput.readInt()];
+                }
                 if (xContentType != FORMAT) {
                     throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
                 }
@@ -299,7 +308,7 @@ public abstract class MetadataStateFormat<T> {
     }
 
     protected Directory newDirectory(Path dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+        return new NIOFSDirectory(dir);
     }
 
 
@@ -309,7 +318,7 @@ public abstract class MetadataStateFormat<T> {
      * @param currentGeneration state generation to keep.
      * @param locations         state paths.
      */
-    public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
+    public void cleanupOldFiles(final long currentGeneration, Path... locations) {
         final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);

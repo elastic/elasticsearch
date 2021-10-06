@@ -166,4 +166,15 @@ class FlattenedFieldParser {
         }
         return new BytesRef(keyedValue.bytes, keyedValue.offset, length);
     }
+
+    static BytesRef extractValue(BytesRef keyedValue) {
+        int length;
+        for (length = 0; length < keyedValue.length; length++){
+            if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {
+                break;
+            }
+        }
+        int valueStart = keyedValue.offset + length + 1;
+        return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart );
+    }    
 }

@@ -13,11 +13,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.watcher.WatcherYamlSuiteTestCase;
 import org.junit.Before;
-
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 
 public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends WatcherYamlSuiteTestCase {
 

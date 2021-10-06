@@ -15,54 +15,68 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
-public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
+import java.time.Clock;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.Map;
+
+import static java.util.function.Function.identity;
+
+class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     private static final Logger logger = LogManager.getLogger(TimeBasedCheckpointProvider.class);
 
     private final TimeSyncConfig timeSyncConfig;
+    // function aligning the given timestamp with date histogram interval or identity function is aligning is not possible
+    private final Function<Long, Long> alignTimestamp;
 
     TimeBasedCheckpointProvider(
+        final Clock clock,
         final Client client,
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig
     ) {
-        super(client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
+        super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
+        alignTimestamp = createAlignTimestampFunction(transformConfig);
     }
 
     @Override
     public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
+        final long timestamp = clock.millis();
+        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
-        final long timestamp = getTime();
-
-        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)
-            // we only want to know if there is at least 1 new document
-            .trackTotalHitsUpTo(1);
-
-        QueryBuilder queryBuilder = transformConfig.getSource().getQueryConfig().getQuery();
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
+            .filter(transformConfig.getSource().getQueryConfig().getQuery())
             .filter(
-                new RangeQueryBuilder(timeSyncConfig.getField()).gte(lastCheckpoint.getTimeUpperBound())
-                    .lt(timestamp - timeSyncConfig.getDelay().millis())
+                new RangeQueryBuilder(timeSyncConfig.getField())
+                    .gte(lastCheckpoint.getTimeUpperBound())
+                    .lt(timeUpperBound)
                     .format("epoch_millis")
             );
-
-        sourceBuilder.query(filteredQuery);
-        searchRequest.source(sourceBuilder);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+            .size(0)
+            // we only want to know if there is at least 1 new document
+            .trackTotalHitsUpTo(1)
+            .query(queryBuilder);
+        SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex())
+            .allowPartialSearchResults(false)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .source(sourceBuilder);
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
@@ -72,17 +86,20 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             client,
             SearchAction.INSTANCE,
             searchRequest,
-            ActionListener.wrap(r -> { listener.onResponse(r.getHits().getTotalHits().value > 0L); }, listener::onFailure)
+            ActionListener.wrap(
+                r -> listener.onResponse(r.getHits().getTotalHits().value > 0L),
+                listener::onFailure
+            )
         );
     }
 
     @Override
     public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
-        final long timestamp = getTime();
+        final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
         // for time based synchronization
-        long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
+        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
         getIndexCheckpoints(
             ActionListener.wrap(
@@ -96,8 +113,35 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         );
     }
 
-    // for the purpose of testing
-    long getTime() {
-        return System.currentTimeMillis();
+    /**
+     * Aligns the timestamp with date histogram group source interval (if it is provided).
+     *
+     * @param transformConfig transform configuration
+     * @return function aligning the given timestamp with date histogram interval
+     */
+    private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
+        if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
+            return identity();
+        }
+        if (transformConfig.getPivotConfig() == null) {
+            return identity();
+        }
+        if (transformConfig.getPivotConfig().getGroupConfig() == null) {
+            return identity();
+        }
+        Map<String, SingleGroupSource> groups = transformConfig.getPivotConfig().getGroupConfig().getGroups();
+        if (groups == null || groups.isEmpty()) {
+            return identity();
+        }
+        Optional<DateHistogramGroupSource> dateHistogramGroupSource =
+            groups.values().stream()
+                .filter(DateHistogramGroupSource.class::isInstance)
+                .map(DateHistogramGroupSource.class::cast)
+                .filter(group -> Objects.equals(group.getField(), transformConfig.getSyncConfig().getField()))
+                .findFirst();
+        if (dateHistogramGroupSource.isEmpty()) {
+            return identity();
+        }
+        return dateHistogramGroupSource.get().getRounding()::round;
     }
 }

@@ -28,15 +28,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregationBuilder> {
+public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
+    ValuesSource.Numeric,
+    StatsAggregationBuilder> {
     public static final String NAME = "stats";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         MetricAggregatorSupplier.class
     );
 
-    public static final ObjectParser<StatsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, StatsAggregationBuilder::new);
+    public static final ObjectParser<StatsAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, StatsAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
@@ -45,8 +46,11 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
         super(name);
     }
 
-    protected StatsAggregationBuilder(StatsAggregationBuilder clone,
-                                      AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected StatsAggregationBuilder(
+        StatsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -67,6 +71,11 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     @Override
+    public Set<String> metricNames() {
+        return InternalStats.METRIC_NAMES;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.NUMERIC;
     }
@@ -77,11 +86,13 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     @Override
-    protected StatsAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                AggregatorFactory parent,
-                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        MetricAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected StatsAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new StatsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 

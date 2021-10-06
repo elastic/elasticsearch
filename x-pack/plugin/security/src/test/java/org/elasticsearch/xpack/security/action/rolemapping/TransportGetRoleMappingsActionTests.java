@@ -43,6 +43,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
     private AtomicReference<Set<String>> namesRef;
     private List<ExpressionRoleMapping> result;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
@@ -57,7 +58,7 @@ public class TransportGetRoleMappingsActionTests extends ESTestCase {
             Object[] args = invocation.getArguments();
             assert args.length == 2;
             namesRef.set((Set<String>) args[0]);
-            ActionListener<List<ExpressionRoleMapping>> listener = (ActionListener) args[1];
+            ActionListener<List<ExpressionRoleMapping>> listener = (ActionListener<List<ExpressionRoleMapping>>) args[1];
             listener.onResponse(result);
             return null;
         }).when(store).getRoleMappings(any(Set.class), any(ActionListener.class));

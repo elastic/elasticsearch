@@ -31,23 +31,24 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.time.Instant;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -70,17 +71,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
-    private final Supplier<Long> timeSupplier;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index, Supplier<Long> timeSupplier) {
+    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
         this.clusterService = clusterService;
-        this.timeSupplier = timeSupplier;
         this.index = index;
     }
 
@@ -119,13 +118,19 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
-    public CachedBlob get(String repository, String name, String path, long offset) {
-        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false : "must not block ["
-            + Thread.currentThread().getName()
-            + "] for a cache read";
+    public CachedBlob get(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range
+    ) {
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
+            : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
         final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
-        getAsync(repository, name, path, offset, future);
+        getAsync(repository, snapshotId, indexId, shardId, name, range, future);
         try {
             return future.actionGet(5, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
@@ -133,7 +138,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "get from cache index timed out after [5s], retrieving from blob store instead [id={}]",
-                        CachedBlob.generateId(repository, name, path, offset)
+                        generateId(repository, snapshotId, indexId, shardId, name, range)
                     ),
                     e
                 );
@@ -144,14 +149,22 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+    final void getAsync(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range,
+        final ActionListener<CachedBlob> listener
+    ) {
         if (closed.get()) {
             logger.debug("failed to retrieve cached blob from system index [{}], service is closed", index);
             listener.onResponse(CachedBlob.CACHE_NOT_READY);
             return;
         }
-        final GetRequest request = new GetRequest(index).id(CachedBlob.generateId(repository, name, path, offset));
-        client.get(request, new ActionListener<>() {
+        final GetRequest request = new GetRequest(index).id(generateId(repository, snapshotId, indexId, shardId, name, range));
+        innerGet(request, new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
                 if (response.isExists()) {
@@ -159,8 +172,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     assert response.isSourceEmpty() == false;
 
                     final CachedBlob cachedBlob = CachedBlob.fromSource(response.getSource());
-                    assert response.getId().equals(cachedBlob.generatedId());
-                    listener.onResponse(cachedBlob);
+                    assert assertDocId(response, repository, snapshotId, indexId, shardId, name, range);
+                    if (cachedBlob.from() != range.start() || cachedBlob.to() != range.end()) {
+                        // expected range in cache might differ with the returned cached blob; this can happen if the range to put in cache
+                        // is changed between versions or through the index setting. In this case we assume it is a cache miss to force the
+                        // blob to be cached again
+                        listener.onResponse(CachedBlob.CACHE_MISS);
+                    } else {
+                        listener.onResponse(cachedBlob);
+                    }
                 } else {
                     logger.debug("cache miss: [{}]", request.id());
                     listener.onResponse(CachedBlob.CACHE_MISS);
@@ -182,6 +202,25 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         });
     }
 
+    protected void innerGet(final GetRequest request, final ActionListener<GetResponse> listener) {
+        client.get(request, listener);
+    }
+
+    private static boolean assertDocId(
+        final GetResponse response,
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range
+    ) {
+        final String expectedId = generateId(repository, snapshotId, indexId, shardId, name, range);
+        assert response.getId().equals(expectedId)
+            : "Expected a cached blob document with id [" + expectedId + "] but got [" + response.getId() + ']';
+        return true;
+    }
+
     private static boolean isExpectedCacheGetException(Exception e) {
         if (TransportActions.isShardNotAvailableException(e)
             || e instanceof ConnectTransportException
@@ -192,18 +231,29 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return cause instanceof NodeClosedException || cause instanceof ConnectTransportException;
     }
 
-    public void putAsync(String repository, String name, String path, long offset, BytesReference content, ActionListener<Void> listener) {
+    public final void putAsync(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range,
+        final BytesReference bytes,
+        final long timeInEpochMillis,
+        final ActionListener<Void> listener
+    ) {
+        final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(timeSupplier.get()),
+                Instant.ofEpochMilli(timeInEpochMillis),
                 Version.CURRENT,
                 repository,
                 name,
-                path,
-                content,
-                offset
+                generatePath(snapshotId, indexId, shardId),
+                bytes,
+                range.start()
             );
-            final IndexRequest request = new IndexRequest(index).id(cachedBlob.generatedId());
+            final IndexRequest request = new IndexRequest(index).id(id);
             try (XContentBuilder builder = jsonBuilder()) {
                 request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
             }
@@ -222,7 +272,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     return;
                 }
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
-                client.index(request, new ActionListener<>() {
+                innerPut(request, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
@@ -242,57 +292,35 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
+            logger.warn(() -> new ParameterizedMessage("cache fill failure: [{}]", id), e);
             listener.onFailure(e);
         }
     }
 
-    private static final Set<String> METADATA_FILES_EXTENSIONS;
-    private static final Set<String> OTHER_FILES_EXTENSIONS;
-    static {
-        // List of Lucene file extensions that are considered as "metadata" and should therefore be fully cached in the blob store cache.
-        // Those files are usually fully read by Lucene when it opens a Directory.
-        METADATA_FILES_EXTENSIONS = Set.of(
-            "cfe", // compound file's entry table
-            "dvm", // doc values metadata file
-            "fdm", // stored fields metadata file
-            "fnm", // field names metadata file
-            "kdm", // Lucene 8.6 point format metadata file
-            "nvm", // norms metadata file
-            "tmd", // Lucene 8.6 terms metadata file
-            "tvm", // terms vectors metadata file
-            "vem"  // Lucene 9.0 indexed vectors metadata
-        );
+    protected void innerPut(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        client.index(request, listener);
+    }
 
-        // List of extensions for which Lucene usually only reads the first 1024 byte and checks a header checksum when opening a Directory.
-        OTHER_FILES_EXTENSIONS = Set.of(
-            "cfs",
-            "dii",
-            "dim",
-            "doc",
-            "dvd",
-            "fdt",
-            "fdx",
-            "kdd",
-            "kdi",
-            "liv",
-            "nvd",
-            "pay",
-            "pos",
-            "tim",
-            "tip",
-            "tvd",
-            "tvx",
-            "vec"
-        );
-        assert Sets.intersection(METADATA_FILES_EXTENSIONS, OTHER_FILES_EXTENSIONS).isEmpty();
+    protected static String generateId(
+        final String repository,
+        final SnapshotId snapshotId,
+        final IndexId indexId,
+        final ShardId shardId,
+        final String name,
+        final ByteRange range
+    ) {
+        return String.join("/", repository, snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()), name, "@" + range.start());
+    }
+
+    protected static String generatePath(final SnapshotId snapshotId, final IndexId indexId, final ShardId shardId) {
+        return String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
     }
 
     /**
      * Computes the {@link ByteRange} corresponding to the header of a Lucene file. This range can vary depending of the type of the file
      * which is indicated by the file's extension. The returned byte range can never be larger than the file's length but it can be smaller.
      *
-     * For files that are declared as metadata files in {@link #METADATA_FILES_EXTENSIONS}, the header can be as large as the specified
+     * For files that are declared as metadata files in {@link LuceneFilesExtensions}, the header can be as large as the specified
      * maximum metadata length parameter {@code maxMetadataLength}. Non-metadata files have a fixed length header of maximum 1KB.
      *
      * @param fileName the name of the file
@@ -302,9 +330,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      * @return the header {@link ByteRange}
      */
     public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
-        final String fileExtension = IndexFileNames.getExtension(fileName);
-        assert fileExtension == null || METADATA_FILES_EXTENSIONS.contains(fileExtension) || OTHER_FILES_EXTENSIONS.contains(fileExtension)
-            : "unknown Lucene file extension [" + fileExtension + "] - should it be considered a metadata file?";
+        final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
 
         if (useLegacyCachedBlobSizes()) {
             if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {
@@ -314,7 +340,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             }
         }
 
-        if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
+        if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
                 logExceedingFile(fileExtension, fileLength, maxMetadataLength);
@@ -329,11 +355,11 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
-    private static void logExceedingFile(String extension, long length, ByteSizeValue maxAllowedLength) {
+    private static void logExceedingFile(LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {
         if (logger.isWarnEnabled()) {
             try {
                 // Use of a cache to prevent too many log traces per hour
-                LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension, key -> {
+                LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension.getExtension(), key -> {
                     logger.warn(
                         "file with extension [{}] is larger ([{}]) than the max. length allowed [{}] to cache metadata files in blob cache",
                         extension,

@@ -29,9 +29,9 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableList;
 
 /** A range aggregation for data that is encoded in doc values using a binary representation. */
-public final class InternalBinaryRange
-        extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
-        implements Range {
+public final class InternalBinaryRange extends InternalMultiBucketAggregation<InternalBinaryRange, InternalBinaryRange.Bucket>
+    implements
+        Range {
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
@@ -42,8 +42,15 @@ public final class InternalBinaryRange
         private final long docCount;
         private final InternalAggregations aggregations;
 
-        public Bucket(DocValueFormat format, boolean keyed, String key, BytesRef from, BytesRef to,
-                long docCount, InternalAggregations aggregations) {
+        public Bucket(
+            DocValueFormat format,
+            boolean keyed,
+            String key,
+            BytesRef from,
+            BytesRef to,
+            long docCount,
+            InternalAggregations aggregations
+        ) {
             this.format = format;
             this.keyed = keyed;
             this.key = key != null ? key : generateKey(from, to, format);
@@ -54,8 +61,7 @@ public final class InternalBinaryRange
         }
 
         private static String generateKey(BytesRef from, BytesRef to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder()
-                .append(from == null ? "*" : format.format(from))
+            StringBuilder builder = new StringBuilder().append(from == null ? "*" : format.format(from))
                 .append("-")
                 .append(to == null ? "*" : format.format(to));
             return builder.toString();
@@ -156,10 +162,10 @@ public final class InternalBinaryRange
 
             if (docCount != bucket.docCount) return false;
             // keyed and format are ignored since they are already tested on the InternalBinaryRange object
-            return Objects.equals(key, bucket.key) &&
-                Objects.equals(from, bucket.from) &&
-                Objects.equals(to, bucket.to) &&
-                Objects.equals(aggregations, bucket.aggregations);
+            return Objects.equals(key, bucket.key)
+                && Objects.equals(from, bucket.from)
+                && Objects.equals(to, bucket.to)
+                && Objects.equals(aggregations, bucket.aggregations);
         }
 
         @Override
@@ -238,8 +244,17 @@ public final class InternalBinaryRange
         List<Bucket> buckets = new ArrayList<>(this.buckets.size());
         for (int i = 0; i < this.buckets.size(); ++i) {
             Bucket b = this.buckets.get(i);
-            buckets.add(new Bucket(format, keyed, b.key, b.from, b.to, docCounts[i],
-                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)));
+            buckets.add(
+                new Bucket(
+                    format,
+                    keyed,
+                    b.key,
+                    b.from,
+                    b.to,
+                    docCounts[i],
+                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
+                )
+            );
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
@@ -253,8 +268,7 @@ public final class InternalBinaryRange
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder,
-            Params params) throws IOException {
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
@@ -271,7 +285,6 @@ public final class InternalBinaryRange
         return builder;
     }
 
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -279,9 +292,7 @@ public final class InternalBinaryRange
         if (super.equals(obj) == false) return false;
 
         InternalBinaryRange that = (InternalBinaryRange) obj;
-        return Objects.equals(buckets, that.buckets)
-            && Objects.equals(format, that.format)
-            && Objects.equals(keyed, that.keyed);
+        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(keyed, that.keyed);
     }
 
     public int hashCode() {

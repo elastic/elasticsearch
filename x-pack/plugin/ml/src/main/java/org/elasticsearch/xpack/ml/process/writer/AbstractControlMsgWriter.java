@@ -18,7 +18,7 @@ public abstract class AbstractControlMsgWriter {
     /**
      * This should be the same size as the buffer in the C++ native process.
      */
-    public static final int FLUSH_SPACES_LENGTH = 8192;
+    public static final int FLUSH_SPACES_LENGTH = 2048;
 
     protected final LengthEncodedWriter lengthEncodedWriter;
     private final int numberOfFields;

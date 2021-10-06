@@ -4,6 +4,14 @@ teardown:
       ingest.delete_pipeline:
         id: "1"
         ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "2"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "3"
+        ignore: 404
 
 ---
 "Test JSON Processor":
@@ -71,3 +79,74 @@ teardown:
   - match: { _source.foo_number: 3 }
   - is_true:  _source.foo_boolean
   - is_false: _source.foo_null
+
+---
+"Test JSON Processor duplicate keys":
+  - do:
+      ingest.put_pipeline:
+        id: "2"
+        body: {
+            "processors": [
+              {
+                "json" : {
+                  "field" : "json",
+                  "add_to_root": true,
+                  "allow_duplicate_keys": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "2"
+        body: {
+          json: "{\"dupe\": 1, \"dupe\": 2}",
+        }
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: { _source.dupe: 2 }
+
+---
+"Test JSON Processor recursive merge strategy":
+  - do:
+      ingest.put_pipeline:
+        id: "3"
+        body: {
+            "processors": [
+              {
+                "json" : {
+                  "field" : "json",
+                  "add_to_root": true,
+                  "add_to_root_conflict_strategy": "merge"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        pipeline: "3"
+        body: {
+          json: "{\"foo\": {\"bar\": \"baz\"} }",
+          foo: {
+            bar: "override_me",
+            qux: "quux"
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: 3
+  - match: { _source.foo.bar: "baz" }
+  - match: { _source.foo.qux: "quux" }

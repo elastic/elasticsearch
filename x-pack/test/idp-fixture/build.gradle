@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
@@ -16,7 +17,7 @@ tasks.register("copyKeystore", Sync) {
 
 elasticsearch_distributions {
   docker {
-    type = 'docker'
+    type = DOCKER
     architecture = Architecture.current()
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
@@ -26,7 +27,7 @@ elasticsearch_distributions {
 tasks.named("preProcessFixture").configure {
   dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
-    File file = file("${buildDir}/logs/node1")
+    File file = file("${testFixturesDir}/logs/node1")
     file.mkdirs()
     file.setWritable(true, false)
   }

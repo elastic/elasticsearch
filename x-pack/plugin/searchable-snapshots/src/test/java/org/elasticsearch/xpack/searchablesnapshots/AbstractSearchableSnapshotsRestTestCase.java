@@ -12,7 +12,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,6 +30,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,10 +41,15 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
+
+    public static final String FROZEN_INDICES_WARNING = "Frozen indices are deprecated because they provide no benefit given "
+        + "improvements in heap memory utilization. They will be removed in a future release.";
 
     private static final String WRITE_REPOSITORY_NAME = "repository";
     private static final String READ_REPOSITORY_NAME = "read-repository";
@@ -156,6 +164,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
+        logger.info("deleting mounted index [{}]", indexName);
+        deleteIndex(restoredIndexName);
+
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);
     }
@@ -171,11 +182,24 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSearchResultsWhenFrozen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
+            freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
             assertOK(client().performRequest(freezeRequest));
             ensureGreen(restoredIndexName);
-            for (int i = 0; i < 10; i++) {
-                assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            }
+            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            final Map<String, Object> frozenIndexSettings = indexSettings(restoredIndexName);
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.frozen")), equalTo(true));
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.search.throttled")), equalTo(true));
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
+
+            final Request unfreezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_unfreeze");
+            unfreezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
+            assertOK(client().performRequest(unfreezeRequest));
+            ensureGreen(restoredIndexName);
+            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            final Map<String, Object> unfrozenIndexSettings = indexSettings(restoredIndexName);
+            assertThat(extractValue(unfrozenIndexSettings, "index.frozen"), nullValue());
+            assertThat(extractValue(unfrozenIndexSettings, "index.search.throttled"), nullValue());
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
         });
     }
 
@@ -260,7 +284,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertBusy(() -> {
                 final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+                assertThat(bytesInCacheAfterSearch, greaterThanOrEqualTo(bytesInCacheBeforeClear));
             });
         });
     }
@@ -272,6 +296,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             if (frozen) {
                 logger.info("--> freezing index [{}]", restoredIndexName);
                 final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
+                freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
                 assertOK(client().performRequest(freezeRequest));
             }
 
@@ -447,9 +472,27 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
         request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+
+        // If warning are returned than these must exist in this set:
+        Set<String> expectedWarnings = new HashSet<>();
+        expectedWarnings.add(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", index));
         if (ignoreThrottled != null) {
             request.addParameter("ignore_throttled", ignoreThrottled.toString());
+            expectedWarnings.add(
+                "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. "
+                    + "Consider cold or frozen tiers in place of frozen indices."
+            );
         }
+
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (expectedWarnings.contains(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build();
+        request.setOptions(requestOptions);
 
         final Response response = client().performRequest(request);
         assertThat(
@@ -499,8 +542,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
         final Set<String> searchableSnapshotsThreadPools = Set.of(
-            SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
         );
         assertBusy(() -> {
             final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats/thread_pool"));

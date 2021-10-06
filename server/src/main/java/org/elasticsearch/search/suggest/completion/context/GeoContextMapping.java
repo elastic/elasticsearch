@@ -23,10 +23,10 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,7 +133,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
-    public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
+    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
+        throws IOException, ElasticsearchParseException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -171,7 +172,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    public Set<String> parseContext(Document document) {
+    public Set<String> parseContext(LuceneDocument document) {
         final Set<String> geohashes = new HashSet<>();
 
         if (fieldName != null) {
@@ -279,7 +280,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "geo_context_mapping",
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "geo_context_mapping",
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 } else {
                     throw new ElasticsearchParseException(
@@ -287,7 +288,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "geo_context_mapping",
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName, name, mappedFieldType.typeName());
                 } else {

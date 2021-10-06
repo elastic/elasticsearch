@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,6 +57,10 @@ public class SearchableSnapshotAction implements LifecycleAction, ToXContentObje
 
     boolean isForceMergeIndex() {
         return forceMergeIndex;
+    }
+
+    public String getSnapshotRepository() {
+        return snapshotRepository;
     }
 
     @Override

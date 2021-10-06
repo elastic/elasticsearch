@@ -42,8 +42,8 @@ public class SimilarityScriptTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(SimilarityScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(SimilarityWeightScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(SimilarityScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(SimilarityWeightScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
         return contexts;
     }
 

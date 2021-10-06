@@ -8,7 +8,7 @@
 
 package org.elasticsearch.painless.api;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 
 import java.net.InetAddress;

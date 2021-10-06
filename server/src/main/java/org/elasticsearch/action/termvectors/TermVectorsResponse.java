@@ -19,12 +19,13 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
@@ -56,7 +57,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         public static final String END_OFFSET = "end_offset";
         public static final String PAYLOAD = "payload";
         public static final String _INDEX = "_index";
-        public static final String _TYPE = "_type";
         public static final String _ID = "_id";
         public static final String _VERSION = "_version";
         public static final String FOUND = "found";
@@ -169,6 +169,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.field(FieldStrings._INDEX, index);
         if (isArtificial() == false) {
             builder.field(FieldStrings._ID, id);
+        }
+        if(builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());

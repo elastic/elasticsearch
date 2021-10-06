@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -66,8 +66,8 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
             builder.startObject();
             ReloadDetails value = indexDetails.getValue();
             builder.field(INDEX_FIELD.getPreferredName(), value.getIndexName());
-            builder.field(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
-            builder.field(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
+            builder.stringListField(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
+            builder.stringListField(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
             builder.endObject();
         }
         builder.endArray();

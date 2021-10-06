@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
+import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
@@ -59,6 +60,8 @@ public class ExecutionManager {
         // fields
         HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
         HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
+        // implicit tiebreake, present only in the response and which doesn't have a corresponding field
+        HitExtractor itbExtractor = ImplicitTiebreakerHitExtractor.INSTANCE;
         // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
         String timestampName = Expressions.name(timestamp);
 
@@ -89,11 +92,11 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec) {
-                SearchSourceBuilder source = ((EsQueryExec) query).source(session);
+                SearchSourceBuilder source = ((EsQueryExec) query).source(session, false);
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
                 Criterion<BoxedQueryRequest> criterion =
-                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
+                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, itbExtractor, i == 0 && descending);
                 criteria.add(criterion);
             } else {
                 // until
@@ -106,7 +109,7 @@ public class ExecutionManager {
         }
 
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
+        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit, session.circuitBreaker());
 
         TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),
                 criteria.subList(0, completionStage),

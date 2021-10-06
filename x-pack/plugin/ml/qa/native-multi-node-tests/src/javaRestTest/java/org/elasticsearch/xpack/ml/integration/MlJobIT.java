@@ -13,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -145,7 +144,6 @@ public class MlJobIT extends ESRestTestCase {
             + "        \"bucket_span\": \"3600s\",\n"
             + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
             + "    },\n" + "    \"data_description\" : {\n"
-            + "        \"field_delimiter\":\",\",\n"
             + "        \"time_field\":\"time\",\n"
             + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n"
             + "    }\n"
@@ -725,8 +723,8 @@ public class MlJobIT extends ESRestTestCase {
         String jobId = "delete-job-multiple-times";
         createFarequoteJob(jobId);
 
-        ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
-        ConcurrentMapLong<ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMapLong();
+        Map<Long, Response> responses = ConcurrentCollections.newConcurrentMap();
+        Map<Long, ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMap();
         AtomicReference<IOException> ioe = new AtomicReference<>();
         AtomicInteger recreationGuard = new AtomicInteger(0);
         AtomicReference<Response> recreationResponse = new AtomicReference<>();
@@ -874,7 +872,7 @@ public class MlJobIT extends ESRestTestCase {
 
     @After
     public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
         waitForPendingTasks(adminClient(), taskName -> taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
     }

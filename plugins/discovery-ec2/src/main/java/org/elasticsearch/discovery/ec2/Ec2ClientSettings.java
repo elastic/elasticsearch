@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Locale;
 
@@ -125,12 +125,12 @@ final class Ec2ClientSettings {
                 return null;
             } else {
                 if (key.length() == 0) {
-                    deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "ec2_invalid_settings",
+                    deprecationLogger.critical(DeprecationCategory.SETTINGS, "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         SECRET_KEY_SETTING.getKey(), ACCESS_KEY_SETTING.getKey());
                 }
                 if (secret.length() == 0) {
-                    deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "ec2_invalid_settings",
+                    deprecationLogger.critical(DeprecationCategory.SETTINGS, "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
                 }

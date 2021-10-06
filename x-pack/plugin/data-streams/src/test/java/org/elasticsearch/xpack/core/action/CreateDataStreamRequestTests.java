@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction.Request;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction.Request;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

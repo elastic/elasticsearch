@@ -868,6 +868,146 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
     }
 
+    public void testSortMissingDates() throws IOException {
+        for (String type : List.of("date", "date_nanos")) {
+            String index = "test_" + type;
+            assertAcked(
+                prepareCreate(index).setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("mydate")
+                        .field("type", type)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+            ensureGreen();
+            client().prepareIndex(index).setId("1").setSource("mydate", "2021-01-01").get();
+            client().prepareIndex(index).setId("2").setSource("mydate", "2021-02-01").get();
+            client().prepareIndex(index).setId("3").setSource("other_field", "value").get();
+
+            refresh();
+
+            for (boolean withFormat : List.of(true, false)) {
+                String format = null;
+                if (withFormat) {
+                    format = type.equals("date") ? "strict_date_optional_time" : "strict_date_optional_time_nanos";
+                }
+
+                SearchResponse searchResponse = client().prepareSearch(index)
+                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "1", "2", "3" });
+
+                searchResponse = client().prepareSearch(index)
+                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).missing("_first").setFormat(format))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "3", "1", "2" });
+
+                searchResponse = client().prepareSearch(index)
+                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "2", "1", "3" });
+
+                searchResponse = client().prepareSearch(index)
+                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).missing("_first").setFormat(format))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "3", "2", "1" });
+            }
+        }
+    }
+
+    /**
+     * Sort across two indices with both "date" and "date_nanos" type using "numeric_type" set to "date_nanos"
+     */
+    public void testSortMissingDatesMixedTypes() throws IOException {
+        for (String type : List.of("date", "date_nanos")) {
+            String index = "test_" + type;
+            assertAcked(
+                prepareCreate(index).setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("mydate")
+                        .field("type", type)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            );
+
+        }
+        ensureGreen();
+
+        client().prepareIndex("test_date").setId("1").setSource("mydate", "2021-01-01").get();
+        client().prepareIndex("test_date").setId("2").setSource("mydate", "2021-02-01").get();
+        client().prepareIndex("test_date").setId("3").setSource("other_field", 1).get();
+        client().prepareIndex("test_date_nanos").setId("4").setSource("mydate", "2021-03-01").get();
+        client().prepareIndex("test_date_nanos").setId("5").setSource("mydate", "2021-04-01").get();
+        client().prepareIndex("test_date_nanos").setId("6").setSource("other_field", 2).get();
+        refresh();
+
+            for (boolean withFormat : List.of(true, false)) {
+                String format = null;
+                if (withFormat) {
+                    format = "strict_date_optional_time_nanos";
+                }
+
+                String index = "test*";
+                SearchResponse searchResponse = client().prepareSearch(index)
+                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format).setNumericType("date_nanos"))
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "1", "2", "4", "5", "3", "6" });
+
+                searchResponse = client().prepareSearch(index)
+                    .addSort(
+                        SortBuilders.fieldSort("mydate")
+                            .order(SortOrder.ASC)
+                            .missing("_first")
+                            .setFormat(format)
+                            .setNumericType("date_nanos")
+                    )
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "3", "6", "1", "2", "4", "5" });
+
+                searchResponse = client().prepareSearch(index)
+                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format).setNumericType("date_nanos"))
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "5", "4", "2", "1", "3", "6" });
+
+                searchResponse = client().prepareSearch(index)
+                    .addSort(
+                        SortBuilders.fieldSort("mydate")
+                            .order(SortOrder.DESC)
+                            .missing("_first")
+                            .setFormat(format)
+                            .setNumericType("date_nanos")
+                    )
+                    .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
+                    .get();
+                assertHitsInOrder(searchResponse, new String[] { "3", "6", "5", "4", "2", "1" });
+            }
+    }
+
+    private void assertHitsInOrder(SearchResponse response, String[] expectedIds) {
+        SearchHit[] hits = response.getHits().getHits();
+        assertEquals(expectedIds.length, hits.length);
+        int i = 0;
+        for (String id : expectedIds) {
+            assertEquals(id, hits[i].getId());
+            i++;
+        }
+    }
+
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
 

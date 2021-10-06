@@ -12,5 +12,4 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 /**
  * A {@code global} aggregation. Defines a single bucket the holds all the documents in the search context.
  */
-public interface Global extends SingleBucketAggregation {
-}
+public interface Global extends SingleBucketAggregation {}

@@ -87,12 +87,15 @@ public class HistoryStoreTests extends ESTestCase {
 
         doAnswer(invocation -> {
             BulkRequest request = (BulkRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
             if (indexRequest.id().equals(wid.value()) &&
                 indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(HistoryStoreField.DATA_STREAM)) {
-                listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+                listener.onResponse(
+                    new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
+                );
             } else {
                 listener.onFailure(new ElasticsearchException("test issue"));
             }
@@ -146,10 +149,11 @@ public class HistoryStoreTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> requestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexResponse indexResponse = mock(IndexResponse.class);
-            listener.onResponse(new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse(1, OpType.CREATE, indexResponse) }, 1));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1));
             return null;
         }).when(client).bulk(requestCaptor.capture(), any());
 

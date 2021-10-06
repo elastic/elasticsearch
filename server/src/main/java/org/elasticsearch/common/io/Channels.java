@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.EOFException;
 import java.io.IOException;

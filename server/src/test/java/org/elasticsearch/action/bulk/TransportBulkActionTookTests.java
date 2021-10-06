@@ -77,7 +77,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+            DiscoveryNodeRole.roles(), VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         clusterService = createClusterService(threadPool, discoveryNode);
     }
 
@@ -99,6 +99,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
+            @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse>
             void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 listener.onResponse((Response)new CreateIndexResponse(false, false, null));

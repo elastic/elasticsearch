@@ -9,7 +9,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -133,7 +133,7 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
         builder.startObject();
 
         if (datafeedIds.isEmpty() == false) {
-            builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
+            builder.stringListField(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 
         if (allowNoMatch != null) {

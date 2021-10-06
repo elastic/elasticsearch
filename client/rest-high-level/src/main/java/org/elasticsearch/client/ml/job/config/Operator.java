@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 import java.util.Locale;
 

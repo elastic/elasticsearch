@@ -22,12 +22,12 @@ h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`
  |`integer` 2*| `long`
- |`object`^1^  2*| `object`
+ |`object` | `object` | No field added
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+| ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+3+|
 |===
 // end::dynamic-field-mapping-types-tag[]
 

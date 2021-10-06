@@ -22,4 +22,10 @@ public interface ScriptCompiler {
      */
     <T> T compile(Script script, ScriptContext<T> scriptContext);
 
+    ScriptCompiler NONE = new ScriptCompiler() {
+        @Override
+        public <T> T compile(Script script, ScriptContext<T> scriptContext) {
+            throw new UnsupportedOperationException();
+        }
+    };
 }

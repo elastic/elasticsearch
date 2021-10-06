@@ -18,7 +18,7 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
         final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
         samlCompleteLogoutRequest.setRealm("realm");
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
-        assertThat(validationException.getMessage(), containsString("queryString and content may not both be empty"));
+        assertThat(validationException.getMessage(), containsString("query_string and content may not both be empty"));
     }
 
     public void testValidateFailsWhenQueryAndBodyBothSet() {
@@ -27,7 +27,7 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
         samlCompleteLogoutRequest.setQueryString("queryString");
         samlCompleteLogoutRequest.setContent("content");
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
-        assertThat(validationException.getMessage(), containsString("queryString and content may not both present"));
+        assertThat(validationException.getMessage(), containsString("query_string and content may not both present"));
     }
 
     public void testValidateFailsWhenRealmIsNotSet() {
@@ -35,5 +35,13 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
         samlCompleteLogoutRequest.setQueryString("queryString");
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
         assertThat(validationException.getMessage(), containsString("realm may not be empty"));
+    }
+
+    public void testCannotSetQueryStringTwice() {
+        final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
+        samlCompleteLogoutRequest.setQueryString("query_string");
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> samlCompleteLogoutRequest.setQueryString("queryString"));
+        assertThat(e.getMessage(), containsString("Must use either [query_string] or [queryString], not both at the same time"));
     }
 }

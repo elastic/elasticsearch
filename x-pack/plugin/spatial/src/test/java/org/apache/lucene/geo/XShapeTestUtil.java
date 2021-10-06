@@ -16,13 +16,12 @@
  */
 package org.apache.lucene.geo;
 
-import java.util.ArrayList;
-import java.util.Random;
-
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.BiasedNumbers;
-import org.apache.lucene.util.SloppyMath;
 import org.apache.lucene.util.TestUtil;
+
+import java.util.ArrayList;
+import java.util.Random;
 
 /** generates random cartesian geometry; heavy reuse of {@link GeoTestUtil} */
 public class XShapeTestUtil {
@@ -143,8 +142,8 @@ public class XShapeTestUtil {
                 len = StrictMath.min(len, StrictMath.min(maxX, maxY));
 
                 //System.out.println("    len=" + len);
-                float x = (float)(centerX + len * Math.cos(SloppyMath.toRadians(angle)));
-                float y = (float)(centerY + len * Math.sin(SloppyMath.toRadians(angle)));
+                float x = (float)(centerX + len * Math.cos(Math.toRadians(angle)));
+                float y = (float)(centerY + len * Math.sin(Math.toRadians(angle)));
 
                 xList.add(x);
                 yList.add(y);

@@ -23,6 +23,16 @@ public abstract class ClusterStateWaitStep extends Step {
 
     public abstract Result isConditionMet(Index index, ClusterState clusterState);
 
+    /**
+     * Whether the step can be completed at all. This only affects the
+     * {@link ClusterStateWaitUntilThresholdStep} which waits for a threshold to be met before
+     * retrying. Setting this to false means that ILM should retry the sequence immediately without
+     * waiting for the threshold to be met.
+     */
+    public boolean isCompletable() {
+        return true;
+    }
+
     public static class Result {
         private final boolean complete;
         private final ToXContentObject infomationContext;

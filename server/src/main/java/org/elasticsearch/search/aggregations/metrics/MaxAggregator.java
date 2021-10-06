@@ -12,9 +12,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,6 +27,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -41,10 +41,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray maxes;
 
-    MaxAggregator(String name,
-                    ValuesSourceConfig config,
-                    AggregationContext context,
-                    Aggregator parent, Map<String, Object> metadata) throws IOException {
+    MaxAggregator(String name, ValuesSourceConfig config, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, context, parent, metadata);
         // TODO stop expecting nulls here
         this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
@@ -67,8 +65,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -171,7 +168,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.equals(maxValue, 0, numBytes, maxPackedValue, 0, numBytes)) {
+                if (Arrays.equals(maxValue, 0, numBytes, maxPackedValue, 0, numBytes)) {
                     // we only check leaves that contain the max value for the segment.
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 } else {

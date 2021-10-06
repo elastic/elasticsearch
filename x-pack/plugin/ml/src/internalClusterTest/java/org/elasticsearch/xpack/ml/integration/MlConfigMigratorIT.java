@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -14,6 +13,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -161,9 +161,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         doAnswer(invocation -> {
                 ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
                 ClusterState result = listener.execute(clusterState);
-                for (ObjectCursor<Metadata.Custom> value : result.metadata().customs().values()){
-                    customs.add(value.value);
-                }
+                customs.addAll(result.metadata().customs().values());
                 listener.clusterStateProcessed("source", mock(ClusterState.class), mock(ClusterState.class));
                 return null;
         }).when(clusterService).submitStateUpdateTask(eq("remove-migrated-ml-configs"), any());
@@ -224,7 +222,8 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
 
         // index a doc with the same Id as the config snapshot
         PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client(), clusterService.state(), expressionResolver, future);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client(), clusterService.state(), expressionResolver,
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
         future.actionGet();
 
         IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id("ml-config")

@@ -9,7 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -43,6 +43,7 @@ public class LessThanAssertion extends Assertion {
     }
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is less than [{}] (field: [{}])", actualValue, expectedValue, getField());
         assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",

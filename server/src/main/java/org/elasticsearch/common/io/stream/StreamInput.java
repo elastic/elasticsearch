@@ -19,8 +19,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,18 +30,17 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -812,12 +811,12 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
-        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
-        // here we are on a new node so we always want a compat datetime
+    private ZonedDateTime readDateTime() throws IOException {
+        // any JodaCompatibleZonedDateTime is read from an older version
+        // so convert this a standard ZonedDateTime
         final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
         long millis = readLong();
-        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -844,7 +843,7 @@ public abstract class StreamInput extends InputStream {
         return list8;
     }
 
-    private Map readLinkedHashMap() throws IOException {
+    private Map<String, Object> readLinkedHashMap() throws IOException {
         int size9 = readArraySize();
         if (size9 == 0) {
             return Collections.emptyMap();
@@ -856,7 +855,7 @@ public abstract class StreamInput extends InputStream {
         return map9;
     }
 
-    private Map readHashMap() throws IOException {
+    private Map<String, Object> readHashMap() throws IOException {
         int size10 = readArraySize();
         if (size10 == 0) {
             return Collections.emptyMap();
@@ -1319,7 +1318,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
-        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length), length);
+        return new ByteBufferStreamInput(ByteBuffer.wrap(bytes, offset, length));
     }
 
     /**

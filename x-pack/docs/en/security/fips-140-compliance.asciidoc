@@ -128,6 +128,8 @@ native, and file realms are longer than 14 bytes.
 You must set the `cache.hash_algo` realm settings
 and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
 available `pbkdf_stretch_*` values.
+When FIPS-140 mode is enabled, the default value for
+`xpack.security.authc.password_hashing.algorithm` is `pbkdf2_stretch`.
 See <<hashing-settings>>.
 
 Password hashing configuration changes are not retroactive so the stored hashed

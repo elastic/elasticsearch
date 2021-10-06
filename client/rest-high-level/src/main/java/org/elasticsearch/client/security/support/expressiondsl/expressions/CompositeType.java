@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.security.support.expressiondsl.expressions;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 import java.util.Collections;
 import java.util.HashMap;

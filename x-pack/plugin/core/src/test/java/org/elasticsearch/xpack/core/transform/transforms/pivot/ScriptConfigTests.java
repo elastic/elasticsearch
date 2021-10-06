@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -26,6 +27,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ScriptConfigTests extends AbstractSerializingTransformTestCase<ScriptConfig> {
 
@@ -90,7 +95,9 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ScriptConfig scriptConfig = ScriptConfig.fromXContent(parser, true);
-            assertFalse(scriptConfig.isValid());
+            ValidationException validationException = scriptConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("script must not be null"));
         }
 
         // strict throws

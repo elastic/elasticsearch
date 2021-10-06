@@ -8,7 +8,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.symbol.FunctionTable;
 

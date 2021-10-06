@@ -1,6 +1,6 @@
 [role="xpack"]
 [[xpack-alerting]]
-= Watch for cluster and index events
+= Watcher
 
 [partintro]
 --
@@ -10,8 +10,8 @@ You can use {kib} Alerting to detect complex conditions within different {kib} a
 and trigger actions when those conditions are met. 
 For more information, see {kibana-ref}/alerting-getting-started.html[Alerting and actions].
 
-You can watch for changes or anomalies in your data and perform the necessary actions in
-response. For example, you might want to:
+You can use Watcher to watch for changes or anomalies in your data and perform
+the necessary actions in response. For example, you might want to:
 
 * Monitor social media as another way to detect failures in user-facing
   automated systems like ATMs or ticketing systems. When the number of tweets

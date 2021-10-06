@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 
@@ -39,7 +40,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
                 .endObject()
                 .endObject().endObject());
 
-        final DocumentMapper mapper = mapperService.parse("test", new CompressedXContent(mapping));
+        DocumentMapper mapper = mapperService.merge("test", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         List<BytesRef> bytesList1 = new ArrayList<>(2);
         bytesList1.add(randomBytes());

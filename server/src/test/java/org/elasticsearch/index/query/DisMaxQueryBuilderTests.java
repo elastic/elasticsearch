@@ -18,13 +18,8 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -46,14 +41,8 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     @Override
     protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
-        assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
-        Iterator<Query> queryIterator = queries.iterator();
-        for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
-            assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
-        }
+        Query expected = new DisjunctionMaxQuery(queries, queryBuilder.tieBreaker());
+        assertEquals(expected, query);
     }
 
     @Override
@@ -92,20 +81,10 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 "    }\n" +
                 "}";
         Query query = parseQuery(queryAsString).toQuery(createSearchExecutionContext());
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-
-        List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
-        assertThat(disjuncts.size(), equalTo(1));
-
-        assertThat(disjuncts.get(0), instanceOf(BoostQuery.class));
-        BoostQuery boostQuery = (BoostQuery) disjuncts.get(0);
-        assertThat((double) boostQuery.getBoost(), closeTo(1.2, 0.00001));
-        assertThat(boostQuery.getQuery(), instanceOf(PrefixQuery.class));
-        PrefixQuery firstQ = (PrefixQuery) boostQuery.getQuery();
-        // since age is automatically registered in data, we encode it as numeric
-        assertThat(firstQ.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
-
+        Query expected = new DisjunctionMaxQuery(List.of(
+            new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)
+        ), 0);
+        assertEquals(expected, query);
     }
 
     public void testFromJson() throws IOException {

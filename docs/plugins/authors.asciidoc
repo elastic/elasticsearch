@@ -1,7 +1,7 @@
 [[plugin-authors]]
 == Help for plugin authors
 
-:plugin-properties-files: {elasticsearch-root}/buildSrc/src/main/resources
+:plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
 
 The Elasticsearch repository contains examples of:
 

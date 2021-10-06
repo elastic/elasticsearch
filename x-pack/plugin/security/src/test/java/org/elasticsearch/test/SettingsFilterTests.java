@@ -20,14 +20,13 @@ import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySet
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.hamcrest.Matcher;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
@@ -35,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 public class SettingsFilterTests extends ESTestCase {
 
     private Settings.Builder configuredSettingsBuilder = Settings.builder();
-    private Map<String, Matcher> settingsMatcherMap = new HashMap<>();
+    private Map<String, Matcher<? super String>> settingsMatcherMap = new HashMap<>();
     private MockSecureSettings mockSecureSettings = new MockSecureSettings();
 
     public void testFiltering() throws Exception {
@@ -130,7 +129,7 @@ public class SettingsFilterTests extends ESTestCase {
         SettingsFilter settingsFilter = injector.getInstance(SettingsFilter.class);
 
         Settings filteredSettings = settingsFilter.filter(settings);
-        for (Map.Entry<String, Matcher> entry : settingsMatcherMap.entrySet()) {
+        for (Map.Entry<String, Matcher<? super String>> entry : settingsMatcherMap.entrySet()) {
             assertThat(filteredSettings.get(entry.getKey()), entry.getValue());
         }
 
@@ -154,7 +153,7 @@ public class SettingsFilterTests extends ESTestCase {
         settingsMatcherMap.put(settingName, is(nullValue()));
     }
 
-    private void configureSetting(String settingName, String value, Matcher expectedMatcher) {
+    private void configureSetting(String settingName, String value, Matcher<? super String> expectedMatcher) {
         configuredSettingsBuilder.put(settingName, value);
         settingsMatcherMap.put(settingName, expectedMatcher);
     }

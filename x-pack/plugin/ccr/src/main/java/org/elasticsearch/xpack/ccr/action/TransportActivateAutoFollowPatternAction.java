@@ -77,6 +77,7 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
             new AutoFollowMetadata.AutoFollowPattern(
                 previousAutoFollowPattern.getRemoteCluster(),
                 previousAutoFollowPattern.getLeaderIndexPatterns(),
+                previousAutoFollowPattern.getLeaderIndexExclusionPatterns(),
                 previousAutoFollowPattern.getFollowIndexPattern(),
                 previousAutoFollowPattern.getSettings(),
                 request.isActive(),

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -18,6 +17,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathPro
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public abstract class BinaryNumericFunction extends BinaryScalarFunction {
@@ -40,12 +41,12 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isNumeric(left(), sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isNumeric(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
 
         }
-        return isNumeric(right(), sourceText(), ParamOrdinal.SECOND);
+        return isNumeric(right(), sourceText(), SECOND);
     }
 
     @Override

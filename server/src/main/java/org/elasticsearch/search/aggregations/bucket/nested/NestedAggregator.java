@@ -21,9 +21,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -47,13 +47,19 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
-    NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                     AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException {
+    NestedAggregator(
+        String name,
+        AggregatorFactories factories,
+        NestedObjectMapper parentObjectMapper,
+        NestedObjectMapper childObjectMapper,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
-            : Queries.newNonNestedFilter();
+        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
@@ -114,8 +120,15 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalNested(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override
@@ -172,7 +185,6 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
                 return;
             }
 
-
             final int prevParentDoc = parentDocs.prevSetBit(currentParentDoc - 1);
             int childDocId = childDocs.docID();
             if (childDocId <= prevParentDoc) {
@@ -196,7 +208,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         float score;
 
         @Override
-        public final float score() { return score; }
+        public final float score() {
+            return score;
+        }
 
         @Override
         public int docID() {

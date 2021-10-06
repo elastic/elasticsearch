@@ -44,23 +44,26 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             HistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             NumericHistogramAggregator::new,
-                true);
+            true
+        );
     }
 
-    public HistogramAggregatorFactory(String name,
-                                        ValuesSourceConfig config,
-                                        double interval,
-                                        double offset,
-                                        BucketOrder order,
-                                        boolean keyed,
-                                        long minDocCount,
-                                        DoubleBounds extendedBounds,
-                                        DoubleBounds hardBounds,
-                                        AggregationContext context,
-                                        AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metadata,
-                                        HistogramAggregatorSupplier aggregatorSupplier) throws IOException {
+    public HistogramAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double interval,
+        double offset,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        DoubleBounds extendedBounds,
+        DoubleBounds hardBounds,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        HistogramAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
         this.interval = interval;
@@ -77,31 +80,43 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        return aggregatorSupplier
-            .build(
-                name,
-                factories,
-                interval,
-                offset,
-                order,
-                keyed,
-                minDocCount,
-                extendedBounds,
-                hardBounds,
-                config,
-                context,
-                parent,
-                cardinality,
-                metadata
-            );
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, config, context, parent, CardinalityUpperBound.NONE, metadata);
+        return new NumericHistogramAggregator(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            config,
+            context,
+            parent,
+            CardinalityUpperBound.NONE,
+            metadata
+        );
     }
 }

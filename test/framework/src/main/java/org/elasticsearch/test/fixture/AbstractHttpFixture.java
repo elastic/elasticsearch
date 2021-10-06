@@ -9,8 +9,8 @@
 package org.elasticsearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

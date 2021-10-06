@@ -9,11 +9,15 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -23,6 +27,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
@@ -32,8 +37,10 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         RangeAggregatorSupplier.class
     );
 
-    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
+    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        DateRangeAggregationBuilder::new
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
@@ -45,17 +52,56 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         }, (p, c) -> RangeAggregator.Range.PARSER.parse(p, null), RangeAggregator.RANGES_FIELD);
     }
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateRangeAggregationBuilder.class);
+
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        AbstractRangeAggregatorFactory.registerAggregators(builder, REGISTRY_KEY);
+        builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE), RangeAggregator::build, true);
+
+        builder.register(
+            REGISTRY_KEY,
+            CoreValuesSourceType.BOOLEAN,
+            (
+                String name,
+                AggregatorFactories factories,
+                ValuesSourceConfig valuesSourceConfig,
+                InternalRange.Factory<?, ?> rangeFactory,
+                RangeAggregator.Range[] ranges,
+                boolean keyed,
+                AggregationContext context,
+                Aggregator parent,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata) -> {
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.AGGREGATIONS,
+                    "Range-boolean",
+                    "Running Range or DateRange aggregations on [boolean] fields is deprecated"
+                );
+                return RangeAggregator.build(
+                    name,
+                    factories,
+                    valuesSourceConfig,
+                    rangeFactory,
+                    ranges,
+                    keyed,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
     }
 
     public DateRangeAggregationBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
     }
 
-    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    protected DateRangeAggregationBuilder(
+        DateRangeAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -290,11 +336,13 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                                    AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        RangeAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+    protected DateRangeAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        RangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -321,7 +369,17 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
-                metadata, aggregatorSupplier);
+        return new DateRangeAggregatorFactory(
+            name,
+            config,
+            ranges,
+            keyed,
+            rangeFactory,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 }

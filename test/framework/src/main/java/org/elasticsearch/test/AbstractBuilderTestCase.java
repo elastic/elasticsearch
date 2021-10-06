@@ -57,6 +57,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -141,6 +142,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
     }
 
+    /**
+     * Allows additional plugins other than the required `TestGeoShapeFieldMapperPlugin`
+     * Could probably be removed when dependencies against geo_shape is decoupled
+     */
+    protected Collection<Class<? extends Plugin>> getExtraPlugins() {
+        return Collections.emptyList();
+    }
+
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
     }
 
@@ -207,9 +216,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             // this setup
             long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
             RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
-                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
+                plugins.addAll(getExtraPlugins());
+                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), plugins, nowInMillis,
                         AbstractBuilderTestCase.this, true);
-                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
+                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), plugins, nowInMillis,
                         AbstractBuilderTestCase.this, false);
                 return null;
             });
@@ -344,11 +355,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                    () -> createShardContext(null), () -> false, null);
+                    () -> createShardContext(null), () -> false, ScriptCompiler.NONE);
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
-                    new NoneCircuitBreakerService(), mapperService);
+                    new NoneCircuitBreakerService());
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {

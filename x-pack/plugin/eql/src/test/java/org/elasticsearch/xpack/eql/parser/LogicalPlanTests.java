@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.RequestDefaults;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
@@ -177,6 +177,16 @@ public class LogicalPlanTests extends ESTestCase {
 
         TimeValue maxSpan = seq.maxSpan();
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
+    }
+
+    public void testRepeatedQuery() throws Exception {
+        LogicalPlan plan = parser.createStatement("sequence " + " [any where true] [runs=2]" + " [any where true]");
+        plan = defaultPipes(plan);
+        assertEquals(Sequence.class, plan.getClass());
+        Sequence seq = (Sequence) plan;
+
+        List<? extends LogicalPlan> queries = seq.queries();
+        assertEquals(3, queries.size());
     }
 
     private LogicalPlan wrapFilter(Expression exp) {

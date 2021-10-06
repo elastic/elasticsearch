@@ -6,15 +6,10 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -24,10 +19,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.Task;
@@ -42,16 +36,15 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
-
     private final NodeClient nodeClient;
-    private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
@@ -64,14 +57,15 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                             Client client,
                                             NodeClient nodeClient,
                                             SearchService searchService,
-                                            TransportSearchAction searchAction) {
+                                            TransportSearchAction searchAction,
+                                            BigArrays bigArrays) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
         this.nodeClient = nodeClient;
-        this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
+        this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(task, request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
         this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
-            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
+            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry, bigArrays);
     }
 
     @Override
@@ -143,10 +137,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
-                Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
-                        () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
+                Function<Supplier<Boolean>, Supplier<InternalAggregation.ReduceContext>> aggReduceContextSupplierFactory =
+                        (isCancelled) -> () -> requestToAggReduceContextBuilder.apply(isCancelled, request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
-                    originHeaders, taskHeaders, searchId, store.getClientWithOrigin(), nodeClient.threadPool(), aggReduceContextSupplier);
+                    originHeaders, taskHeaders, searchId, store.getClientWithOrigin(), nodeClient.threadPool(),
+                    aggReduceContextSupplierFactory);
             }
         };
         searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), submitTask.getId()));
@@ -175,21 +170,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
-            ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                exc -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(exc);
-                    if (cause instanceof DocumentMissingException == false &&
-                            cause instanceof VersionConflictEngineException == false) {
-                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                            searchTask.getExecutionId().getEncoded()), exc);
-                    }
-                    unregisterTaskAndMoveOn(searchTask, nextAction);
-                }));
+        store.updateResponse(searchTask.getExecutionId().getDocId(),
+            threadContext.getResponseHeaders(),
+            response,
+            ActionListener.wrap(() ->  {
+                taskManager.unregister(searchTask);
+                nextAction.run();
+            })
+        );
     }
 
-    private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {
-        taskManager.unregister(searchTask);
-        nextAction.run();
-    }
 }

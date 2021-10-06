@@ -24,9 +24,11 @@ public class ServiceAccountTokenTests extends ESTestCase {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         ServiceAccountToken.newToken(accountId, ValidationTests.randomTokenName());
 
+        final String invalidTokeName = ValidationTests.randomInvalidTokenName();
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
-            () -> ServiceAccountToken.newToken(accountId, ValidationTests.randomInvalidTokenName()));
+            () -> ServiceAccountToken.newToken(accountId, invalidTokeName));
         assertThat(e1.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
+        assertThat(e1.getMessage(), containsString("invalid service token name [" + invalidTokeName + "]"));
 
         final NullPointerException e2 =
             expectThrows(NullPointerException.class, () -> ServiceAccountToken.newToken(null, ValidationTests.randomTokenName()));
@@ -42,9 +44,11 @@ public class ServiceAccountTokenTests extends ESTestCase {
             expectThrows(NullPointerException.class, () -> new ServiceAccountToken(null, ValidationTests.randomTokenName(), secret));
         assertThat(e1.getMessage(), containsString("service account ID cannot be null"));
 
+        final String invalidTokenName = ValidationTests.randomInvalidTokenName();
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-            () -> new ServiceAccountToken(accountId, ValidationTests.randomInvalidTokenName(), secret));
+            () -> new ServiceAccountToken(accountId, invalidTokenName, secret));
         assertThat(e2.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
+        assertThat(e2.getMessage(), containsString("invalid service token name [" + invalidTokenName + "]"));
 
         final NullPointerException e3 =
             expectThrows(NullPointerException.class, () -> new ServiceAccountToken(accountId, ValidationTests.randomTokenName(), null));

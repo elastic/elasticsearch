@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;

@@ -4,10 +4,9 @@
 <titleabbrev>Set up basic security plus HTTPS</titleabbrev>
 ++++
 
-In a production environment, some {es} features such as tokens and
-API keys will be disabled unless you enable TLS on the HTTP layer. This
-additional layer of security ensures that all communications to and from your
-cluster are secured.
+When you enable TLS on the HTTP layer it provides an additional layer of
+security to ensure that all communications to and from your
+cluster are encrypted.
 
 When you run the `elasticsearch-certutil` tool in `http` mode, the tool asks
 several questions about how you want to generate certificates. While there are
@@ -50,9 +49,9 @@ Complete all steps in <<security-basic-setup,Set up basic security for the Elast
 [[encrypt-http-communication]]
 ==== Encrypt HTTP client communications for {es}
 
-. Stop {es} and {kib} if they are running.
+. On *every* node in your cluster, stop {es} and {kib} if they are running.
 
-. From the directory where you installed {es}, run the {es}
+. On any single node, from the directory where you installed {es}, run the {es}
    HTTP certificate tool to generate a Certificate Signing Request (CSR).
 +
 [source,shell]
@@ -117,10 +116,12 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 ----
 --
 
-. Copy the relevant `http.p12` certificate to the `ES_PATH_CONF` directory on each node.
+. On *every* node in your cluster, complete the following steps:
 
-. On each node, edit the `elasticsearch.yml` file to enable HTTPS security and
-   specify the location of the `http.p12` security certificate.
+  .. Copy the relevant `http.p12` certificate to the `$ES_PATH_CONF` directory.
+
+  .. Edit the `elasticsearch.yml` file to enable HTTPS security and specify the
+  location of the `http.p12` security certificate.
 +
 [source,yaml]
 ----
@@ -128,14 +129,14 @@ xpack.security.http.ssl.enabled: true
 xpack.security.http.ssl.keystore.path: http.p12
 ----
 
-. Add the password for your private key to the secure settings in {es}.
+  .. Add the password for your private key to the secure settings in {es}.
 +
 [source,shell]
 ----
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. Start {es}.
+  .. Start {es}.
 
 **Next**: <<encrypt-kibana-http,Encrypt HTTP client communications for {kib}>>
 
@@ -155,26 +156,26 @@ created a `/kibana` directory containing an `elasticsearch-ca.pem` file. You
 use this file to configure {kib} to trust the {es} CA for the HTTP
 layer.
 
-1. Copy the `elasticsearch-ca.pem` file to the {kib} configuration directory,
-as defined by the `KBN_PATH_CONF` path.
+. Copy the `elasticsearch-ca.pem` file to the {kib} configuration directory,
+as defined by the `$KBN_PATH_CONF` path.
 
-2. Open `kibana.yml` and add the following line to specify the location of the
+. Open `kibana.yml` and add the following line to specify the location of the
 security certificate for the HTTP layer.
 +
 [source,yaml]
 ----
-elasticsearch.ssl.certificateAuthorities: KBN_PATH_CONF/elasticsearch-ca.pem
+elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/elasticsearch-ca.pem
 ----
 
-3. Add the following line to specify the HTTPS URL for your {es}
+. Add the following line to specify the HTTPS URL for your {es}
 cluster.
 +
 [source,yaml]
 ----
-elasticsearch.hosts: https://<your_elasticsearch_host>.com:9200
+elasticsearch.hosts: https://<your_elasticsearch_host>:9200
 ----
 
-4. Restart {kib}.
+. Restart {kib}.
 
 .Connect to a secure monitoring cluster
 ****
@@ -247,13 +248,13 @@ the server certificate and unencrypted private key.
 +
 [source,yaml]
 ----
-server.ssl.certificate: KBN_PATH_CONF/kibana-server.crt
-server.ssl.key: KBN_PATH_CONF/kibana-server.key
+server.ssl.certificate: $KBN_PATH_CONF/kibana-server.crt
+server.ssl.key: $KBN_PATH_CONF/kibana-server.key
 ----
 +
-NOTE: `KBN_PATH_CONF` contains the path for the {kib} configuration files. If
+NOTE: `$KBN_PATH_CONF` contains the path for the {kib} configuration files. If
 you installed {kib} using archive distributions (`zip` or `tar.gz`), the
-path defaults to `KBN_HOME/config`. If you used package distributions
+path defaults to `$KBN_HOME/config`. If you used package distributions
 (Debian or RPM), the path defaults to `/etc/kibana`.
 
 . Add the following line to `kibana.yml` to enable TLS for inbound
@@ -343,7 +344,6 @@ list of indices.
 | `metricbeat_setup` | Set up {metricbeat}.
 | `kibana_admin`     | Load dependencies, such as example dashboards, if available, into {kib}
 | `ingest_admin`     | Set up index templates and, if available, ingest pipelines
-| `beats_admin`      | Enroll and manage configurations in {beats} central management
 |===
 
 **Next**: <<beats-monitoring-role,Create a monitoring role>>
@@ -470,7 +470,7 @@ management.
 ===== Configure {metricbeat} to use TLS
 
 Before starting {metricbeat}, you configure the connections to {es} and
-Kibana. You can configure authentication to send data to your secured cluster
+{kib}. You can configure authentication to send data to your secured cluster
 using basic authentication, API key authentication, or Public Key
 Infrastructure (PKI) certificates.
 
@@ -478,7 +478,7 @@ The following instructions use the credentials for the `metricbeat_writer`
 and `metricbeat_setup` users that you created. If you need a greater level of
 security, we recommend using PKI certificates.
 
-After configuring connections to Elasticsearch and Kibana, you'll enable the
+After configuring connections to {es} and {kib}, you'll enable the
 `elasticsearch-xpack` module and configure that module to use HTTPS.
 
 WARNING: In production environments, we strongly recommend using a separate
@@ -487,14 +487,15 @@ separate monitoring cluster prevents production cluster outages from impacting
 your ability to access your monitoring data. It also prevents monitoring
 activities from impacting the performance of your production cluster.
 
-. From the directory where you installed Elasticsearch, navigate to the
-`/kibana` directory that you created when <<encrypt-http-communication,encrypting HTTP client communications for {es}>>.
+. On the node where you
+<<encrypt-http-communication,generated certificates for the HTTP layer>>,
+navigate to the `/kibana` directory.
 
 . Copy the `elasticsearch-ca.pem` certificate to the directory where you
-installed Metricbeat.
+installed {metricbeat}.
 
 . Open the `metricbeat.yml` configuration file and configure the connection
-to Elasticsearch.
+to {es}.
 +
 Under `output.elasticsearch`, specify the following fields:
 +
@@ -510,20 +511,21 @@ output.elasticsearch:
    verification_mode: "certificate"
 ----
 
-   `hosts`:: Specifies the host where your Elasticsearch cluster is running.
+   `hosts`:: Specifies the host where your {es} cluster is running.
 
-   `protocol`:: Indicates the protocol to use when connecting to Elasticsearch.
+   `protocol`:: Indicates the protocol to use when connecting to {es}.
    This value must be `https`.
 
    `username`:: Name of the user with privileges required to publish events to
-   Elasticsearch. The `metricbeat_writer` user that you created has these
+   {es}. The `metricbeat_writer` user that you created has these
    privileges.
 
    `password`:: Password for the indicated `username`.
 
-   `certificate_authorities`:: Indicates the path to your trusted CA.
+   `certificate_authorities`:: Indicates the path to the local `.pem` file that
+   contains your CA's certificate. 
 
-. Configure the connection to Kibana.
+. Configure the connection to {kib}.
 +
 Under `setup.kibana`, specify the following fields:
 +
@@ -536,10 +538,10 @@ setup.kibana
  password: "p@ssw0rd"
 ----
 
-   `hosts`:: The URLs of the Elasticsearch instances to use for all your
+   `hosts`:: The URLs of the {es} instances to use for all your
    queries. Ensure that you include `https` in the URL.
 
-   `username`:: Name of the user with privileges required to set up dashboards in Kibana. The `metricbeat_setup` user that you created has these privileges.
+   `username`:: Name of the user with privileges required to set up dashboards in {kib}. The `metricbeat_setup` user that you created has these privileges.
 
    `password`:: Password for the indicated `username`.
 
@@ -550,7 +552,8 @@ setup.kibana
 ./metricbeat modules enable elasticsearch-xpack
 ----
 
-. Modify the `elasticsearch-xpack` module to use HTTPS.
+. Modify the `elasticsearch-xpack` module to use HTTPS. This module collects
+metrics about {es}.
 +
 Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
 +
@@ -562,9 +565,15 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
  hosts: ["https://<your_elasticsearch_host>:9200"]
  username: "remote_monitoring_user"
  password: "<password>"
+ ssl:     <1>
+   enabled: true
+   certificate_authorities: ["elasticsearch-ca.pem"]
+   verification_mode: "certificate"
 ----
+<1> Configuring SSL is required when monitoring a node with encrypted traffic.
+See {metricbeat-ref}/configuration-ssl.html[Configure SSL for {metricbeat}].
 
-   `hosts`:: Specifies the host where your Elasticsearch cluster is running.
+   `hosts`:: Specifies the host where your {es} cluster is running.
    Ensure that you include `https` in the URL.
 
    `username`:: Name of the user with privileges to collect metric data. The
@@ -572,6 +581,9 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
    you can create a user and assign it the `monitoring_user` role.
 
    `password`:: Password for the indicated `username`.
+
+   `certificate_authorities`:: Indicates the path to the local `.pem` file that
+   contains your CA's certificate. 
 
 . If you want to use the predefined assets for parsing, indexing, and
    visualizing your data, run the following command to load these assets:
@@ -581,11 +593,11 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
 ./metricbeat setup -e
 ----
 
-. Start Elasticsearch, and then start Metricbeat.
+. Start {es}, and then start Metricbeat.
 +
 [source,shell]
 ----
-/.metricbeat -e
+./metricbeat -e
 ----
 +
 `-e` is optional and sends output to standard error instead of the configured
@@ -593,4 +605,4 @@ log output.
 
 . Log in to Kibana, open the main menu, and click **Stack Monitoring**.
 +
-You’ll see cluster alerts that require your attention and a summary of the available monitoring metrics for Elasticsearch. Click any of the header links on the available cards to view additional information.
+You’ll see cluster alerts that require your attention and a summary of the available monitoring metrics for {es}. Click any of the header links on the available cards to view additional information.

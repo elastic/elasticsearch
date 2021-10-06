@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -165,6 +166,10 @@ public class GeometryTestUtils {
         return randomGeometryCollection(0, hasAlt);
     }
 
+    public static GeometryCollection<Geometry> randomGeometryCollectionWithoutCircle(boolean hasAlt) {
+        return randomGeometryCollectionWithoutCircle(0, hasAlt);
+    }
+
     private static GeometryCollection<Geometry> randomGeometryCollection(int level, boolean hasAlt) {
         int size = ESTestCase.randomIntBetween(1, 10);
         List<Geometry> shapes = new ArrayList<>();
@@ -172,6 +177,30 @@ public class GeometryTestUtils {
             shapes.add(randomGeometry(level, hasAlt));
         }
         return new GeometryCollection<>(shapes);
+    }
+
+    private static GeometryCollection<Geometry> randomGeometryCollectionWithoutCircle(int level, boolean hasAlt) {
+        int size = ESTestCase.randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            shapes.add(randomGeometryWithoutCircle(level, hasAlt));
+        }
+        return new GeometryCollection<>(shapes);
+    }
+
+    public static Geometry randomGeometry(ShapeType type, boolean hasAlt) {
+       switch (type) {
+           case GEOMETRYCOLLECTION: return randomGeometryCollection(0, hasAlt);
+           case MULTILINESTRING: return randomMultiLine(hasAlt);
+           case ENVELOPE: return randomRectangle();
+           case LINESTRING: return randomLine(hasAlt);
+           case POLYGON: return randomPolygon(hasAlt);
+           case MULTIPOLYGON: return randomMultiPolygon(hasAlt);
+           case CIRCLE: return randomCircle(hasAlt);
+           case MULTIPOINT: return randomMultiPoint(hasAlt);
+           case POINT: return randomPoint(hasAlt);
+           default: throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
+       }
     }
 
     public static Geometry randomGeometry(boolean hasAlt) {

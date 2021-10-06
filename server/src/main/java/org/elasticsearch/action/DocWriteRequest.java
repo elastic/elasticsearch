@@ -12,7 +12,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -249,7 +249,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     }
 
     static ActionRequestValidationException validateSeqNoBasedCASParams(
-        DocWriteRequest request, ActionRequestValidationException validationException) {
+        DocWriteRequest<?> request, ActionRequestValidationException validationException) {
         final long version = request.version();
         final VersionType versionType = request.versionType();
         if (versionType.validateVersionForWrites(version) == false) {

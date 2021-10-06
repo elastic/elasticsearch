@@ -14,11 +14,11 @@ import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCacheFileEquals;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
@@ -65,7 +64,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testCacheIndexWriter() throws Exception {
-        final NodeEnvironment.NodePath nodePath = randomFrom(nodeEnvironment.nodePaths());
+        final NodeEnvironment.NodePath nodePath = nodeEnvironment.nodePath();
 
         int docId = 0;
         final Map<String, Integer> liveDocs = new HashMap<>();
@@ -193,7 +192,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 NODE_ROLES_SETTING.getKey(),
                 randomValueOtherThanMany(
                     r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) || r.canContainData(),
-                    () -> randomFrom(BUILT_IN_ROLES)
+                    () -> randomFrom(DiscoveryNodeRole.roles())
                 ).roleName()
             )
             .build();
@@ -211,7 +210,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             nodeEnvironment = newNodeEnvironment(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
                     .build()
             );
 

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -65,6 +65,10 @@ public class TopClassEntry implements Writeable, ToXContentObject {
     private final Object classification;
     private final double probability;
     private final double score;
+
+    public TopClassEntry(Object classification, double score) {
+        this(classification, score, score);
+    }
 
     public TopClassEntry(Object classification, double probability, double score) {
         this.classification = ExceptionsHelper.requireNonNull(classification, CLASS_NAME);

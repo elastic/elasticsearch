@@ -31,7 +31,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
  * The Visitor Pattern replaces this structure with Interface inheritance making it easier to identify all places that are using this
  * structure, and making a shape a compile-time failure instead of runtime.
  * <p>
- * See {@link WellKnownText#toWKT(Geometry, StringBuilder)} for an example of how this interface is used.
+ * See {@link WellKnownText#toWKT(Geometry)} for an example of how this interface is used.
  *
  * @see <a href="https://en.wikipedia.org/wiki/Visitor_pattern">Visitor Pattern</a>
  */

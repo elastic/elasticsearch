@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,6 +37,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.core.RestApiVersion.V_8;
+import static org.elasticsearch.core.RestApiVersion.onOrAfter;
+
 
 public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
 
@@ -208,8 +213,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             cursor.value.writeTo(out);
         }
         out.writeVInt(aliases.size());
-        for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
-            cursor.value.writeTo(out);
+        for (AliasMetadata aliasMetadata : aliases.values()) {
+            aliasMetadata.writeTo(out);
         }
         out.writeOptionalVInt(version);
     }
@@ -372,19 +377,23 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             if (indexTemplateMetadata.version() != null) {
                 builder.field("version", indexTemplateMetadata.version());
             }
-            builder.field("index_patterns", indexTemplateMetadata.patterns());
+            builder.stringListField("index_patterns", indexTemplateMetadata.patterns());
 
             builder.startObject("settings");
             indexTemplateMetadata.settings().toXContent(builder, params);
             builder.endObject();
 
-            includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
+            if(builder.getRestApiVersion().matches(onOrAfter(V_8))) {
+                includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
+            }
 
             CompressedXContent m = indexTemplateMetadata.mappings();
             if (m != null) {
                 Map<String, Object> documentMapping = XContentHelper.convertToMap(m.uncompressed(), true).v2();
                 if (includeTypeName == false) {
                     documentMapping = reduceMapping(documentMapping);
+                } else {
+                    documentMapping = reduceEmptyMapping(documentMapping);
                 }
                 builder.field("mappings");
                 builder.map(documentMapping);
@@ -393,10 +402,20 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             }
 
             builder.startObject("aliases");
-            for (ObjectCursor<AliasMetadata> cursor : indexTemplateMetadata.aliases().values()) {
-                AliasMetadata.Builder.toXContent(cursor.value, builder, params);
+            for (AliasMetadata aliasMetadata : indexTemplateMetadata.aliases().values()) {
+                AliasMetadata.Builder.toXContent(aliasMetadata, builder, params);
             }
             builder.endObject();
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Map<String, Object> reduceEmptyMapping(Map<String, Object> mapping) {
+            if(mapping.keySet().size() == 1 && mapping.containsKey(MapperService.SINGLE_MAPPING_NAME) &&
+                ((Map<String, Object>)mapping.get(MapperService.SINGLE_MAPPING_NAME)).size() == 0){
+                return (Map<String, Object>) mapping.values().iterator().next();
+            } else {
+                return mapping;
+            }
         }
 
         @SuppressWarnings("unchecked")

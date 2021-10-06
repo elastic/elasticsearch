@@ -19,12 +19,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -36,7 +36,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -73,9 +72,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    private static void checkObjectOrNested(ContentPath path, String name) {
-        if (path.pathAsText(name).contains(".")) {
-            throw new IllegalArgumentException("join field [" + path.pathAsText(name) + "] " +
+    private static void checkObjectOrNested(MapperBuilderContext context, String name) {
+        String fullName = context.buildFullName(name);
+        if (fullName.equals(name) == false) {
+            throw new IllegalArgumentException("join field [" + fullName + "] " +
                 "cannot be added inside an object or in a multi-field");
         }
     }
@@ -109,14 +109,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ParentJoinFieldMapper build(ContentPath contentPath) {
-            checkObjectOrNested(contentPath, name);
+        public ParentJoinFieldMapper build(MapperBuilderContext context) {
+            checkObjectOrNested(context, name);
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get().stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
-            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(contentPath), joiner, meta.get()),
+            return new ParentJoinFieldMapper(name, new JoinFieldType(context.buildFullName(name), joiner, meta.get()),
                 Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
         }
     }
@@ -151,6 +151,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -201,12 +204,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -254,15 +257,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (context.sourceToParse().routing() == null) {
                 throw new IllegalArgumentException("[routing] is missing for join field [" + name() + "]");
             }
-            ParseContext externalContext = context.createExternalValueContext(parent);
             String fieldName = fieldType().joiner.parentJoinField(name);
-            parentIdFields.get(fieldName).parse(externalContext);
+            parentIdFields.get(fieldName).indexValue(context, parent);
         }
         if (fieldType().joiner.parentTypeExists(name)) {
             // Index the document as a parent
-            ParseContext externalContext = context.createExternalValueContext(context.sourceToParse().id());
             String fieldName = fieldType().joiner.childJoinField(name);
-            parentIdFields.get(fieldName).parse(externalContext);
+            parentIdFields.get(fieldName).indexValue(context, context.sourceToParse().id());
         }
 
         BytesRef binaryValue = new BytesRef(name);
@@ -293,31 +294,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doValidate(MappingLookup mappers) {
-        List<String> joinFields = getJoinFieldTypes(mappers.fieldTypes()).stream()
-            .map(JoinFieldType::name)
-            .collect(Collectors.toList());
+    protected void doValidate(MappingLookup mappingLookup) {
+        List<String> joinFields = mappingLookup.getMatchingFieldNames("*").stream().map(mappingLookup::getFieldType)
+            .filter(ft -> ft instanceof JoinFieldType).map(MappedFieldType::name).collect(Collectors.toList());
         if (joinFields.size() > 1) {
             throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
         }
-    }
-
-    static JoinFieldType getJoinFieldType(Collection<MappedFieldType> fieldTypes) {
-        for (MappedFieldType ft : fieldTypes) {
-            if (ft instanceof JoinFieldType) {
-                return (JoinFieldType) ft;
-            }
-        }
-        return null;
-    }
-
-    private List<JoinFieldType> getJoinFieldTypes(Collection<MappedFieldType> fieldTypes) {
-        final List<JoinFieldType> joinFields = new ArrayList<>();
-        for (MappedFieldType ft : fieldTypes) {
-            if (ft instanceof JoinFieldType) {
-                joinFields.add((JoinFieldType) ft);
-            }
-        }
-        return joinFields;
     }
 }

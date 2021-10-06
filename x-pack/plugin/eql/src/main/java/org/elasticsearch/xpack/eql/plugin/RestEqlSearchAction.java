@@ -62,6 +62,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
+            eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
         }
 
         return channel -> {

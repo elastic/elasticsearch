@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,11 +24,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -430,14 +430,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterApplyListener() {
+        clusterApplierService.onNewClusterState("test", () -> newState, new ActionListener<>() {
             @Override
-            public void onSuccess(String source) {
+            public void onResponse(Void ignored) {
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
                 throw new AssertionError("Expected a proper response", e);
             }
@@ -452,16 +452,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path indexDirectory(String server, Index index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.indexPaths(index);
-        assert paths.length == 1;
-        return paths[0];
+        return env.indexPath(index);
     }
 
     private Path shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
-        assert paths.length == 1;
-        return paths[0];
+        return env.availableShardPath(new ShardId(index, shard));
     }
 
     private void assertShardDeleted(final String server, final Index index, final int shard) throws Exception {

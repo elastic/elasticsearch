@@ -30,7 +30,8 @@ These APIs are used internally by {kib} in order to provide SAML based
 authentication, but can also be used by other custom web applications or other
 clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
 <<security-api-saml-prepare-authentication,SAML prepare authentication API>>,
-and <<security-api-saml-invalidate,SAML invalidate API>>.
+<<security-api-saml-invalidate,SAML invalidate API>>, and
+<<security-api-saml-complete-logout, SAML complete logout API>>.
 
 [[security-api-saml-logout-request-body]]
 ==== {api-request-body-title}
@@ -47,7 +48,7 @@ and <<security-api-saml-invalidate,SAML invalidate API>>.
   most recent refresh token that was received after refreshing the original access token.
 
 [[security-api-saml-logout-response-body]]
-==== {api-response-body-title}  
+==== {api-response-body-title}
 
 `redirect`::
   (string) A URL that contains a SAML logout request as a parameter. The user

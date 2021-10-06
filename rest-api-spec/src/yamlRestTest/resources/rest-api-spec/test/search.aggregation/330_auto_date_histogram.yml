@@ -80,8 +80,8 @@ setup:
 ---
 "profile at top level":
   - skip:
-      version: " - 7.99.99"
-      reason: Debug information added in 8.0.0 (to be backported to 7.9.0)
+      version: " - 7.9.99"
+      reason: introduced in 7.10.0
 
   - do:
       search:

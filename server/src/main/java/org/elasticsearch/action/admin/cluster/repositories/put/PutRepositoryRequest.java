@@ -21,9 +21,9 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Register repository request.
@@ -49,8 +49,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         verify = in.readBoolean();
     }
 
-    public PutRepositoryRequest() {
-    }
+    public PutRepositoryRequest() {}
 
     /**
      * Constructs a new put repository request with the provided name.

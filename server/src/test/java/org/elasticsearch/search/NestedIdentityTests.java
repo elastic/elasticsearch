@@ -114,7 +114,7 @@ public class NestedIdentityTests extends ESTestCase {
         }
         List<Supplier<NestedIdentity>> mutations = new ArrayList<>();
         int offset = original.getOffset();
-        NestedIdentity child = (NestedIdentity) original.getChild();
+        NestedIdentity child = original.getChild();
         String fieldName = original.getField().string();
         mutations.add(() ->
             new NestedIdentity(original.getField().string() + "_prefix", offset, child));

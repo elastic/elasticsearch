@@ -14,14 +14,15 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -67,9 +68,9 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -198,6 +199,22 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public Analyzer getNamedAnalyzer(String analyzer) {
+            return null;
+        }
+
+        @Override
+        public Analyzer buildCustomAnalyzer(
+            IndexSettings indexSettings,
+            boolean normalizer,
+            NameOrDefinition tokenizer,
+            List<NameOrDefinition> charFilters,
+            List<NameOrDefinition> tokenFilters
+        ) {
+            return null;
+        }
+
+        @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
@@ -213,7 +230,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public Collection<MappedFieldType> getFieldTypes() {
+        public Set<String> getMatchingFieldNames(String pattern) {
             throw new UnsupportedOperationException();
         }
 
@@ -249,6 +266,11 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query filterQuery(Query query) {
             throw new UnsupportedOperationException();
         }
 
@@ -325,6 +347,11 @@ public class AggConstructionContentionBenchmark {
         @Override
         public boolean isCacheable() {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return true;
         }
 
         @Override

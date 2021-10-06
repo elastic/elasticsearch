@@ -9,7 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,7 +46,7 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
+            builder.stringListField(INDICES_FIELD.getPreferredName(), indices);
             builder.startObject(FAILURE_FIELD.getPreferredName());
             {
                 ElasticsearchException.generateFailureXContent(builder, params, exception, true);

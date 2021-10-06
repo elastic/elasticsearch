@@ -259,7 +259,8 @@ public class ClientYamlTestClient implements Closeable {
     private ClientYamlSuiteRestApi restApi(String apiName) {
         ClientYamlSuiteRestApi restApi = restSpec.getApi(apiName);
         if (restApi == null) {
-            throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
+            throw new IllegalArgumentException("Rest api [" + apiName + "] cannot be found in the rest spec. Either it doesn't exist or " +
+                "is missing from the test classpath. Check the 'restResources' block of your project's build.gradle file.");
         }
         return restApi;
     }

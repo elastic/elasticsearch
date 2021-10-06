@@ -80,18 +80,26 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
-            final String basePath = System.getProperty("es.logs.base_path");
-            // It's possible to fail before logging has been configured, in which case there's no point
-            // suggesting that the user look in the log file.
-            if (basePath != null) {
-                Terminal.DEFAULT.errorPrintln(
-                    "ERROR: Elasticsearch did not exit normally - check the logs at "
-                        + basePath
-                        + System.getProperty("file.separator")
-                        + System.getProperty("es.logs.cluster_name") + ".log"
-                );
-            }
+            printLogsSuggestion();
             exit(status);
+        }
+    }
+
+    /**
+     * Prints a message directing the user to look at the logs. A message is only printed if
+     * logging has been configured.
+     */
+    static void printLogsSuggestion() {
+        final String basePath = System.getProperty("es.logs.base_path");
+        // It's possible to fail before logging has been configured, in which case there's no point
+        // suggesting that the user look in the log file.
+        if (basePath != null) {
+            Terminal.DEFAULT.errorPrintln(
+                "ERROR: Elasticsearch did not exit normally - check the logs at "
+                    + basePath
+                    + System.getProperty("file.separator")
+                    + System.getProperty("es.logs.cluster_name") + ".log"
+            );
         }
     }
 

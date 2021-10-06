@@ -105,7 +105,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
         XContentSource source = new XContentSource(
-                response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
+                response.getMappings().valuesIt().next().source().uncompressed(), XContentType.JSON);
         // lets make sure the body fields are disabled
         if (useChained) {
             String chainedPath = SINGLE_MAPPING_NAME +
@@ -146,7 +146,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
         XContentSource source = new XContentSource(
-                response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
+                response.getMappings().valuesIt().next().source().uncompressed(), XContentType.JSON);
 
         // lets make sure the body fields are disabled
         if (useChained) {
@@ -203,7 +203,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         // also ensure that the status field is disabled in the watch history
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
         XContentSource mappingSource =
-                new XContentSource(response.getMappings().values().iterator().next().value.source().uncompressed(), XContentType.JSON);
+                new XContentSource(response.getMappings().valuesIt().next().source().uncompressed(), XContentType.JSON);
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.enabled"), is(false));
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status"), is(nullValue()));
         assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status.properties.active"), is(nullValue()));

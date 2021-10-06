@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 public interface MlDataRemover {
     TimeValue DEFAULT_MAX_DURATION = TimeValue.timeValueHours(8L);
 
-    void remove(float requestsPerSecond, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier);
+    void remove(float requestsPerSecond, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier);
 
     /**
      * Extract {@code fieldName} from {@code hit} and if it is a string

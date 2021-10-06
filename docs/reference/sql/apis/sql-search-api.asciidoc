@@ -1,0 +1,180 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-search-api]]
+=== SQL search API
+++++
+<titleabbrev>SQL search</titleabbrev>
+++++
+
+Returns results for an <<sql-rest-overview,SQL search>>.
+
+[source,console]
+----
+POST _sql?format=txt
+{
+  "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
+}
+----
+// TEST[setup:library]
+
+[[sql-search-api-request]]
+==== {api-request-title}
+
+`GET _sql`
+
+`POST _sql`
+
+[[sql-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the data stream, index,
+or alias you search.
+
+[[sql-search-api-limitations]]
+===== Limitations
+
+See <<sql-limitations>>.
+
+[[search-api-query-params]]
+==== {api-query-parms-title}
+
+`delimiter`::
+(Optional, string) Separator for CSV results. Defaults to `,`. The API only
+supports this parameter for CSV responses.
+
+`format`::
+(Optional, string) Format for the response. For valid values, see
+<<sql-rest-format>>.
++
+You can also specify a format using the `Accept` HTTP header. If you specify
+both this parameter and the `Accept` HTTP header, this parameter takes
+precedence.
+
+[role="child_attributes"]
+[[sql-search-api-request-body]]
+==== {api-request-body-title}
+
+`columnar`::
+(Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
+`false`. The API only supports this parameter for CBOR, JSON, SMILE, and YAML
+responses. See <<sql-rest-columnar>>.
+
+`cursor`::
+(Optional, string) <<sql-pagination,Cursor>> used to retrieve a set of paginated
+results. If you specify a `cursor`, the API only uses the `columnar` and
+`time_zone` request body parameters. It ignores other request body parameters.
+
+[[sql-search-api-fetch-size]]
+`fetch_size`::
+(Optional, integer) Maximum number of rows to return in the response. Defaults
+to `1000`.
+
+[[sql-search-api-field-multi-value-leniency]]
+`field_multi_value_leniency`::
+(Optional, Boolean) If `false`, the API returns an error for fields containing
+<<array,array values>>. If `true`, the API returns the first value from the
+array with no guarantee of consistent results. Defaults to `false`.
+
+`filter`::
+(Optional, object) <<query-dsl,Query DSL>> used to filter documents for the SQL
+search. See <<sql-rest-filtering>>.
+
+`index_include_frozen`::
+(Optional, Boolean) If `true`, the search can run on frozen indices. Defaults to
+`false`.
+
+`keep_alive`::
+(Optional, <<time-units,time value>>) Retention period for an
+<<sql-async,async>> or <<sql-store-searches,saved synchronous search>>. Defaults
+to `5d` (five days).
+
+`keep_on_completion`::
+(Optional, Boolean) If `true`, {es} <<sql-store-searches,stores synchronous
+searches>> if you also specify the `wait_for_completion_timeout` parameter. If
+`false`, {es} only stores <<sql-async,async searches>> that don't finish before
+the `wait_for_completion_timeout`. Defaults to `false`.
+
+`page_timeout`::
+(Optional, <<time-units,time value>>) Timeout before a
+<<sql-pagination,pagination request>> fails. Defaults to `45s` (45 seconds).
+
+`params`::
+(Optional, array) Values for parameters in the `query`. For syntax, see
+<<sql-rest-params>>.
+
+`query`::
+(Required, object) SQL query to run. For syntax, see <<sql-spec>>.
+
+`request_timeout`::
+(Optional, <<time-units,time value>>) Timeout before the request fails. Defaults
+to `90s` (90 seconds).
+
+include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+
+[[sql-search-api-time-zone]]
+`time_zone`::
+(Optional, string) ISO-8601 time zone ID for the search. Several
+<<sql-functions-datetime,SQL date/time functions>> use this time zone. Defaults
+to `Z` (UTC).
+
+`wait_for_completion_timeout`::
+(Optional, <<time-units,time value>>) Period to wait for complete results.
+Defaults to no timeout, meaning the request waits for complete search results.
+If the search doesn’t finish within this period, the search becomes
+<<sql-async,async>>.
++
+To <<sql-store-searches,save a synchronous search>>, you must specify this
+parameter and the `keep_on_completion` parameter.
+
+[role="child_attributes"]
+[[sql-search-api-response-body]]
+==== {api-response-body-title}
+
+The SQL search API supports <<sql-rest-format,multiple response formats>>. Most
+response formats use a tabular layout. JSON responses contain the following
+properties:
+
+`id`::
+(string) Identifier for the search. This value is only returned for
+<<sql-async,async>> and <<sql-store-searches,saved synchronous searches>>. For
+CSV, TSV, and TXT responses, this value is returned in the `Async-ID` HTTP
+header.
+
+`is_running`::
+(Boolean) If `true`, the search is still running. If `false`, the search has
+finished. This value is only returned for <<sql-async,async>> and
+<<sql-store-searches,saved synchronous searches>>. For CSV, TSV, and TXT
+responses, this value is returned in the `Async-partial` HTTP header.
+
+`is_partial`::
+(Boolean) If `true`, the response does not contain complete search results. If
+`is_partial` is `true` and `is_running` is `true`, the search is still running.
+If `is_partial` is `true` but `is_running` is `false`, the results are partial
+due to a failure or timeout.
++
+This value is only returned for <<sql-async,async>> and
+<<sql-store-searches,saved synchronous searches>>. For CSV, TSV, and TXT
+responses, this value is returned in the `Async-partial` HTTP header.
+
+`rows`::
+(array of arrays)
+Values for the search results.
+
+`columns`::
+(array of objects)
+Column headings for the search results. Each object is a column.
++
+.Properties of `columns` objects
+[%collapsible%open]
+====
+`name`::
+(string) Name of the column.
+
+`type`::
+(string) Data type for the column.
+====
+
+`cursor`::
+(string) <<sql-pagination,Cursor>> for the next set of paginated results. For
+CSV, TSV, and TXT responses, this value is returned in the `Cursor` HTTP header.

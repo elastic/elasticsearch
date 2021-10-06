@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 /**
  * Cluster state update task configuration for timeout and priority

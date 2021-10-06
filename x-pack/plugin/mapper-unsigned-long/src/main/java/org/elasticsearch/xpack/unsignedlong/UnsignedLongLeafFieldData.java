@@ -74,8 +74,7 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public ScriptDocValues<?> getScriptValues() {
-        // TODO: add support for scripts
-        throw new UnsupportedOperationException("Using unsigned_long in scripts is currently not supported!");
+        return new UnsignedLongScriptDocValues(getLongValues());
     }
 
     @Override

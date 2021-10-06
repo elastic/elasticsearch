@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -16,6 +15,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
@@ -32,7 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -41,18 +41,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -62,6 +58,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -70,6 +71,8 @@ import org.elasticsearch.index.Index;
 import java.io.Closeable;
 import java.io.IOError;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -136,7 +139,7 @@ public class PersistedClusterStateService {
 
     public PersistedClusterStateService(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
+        this(new Path[] { nodeEnvironment.nodeDataPath() }, nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
             relativeTimeMillisSupplier);
     }
 
@@ -202,18 +205,17 @@ public class PersistedClusterStateService {
      * Remove all persisted cluster states from the given data paths, for use in tests. Should only be called when there is no open
      * {@link Writer} on these paths.
      */
-    public static void deleteAll(Path[] dataPaths) throws IOException {
+    public static void deleteAll(Path... dataPaths) throws IOException {
         for (Path dataPath : dataPaths) {
-            Lucene.cleanLuceneIndex(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
+            Lucene.cleanLuceneIndex(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
         }
     }
 
     // exposed for tests
     Directory createDirectory(Path path) throws IOException {
         // it is possible to disable the use of MMapDirectory for indices, and it may be surprising to users that have done so if we still
-        // use a MMapDirectory here, which might happen with FSDirectory.open(path). Concurrency is of no concern here so a
-        // SimpleFSDirectory is fine:
-        return new SimpleFSDirectory(path);
+        // use a MMapDirectory here, which might happen with FSDirectory.open(path), so we force an NIOFSDirectory to be on the safe side.
+        return new NIOFSDirectory(path);
     }
 
     public Path[] getDataPaths() {
@@ -253,7 +255,7 @@ public class PersistedClusterStateService {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
-                try (DirectoryReader reader = DirectoryReader.open(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
                     final Map<String, String> userData = reader.getIndexCommit().getUserData();
                     assert userData.get(NODE_VERSION_KEY) != null;
 
@@ -284,12 +286,12 @@ public class PersistedClusterStateService {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
-                try (DirectoryReader reader = DirectoryReader.open(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
                     final Map<String, String> userData = reader.getIndexCommit().getUserData();
                     assert userData.get(NODE_VERSION_KEY) != null;
 
                     try (IndexWriter indexWriter =
-                             createIndexWriter(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
+                             createIndexWriter(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
                         final Map<String, String> commitData = new HashMap<>(userData);
                         commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id));
                         indexWriter.setLiveCommitData(commitData.entrySet());
@@ -306,6 +308,14 @@ public class PersistedClusterStateService {
      * Loads the best available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
      */
     public OnDiskState loadBestOnDiskState() throws IOException {
+        return loadBestOnDiskState(true);
+    }
+
+    /**
+     * Loads the available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
+     * @param checkClean whether to check the index for corruption before loading, only for tests
+     */
+    OnDiskState loadBestOnDiskState(boolean checkClean) throws IOException {
         String committedClusterUuid = null;
         Path committedClusterUuidPath = null;
         OnDiskState bestOnDiskState = OnDiskState.NO_ON_DISK_STATE;
@@ -317,39 +327,64 @@ public class PersistedClusterStateService {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
-                try (Directory directory = createDirectory(indexPath);
-                     DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                    final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
+                try (Directory directory = createDirectory(indexPath)) {
+                    if (checkClean) {
+                        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
+                            final boolean isClean;
+                            try (PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8);
+                                 CheckIndex checkIndex = new CheckIndex(directory)) {
+                                checkIndex.setInfoStream(printStream);
+                                checkIndex.setChecksumsOnly(true);
+                                isClean = checkIndex.checkIndex().clean;
+                            }
 
-                    if (nodeId.equals(onDiskState.nodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
-                    }
-
-                    if (onDiskState.metadata.clusterUUIDCommitted()) {
-                        if (committedClusterUuid == null) {
-                            committedClusterUuid = onDiskState.metadata.clusterUUID();
-                            committedClusterUuidPath = dataPath;
-                        } else if (committedClusterUuid.equals(onDiskState.metadata.clusterUUID()) == false) {
-                            throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
-                                "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metadata.clusterUUID() + "] in ["
-                                + dataPath + "]");
+                            if (isClean == false) {
+                                if (logger.isErrorEnabled()) {
+                                    outputStream.bytes().utf8ToString().lines().forEach(l -> logger.error("checkIndex: {}", l));
+                                }
+                                throw new IllegalStateException(
+                                    "the index containing the cluster metadata under the data path ["
+                                        + dataPath
+                                        + "] has been changed by an external force after it was last written by Elasticsearch and is "
+                                        + "now unreadable"
+                                );
+                            }
                         }
                     }
 
-                    if (maxCurrentTermOnDiskState.empty() || maxCurrentTermOnDiskState.currentTerm < onDiskState.currentTerm) {
-                        maxCurrentTermOnDiskState = onDiskState;
-                    }
+                    try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                        final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
 
-                    long acceptedTerm = onDiskState.metadata.coordinationMetadata().term();
-                    long maxAcceptedTerm = bestOnDiskState.metadata.coordinationMetadata().term();
-                    if (bestOnDiskState.empty()
-                        || acceptedTerm > maxAcceptedTerm
-                        || (acceptedTerm == maxAcceptedTerm
-                            && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
-                                || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
-                                    && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
-                        bestOnDiskState = onDiskState;
+                        if (nodeId.equals(onDiskState.nodeId) == false) {
+                            throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
+                                "] belongs to a node with ID [" + onDiskState.nodeId + "] but this node's ID is [" + nodeId + "]");
+                        }
+
+                        if (onDiskState.metadata.clusterUUIDCommitted()) {
+                            if (committedClusterUuid == null) {
+                                committedClusterUuid = onDiskState.metadata.clusterUUID();
+                                committedClusterUuidPath = dataPath;
+                            } else if (committedClusterUuid.equals(onDiskState.metadata.clusterUUID()) == false) {
+                                throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
+                                    "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metadata.clusterUUID() + "] in ["
+                                    + dataPath + "]");
+                            }
+                        }
+
+                        if (maxCurrentTermOnDiskState.empty() || maxCurrentTermOnDiskState.currentTerm < onDiskState.currentTerm) {
+                            maxCurrentTermOnDiskState = onDiskState;
+                        }
+
+                        long acceptedTerm = onDiskState.metadata.coordinationMetadata().term();
+                        long maxAcceptedTerm = bestOnDiskState.metadata.coordinationMetadata().term();
+                        if (bestOnDiskState.empty()
+                            || acceptedTerm > maxAcceptedTerm
+                            || (acceptedTerm == maxAcceptedTerm
+                                && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
+                                    || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
+                                        && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
+                            bestOnDiskState = onDiskState;
+                        }
                     }
                 } catch (IndexNotFoundException e) {
                     logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
@@ -636,8 +671,7 @@ public class PersistedClusterStateService {
                 }
 
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-                for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                     final Long previousValue
                             = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                     assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;
@@ -645,8 +679,7 @@ public class PersistedClusterStateService {
 
                 int numIndicesUpdated = 0;
                 int numIndicesUnchanged = 0;
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                     if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                         logger.trace("updating metadata for [{}], changing version from [{}] to [{}]",
@@ -702,8 +735,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());

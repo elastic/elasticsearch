@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -35,8 +36,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         super(name);
     }
 
-    public ReverseNestedAggregationBuilder(ReverseNestedAggregationBuilder clone,
-                                           Builder factoriesBuilder, Map<String, Object> map) {
+    public ReverseNestedAggregationBuilder(ReverseNestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> map) {
         super(clone, factoriesBuilder, map);
         this.path = clone.path;
     }
@@ -97,16 +97,16 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             if (parentObjectMapper == null) {
                 return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metadata);
             }
-            if (parentObjectMapper.nested().isNested() == false) {
+            if (parentObjectMapper.isNested() == false) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
             }
         }
 
         NestedScope nestedScope = context.nestedScope();
+        NestedObjectMapper nestedMapper = (NestedObjectMapper) parentObjectMapper;
         try {
-            nestedScope.nextLevel(parentObjectMapper);
-            return new ReverseNestedAggregatorFactory(name, false, parentObjectMapper, context, parent, subFactoriesBuilder,
-                    metadata);
+            nestedScope.nextLevel(nestedMapper);
+            return new ReverseNestedAggregatorFactory(name, false, nestedMapper, context, parent, subFactoriesBuilder, metadata);
         } finally {
             nestedScope.previousLevel();
         }
@@ -144,16 +144,17 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
                 if ("path".equals(currentFieldName)) {
                     path = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
-        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(
-                aggregationName);
+        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(aggregationName);
         if (path != null) {
             factory.path(path);
         }

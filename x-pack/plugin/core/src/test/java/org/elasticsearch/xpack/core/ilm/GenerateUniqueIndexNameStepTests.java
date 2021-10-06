@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.Builder;
 import java.util.Locale;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.ILLEGAL_INDEXNAME_CHARS_REGEX;
 import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.generateValidIndexName;
 import static org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep.generateValidIndexSuffix;

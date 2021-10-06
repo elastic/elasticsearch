@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -119,8 +119,8 @@ public class Job implements ToXContentObject {
                 AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
-                Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName, Boolean deleting,
-                Boolean allowLazyOpen) {
+                Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName,
+                Boolean deleting, Boolean allowLazyOpen) {
 
         this.jobId = jobId;
         this.jobType = jobType;

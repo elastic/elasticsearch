@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
@@ -946,6 +946,27 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             FieldSelection.included("float_field", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
             FieldSelection.excluded("nested_field_1.*", Collections.singleton("nested"), "nested fields are not supported"),
             FieldSelection.excluded("nested_field_2.*", Collections.singleton("nested"), "nested fields are not supported")
+        );
+    }
+
+    public void testDetect_GivenNestedFieldThatAlsoHasIncompatibleType() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("nested_field_1", "nested")
+            .addAggregatableField("nested_field_1.a", "definitely_not_supported")
+            .build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("float_field"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.included("float_field", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL),
+            FieldSelection.excluded("nested_field_1.*", Collections.singleton("nested"), "nested fields are not supported")
         );
     }
 

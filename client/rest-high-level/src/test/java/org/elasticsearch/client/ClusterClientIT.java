@@ -22,11 +22,7 @@ import org.elasticsearch.client.cluster.RemoteConnectionInfo;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
 import org.elasticsearch.client.cluster.SniffModeInfo;
-import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
-import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
-import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
-import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
-import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.indices.*;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -52,10 +48,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
@@ -304,7 +297,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertNoIndices(response);
         assertWarnings("The HTTP status code for a cluster health timeout will be changed from 408 to 200 in a " +
-            "future version. Set the `es.cluster_health.request_timeout_200` system property to `true` to suppress this message and " +
+            "future version. Set the [es.cluster_health.request_timeout_200] system property to `true` to suppress this message and " +
             "opt in to the future behaviour now.");
     }
 

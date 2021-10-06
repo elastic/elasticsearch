@@ -40,6 +40,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         cleanerService.setGlobalRetention(TimeValue.MAX_VALUE);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78737")
     public void testNothingToDelete() throws Exception {
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));

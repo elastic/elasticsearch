@@ -76,7 +76,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         for (int i = 0; i < numShards; i++) {
             shardIds.add(new ShardId(in));
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_15_1)) {
             originalIndices = OriginalIndices.readOriginalIndices(in);
         } else {
             String[] indicesNames = shardIds.stream()
@@ -107,7 +107,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         for (ShardId shardId : shardIds) {
             shardId.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_15_1)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
     }

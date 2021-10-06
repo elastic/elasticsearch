@@ -83,14 +83,16 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
 
         // Testing that the setting is dynamically updatable:
         Settings newSettings = Settings.builder().putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.undeprecated.list.property")).build();
+            List.of("some.undeprecated.property")).build();
         clusterSettings.applySettings(newSettings);
         transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
-        settingsBuilder.putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"));
+        // This is the node setting (since this is the node deprecation check), not the cluster setting:
+        settingsBuilder.putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            List.of("some.deprecated.property", "some.other.*.deprecated.property"));
         expectedSettings = settingsBuilder.build();
         Assert.assertNotNull(visibleSettings.get());
         Assert.assertEquals(expectedSettings, visibleSettings.get());

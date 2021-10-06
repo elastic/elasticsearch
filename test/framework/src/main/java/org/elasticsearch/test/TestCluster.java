@@ -60,14 +60,9 @@ public abstract class TestCluster implements Closeable {
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
-        wipeDataStreams();
         wipeIndices("_all");
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
-    }
-
-    protected  void wipeDataStreams() {
-       // cannot clear data streams with ll client here
     }
 
     /**

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -16,6 +18,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -108,6 +111,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -121,6 +125,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
+//@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
@@ -380,11 +385,24 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected static void deleteAllDataStreams() {
+        final DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"*"});
+        deleteDataStreamRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN);
         AcknowledgedResponse response = client().execute(
             DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[]{"*"})
+            deleteDataStreamRequest
         ).actionGet();
         assertAcked(response);
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        super.beforeIndexDeletion();
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(Settings.builder().put("cluster.deprecation_indexing.enabled", false));
+        client().admin().cluster().updateSettings(updateSettingsRequest);
+        //making sure that after indexing was disabled the deprecation data stream is deleted
+        deleteAllDataStreams();
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

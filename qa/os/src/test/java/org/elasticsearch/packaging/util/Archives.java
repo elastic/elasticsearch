@@ -319,7 +319,7 @@ public class Archives {
                     + "$processInfo.FileName = '"
                     + bin.elasticsearch
                     + "'; "
-                    + "$processInfo.Arguments = '-p "
+                    + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
                     + "'; "
                     + powerShellProcessUserSetup

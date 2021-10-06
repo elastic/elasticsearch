@@ -62,7 +62,6 @@ public class NerConfig implements NlpConfig {
         );
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), CLASSIFICATION_LABELS);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
-
         return parser;
     }
 

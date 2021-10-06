@@ -66,7 +66,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -137,10 +136,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private List<Map<String, Object>> toMappings(GetIndexResponse response) {
-        return StreamSupport.stream(response.mappings().values().spliterator(), false)
-            .map(cursor -> cursor.value)
-            .map(MappingMetadata::getSourceAsMap)
-            .collect(Collectors.toList());
+        return response.mappings().values().stream().map(MappingMetadata::getSourceAsMap).collect(Collectors.toList());
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {

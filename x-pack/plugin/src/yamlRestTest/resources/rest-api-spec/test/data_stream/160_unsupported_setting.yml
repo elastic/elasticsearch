@@ -1,0 +1,32 @@
+bad setting fails:
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/78677
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [tsdbds-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [gargage*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_replicas: 0
+                number_of_shards: 2
+                garbage: garbage
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      bulk:
+        refresh: true
+        index: garbage
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z"}'

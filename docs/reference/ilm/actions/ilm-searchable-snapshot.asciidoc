@@ -61,6 +61,19 @@ are force merged.
 
 [[ilm-searchable-snapshot-ex]]
 ==== Examples
+////
+[source,console]
+--------------------------------------------------
+PUT /_snapshot/backing_repo
+{
+ "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy

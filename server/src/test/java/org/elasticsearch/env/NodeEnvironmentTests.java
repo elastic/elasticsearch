@@ -182,7 +182,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
         for (Map.Entry<String, List<Path>> actualIndexDataPathEntry : actualIndexDataPaths.entrySet()) {
             List<Path> actual = actualIndexDataPathEntry.getValue();
-            assertThat(actual.get(0), equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
+            Path[] actualPaths = actual.toArray(new Path[actual.size()]);
+            assertThat(actualPaths, equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
         }
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();

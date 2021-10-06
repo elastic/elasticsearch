@@ -960,11 +960,11 @@ Time in milliseconds
 recovery operations were delayed due to throttling.
 =======
 
-`shards`::
+`shards_stats`::
 (object)
 Contains statistics about all shards assigned to the node.
 +
-.Properties of `shards`
+.Properties of `shard_stats`
 [%collapsible%open]
 =======
 `total_count`::

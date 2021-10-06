@@ -24,7 +24,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.LZ4Compressor;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -40,12 +42,14 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +69,7 @@ public class PublicationTransportHandler {
     private final TransportService transportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
+    private final Compression.Scheme compressionScheme;
 
     private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
 
@@ -90,10 +95,22 @@ public class PublicationTransportHandler {
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
         BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit
     ) {
+        this(bigArrays, transportService, namedWriteableRegistry, handlePublishRequest, handleApplyCommit, Compression.Scheme.LZ4);
+    }
+
+    public PublicationTransportHandler(
+        BigArrays bigArrays,
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
+        BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit,
+        Compression.Scheme compressionScheme
+    ) {
         this.bigArrays = bigArrays;
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
+        this.compressionScheme = compressionScheme;
 
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             BytesTransportRequest::new, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
@@ -113,7 +130,18 @@ public class PublicationTransportHandler {
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
-        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        final Compressor compressor;
+        if (request.version().onOrAfter(Version.V_8_0_0)) {
+            if (request.compressionScheme() == Compression.Scheme.DEFLATE) {
+                compressor = LZ4Compressor.INSTANCE;
+            } else if (request.compressionScheme() == Compression.Scheme.LZ4) {
+                compressor = CompressorFactory.COMPRESSOR;
+            } else {
+                compressor = null;
+            }
+        } else {
+            compressor = CompressorFactory.compressor(request.bytes());
+        }
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {
@@ -207,9 +235,7 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
-            ) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(Streams.flushOnCloseStream(bytesStream)))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
@@ -236,9 +262,7 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
-            ) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(Streams.flushOnCloseStream(bytesStream)))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
@@ -257,6 +281,14 @@ public class PublicationTransportHandler {
             if (success == false) {
                 bytesStream.close();
             }
+        }
+    }
+
+    private OutputStream getCompressionOutputStream(BytesStream stream) throws IOException {
+        if (compressionScheme == Compression.Scheme.LZ4) {
+            return Compression.Scheme.lz4FrameOutputStream(stream);
+        } else {
+            return CompressorFactory.COMPRESSOR.threadLocalOutputStream(stream);
         }
     }
 
@@ -412,7 +444,7 @@ public class PublicationTransportHandler {
                 transportService.sendRequest(
                     destination,
                     PUBLISH_STATE_ACTION_NAME,
-                    new BytesTransportRequest(bytes, destination.getVersion()),
+                    new BytesTransportRequest(Compression.Scheme.DEFLATE, bytes, destination.getVersion()),
                     STATE_REQUEST_OPTIONS,
                     new ActionListenerResponseHandler<PublishWithJoinResponse>(
                         ActionListener.runAfter(listener, bytes::decRef),

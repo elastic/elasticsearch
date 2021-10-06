@@ -112,6 +112,7 @@ public class Compression {
         }
 
         public static OutputStream lz4FrameOutputStream(OutputStream outputStream) throws IOException {
+            outputStream.write(LZ4_HEADER);
             LZ4Compressor lz4Compressor;
             if (USE_FORKED_LZ4) {
                 lz4Compressor = ESLZ4Compressor.INSTANCE;

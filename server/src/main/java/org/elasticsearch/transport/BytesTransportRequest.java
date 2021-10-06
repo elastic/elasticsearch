@@ -39,10 +39,6 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
         version = in.getVersion();
     }
 
-    public BytesTransportRequest(ReleasableBytesReference bytes, Version version) {
-        this(null, bytes, version);
-    }
-
     public BytesTransportRequest(Compression.Scheme compressionScheme, ReleasableBytesReference bytes, Version version) {
         this.compressionScheme = compressionScheme;
         this.bytes = bytes;
@@ -51,6 +47,10 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
 
     public Version version() {
         return this.version;
+    }
+
+    public Compression.Scheme compressionScheme() {
+        return compressionScheme;
     }
 
     public BytesReference bytes() {

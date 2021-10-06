@@ -71,8 +71,10 @@ public final class MachineDependentHeap {
     }
 
     static Long parseForcedMemoryInBytes(List<String> userDefinedJvmOptions) {
-        String totalMemoryBytesOption = userDefinedJvmOptions.stream().filter(option -> option.startsWith("-Des.total_memory_bytes="))
-            .findFirst().orElse(null);
+        String totalMemoryBytesOption = userDefinedJvmOptions.stream()
+            .filter(option -> option.startsWith("-Des.total_memory_bytes="))
+            .findFirst()
+            .orElse(null);
         if (totalMemoryBytesOption == null) {
             return null;
         }

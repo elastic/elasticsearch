@@ -119,8 +119,10 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
 
     public void testParseForcedMemoryInBytes() {
         assertThat(MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Da=b", "-Dx=y")), nullValue());
-        assertThat(MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Da=b", "-Des.total_memory_bytes=123456789", "-Dx=y")),
-            is(123456789L));
+        assertThat(
+            MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Da=b", "-Des.total_memory_bytes=123456789", "-Dx=y")),
+            is(123456789L)
+        );
         assertThat(MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Des.total_memory_bytes=987654321")), is(987654321L));
     }
 

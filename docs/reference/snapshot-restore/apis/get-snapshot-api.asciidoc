@@ -305,6 +305,9 @@ The snapshot `state` can be one of the following values:
   The global cluster state was stored, but data of at least one shard was not stored successfully.
   The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
   that were not processed correctly.
+
+`ABORTED`::
+  The snapshot process was manually stopped via deletion. If believed stuck, do rolling cluster restart.
 ====
 --
 `next`::

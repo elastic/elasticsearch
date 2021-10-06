@@ -28,6 +28,7 @@ import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,7 +64,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         if (currentIngestMetadata != null && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
+            PipelineConfiguration currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
             if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
                 // existing pipeline matches request pipeline -- no need to update
                 listener.onResponse(AcknowledgedResponse.TRUE);

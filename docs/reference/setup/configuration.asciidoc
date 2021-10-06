@@ -118,22 +118,20 @@ You can configure and update dynamic settings on a running cluster using the
 dynamic settings locally on an unstarted or shut down node using
 `elasticsearch.yml`.
 
-Updates made using the cluster update settings API can be _persistent_, which
-apply across cluster restarts, or _transient_, which reset after a cluster
-restart. You can also reset transient or persistent settings by assigning them
+Updates made using the cluster update settings API are _persistent_, and
+apply across cluster restarts. You can also reset persistent settings by assigning them
 a `null` value using the API.
 
 If you configure the same setting using multiple methods, {es} applies the
 settings in following order of precedence:
 
-1. Transient setting
-2. Persistent setting
-3. `elasticsearch.yml` setting
-4. Default setting value
+1. Persistent setting
+2. `elasticsearch.yml` setting
+3. Default setting value
 
-For example, you can apply a transient setting to override a persistent setting
-or `elasticsearch.yml` setting. However, a change to an `elasticsearch.yml`
-setting will not override a defined transient or persistent setting.
+For example, you can apply a persistent setting or `elasticsearch.yml` setting.
+However, a change to an `elasticsearch.yml` setting will not override a defined
+persistent setting.
 
 TIP: It’s best to set dynamic, cluster-wide settings with the cluster update
 settings API and use `elasticsearch.yml` only for local configurations. Using

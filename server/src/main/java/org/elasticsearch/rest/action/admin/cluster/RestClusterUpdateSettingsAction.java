@@ -11,6 +11,8 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -25,6 +27,9 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);
+    static final String TRANSIENT_SETTINGS_DEPRECATION_MESSAGE = "[transientSettings removal]" +
+        " Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead.";
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
@@ -51,7 +56,14 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             source = parser.map();
         }
         if (source.containsKey(TRANSIENT)) {
-            clusterUpdateSettingsRequest.transientSettings((Map<String, ?>) source.get(TRANSIENT));
+            Map<String, ?> transientSettings = (Map<String, ?>) source.get(TRANSIENT);
+            if (transientSettings.isEmpty() == false) {
+                boolean allResetRequest = transientSettings.values().stream().allMatch(s -> s == null);
+                if (allResetRequest == false) {
+                    deprecationLogger.warn(DeprecationCategory.SETTINGS, "transient_settings", TRANSIENT_SETTINGS_DEPRECATION_MESSAGE);
+                }
+            }
+            clusterUpdateSettingsRequest.transientSettings(transientSettings);
         }
         if (source.containsKey(PERSISTENT)) {
             clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));

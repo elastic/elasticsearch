@@ -33,9 +33,6 @@ import java.util.stream.Collectors;
  * "hot", "warm", and "cold" tiers as node roles. In contains the
  * roles themselves as well as helpers for validation and determining if a node
  * has a tier configured.
- *
- * Related:
- * This is usually used in conjunction with {@link #TIER_PREFERENCE_SETTING}.
  */
 public class DataTier {
 
@@ -78,7 +75,8 @@ public class DataTier {
 
     /**
      * Based on the provided target tier it will return a comma separated list of preferred tiers.
-     * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`
+     * ie. if `data_cold` is the target tier, it will return `data_cold,data_warm,data_hot`.
+     * This is usually used in conjunction with {@link #TIER_PREFERENCE_SETTING}.
      */
     public static String getPreferredTiersConfiguration(String targetTier) {
         int indexOfTargetTier = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(targetTier);

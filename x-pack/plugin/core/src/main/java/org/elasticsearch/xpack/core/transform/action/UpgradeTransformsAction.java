@@ -80,18 +80,18 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
     public static class Response extends ActionResponse implements Writeable, ToXContentObject {
 
         private final boolean success;
-        private final Long updated;
-        private final Long noAction;
-        private final Long needsUpdate;
+        private final long updated;
+        private final long noAction;
+        private final long needsUpdate;
 
         public Response(StreamInput in) throws IOException {
             success = in.readBoolean();
-            updated = in.readOptionalVLong();
-            noAction = in.readOptionalVLong();
-            needsUpdate = in.readOptionalVLong();
+            updated = in.readVLong();
+            noAction = in.readVLong();
+            needsUpdate = in.readVLong();
         }
 
-        public Response(boolean success, Long updated, Long noAction, Long needsUpdate) {
+        public Response(boolean success, long updated, long noAction, long needsUpdate) {
             this.success = success;
             this.updated = updated;
             this.noAction = noAction;
@@ -102,25 +102,37 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
             return success;
         }
 
+        public long getUpdated() {
+            return updated;
+        }
+
+        public long getNoAction() {
+            return noAction;
+        }
+
+        public long getNeedsUpdate() {
+            return needsUpdate;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(success);
-            out.writeOptionalVLong(updated);
-            out.writeOptionalVLong(noAction);
-            out.writeOptionalVLong(needsUpdate);
+            out.writeVLong(updated);
+            out.writeVLong(noAction);
+            out.writeVLong(needsUpdate);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("success", success);
-            if (updated != null) {
+            if (updated != 0L) {
                 builder.field("updated", updated);
             }
-            if (noAction != null) {
+            if (noAction != 0L) {
                 builder.field("no_action", noAction);
             }
-            if (needsUpdate != null) {
+            if (needsUpdate != 0L) {
                 builder.field("needs_update", needsUpdate);
             }
             builder.endObject();

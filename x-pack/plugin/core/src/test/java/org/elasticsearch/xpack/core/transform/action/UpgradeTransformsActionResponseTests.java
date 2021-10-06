@@ -15,9 +15,9 @@ public class UpgradeTransformsActionResponseTests extends AbstractWireSerializin
     public static Response randomUpgradeResponse() {
         return new Response(
             randomBoolean(),
-            randomBoolean() ? randomNonNegativeLong() : null,
-            randomBoolean() ? randomNonNegativeLong() : null,
-            randomBoolean() ? randomNonNegativeLong() : null
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 

@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -48,9 +46,9 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
 public class IndexDeprecationChecks {
 
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
-        for (ObjectCursor<MappingMetadata> mappingMetadata : indexMetadata.getMappings().values()) {
-            Map<String, Object> sourceAsMap = mappingMetadata.value.sourceAsMap();
-            checker.accept(mappingMetadata.value, sourceAsMap);
+        for (MappingMetadata mappingMetadata : indexMetadata.getMappings().values()) {
+            Map<String, Object> sourceAsMap = mappingMetadata.sourceAsMap();
+            checker.accept(mappingMetadata, sourceAsMap);
         }
     }
 

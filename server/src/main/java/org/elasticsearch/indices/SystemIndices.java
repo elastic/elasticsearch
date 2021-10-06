@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -61,6 +62,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 public class SystemIndices {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
     public static final String EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_external_system_index_access_origin";
+    public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-8";
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 
@@ -84,6 +86,7 @@ public class SystemIndices {
     public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
         featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(featureDescriptors);
+        ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         this.systemIndexAutomaton = buildIndexCharacterRunAutomaton(featureDescriptors);
         this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
@@ -91,6 +94,35 @@ public class SystemIndices {
         this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
         this.executorSelector = new ExecutorSelector(this);
+    }
+
+    static void ensurePatternsAllowSuffix(Map<String, Feature> features) {
+        String suffixPattern = "*" + UPGRADED_INDEX_SUFFIX;
+        final List<String> descriptorsWithNoRoomForSuffix = features.entrySet()
+            .stream()
+            .flatMap(
+                feature -> feature.getValue().getIndexDescriptors()
+                    .stream()
+                    // The below filter & map are inside the enclosing flapMap so we have access to both the feature and the descriptor
+                    .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
+                    .map(
+                        descriptor -> new ParameterizedMessage(
+                            "pattern [{}] from feature [{}]",
+                            descriptor.getIndexPattern(),
+                            feature.getKey()
+                        ).getFormattedMessage()
+                    )
+            )
+            .collect(Collectors.toList());
+        if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
+            throw new IllegalStateException(
+                new ParameterizedMessage(
+                    "the following system index patterns do not allow suffix [{}] required to allow upgrades: [{}]",
+                    UPGRADED_INDEX_SUFFIX,
+                    descriptorsWithNoRoomForSuffix
+                ).getFormattedMessage()
+            );
+        }
     }
 
     private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {

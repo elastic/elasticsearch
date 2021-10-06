@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public final class CardinalityAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+public final class CardinalityAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
     ValuesSource,
     CardinalityAggregationBuilder> {
 

@@ -11,7 +11,7 @@ dependencies {
 
 configurations.all {
   resolutionStrategy {
-    forcedModules = ["com.google.guava:guava:${versions.jimfs_guava}"]
+    force "com.google.guava:guava:${versions.jimfs_guava}"
   }
 }
 // add test resources from security, so certificate tool tests can use example certs

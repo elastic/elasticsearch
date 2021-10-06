@@ -1278,7 +1278,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
                 null,
                 b -> {},
-                PipelineTree.EMPTY
+                PipelineTree.EMPTY,
+                () -> false
             );
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
@@ -2232,7 +2233,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             bigArrays,
             getMockScriptService(),
             reduceBucketConsumer,
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
 
         @SuppressWarnings("unchecked")

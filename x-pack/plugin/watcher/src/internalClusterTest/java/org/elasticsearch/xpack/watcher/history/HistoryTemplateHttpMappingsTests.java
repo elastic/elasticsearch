@@ -28,7 +28,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -157,9 +156,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<ImmutableOpenMap<String, MappingMetadata>> iterator = mappingsResponse.getMappings().valuesIt();
-        while (iterator.hasNext()) {
-            ImmutableOpenMap<String, MappingMetadata> mapping = iterator.next();
+        for (ImmutableOpenMap<String, MappingMetadata> mapping : mappingsResponse.getMappings().values()) {
             assertThat(mapping.containsKey(SINGLE_MAPPING_NAME), is(true));
             Map<String, Object> docMapping = mapping.get(SINGLE_MAPPING_NAME).getSourceAsMap();
             if (abortAtInput) {

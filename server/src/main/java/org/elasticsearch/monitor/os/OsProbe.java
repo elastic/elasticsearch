@@ -295,7 +295,6 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
-        assert lines != null && lines.isEmpty() == false;
         return lines;
     }
 
@@ -577,6 +576,11 @@ public class OsProbe {
         }
 
         List<String> lines = readProcSelfCgroup();
+
+        // On some older Linux kernels /proc/self/cgroup can exist, but be empty sometimes
+        if (lines.isEmpty()) {
+            return false;
+        }
 
         // cgroup v2
         if (lines.size() == 1 && lines.get(0).startsWith("0::")) {

@@ -24,9 +24,7 @@ import java.util.function.LongSupplier;
 public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MoveToNextStepUpdateTask.class);
 
-    private final Index index;
     private final String policy;
-    private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
     private final LongSupplier nowSupplier;
     private final PolicyStepsRegistry stepRegistry;
@@ -35,9 +33,8 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
                                     LongSupplier nowSupplier, PolicyStepsRegistry stepRegistry,
                                     Consumer<ClusterState> stateChangeConsumer) {
-        this.index = index;
+        super(index, currentStepKey);
         this.policy = policy;
-        this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
         this.stepRegistry = stepRegistry;
@@ -45,7 +42,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) {
+    public ClusterState doExecute(ClusterState currentState) {
         IndexMetadata indexMetadata = currentState.getMetadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
@@ -67,9 +64,7 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
 
     @Override
     public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-        if (oldState.equals(newState) == false) {
-            stateChangeConsumer.accept(newState);
-        }
+        stateChangeConsumer.accept(newState);
     }
 
     @Override

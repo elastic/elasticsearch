@@ -1278,7 +1278,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         };
         DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
         // Exists queries convert to MatchNone if this isn't defined
-        FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),
@@ -1362,7 +1362,13 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
                     org.elasticsearch.core.List.of(result),
-                    ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY)
+                    ReduceContext.forFinalReduction(
+                        context.bigArrays(),
+                        null,
+                        context.multiBucketConsumer(),
+                        PipelineTree.EMPTY,
+                        () -> false
+                    )
                 );
                 assertThat(
                     result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),

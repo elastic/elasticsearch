@@ -20,6 +20,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
@@ -54,6 +56,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIG
 public class Logstash extends Plugin implements SystemIndexPlugin {
 
     public static final String LOGSTASH_CONCRETE_INDEX_NAME = ".logstash";
+    public static final String LOGSTASH_INDEX_NAME_PATTERN = LOGSTASH_CONCRETE_INDEX_NAME + "*";
+
+    static final LicensedFeature.Momentary LOGSTASH_FEATURE = LicensedFeature.momentary(null, "logstash", License.OperationMode.STANDARD);
 
     public Logstash() {}
 
@@ -89,7 +94,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return singletonList(
             SystemIndexDescriptor.builder()
-                .setIndexPattern(LOGSTASH_CONCRETE_INDEX_NAME)
+                .setIndexPattern(LOGSTASH_INDEX_NAME_PATTERN)
                 .setPrimaryIndex(LOGSTASH_CONCRETE_INDEX_NAME)
                 .setDescription("Contains data for Logstash Central Management")
                 .setMappings(getIndexMappings())

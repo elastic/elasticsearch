@@ -2174,7 +2174,7 @@ public class RestHighLevelClient implements Closeable {
     boolean addCompatibilityFor(RequestOptions.Builder newOptions,  Header entityHeader, String headerName) {
         // Modify any existing "Content-Type" headers on the request to use the version compatibility, if available
         boolean contentTypeModified = false;
-        for (Header header : newOptions.getHeaders()) {
+        for (Header header : new ArrayList<>(newOptions.getHeaders())) {
             if (headerName.equalsIgnoreCase(header.getName()) == false) {
                 continue;
             }

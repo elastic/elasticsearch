@@ -1306,7 +1306,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         req.setOptions(RequestOptions.DEFAULT.toBuilder()
             .addHeader("Content-Type", "application/json; Charset=UTF-16")
             .addHeader("Accept", "application/yaml; Charset=UTF-32"));
-        // TODO: Fixme, ConcurrentModificationException here
         restHighLevelClient.modifyRequestForCompatibility(req);
 
         assertThat(allHeaders.apply(req),

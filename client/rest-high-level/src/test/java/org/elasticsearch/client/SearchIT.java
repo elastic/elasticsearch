@@ -1253,11 +1253,11 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, ratingResponse.size());
 
         FieldCapabilities expectedKeywordCapabilities = new FieldCapabilities(
-            "rating", "keyword", false, true, true, false, null, null, null, new String[]{"index2"}, null, Collections.emptyMap());
+            "rating", "keyword", false, true, true, false, null, new String[]{"index2"}, null, null, null, Collections.emptyMap());
         assertEquals(expectedKeywordCapabilities, ratingResponse.get("keyword"));
 
         FieldCapabilities expectedLongCapabilities = new FieldCapabilities(
-            "rating", "long", false, true, true, false, null, null, null, new String[]{"index1"}, null, Collections.emptyMap());
+            "rating", "long", false, true, true, false, null, new String[]{"index1"}, null, null, null, Collections.emptyMap());
         assertEquals(expectedLongCapabilities, ratingResponse.get("long"));
 
         // Check the capabilities for the 'field' field.

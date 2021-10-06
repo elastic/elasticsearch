@@ -1,6 +1,4 @@
 pr: 78750
 summary: Allow total memory to be overridden
-area: "Infra/Core, Machine Learning, Packaging"
+area: "Packaging"
 type: enhancement
-issues:
- - 65905

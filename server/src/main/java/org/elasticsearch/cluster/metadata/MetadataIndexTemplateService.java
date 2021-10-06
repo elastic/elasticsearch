@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -888,8 +889,7 @@ public class MetadataIndexTemplateService {
             .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<IndexTemplateMetadata> matchedTemplates = new ArrayList<>();
-        for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
-            final IndexTemplateMetadata template = cursor.value;
+        for (IndexTemplateMetadata template: metadata.templates().values()) {
             if (isHidden == null || isHidden == Boolean.FALSE) {
                 final boolean matched = template.patterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {

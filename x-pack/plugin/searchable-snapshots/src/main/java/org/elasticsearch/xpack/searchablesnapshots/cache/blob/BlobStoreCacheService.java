@@ -49,7 +49,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -72,17 +71,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
-    private final Supplier<Long> timeSupplier;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index, Supplier<Long> timeSupplier) {
+    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
         this.clusterService = clusterService;
-        this.timeSupplier = timeSupplier;
         this.index = index;
     }
 
@@ -152,7 +149,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void getAsync(
+    final void getAsync(
         final String repository,
         final SnapshotId snapshotId,
         final IndexId indexId,
@@ -167,7 +164,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             return;
         }
         final GetRequest request = new GetRequest(index).id(generateId(repository, snapshotId, indexId, shardId, name, range));
-        client.get(request, new ActionListener<>() {
+        innerGet(request, new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
                 if (response.isExists()) {
@@ -205,6 +202,10 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         });
     }
 
+    protected void innerGet(final GetRequest request, final ActionListener<GetResponse> listener) {
+        client.get(request, listener);
+    }
+
     private static boolean assertDocId(
         final GetResponse response,
         final String repository,
@@ -230,7 +231,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return cause instanceof NodeClosedException || cause instanceof ConnectTransportException;
     }
 
-    public void putAsync(
+    public final void putAsync(
         final String repository,
         final SnapshotId snapshotId,
         final IndexId indexId,
@@ -238,12 +239,13 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         final String name,
         final ByteRange range,
         final BytesReference bytes,
+        final long timeInEpochMillis,
         final ActionListener<Void> listener
     ) {
         final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(timeSupplier.get()),
+                Instant.ofEpochMilli(timeInEpochMillis),
                 Version.CURRENT,
                 repository,
                 name,
@@ -270,7 +272,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                     return;
                 }
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
-                client.index(request, new ActionListener<>() {
+                innerPut(request, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResponse indexResponse) {
                         logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
@@ -293,6 +295,10 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             logger.warn(() -> new ParameterizedMessage("cache fill failure: [{}]", id), e);
             listener.onFailure(e);
         }
+    }
+
+    protected void innerPut(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+        client.index(request, listener);
     }
 
     protected static String generateId(

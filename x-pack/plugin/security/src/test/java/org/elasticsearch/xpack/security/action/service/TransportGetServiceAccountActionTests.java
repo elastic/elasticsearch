@@ -15,7 +15,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -24,26 +23,18 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class TransportGetServiceAccountActionTests extends ESTestCase {
 
-    private HttpTlsRuntimeCheck httpTlsRuntimeCheck;
     private TransportGetServiceAccountAction transportGetServiceAccountAction;
 
     @Before
     public void init() {
-        httpTlsRuntimeCheck = mock(HttpTlsRuntimeCheck.class);
         transportGetServiceAccountAction = new TransportGetServiceAccountAction(
-            mock(TransportService.class), new ActionFilters(Collections.emptySet()), httpTlsRuntimeCheck);
-
-        doAnswer(invocationOnMock -> {
-            final Object[] arguments = invocationOnMock.getArguments();
-            ((Runnable) arguments[2]).run();
-            return null;
-        }).when(httpTlsRuntimeCheck).checkTlsThenExecute(any(), any(), any());
+            mock(TransportService.class),
+            new ActionFilters(Collections.emptySet())
+        );
     }
 
     public void testDoExecute() {

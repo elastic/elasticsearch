@@ -15,7 +15,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles(isTestDistro)
+        with libFiles
       }
       into('config') {
         dirMode 0750
@@ -65,7 +65,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(transportModulesFiles, 'zip', null, 'x64', true)
+      archiveFiles(integTestModulesFiles, 'zip', null, 'x64', true)
     }
   }
 

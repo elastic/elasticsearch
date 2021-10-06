@@ -77,9 +77,9 @@ The API returns the following result:
             "query": [
               {
                 "type": "BooleanQuery",
-                "description": "message:get
-                message:search", "time_in_nanos" : 11972972, "breakdown" :
-                {
+                "description": "message:get message:search",
+                "time_in_nanos" : 11972972,
+                "breakdown" : {
                   "set_min_competitive_score_count": 0,
                   "match_count": 5,
                   "shallow_advance_count": 0,

@@ -51,7 +51,7 @@ public class GatewayServiceTests extends ESTestCase {
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), new ReplicaAfterPrimaryActiveAllocationDecider()))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE);
-        return new GatewayService(settings.build(), allocationService, clusterService, null, null, null);
+        return new GatewayService(settings.build(), allocationService, clusterService, null);
     }
 
     public void testDefaultRecoverAfterTime() {

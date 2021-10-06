@@ -150,6 +150,7 @@ The `runtime` section can be any of these data types:
 
 // tag::runtime-data-types[]
 * `boolean`
+* `composite`
 * `date`
 * `double`
 * `geo_point`
@@ -814,6 +815,8 @@ mapping. {es} automatically uses these indexed fields to drive queries,
 resulting in a fast response time. This capability means you can write a 
 script only once, and apply it to any context that supports runtime fields.
 
+NOTE: Indexing a `composite` runtime field is currently not supported.
+
 You can then use runtime fields to limit the number of fields that {es} needs 
 to calculate values for. Using indexed fields in tandem with runtime fields 
 provides flexibility in the data that you index and how you define queries for 
@@ -1248,7 +1251,7 @@ value of the matching IP address. If the pattern doesn't match
 PUT my-index-000001/_mappings
 {
   "runtime": {
-    "http.clientip": {
+    "http.client_ip": {
       "type": "ip",
       "script": """
         String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
@@ -1293,6 +1296,39 @@ GET my-index-000001/_search
 ----
 // TEST[continued]
 
+[[runtime-examples-grok-composite]]
+==== Define a composite runtime field
+You can also define a _composite_ runtime field to emit multiple fields from a 
+single script. You can define a set of typed subfields and emit a map of 
+values. At search time, each subfield retrieves the value associated with 
+their name in the map. This means that you only need to specify your grok
+pattern one time and can return multiple values:
+
+[source,console]
+----
+PUT my-index-000001/_mappings
+{
+  "runtime": {
+    "http": {
+      "type": "composite",
+      "script": "emit(grok(\"%{COMMONAPACHELOG}\").extract(doc[\"message\"].value))",
+      "fields": {
+        "clientip": {
+          "type": "ip"
+        },
+        "verb": {
+          "type": "keyword"
+        },
+        "response": {
+          "type": "long"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
 [[runtime-examples-grok-ip]]
 ===== Search for a specific IP address
 Using the `http.clientip` runtime field, you can define a simple query to run a
@@ -1312,20 +1348,11 @@ GET my-index-000001/_search
 ----
 // TEST[continued]
 
-The API returns the following result. Without building your data structure in
-advance, you can search and explore your data in meaningful ways to experiment
-and determine which fields to index.
-
-Also, remember that `if` statement in the script?
-
-[source,painless]
-----
-if (clientip != null) emit(clientip);
-----
-
-If the script didn't include this condition, the query would fail on any shard
-that doesn't match the pattern. By including this condition, the query skips
-data that doesn't match the grok pattern.
+The API returns the following result. Because `http` is a `composite` runtime 
+field, the response includes each of the sub-fields under `fields`, including
+any associated values that match the query. Without building your data structure 
+in advance, you can search and explore your data in meaningful ways to
+experiment and determine which fields to index. 
 
 [source,console-result]
 ----
@@ -1340,18 +1367,27 @@ data that doesn't match the grok pattern.
     "hits" : [
       {
         "_index" : "my-index-000001",
-        "_id" : "FdLqu3cBhqheMnFKd0gK",
+        "_id" : "sRVHBnwBB-qjgFni7h_O",
         "_score" : 1.0,
         "_source" : {
           "timestamp" : "2020-04-30T14:30:17-05:00",
           "message" : "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
         },
         "fields" : {
+          "http.verb" : [
+            "GET"
+          ],
           "http.clientip" : [
             "40.135.0.0"
           ],
+          "http.response" : [
+            200
+          ],
           "message" : [
             "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
+          ],
+          "http.client_ip" : [
+            "40.135.0.0"
           ],
           "timestamp" : [
             "2020-04-30T19:30:17.000Z"
@@ -1363,7 +1399,18 @@ data that doesn't match the grok pattern.
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/"_id" : "FdLqu3cBhqheMnFKd0gK"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "sRVHBnwBB-qjgFni7h_O"/"_id": $body.hits.hits.0._id/]
+
+Also, remember that `if` statement in the script?
+
+[source,painless]
+----
+if (clientip != null) emit(clientip);
+----
+
+If the script didn't include this condition, the query would fail on any shard
+that doesn't match the pattern. By including this condition, the query skips
+data that doesn't match the grok pattern.
 
 [[runtime-examples-grok-range]]
 ===== Search for documents in a specific range
@@ -1462,7 +1509,7 @@ Similarly, you can define a dissect pattern to extract the https://developer.moz
 PUT my-index-000001/_mappings
 {
   "runtime": {
-    "http.response": {
+    "http.responses": {
       "type": "long",
       "script": """
         String response=dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{response} %{size}').extract(doc["message"].value)?.response;
@@ -1475,7 +1522,8 @@ PUT my-index-000001/_mappings
 // TEST[continued]
 
 You can then run a query to retrieve a specific HTTP response using the
-`http.response` runtime field:
+`http.responses` runtime field. Use the `fields` parameter of the `_search`
+request to indicate which fields you want to retrieve:
 
 [source,console]
 ----
@@ -1483,10 +1531,10 @@ GET my-index-000001/_search
 {
   "query": {
     "match": {
-      "http.response": "304"
+      "http.responses": "304"
     }
   },
-  "fields" : ["*"]
+  "fields" : ["http.client_ip","timestamp","http.verb"]
 }
 ----
 // TEST[continued]
@@ -1513,16 +1561,10 @@ The response includes a single document where the HTTP response is `304`:
           "message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
         },
         "fields" : {
-          "http.clientip" : [
-            "247.37.0.0"
+          "http.verb" : [
+            "GET"
           ],
-          "http.response" : [
-            304
-          ],
-          "message" : [
-            "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
-          ],
-          "http.client.ip" : [
+          "http.client_ip" : [
             "247.37.0.0"
           ],
           "timestamp" : [

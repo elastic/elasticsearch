@@ -29,7 +29,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -158,9 +157,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<MappingMetadata> iterator = mappingsResponse.getMappings().valuesIt();
-        while (iterator.hasNext()) {
-            MappingMetadata mapping = iterator.next();
+        for (MappingMetadata mapping : mappingsResponse.getMappings().values()) {
             Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {
                 Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);

@@ -48,12 +48,6 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         assertEquals(42, policy.regularMergePolicy.getMaxMergeAtOnce());
     }
 
-    public void testSetMaxMergeAtOnceExplicit() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
-        policy.setMaxMergeAtOnceExplicit(42);
-        assertEquals(42, policy.forcedMergePolicy.getMaxMergeAtOnceExplicit());
-    }
-
     public void testSetSegmentsPerTier() {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();
         policy.setSegmentsPerTier(42);

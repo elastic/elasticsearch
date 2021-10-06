@@ -31,6 +31,7 @@ public class CachedBlob implements ToXContent {
     public static final CachedBlob CACHE_MISS = new CachedBlob(null, null, null, "CACHE_MISS", null, BytesArray.EMPTY, 0L, 0L);
 
     private static final String TYPE = "blob";
+    public static final String CREATION_TIME_FIELD = "creation_time";
 
     private final Instant creationTime;
     private final Version version;
@@ -80,7 +81,7 @@ public class CachedBlob implements ToXContent {
         builder.startObject();
         {
             builder.field("type", TYPE);
-            builder.field("creation_time", creationTime.toEpochMilli());
+            builder.field(CREATION_TIME_FIELD, creationTime.toEpochMilli());
             builder.field("version", version.id);
             builder.field("repository", repository);
             builder.startObject("blob");
@@ -117,9 +118,17 @@ public class CachedBlob implements ToXContent {
         return bytes;
     }
 
+    public Version version() {
+        return version;
+    }
+
+    public Instant creationTime() {
+        return creationTime;
+    }
+
     @SuppressWarnings("unchecked")
     public static CachedBlob fromSource(final Map<String, Object> source) {
-        final Long creationTimeEpochMillis = (Long) source.get("creation_time");
+        final Long creationTimeEpochMillis = (Long) source.get(CREATION_TIME_FIELD);
         if (creationTimeEpochMillis == null) {
             throw new IllegalStateException("cached blob document does not have the [creation_time] field");
         }

@@ -20,12 +20,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -58,7 +59,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 
@@ -140,41 +140,44 @@ public class SearchTransportService {
             // BWC layer: translate into shard-level requests
             final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
             final AtomicReferenceArray<Object> results = new AtomicReferenceArray<>(shardSearchRequests.size());
-            final AtomicInteger counter = new AtomicInteger();
-            for (int i = 0; i < shardSearchRequests.size(); i++) {
-                ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
-                int finalI = i;
-                sendCanMatch(connection, shardSearchRequest, task, new ActionListener<>() {
-                    @Override
-                    public void onResponse(CanMatchShardResponse response) {
-                        results.set(finalI, response);
-                        maybeFinish();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        results.set(finalI, e);
-                        maybeFinish();
-                    }
-
-                    private void maybeFinish() {
-                        if (counter.incrementAndGet() == shardSearchRequests.size()) {
-                            List<CanMatchShardResponse> responses = new ArrayList<>(shardSearchRequests.size());
-                            List<Exception> failures = new ArrayList<>(shardSearchRequests.size());
-                            for (int i = 0; i < results.length(); i++) {
-                                Object o = results.get(i);
-                                if (o instanceof CanMatchShardResponse) {
-                                    responses.add(i, (CanMatchShardResponse) o);
-                                } else {
-                                    assert o instanceof Exception;
-                                    failures.add(i, (Exception) o);
-                                }
-                            }
-                            CanMatchResponse response = new CanMatchResponse(responses, failures);
-                            listener.onResponse(response);
+            final CountDown counter = new CountDown(shardSearchRequests.size());
+            final Runnable maybeFinish = () -> {
+                if (counter.countDown()) {
+                    final List<CanMatchResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
+                    for (int i = 0; i < results.length(); i++) {
+                        final Object o = results.get(i);
+                        if (o instanceof CanMatchShardResponse) {
+                            responses.add(new CanMatchResponse.ResponseOrFailure((CanMatchShardResponse) o));
+                        } else {
+                            assert o instanceof Exception;
+                            responses.add(new CanMatchResponse.ResponseOrFailure((Exception) o));
                         }
                     }
-                });
+                    final CanMatchResponse response = new CanMatchResponse(responses);
+                    listener.onResponse(response);
+                }
+            };
+            for (int i = 0; i < shardSearchRequests.size(); i++) {
+                final ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
+                final int finalI = i;
+                try {
+                    sendCanMatch(connection, shardSearchRequest, task, new ActionListener<>() {
+                        @Override
+                        public void onResponse(CanMatchShardResponse response) {
+                            results.set(finalI, response);
+                            maybeFinish.run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            results.set(finalI, e);
+                            maybeFinish.run();
+                        }
+                    });
+                } catch (Exception e) {
+                    results.set(finalI, e);
+                    maybeFinish.run();
+                }
             }
         }
     }

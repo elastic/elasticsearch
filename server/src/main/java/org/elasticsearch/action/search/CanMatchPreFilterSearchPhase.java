@@ -247,16 +247,16 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
                         task, new ActionListener<>() {
                             @Override
                             public void onResponse(CanMatchResponse canMatchResponse) {
+                                assert canMatchResponse.getResponses().size() == canMatchRequest.getShardLevelRequests().size();
                                 for (int i = 0; i < canMatchResponse.getResponses().size(); i++) {
-                                    CanMatchShardResponse response = canMatchResponse.getResponses().get(i);
-                                    if (response != null) {
-                                        response.setShardIndex(shardLevelRequests.get(i).getShardRequestIndex());
-                                        onOperation(response.getShardIndex(), response);
-                                    }
-                                }
-                                for (int i = 0; i < canMatchResponse.getFailures().size(); i++) {
-                                    Exception failure = canMatchResponse.getFailures().get(i);
-                                    if (failure != null) {
+                                    CanMatchResponse.ResponseOrFailure response = canMatchResponse.getResponses().get(i);
+                                    if (response.getResponse() != null) {
+                                        CanMatchShardResponse shardResponse = response.getResponse();
+                                        shardResponse.setShardIndex(shardLevelRequests.get(i).getShardRequestIndex());
+                                        onOperation(shardResponse.getShardIndex(), shardResponse);
+                                    } else {
+                                        Exception failure = response.getException();
+                                        assert failure != null;
                                         onOperationFailed(shardLevelRequests.get(i).getShardRequestIndex(), failure);
                                     }
                                 }

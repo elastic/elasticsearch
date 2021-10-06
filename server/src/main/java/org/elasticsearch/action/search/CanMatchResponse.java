@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -18,31 +20,69 @@ import java.util.List;
 
 public class CanMatchResponse extends TransportResponse {
 
-    private final List<CanMatchShardResponse> responses;
-    private final List<Exception> failures;
+    private final List<ResponseOrFailure> responses;
 
     public CanMatchResponse(StreamInput in) throws IOException {
         super(in);
-        responses = in.readList(i -> i.readOptionalWriteable(CanMatchShardResponse::new));
-        failures = in.readList(StreamInput::readException);
+        responses = in.readList(ResponseOrFailure::new);
     }
 
-    public CanMatchResponse(List<CanMatchShardResponse> responses, List<Exception> failures) {
+    public CanMatchResponse(List<ResponseOrFailure> responses) {
         this.responses = responses;
-        this.failures = failures;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(responses, StreamOutput::writeOptionalWriteable);
-        out.writeCollection(failures, StreamOutput::writeException);
     }
 
-    public List<CanMatchShardResponse> getResponses() {
+    public List<ResponseOrFailure> getResponses() {
         return responses;
     }
 
-    public List<Exception> getFailures() {
-        return failures;
+    public static class ResponseOrFailure implements Writeable {
+
+        public ResponseOrFailure(CanMatchShardResponse response) {
+            this.response = response;
+            this.exception = null;
+        }
+
+        public ResponseOrFailure(Exception exception) {
+            this.exception = exception;
+            this.response = null;
+        }
+
+        @Nullable
+        public CanMatchShardResponse getResponse() {
+            return response;
+        }
+
+        @Nullable
+        public Exception getException() {
+            return exception;
+        }
+
+        private final CanMatchShardResponse response;
+        private final Exception exception;
+
+        public ResponseOrFailure(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                response = new CanMatchShardResponse(in);
+                exception = null;
+            } else {
+                exception = in.readException();
+                response = null;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(response != null);
+            if (response != null) {
+                response.writeTo(out);
+            } else {
+                out.writeException(exception);
+            }
+        }
     }
 }

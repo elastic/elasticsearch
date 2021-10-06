@@ -1224,21 +1224,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void canMatch(CanMatchRequest request, ActionListener<CanMatchResponse> listener) {
-        List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-        List<CanMatchShardResponse> responses = new ArrayList<>(shardSearchRequests.size());
-        List<Exception> failures = new ArrayList<>(shardSearchRequests.size());
-        for (int i = 0; i < shardSearchRequests.size(); i++) {
-            ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
+        final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
+        final List<CanMatchResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
+        for (ShardSearchRequest shardSearchRequest : shardSearchRequests) {
             CanMatchShardResponse canMatchShardResponse;
             try {
                 canMatchShardResponse = canMatch(shardSearchRequest);
-                responses.add(i, canMatchShardResponse);
+                responses.add(new CanMatchResponse.ResponseOrFailure(canMatchShardResponse));
             } catch (Exception e) {
-                failures.add(i, e);
+                responses.add(new CanMatchResponse.ResponseOrFailure(e));
             }
-
         }
-        listener.onResponse(new CanMatchResponse(responses, failures));
+        listener.onResponse(new CanMatchResponse(responses));
     }
 
     /**

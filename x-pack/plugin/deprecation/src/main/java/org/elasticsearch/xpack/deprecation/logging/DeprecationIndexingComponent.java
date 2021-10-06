@@ -122,7 +122,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     private static class DeprecationBulkListener implements BulkProcessor.Listener {
         @Override
         public void beforeBulk(long executionId, BulkRequest request) {
-            ///
+            // TODO do not allow bulk when appender is disabled
         }
 
         @Override

@@ -1091,10 +1091,8 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder field(String name, Enum<?> value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return field(name).value(value.toString());
+        field(name);
+        return value(value == null ? null : value.toString());
     }
 
     ////////////////////////////////////////////////////////////////////////////

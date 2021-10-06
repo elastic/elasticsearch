@@ -7,12 +7,12 @@ Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 [discrete]
 === Known issues
 
-* Aggregations (7.14.0-7.15.0): When a cross cluster search (CCS) request is proxied, the memory for the aggregations on the
-proxy node will not be freed. The trigger is cross cluster search using aggregations where minimize 
-roundtrips is not effective (e.g. when minimize roundtrips is explicitly disabled, or implicitly disabled 
-when using scroll, async and point in time searches). This affects Kibana CCS aggregations because Kibana 
+* Aggregations: In {es} 7.14.0–7.15.0, when a {css} ({css-init}) request is proxied, the memory for the aggregations on the
+proxy node will not be freed. The trigger is {css} using aggregations where minimize 
+roundtrips is not effective (for example, when minimize roundtrips is explicitly disabled, or implicitly disabled 
+when using scroll, async and point-in-time searches). This affects {kib} {css-init} aggregations because {kib} 
 uses async search by default. This issue can also happen in all modes of remote connections 
-configured for cross cluster search (sniff and proxy). In sniff mode, we only connect to a subset of the 
+configured for {ccs} (sniff and proxy). In sniff mode, we only connect to a subset of the 
 remote nodes (by default 3). So if the remote node we want to send a request to is not one of those 3, 
 we must send the request as a proxy request. The workaround is to periodically restart nodes with heap pressure.
 +

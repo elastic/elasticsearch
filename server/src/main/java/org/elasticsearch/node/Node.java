@@ -10,6 +10,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.util.FileUtils;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
@@ -60,6 +61,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -79,6 +81,9 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.offheap.OffHeapBigArrays;
+import org.elasticsearch.common.util.offheap.OffHeapDecider;
+import org.elasticsearch.common.util.offheap.SimpleOffHeapDecider;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -469,7 +474,9 @@ public class Node implements Closeable {
 
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
-            BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
+            OffHeapDecider offHeapDecider = createOffHeapDecider(settingsModule.getClusterSettings(), clusterInfoService,
+                threadPool, nodeEnvironment.nodeId());
+            BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService, offHeapDecider);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
@@ -1169,7 +1176,31 @@ public class Node implements Closeable {
      * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
      */
     BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
+        return createBigArrays(pageCacheRecycler, circuitBreakerService, null);
+    }
+
+    /**
+     * Creates a new {@link BigArrays} instance used for this node.
+     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
+     */
+    BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService, OffHeapDecider offHeapDecider) {
+        if (offHeapDecider == null) {
+            return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
+        } else {
+            Path tmpPath = PathUtils.get(nodeEnvironment.nodeDataPath().toString(), "tmp");
+            try {
+                FileUtils.mkdir(tmpPath.toFile(), true);
+            } catch (IOException e) {
+                logger.error(e);
+                throw new RuntimeException("unable to init offheap big arrays", e);
+            }
+            return new OffHeapBigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST, false, tmpPath, offHeapDecider);
+        }
+    }
+
+    OffHeapDecider createOffHeapDecider(ClusterSettings clusterSettings, ClusterInfoService clusterInfoService,
+                                        ThreadPool threadPool, String localNodeId) {
+        return new SimpleOffHeapDecider(clusterSettings, clusterInfoService, threadPool, localNodeId);
     }
 
     /**

@@ -43,28 +43,34 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
 class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
-    private final ThreadPool threadPool;
+    private ThreadPool threadPool;
     private final ClusterService clusterService;
     private final PolicyStepsRegistry stepRegistry;
     private final ILMHistoryStore ilmHistoryStore;
     private final LongSupplier nowSupplier;
 
-    private static final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
+    private final ClusterStateTaskExecutor<IndexLifecycleClusterStateUpdateTask> ILM_TASK_EXECUTOR = (currentState, tasks) -> {
         ClusterStateTaskExecutor.ClusterTasksResult.Builder<IndexLifecycleClusterStateUpdateTask> builder =
-                ClusterStateTaskExecutor.ClusterTasksResult.builder();
+            ClusterStateTaskExecutor.ClusterTasksResult.builder();
         ClusterState state = currentState;
+        long start = threadPool.relativeTimeInMillis();
         for (IndexLifecycleClusterStateUpdateTask task : tasks) {
-            try {
-                state = task.execute(state);
-                builder.success(task);
-            } catch (Exception e) {
-                builder.failure(task, e);
+            if (threadPool.relativeTimeInMillis() - start < 10000) {
+                try {
+                    state = task.execute(state);
+                    builder.success(task);
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            } else {
+                builder.failure(task, new TimeoutException());
             }
         }
         return builder.build(state);

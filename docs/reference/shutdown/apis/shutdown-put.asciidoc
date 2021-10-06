@@ -66,7 +66,8 @@ Use `remove` when you need to permanently remove a node from the cluster.
 The node is not marked ready for shutdown until data is migrated off of the node
 Use `replace` to do a 1:1 replacement of a node with another node. Certain allocation decisions will
 be ignored (such as disk watermarks) in the interest of true replacement of the source node with the
-target node.
+target node. During a replace-type shutdown, rollover and index creation may result in unassigned
+shards, and shrink may fail until the replacement is complete.
 
 `reason`::
 (Required, string)

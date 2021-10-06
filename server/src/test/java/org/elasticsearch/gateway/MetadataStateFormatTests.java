@@ -374,8 +374,8 @@ public class MetadataStateFormatTests extends ESTestCase {
         expectThrows(WriteStateException.class, () -> format.write(state, paths));
         long firstPathId = format.findMaxGenerationId("foo-", paths[0]);
         assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[1]));
-        assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[2]));
-        assertEquals(genId, firstPathId);
+        assertEquals(genId, format.findMaxGenerationId("foo-", badPath));
+        assertEquals(genId, firstPathId-1);
     }
 
     public void testDeleteMetaState() throws IOException {

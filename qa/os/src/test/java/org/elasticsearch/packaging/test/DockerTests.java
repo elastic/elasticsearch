@@ -868,22 +868,45 @@ public class DockerTests extends PackagingTestCase {
      * logic sets the correct heap size, based on the container limits.
      */
     public void test150MachineDependentHeap() throws Exception {
+        final List<String> xArgs = machineDependentHeapTest("942m", List.of());
+
+        // This is roughly 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
+    }
+
+    /**
+     * Check that when available system memory is constrained by a total memory override as well as Docker,
+     * the machine-dependant heap sizing logic sets the correct heap size, preferring the override to the
+     * container limits.
+     */
+    public void test151MachineDependentHeapWithSizeOverride() throws Exception {
+        final List<String> xArgs = machineDependentHeapTest(
+            "942m",
+            // 799014912 = 762m
+            List.of("-Des.total_memory_override=799014912")
+        );
+
+        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+    }
+
+    private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {
         // Start by ensuring `jvm.options` doesn't define any heap options
         final Path jvmOptionsPath = tempDir.resolve("jvm.options");
         final Path containerJvmOptionsPath = installation.config("jvm.options");
         copyFromContainer(containerJvmOptionsPath, jvmOptionsPath);
 
-        final List<String> jvmOptions = Files.readAllLines(jvmOptionsPath)
-            .stream()
-            .filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false)
-            .collect(Collectors.toList());
+        final List<String> jvmOptions = Stream.concat(
+            Files.readAllLines(jvmOptionsPath).stream().filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false),
+            extraJvmOptions.stream()
+        ).collect(Collectors.toList());
 
         Files.writeString(jvmOptionsPath, String.join("\n", jvmOptions));
 
         // Now run the container, being explicit about the available memory
         runContainer(
             distribution(),
-            builder().memory("942m")
+            builder().memory(containerMemory)
                 .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
                 .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
@@ -899,12 +922,9 @@ public class DockerTests extends PackagingTestCase {
         final JsonNode jsonNode = new ObjectMapper().readTree(jvmArgumentsLine.get());
 
         final String argsStr = jsonNode.get("message").textValue();
-        final List<String> xArgs = Arrays.stream(argsStr.substring(1, argsStr.length() - 1).split(",\\s*"))
+        return Arrays.stream(argsStr.substring(1, argsStr.length() - 1).split(",\\s*"))
             .filter(arg -> arg.startsWith("-X"))
             .collect(Collectors.toList());
-
-        // This is roughly 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
     }
 
     /**

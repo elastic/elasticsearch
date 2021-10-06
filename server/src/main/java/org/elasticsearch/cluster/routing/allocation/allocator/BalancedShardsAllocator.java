@@ -31,12 +31,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -690,11 +690,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              */
             MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
-                final boolean shardsOnReplacedNodes = allocation.metadata().nodeShutdowns().values().stream()
-                    .filter(s -> s.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
-                    .map(SingleNodeShutdownMetadata::getNodeId)
-                    .anyMatch(shardRouting.currentNodeId()::equals);
-                if (shardsOnReplacedNodes) {
+                final SingleNodeShutdownMetadata shutdown = allocation.nodeShutdowns().get(shardRouting.currentNodeId());
+                final boolean shardsOnReplacedNode = shutdown != null &&
+                    shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
+                if (shardsOnReplacedNode) {
                     return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
                 }
             }

@@ -102,9 +102,9 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
     private static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "es.cluster_health.request_timeout_200";
-    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "HTTP status code for an internal cluster health timeout " +
-        "will be changed from 408 to 200 in 8.0.0. Set the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] property to `true` " +
-        "to opt in for it.";
+    static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "The HTTP status code for a cluster health timeout " +
+        "will be changed from 408 to 200 in a future version. Set the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] " +
+        "system property to `true` to suppress this message and opt in to the future behaviour now.";
 
     static {
         // ClusterStateHealth fields

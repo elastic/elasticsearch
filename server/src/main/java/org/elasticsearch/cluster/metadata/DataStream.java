@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
@@ -42,8 +43,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
-    // Datastreams' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
-    public static Comparator<LeafReader> DATASTREAM_LEAF_READERS_SORTER =
+    // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
+    public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER =
         Comparator.comparingLong(
             (LeafReader r) -> {
                 try {
@@ -51,14 +52,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     if (points != null) {
                         byte[] sortValue = points.getMaxPackedValue();
                         return LongPoint.decodeDimension(sortValue, 0);
-                    } else if (r.numDocs() == 0) {
-                        // points can be null if the segment contains only deleted documents
+                    } else {
+                        // As we apply this segment sorter to any timeseries indices,
+                        // we don't have a guarantee that all docs contain @timestamp field.
+                        // Some segments may have all docs without @timestamp field, in this
+                        // case they will be sorted last.
                         return Long.MIN_VALUE;
                     }
                 } catch (IOException e) {
+                    throw new ElasticsearchException("Can't access [" +
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the index!", e);
                 }
-                throw new IllegalStateException("Can't access [" +
-                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
             })
         .reversed();
 

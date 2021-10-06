@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -201,8 +199,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
             "tier " + singleTier + " is an invalid tier name";
-        for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
-            for (DiscoveryNodeRole discoveryNodeRole : node.value.getRoles()) {
+        for (DiscoveryNode node : nodes.getNodes().values()) {
+            for (DiscoveryNodeRole discoveryNodeRole : node.getRoles()) {
                 String s = discoveryNodeRole.roleName();
                 if (s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier)) {
                     return true;

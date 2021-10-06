@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -228,8 +228,8 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         out.writeLong(maxUnsafeAutoIdTimestamp);
 
         out.writeVInt(files.size());
-        for (ObjectCursor<FileStats> file : files.values()) {
-            file.value.writeTo(out);
+        for (FileStats file : files.values()) {
+            file.writeTo(out);
         }
     }
 

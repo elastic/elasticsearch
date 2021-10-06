@@ -28,9 +28,10 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         // Register the service if not done yet
+        File infoPath = new File(buildLayout.getRootDirectory(), "build-tools-internal");
         Provider<VersionPropertiesBuildService> serviceProvider = project.getGradle().getSharedServices()
                 .registerIfAbsent("versions", VersionPropertiesBuildService.class, spec -> {
-            spec.getParameters().getInfoPath().set(new File(buildLayout.getRootDirectory(),"build-tools-internal"));
+            spec.getParameters().getInfoPath().set(infoPath);
         });
         project.getExtensions().add("versions", serviceProvider.forUseAtConfigurationTime().get().getProperties());
     }

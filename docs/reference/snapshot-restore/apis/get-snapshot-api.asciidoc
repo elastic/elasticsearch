@@ -284,32 +284,29 @@ Number of shards that failed to be included in the snapshot.
 ====
 
 `state`::
+(string) Current status of the snapshot.
 +
---
-(string)
-The snapshot `state` can be one of the following values:
-
 .Values for `state`
 [%collapsible%open]
 ====
-`IN_PROGRESS`::
-  The snapshot is currently running.
-
-`SUCCESS`::
-  The snapshot finished and all shards were stored successfully.
+`ABORTED`::
+The snapshot was cancelled by a <<delete-snapshot-api,delete snapshot request>>.
 
 `FAILED`::
-  The snapshot finished with an error and failed to store any data.
+The snapshot finished with an error and failed to store any data.
+
+`IN_PROGRESS`::
+The snapshot is currently running.
 
 `PARTIAL`::
-  The global cluster state was stored, but data of at least one shard was not stored successfully.
-  The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
-  that were not processed correctly.
+The global cluster state was stored, but data of at least one shard was not stored successfully.
+The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
+that were not processed correctly.
 
-`ABORTED`::
-  The snapshot process was manually stopped via deletion. If believed stuck, do rolling cluster restart.
+`SUCCESS`::
+The snapshot finished and all shards were stored successfully.
 ====
---
+
 `next`::
 (string)
 If the request contained a size limit and there might be more results, a `next` field will be added to the response and can be used as the

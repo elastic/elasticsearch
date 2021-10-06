@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -50,10 +51,13 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, Object> values = p.mapOrdered();
             Object compressed = values.get("compressed");
-            if (compressed != null) {
+            if (compressed == null) {
+                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(values)));
+            } else if (compressed instanceof String) {
+                return new CompressedXContent(Base64.getDecoder().decode((String) compressed));
+            } else {
                 return new CompressedXContent((byte[]) compressed);
             }
-            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(values)));
         }, MAPPINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();

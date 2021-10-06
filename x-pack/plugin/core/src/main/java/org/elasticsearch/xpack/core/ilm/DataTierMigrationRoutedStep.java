@@ -64,11 +64,11 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
                     getKey().getAction(), index.getName());
             } else {
                 if (availableDestinationTier.isPresent()) {
-                    logger.debug("[{}] migration of index [{}] to the [{}] tier preference cannot progress, as not all shards are active",
+                    logger.debug("[{}] migration of index [{}] to the {} tier preference cannot progress, as not all shards are active",
                         getKey().getAction(), index.getName(), preferredTierConfiguration);
                 } else {
                     logger.debug("[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the " +
-                            "configured preferred tiers [{}] and not all shards are active", getKey().getAction(), index.getName(),
+                            "configured preferred tiers {} and not all shards are active", getKey().getAction(), index.getName(),
                         preferredTierConfiguration);
                 }
             }
@@ -87,10 +87,10 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(
                 s -> String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier " +
-                        "migration preference configuration is [%s])", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
+                        "migration preference configuration is %s)", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
                     preferredTierConfiguration)
             ).orElseGet(
-                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers [%s], but no nodes for any of those tiers are " +
+                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " +
                     "available in the cluster", index.getName(), preferredTierConfiguration));
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));

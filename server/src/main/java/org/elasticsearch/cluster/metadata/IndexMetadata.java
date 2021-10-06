@@ -401,8 +401,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean ignoreDiskWatermarks;
 
-    private final List<String> tierPreference;
-
     private IndexMetadata(
             final Index index,
             final long version,
@@ -432,8 +430,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IndexLongFieldRange timestampRange,
             final int priority,
             final long creationDate,
-            final boolean ignoreDiskWatermarks,
-            final List<String> tierPreference
+            final boolean ignoreDiskWatermarks
     ) {
 
         this.index = index;
@@ -471,7 +468,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.timestampRange = timestampRange;
         this.priority = priority;
         this.creationDate = creationDate;
-        this.tierPreference = tierPreference;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -579,7 +575,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.aliases;
     }
 
+    /**
+     * Lazy loaded cache for tier preference setting. We can't eager load this setting because
+     * {@link IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} might not have acted on this index yet and thus the
+     * setting validation for this setting could fail for metadata loaded from a snapshot or disk after an upgrade.
+     */
+    private List<String> tierPreference;
+
     public List<String> getTierPreference() {
+        List<String> tierPreference = this.tierPreference;
+        if (tierPreference != null) {
+            return tierPreference;
+        }
+        tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
+        this.tierPreference = tierPreference;
         return tierPreference;
     }
 
@@ -1349,8 +1358,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     timestampRange,
                     IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                     settings.getAsLong(SETTING_CREATION_DATE, -1L),
-                    DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
-                    DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings))
+                    DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings)
             );
         }
 

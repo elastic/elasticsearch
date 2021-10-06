@@ -81,7 +81,7 @@ public final class MachineDependentHeap {
         try {
             return Long.parseLong(totalMemoryBytesOption.split("=", 2)[1]);
         } catch (NumberFormatException e) {
-            throw new RuntimeException("Unable to parse number of bytes from [" + totalMemoryBytesOption + "]");
+            throw new IllegalArgumentException("Unable to parse number of bytes from [" + totalMemoryBytesOption + "]");
         }
     }
 

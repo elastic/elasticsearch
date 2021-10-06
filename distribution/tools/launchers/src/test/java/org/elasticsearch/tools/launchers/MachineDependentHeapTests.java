@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 public class MachineDependentHeapTests extends LaunchersTestCase {
 
@@ -124,6 +125,12 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
             is(123456789L)
         );
         assertThat(MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Des.total_memory_bytes=987654321")), is(987654321L));
+        try {
+            MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Des.total_memory_bytes=invalid"));
+            fail("expected parse to fail");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Unable to parse number of bytes from [-Des.total_memory_bytes=invalid]"));
+        }
     }
 
     private static List<String> calculateHeap(double memoryInGigabytes, Long forcedMemoryInBytes, String... roles) {

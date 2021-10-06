@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -121,9 +120,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
 
         // Log the node versions (for debugging if necessary)
-        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
-            Version nodeVer = cursor.value.getVersion();
-            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        for (DiscoveryNode discoveryNode : state.nodes().getDataNodes().values()) {
+            Version nodeVer = discoveryNode.getVersion();
+            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), nodeVer);
         }
 
         // randomly create some indices

@@ -22,4 +22,31 @@ scripts. Any use of `getDayOfWeek` expecting a return value of `int` will result
 in a compilation error or runtime error and may not allow the upgraded node to
 start.
 ====
+
+.Stored scripts no longer support empty scripts or search templates.
+[%collapsible]
+====
+*Details* +
+The {ref}/create-stored-script-api.html[create or update stored script API]'s
+`source` parameter cannot be empty.
+
+*Impact* +
+Before upgrading, use the {ref}/delete-stored-script-api.html[delete stored
+script API] to delete any empty stored scripts or search templates.
+In 8.0, {es} will drop any empty stored scripts or empty search templates from
+the cluster state. Requests to create a stored script or search template with
+an empty `source` will return an error.
+====
+
+.The create or update stored script API's `code` parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The {ref}/create-stored-script-api.html[create or update stored script API]'s
+`code` parameter has been removed. Use the `source` parameter instead.
+
+*Impact* +
+Discontinue use of the `code` parameter. Requests that include the parameter
+will return an error.
+====
 // end::notable-breaking-changes[]

@@ -1,10 +1,5 @@
 # whitelist for tests
 
-# TODO: remove this when the transition from Joda to Java datetimes is completed
-class org.elasticsearch.script.JodaCompatibleZonedDateTime {
-  (Instant, ZoneId)
-}
-
 # for unit tests only
 class org.elasticsearch.painless.api.Json {
   def load(String)

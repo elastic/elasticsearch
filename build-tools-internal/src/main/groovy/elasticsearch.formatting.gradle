@@ -196,7 +196,8 @@ def projectPathsToExclude = [
 
 subprojects {
   plugins.withType(ElasticsearchJavaPlugin).whenPluginAdded {
-    if (projectPathsToExclude.contains(project.path) == false) {
+    if (projectPathsToExclude.contains(project.path) == false ||
+        providers.systemProperty("es.format.everything").forUseAtConfigurationTime().isPresent()) {
       project.apply plugin: "com.diffplug.spotless"
 
 

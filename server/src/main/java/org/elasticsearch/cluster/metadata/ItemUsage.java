@@ -77,13 +77,13 @@ public class ItemUsage implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (this.indices != null) {
-            builder.field("indices", this.indices);
+            builder.stringListField("indices", this.indices);
         }
         if (this.dataStreams != null) {
-            builder.field("data_streams", this.dataStreams);
+            builder.stringListField("data_streams", this.dataStreams);
         }
         if (this.composableTemplates != null) {
-            builder.field("composable_templates", this.composableTemplates);
+            builder.stringListField("composable_templates", this.composableTemplates);
         }
         builder.endObject();
         return builder;

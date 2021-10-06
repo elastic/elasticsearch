@@ -80,6 +80,13 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                         request.getType(),
                         request.getReason()
                     );
+                } else {
+                    logger.info(
+                        "creating shutdown record for node [{}] of type [{}] with reason [{}]",
+                        request.getNodeId(),
+                        request.getType(),
+                        request.getReason()
+                    );
                 }
 
                 final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());

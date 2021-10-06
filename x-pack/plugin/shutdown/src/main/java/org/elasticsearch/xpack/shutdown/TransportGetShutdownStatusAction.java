@@ -262,7 +262,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 return hasShardCopyOnOtherNode == false;
             })
             .peek(pair -> {
-                logger.info(
+                logger.debug(
                     "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
                     nodeId,
                     shutdownType,

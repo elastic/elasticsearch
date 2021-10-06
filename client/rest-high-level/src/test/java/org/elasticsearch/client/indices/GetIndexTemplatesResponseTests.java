@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -105,10 +104,10 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
 
                     assertThat(result.aliases().size(), equalTo(esIMD.aliases().size()));
-                    List<AliasMetadata> expectedAliases = Arrays.stream(esIMD.aliases().values().toArray(AliasMetadata.class))
+                    List<AliasMetadata> expectedAliases = esIMD.aliases().values().stream()
                         .sorted(Comparator.comparing(AliasMetadata::alias))
                         .collect(Collectors.toList());
-                    List<AliasMetadata> actualAliases = Arrays.stream(result.aliases().values().toArray(AliasMetadata.class))
+                    List<AliasMetadata> actualAliases = result.aliases().values().stream()
                         .sorted(Comparator.comparing(AliasMetadata::alias))
                         .collect(Collectors.toList());
                     for (int j = 0; j < result.aliases().size(); j++) {
@@ -186,8 +185,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
             serverTemplateBuilder.patterns(clientITMD.patterns());
 
-            Iterator<AliasMetadata> aliases = clientITMD.aliases().valuesIt();
-            aliases.forEachRemaining((a)->serverTemplateBuilder.putAlias(a));
+            clientITMD.aliases().values().forEach(serverTemplateBuilder::putAlias);
 
             serverTemplateBuilder.settings(clientITMD.settings());
             serverTemplateBuilder.order(clientITMD.order());

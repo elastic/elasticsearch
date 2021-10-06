@@ -47,6 +47,10 @@ public class WaitForSnapshotAction implements LifecycleAction, ToXContentObject 
         this.policy = policy;
     }
 
+    public String getPolicy() {
+        return policy;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();

@@ -46,7 +46,7 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
+            builder.stringListField(INDICES_FIELD.getPreferredName(), indices);
             builder.startObject(FAILURE_FIELD.getPreferredName());
             {
                 ElasticsearchException.generateFailureXContent(builder, params, exception, true);

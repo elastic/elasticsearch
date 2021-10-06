@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,22 +28,26 @@ import java.util.Set;
  */
 public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest {
 
-    private String field;
-    private String string;
-    private String searchAfter;
-    private long taskStartedTimeMillis;
-    private long nodeStartedTimeMillis;
-    private boolean caseInsensitive;
-    private int size;
-    private long timeout;
+    private final String field;
+    private final String string;
+    private final String searchAfter;
+    private final long taskStartedTimeMillis;
+    private final boolean caseInsensitive;
+    private final int size;
+    private final long timeout;
     private final QueryBuilder indexFilter;
-    private Set<ShardId> shardIds;
-    private String nodeId;
+    private final Set<ShardId> shardIds;
+    private final String nodeId;
+    private final OriginalIndices originalIndices;
 
-    public NodeTermsEnumRequest(final String nodeId,
+    private long nodeStartedTimeMillis;
+
+    public NodeTermsEnumRequest(OriginalIndices originalIndices,
+                                final String nodeId,
                                 final Set<ShardId> shardIds,
                                 TermsEnumRequest request,
                                 long taskStartTimeMillis) {
+        this.originalIndices = originalIndices;
         this.field = request.field();
         this.string = request.string();
         this.searchAfter = request.searchAfter();
@@ -70,6 +76,15 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         for (int i = 0; i < numShards; i++) {
             shardIds.add(new ShardId(in));
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            originalIndices = OriginalIndices.readOriginalIndices(in);
+        } else {
+            String[] indicesNames = shardIds.stream()
+                .map(ShardId::getIndexName)
+                .distinct()
+                .toArray(String[]::new);
+            this.originalIndices = new OriginalIndices(indicesNames, null);
+        }
     }
 
     @Override
@@ -91,6 +106,9 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         out.writeVInt(shardIds.size());
         for (ShardId shardId : shardIds) {
             shardId.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
     }
 
@@ -152,16 +170,12 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
 
     @Override
     public String[] indices() {
-        HashSet<String> indicesNames = new HashSet<>();
-        for (ShardId shardId : shardIds) {
-            indicesNames.add(shardId.getIndexName());
-        }
-        return indicesNames.toArray(new String[0]);
+        return originalIndices.indices();
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return null;
+        return originalIndices.indicesOptions();
     }
 
     public boolean remove(ShardId shardId) {

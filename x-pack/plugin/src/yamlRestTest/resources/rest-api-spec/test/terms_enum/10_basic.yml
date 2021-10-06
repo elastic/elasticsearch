@@ -40,6 +40,16 @@ setup:
 
   - do:
       security.put_role:
+        name: "dls_alias_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["alias_security"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
         name: "dls_none_role"
         body:  >
             {
@@ -54,6 +64,16 @@ setup:
           {
             "password" : "x-pack-test-password",
             "roles" : [ "dls_none_role", "dls_all_role" ],
+            "full_name" : "user with access to all docs in test_security index (using DLS)"
+          }
+
+  - do:
+      security.put_user:
+        username: "dls_alias_user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "dls_alias_role" ],
             "full_name" : "user with access to all docs in test_security index (using DLS)"
           }
 
@@ -143,6 +163,8 @@ setup:
       indices.create:
         index: test_security
         body:
+          aliases:
+            alias_security: {}
           settings:
             index:
               number_of_shards:   1
@@ -197,6 +219,16 @@ teardown:
   - do:
       security.delete_role:
         name: "dls_all_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "dls_alias_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "dls_alias_role"
         ignore: 404
   - do:
       security.delete_role:
@@ -289,6 +321,7 @@ teardown:
         index:  test_k
         body:  {"field": "foo"}
   - length: {terms: 1}
+
 ---
 "Test search after keyword field":
   - do:
@@ -389,6 +422,7 @@ teardown:
       terms_enum:
         index:  test_*
         body:  {"field": "foo", "string":"b", "timeout": "2m"}
+
 ---
 "Test security":
 
@@ -405,6 +439,13 @@ teardown:
         index:  test_security
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 1}
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsaWFzX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" } # dls_alias_user sees all docs through the alias
+      terms_enum:
+        index: alias_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 1 }
 
   - do:
       headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user sees selected docs

@@ -234,7 +234,7 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(Streams.flushOnCloseStream(bytesStream)))) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(nodeVersion, bytesStream))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
@@ -261,7 +261,7 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(Streams.flushOnCloseStream(bytesStream)))) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(nodeVersion, bytesStream))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
@@ -283,11 +283,11 @@ public class PublicationTransportHandler {
         }
     }
 
-    private OutputStream getCompressionOutputStream(BytesStream stream) throws IOException {
-        if (compressionScheme == Compression.Scheme.LZ4) {
-            return Compression.Scheme.lz4FrameOutputStream(stream);
+    private OutputStream getCompressionOutputStream(Version version, BytesStream stream) throws IOException {
+        if (version.onOrAfter(BytesTransportRequest.COMPRESSION_SCHEME_VERSION) && compressionScheme == Compression.Scheme.LZ4) {
+            return LZ4Compressor.INSTANCE.threadLocalOutputStream(Streams.flushOnCloseStream(stream));
         } else {
-            return CompressorFactory.COMPRESSOR.threadLocalOutputStream(stream);
+            return DeflateCompressor.INSTANCE.threadLocalOutputStream(Streams.flushOnCloseStream(stream));
         }
     }
 

@@ -24,6 +24,9 @@ grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "setContextClassLoader";
   // needed by HotThreads to enable wait/block time accounting on demand
   permission java.lang.management.ManagementPermission "control";
+
+  // Allows for reflective access into lucene. Remove once split packages resolved.
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Very special jar permissions:

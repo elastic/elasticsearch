@@ -15,7 +15,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -34,7 +33,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     protected GetFeatureUpgradeStatusResponse createTestInstance() {
         return new GetFeatureUpgradeStatusResponse(
             randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
-            randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED)
+            randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())
         );
     }
 
@@ -44,8 +43,9 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
             randomList(8,
                 () -> randomValueOtherThanMany(instance.getFeatureUpgradeStatuses()::contains,
                     GetFeatureUpgradeStatusResponseTests::createFeatureStatus)),
-            randomValueOtherThan(instance.getUpgradeStatus(), () -> randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED))
-        );
+            randomValueOtherThan(instance.getUpgradeStatus(), () ->
+                randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())));
+
     }
 
     /** If constructor is called with null for a list, we just use an empty list */
@@ -59,7 +59,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
-            randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED),
+            randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
             randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexVersion)
         );
     }

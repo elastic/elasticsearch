@@ -99,7 +99,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
     public enum UpgradeStatus {
         UPGRADE_NEEDED,
-        NO_UPGRADE_NEEDED
+        NO_UPGRADE_NEEDED,
+        IN_PROGRESS
     }
 
     /**

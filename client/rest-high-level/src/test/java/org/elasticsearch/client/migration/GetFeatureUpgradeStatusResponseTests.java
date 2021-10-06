@@ -16,8 +16,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -41,13 +39,13 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractResponseTestCa
                 () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
                     randomAlphaOfLengthBetween(3, 20),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
-                    randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED),
+                    randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
                     randomList(4,
                         () -> new org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.IndexVersion(
                             randomAlphaOfLengthBetween(3, 20),
                             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())))
                 )),
-            randomFrom(UPGRADE_NEEDED, NO_UPGRADE_NEEDED)
+            randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())
         );
     }
 

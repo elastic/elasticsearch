@@ -165,7 +165,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
             assert parser != null;
-            // Trying to parse infinite values into ints/longs throws.  Understandably.
+            // Trying to parse infinite values into ints/longs throws. Understandably.
             Double from = Double.isFinite(range.from) ? fixPrecision.applyAsDouble(range.from) : range.from;
             Double to = Double.isFinite(range.to) ? fixPrecision.applyAsDouble(range.to) : range.to;
             if (range.fromAsStr != null) {

@@ -129,7 +129,7 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEMPLATE.getPreferredName(), this.template);
+        builder.field(TEMPLATE.getPreferredName(), this.template, params);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

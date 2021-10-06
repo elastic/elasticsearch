@@ -9,21 +9,21 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -47,8 +47,14 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-            new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            Map<String, Object> values = p.mapOrdered();
+            Object compressed = values.get("compressed");
+            if (compressed != null) {
+                return new CompressedXContent((byte[]) compressed);
+            }
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(values)));
+        }, MAPPINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -160,11 +166,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             builder.endObject();
         }
         if (this.mappings != null) {
-            Map<String, Object> uncompressedMapping =
-                XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
-            if (uncompressedMapping.size() > 0) {
-                builder.field(MAPPINGS.getPreferredName());
-                builder.map(reduceMapping(uncompressedMapping));
+            if (Metadata.CONTEXT_MODE_GATEWAY.equals(params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API))) {
+                builder.startObject(MAPPINGS.getPreferredName());
+                builder.field("compressed", mappings.compressed());
+                builder.endObject();
+            } else {
+                Map<String, Object> uncompressedMapping =
+                    XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON).v2();
+                if (uncompressedMapping.size() > 0) {
+                    builder.field(MAPPINGS.getPreferredName());
+                    builder.map(reduceMapping(uncompressedMapping));
+                }
             }
         }
         if (this.aliases != null) {

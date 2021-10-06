@@ -3,7 +3,7 @@
 
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 
-[[known-issues-7.14.2]]
+[[known-issues-7.14.0 to 7.14.2]]
 [discrete]
 === Known issues
 

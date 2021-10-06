@@ -21,7 +21,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -340,6 +342,14 @@ public class BwcVersions {
         return unmodifiableList(filterSupportedVersions(indexCompatibles));
     }
 
+    public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
+        getIndexCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
+    }
+
+    public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+        getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v"+v.toString()));
+    }
+
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
@@ -351,6 +361,14 @@ public class BwcVersions {
         wireCompat.sort(Version::compareTo);
 
         return unmodifiableList(filterSupportedVersions(wireCompat));
+    }
+
+    public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
+        getWireCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
+    }
+
+    public void withWireCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+        getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v"+v.toString()));
     }
 
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {

@@ -197,6 +197,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     }
 
     @Override
+    public String getResultsField() {
+        return resultsField;
+    }
+
+    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
@@ -43,43 +42,37 @@ public class DataTierTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
         final String[] dataNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] contentNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isContentNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] hotNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isHotNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] warmNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isWarmNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] coldNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isColdNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);
 
         final String[] frozenNodes =
-            StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                .map(n -> n.value)
+            discoveryNodes.getNodes().values().stream()
                 .filter(DataTier::isFrozenNode)
                 .map(DiscoveryNode::getId)
                 .toArray(String[]::new);

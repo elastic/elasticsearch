@@ -62,7 +62,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -377,10 +376,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final DiscoveryNode dataNode = randomFrom(
-            StreamSupport.stream(
-                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values().spliterator(),
-                false
-            ).map(c -> c.value).toArray(DiscoveryNode[]::new)
+            client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
         assertAcked(

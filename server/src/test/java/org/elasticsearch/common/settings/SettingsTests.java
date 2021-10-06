@@ -421,7 +421,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(key2.names(), containsInAnyOrder("foo", "bog", "baz", "else"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78691")
     public void testEmptyFilterMap() {
         Settings.Builder builder = Settings.builder();
         builder.put("a", "a1");
@@ -431,23 +430,7 @@ public class SettingsTests extends ESTestCase {
         builder.put("a.b.c.d", "ab3");
 
         Settings filteredSettings = builder.build().filter((k) -> false);
-        assertEquals(0, filteredSettings.size());
-
-        assertFalse(filteredSettings.keySet().contains("a.c"));
-        assertFalse(filteredSettings.keySet().contains("a"));
-        assertFalse(filteredSettings.keySet().contains("a.b"));
-        assertFalse(filteredSettings.keySet().contains("a.b.c"));
-        assertFalse(filteredSettings.keySet().contains("a.b.c.d"));
-        assertFalse(filteredSettings.keySet().remove("a.b"));
-        assertNull(filteredSettings.get("a.b"));
-        assertNull(filteredSettings.get("a.b.c"));
-        assertNull(filteredSettings.get("a.b.c.d"));
-
-        Iterator<String> iterator = filteredSettings.keySet().iterator();
-        for (int i = 0; i < 10; i++) {
-            assertFalse(iterator.hasNext());
-        }
-        expectThrows(NoSuchElementException.class, () -> iterator.next());
+        assertSame(Settings.EMPTY, filteredSettings);
     }
 
     public void testEmpty() {

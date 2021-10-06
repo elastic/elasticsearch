@@ -12,12 +12,14 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -113,12 +115,13 @@ public class ClientYamlTestExecutionContext {
             return null;
         }
         if (bodies.size() == 1) {
-            XContentType xContentType = getContentType(headers, XContentType.values());
+            XContentType xContentType = getXContentType(headers, XContentType.values());
             BytesRef bytesRef = bodyAsBytesRef(bodies.get(0), xContentType);
-            return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length,
-                    ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+
+            ContentType contentType = createContentType(xContentType);
+            return new ByteArrayEntity(bytesRef.bytes, bytesRef.offset, bytesRef.length, contentType);
         } else {
-            XContentType xContentType = getContentType(headers, STREAMING_CONTENT_TYPES);
+            XContentType xContentType = getXContentType(headers, STREAMING_CONTENT_TYPES);
             List<BytesRef> bytesRefList = new ArrayList<>(bodies.size());
             int totalBytesLength = 0;
             for (Map<String, Object> body : bodies) {
@@ -134,11 +137,32 @@ public class ClientYamlTestExecutionContext {
                 }
                 bytes[position++] = xContentType.xContent().streamSeparator();
             }
-            return new ByteArrayEntity(bytes, ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8));
+            ContentType contentType = createContentType(xContentType);
+            return new ByteArrayEntity(bytes, contentType);
         }
     }
 
-    private XContentType getContentType(Map<String, String> headers, XContentType[] supportedContentTypes) {
+    private ContentType createContentType(XContentType xContentType) {
+        Version esVersion = clientYamlTestClient.getEsVersion();
+        if(esVersion.after(Version.V_7_10_0)) {
+            // randomize the content type string from set of supported values
+            MediaType.HeaderValue headerValue = RandomizedTest.randomFrom(xContentType.headerValues()
+                .toArray(new MediaType.HeaderValue[0]));
+            String mediaTypeWithoutParameters = headerValue.v1();
+            ContentType contentType = ContentType.create(mediaTypeWithoutParameters, StandardCharsets.UTF_8);
+
+            Map<String, String> parameters = headerValue.v2();
+            if (parameters.containsKey(MediaType.COMPATIBLE_WITH_PARAMETER_NAME)) {
+                contentType = contentType.withParameters(new BasicNameValuePair(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
+                    String.valueOf(Version.CURRENT.major)));
+            }
+            return contentType;
+        } else {
+            return ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private XContentType getXContentType(Map<String, String> headers, XContentType[] supportedContentTypes) {
         XContentType xContentType = null;
         String contentType = headers.get("Content-Type");
         if (contentType != null) {

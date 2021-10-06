@@ -883,7 +883,7 @@ public class DockerTests extends PackagingTestCase {
         final List<String> xArgs = machineDependentHeapTest(
             "942m",
             // 799014912 = 762m
-            List.of("-Des.total_memory_override=799014912")
+            List.of("-Des.total_memory_bytes=799014912")
         );
 
         // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942

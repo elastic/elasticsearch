@@ -77,7 +77,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected Set<String> excludeTemplates() {
         Set<String> allExcludes = new HashSet<>();
         allExcludes.addAll(super.excludeTemplates());
-        allExcludes.addAll(MonitoringTemplateRegistry.TEMPLATE_NAMES);
+        allExcludes.addAll(Arrays.asList(MonitoringTemplateRegistry.TEMPLATE_NAMES));
         return allExcludes;
     }
 

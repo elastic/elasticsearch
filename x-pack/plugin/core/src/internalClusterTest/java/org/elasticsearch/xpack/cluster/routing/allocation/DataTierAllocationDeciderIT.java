@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class DataTierIT extends ESIntegTestCase {
+public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
     @Override

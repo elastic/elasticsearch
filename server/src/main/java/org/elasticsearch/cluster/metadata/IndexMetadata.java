@@ -579,7 +579,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Lazy loaded cache for tier preference setting. We can't eager load this setting because
      * {@link IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} might not have acted on this index yet and thus the
      * setting validation for this setting could fail for metadata loaded from a snapshot or disk after an upgrade.
+     * Note: this field needs no synchronization since its a pure function of the immutable {@link #settings}, similar to how
+     * {@link String#hashCode()} works.
      */
+    @Nullable // since lazy-loaded
     private List<String> tierPreference;
 
     public List<String> getTierPreference() {

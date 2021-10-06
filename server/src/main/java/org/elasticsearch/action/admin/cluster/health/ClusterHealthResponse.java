@@ -101,9 +101,10 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
+    private static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200 = "es.cluster_health.request_timeout_200";
     static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "HTTP status code for an internal cluster health timeout " +
-        "will be changed from 408 to 200 in 8.0.0. Set the `es.cluster_health.request_timeout_200` property to `true` to opt in for it.";
-
+        "will be changed from 408 to 200 in 8.0.0. Set the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200 + "] property to `true` " +
+        "to opt in for it.";
 
     static {
         // ClusterStateHealth fields
@@ -382,14 +383,14 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     private static boolean readEsClusterHealthRequestTimeout200FromProperty() {
-        String property = System.getProperty("es.cluster_health.request_timeout_200");
+        String property = System.getProperty(ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200);
         if (property == null) {
             return false;
         }
         if (Boolean.parseBoolean(property)) {
             return true;
         } else {
-            throw new IllegalArgumentException("es.cluster_health.request_timeout_200 can only be unset or [true] but was ["
+            throw new IllegalArgumentException(ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200 + " can only be unset or [true] but was ["
                 + property + "]");
         }
     }

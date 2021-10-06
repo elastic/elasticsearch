@@ -13,17 +13,41 @@ import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.bundling.Jar;
+import org.gradle.initialization.layout.BuildLayout;
+
+import javax.inject.Inject;
+import java.io.File;
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
 public class BuildPlugin implements Plugin<Project> {
 
+    public static final String SSPL_LICENSE_PATH = "licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
+
+    private final BuildLayout buildLayout;
+    private final ObjectFactory objectFactory;
+    private final ProviderFactory providerFactory;
+    private final ProjectLayout projectLayout;
+
+    @Inject
+    BuildPlugin(BuildLayout buildLayout, ObjectFactory objectFactory, ProviderFactory providerFactory, ProjectLayout projectLayout){
+        this.buildLayout = buildLayout;
+        this.objectFactory = objectFactory;
+        this.providerFactory = providerFactory;
+        this.projectLayout = projectLayout;
+    }
+
     @Override
     public void apply(final Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        project.getPlugins().apply(ElasticsearchBasePlugin.class);
         if (project.getPluginManager().hasPlugin("elasticsearch.standalone-rest-test")) {
             throw new InvalidUserDataException(
                 "elasticsearch.standalone-test, " + "elasticsearch.standalone-rest-test, and elasticsearch.build are mutually exclusive"
@@ -35,6 +59,50 @@ public class BuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
         project.getPluginManager().apply(DependenciesGraphPlugin.class);
         InternalPrecommitTasks.create(project, true);
+        configureLicenseAndNotice(project);
     }
 
+
+    public void configureLicenseAndNotice(final Project project) {
+        final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+        RegularFileProperty licenseFileProperty = objectFactory.fileProperty();
+        RegularFileProperty noticeFileProperty = objectFactory.fileProperty();
+        ext.set("licenseFile", licenseFileProperty);
+        ext.set("noticeFile", noticeFileProperty);
+
+        configureLicenseDefaultConvention(licenseFileProperty);
+        configureNoticeDefaultConvention(noticeFileProperty);
+
+        updateJarTasksMetaInf(project);
+    }
+
+    private void updateJarTasksMetaInf(Project project) {
+        final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+        project.getTasks().withType(Jar.class).configureEach(jar -> {
+            final RegularFileProperty licenseFileExtProperty = (RegularFileProperty) ext.get("licenseFile");
+            final RegularFileProperty noticeFileExtProperty = (RegularFileProperty) ext.get("noticeFile");
+            File licenseFile = licenseFileExtProperty.getAsFile().get();
+            File noticeFile = noticeFileExtProperty.getAsFile().get();
+            jar.metaInf(spec -> {
+                spec.from(licenseFile.getParent(), from -> {
+                    from.include(licenseFile.getName());
+                    from.rename(s -> "LICENSE.txt");
+                });
+                spec.from(noticeFile.getParent(), from -> {
+                    from.include(noticeFile.getName());
+                    from.rename(s -> "NOTICE.txt");
+                });
+            });
+        });
+    }
+
+    private void configureLicenseDefaultConvention(RegularFileProperty licenseFileProperty) {
+        File licenseFileDefault = new File(buildLayout.getRootDirectory(), SSPL_LICENSE_PATH);
+        licenseFileProperty.convention(projectLayout.file(providerFactory.provider(() -> licenseFileDefault)));
+    }
+
+    private void configureNoticeDefaultConvention(RegularFileProperty noticeFileProperty) {
+        File noticeFileDefault = new File(buildLayout.getRootDirectory(), "NOTICE.txt");
+        noticeFileProperty.convention(projectLayout.file(providerFactory.provider(() -> noticeFileDefault)));
+    }
 }

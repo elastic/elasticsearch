@@ -548,7 +548,7 @@ public class AzureBlobStore implements BlobStore {
             // 128 elements (that's hardcoded) once it's subscribed (later on, it requests
             // by 64 elements), that's why we provide 64kb buffers.
 
-            // length it's at most 100MB so it's safe to cast back to an integer in this case
+            // length is at most 100MB so it's safe to cast back to an integer in this case
             final int parts = (int) length / chunkSize;
             final long remaining = length % chunkSize;
             return Flux.range(0, remaining == 0 ? parts : parts + 1)

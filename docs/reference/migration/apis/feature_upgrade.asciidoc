@@ -1,36 +1,48 @@
 [role="xpack"]
 [testenv="basic"]
-[[migration-api-feature-upgrade]]
-=== Feature Upgrade APIs
+[[feature-migration-api]]
+=== Feature migration APIs
 ++++
-<titleabbrev>Feature upgrade APIs</titleabbrev>
+<titleabbrev>Feature migration APIs</titleabbrev>
 ++++
 
-IMPORTANT: Use this API to check for system features that need to be upgraded before
-a major version upgrade. You should run it on the last minor version of the
-major version you are upgrading from.
+Version upgrades sometimes require changes to how features 
+store configuration information and data in system indices. 
+The feature migration APIs enable you to see what features require changes,
+initiate the automatic migration process, and check migration status.
 
-The feature upgrade APIs are to be used to retrieve information about system features
-that have to be upgraded before a cluster can be migrated to the next major version number,
-and to trigger an automated system upgrade that might potentially involve downtime for
-{es} system features.
+Some functionality might be temporarily unavailable 
+during the migration process.
 
-[[feature-upgrade-api-request]]
+IMPORTANT: Verify that all necessary migrations are complete before upgrading.
+When upgrading to 8.0, first perform a rolling upgrade to 7.16 so you can 
+use the Kibana Upgrade Assistant or call this API directly. 
+
+[[feature-migration-api-request]]
 ==== {api-request-title}
 
 `GET /migration/system_features`
+`POST /migration/system_features`
 
-[[feature-upgrade-api-prereqs]]
+[[feature-migration-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
-<<privileges-list-cluster,cluster privilege>> to use this API. (TODO: true?)
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[feature-upgrade-api-example]]
+[[feature-migration-api-desc]]
+==== {api-description-title}
+
+Submit a GET request to the `_migration/system_features` endpoint to see what features
+need to be migrated and the status of any migrations that are in progress. 
+Submit a POST request to the endpoint to start the migration process.
+
+
+[[feature-migration-api-example]]
 ==== {api-examples-title}
 
-To see the list of system features needing upgrades, submit a GET request to the
-`_migration/system_features` endpoint:
+When you submit a GET request to the `_migration/system_features` endpoint,
+the response indicates the status of any features that need to be migrated.
 
 [source,console]
 --------------------------------------------------
@@ -44,7 +56,7 @@ Example response:
 {
   "features" : [
     {
-      "feature_name" : "security",
+      "feature_name" : "security", <1>
       "minimum_index_version" : "7.1.1",
       "upgrade_status" : "UPGRADE_NEEDED",
       "indices" : [
@@ -58,11 +70,11 @@ Example response:
   "upgrade_status" : "UPGRADE_NEEDED"
 }
 --------------------------------------------------
+<1> Elasticsearch Security needs to be migrated before the cluster is upgraded to 8.0.
 
-This response tells us that Elasticsearch security needs its internal
-indices upgraded before we can upgrade the cluster to 8.0.
-
-To perform the required upgrade, submit a POST request to the same endpoint.
+When you submit a POST request to the `_migration/system_features` endpoint
+to start the migration process, 
+the response indicates what features will be migrated.
 
 [source,console]
 --------------------------------------------------
@@ -77,12 +89,12 @@ Example response:
   "accepted" : true,
   "features" : [
     {
-      "feature_name" : "security"
+      "feature_name" : "security" <1>
     }
   ]
 }
 --------------------------------------------------
+<1> Elasticsearch Security will be migrated before the cluster is upgraded to 8.0.
 
-This tells us that the security index is being upgraded. To check the
-overall status of the upgrade, call the endpoint with GET.
+Subsequent GET requests will return the status of the migration process. 
 

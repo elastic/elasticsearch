@@ -38,7 +38,6 @@ import java.util.Map;
  * With {@link TransformUpdater} transforms can be updated or upgraded to the latest version
  *
  * This implementation is shared between _update and _upgrade
- *
  */
 public class TransformUpdater {
 

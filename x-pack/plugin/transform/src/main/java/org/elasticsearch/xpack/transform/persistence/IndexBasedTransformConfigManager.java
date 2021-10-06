@@ -871,16 +871,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 String idOfLastHit = lastId;
 
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    if (hit.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
-                        idOfLastHit = hit.field(TransformField.ID.getPreferredName()).getValue();
-                        ++totalHits;
-                    } else {
-                        String id = hit.field(TransformField.ID.getPreferredName()).getValue();
-                        if (id != null && id.equals(idOfLastHit) == false) {
-                            collectedIds.add(hit.field(TransformField.ID.getPreferredName()).getValue());
-                            ++totalHits;
-                        }
+                    String id = hit.field(TransformField.ID.getPreferredName()).getValue();
+
+                    // paranoia
+                    if (Strings.isNullOrEmpty(id)) {
+                        continue;
                     }
+
+                    // only count hits if looking for outdated transforms
+                    if (filterForOutdated && hit.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)) {
+                        ++totalHits;
+                    } else if (id.equals(idOfLastHit) == false && collectedIds.add(id)) {
+                        ++totalHits;
+                    }
+                    idOfLastHit = id;
                 }
 
                 if (searchResponse.getHits().getHits().length == page.getSize()) {
@@ -890,7 +894,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     return;
                 }
 
-                listener.onResponse(new Tuple<>(total, collectedIds));
+                listener.onResponse(new Tuple<>(totalHits, collectedIds));
             }, listener::onFailure),
             client::search
         );

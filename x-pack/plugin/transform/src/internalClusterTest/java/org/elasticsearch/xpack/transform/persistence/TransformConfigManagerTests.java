@@ -34,8 +34,11 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -300,6 +303,69 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
                 assertThat(e.getMessage(), equalTo(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "unknown*")));
             }
         );
+
+    }
+
+    public void testGetAllTransformIdsAndGetAllOutdatedTransformIds() throws Exception {
+        long numberOfTransformsToGenerate = 100L;
+        Set<String> transformIds = new HashSet<>();
+
+        for (long i = 0; i < numberOfTransformsToGenerate; ++i) {
+            String id = "transform_" + i;
+            transformIds.add(id);
+            TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(id);
+            assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
+        }
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(
+            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
+            null,
+            null
+        );
+
+        // add a duplicate in an old index
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "001";
+        String transformId = "transform_42";
+        String docId = TransformConfig.documentId(transformId);
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+        client().admin()
+            .indices()
+            .create(new CreateIndexRequest(oldIndex).mapping(mappings()).origin(ClientHelper.TRANSFORM_ORIGIN))
+            .actionGet();
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest request = new IndexRequest(oldIndex).source(source)
+                .id(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(request).actionGet();
+        }
+
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(
+            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
+            null,
+            null
+        );
+
+        // add another old, but not duplicated id
+        transformId = "transform_oldindex";
+        docId = TransformConfig.documentId(transformId);
+        transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest request = new IndexRequest(oldIndex).source(source)
+                .id(docId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(request).actionGet();
+        }
+
+        transformIds.add(transformId);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+
 
     }
 

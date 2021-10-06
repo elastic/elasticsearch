@@ -10,8 +10,6 @@ package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
-import joptsimple.internal.Strings;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -93,9 +91,7 @@ import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -105,6 +101,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
 import org.elasticsearch.index.rankeval.EvaluationMetric;
 import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;

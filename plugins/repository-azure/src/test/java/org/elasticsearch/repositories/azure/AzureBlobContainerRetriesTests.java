@@ -631,9 +631,8 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     private void readFromInputStream(InputStream inputStream, long bytesToRead) {
         try {
             long totalBytesRead = 0;
-            int bytesRead;
-            while ((bytesRead = inputStream.read()) != -1 && totalBytesRead < bytesToRead) {
-                totalBytesRead += bytesRead;
+            while (inputStream.read() != -1 && totalBytesRead < bytesToRead) {
+                totalBytesRead += 1;
             }
             assertThat(totalBytesRead, equalTo(bytesToRead));
         } catch (IOException e) {

@@ -743,11 +743,7 @@ public final class RepositoryData {
             }
             builder.endArray();
             if (shouldWriteShardGens) {
-                builder.startArray(SHARD_GENERATIONS);
-                for (ShardGeneration gen : shardGenerations.getGens(indexId)) {
-                    builder.value(gen);
-                }
-                builder.endArray();
+                builder.xContentList(SHARD_GENERATIONS, shardGenerations.getGens(indexId));
             }
             builder.endObject();
         }

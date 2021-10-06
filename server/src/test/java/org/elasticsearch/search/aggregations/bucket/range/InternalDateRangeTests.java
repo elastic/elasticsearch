@@ -13,9 +13,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,7 +33,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         super.setUp();
         format = randomNumericDocValueFormat();
 
-        Function<DateTime, DateTime> interval = randomFrom(
+        Function<ZonedDateTime, ZonedDateTime> interval = randomFrom(
             dateTime -> dateTime.plusSeconds(1),
             dateTime -> dateTime.plusMinutes(1),
             dateTime -> dateTime.plusHours(1),
@@ -45,13 +45,13 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         final int numRanges = randomNumberOfBuckets();
         final List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
 
-        DateTime date = new DateTime(DateTimeZone.UTC);
-        double start = date.getMillis();
+        ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC);
+        double start = date.toInstant().toEpochMilli();
         double end = 0;
         for (int i = 0; i < numRanges; i++) {
-            double from = date.getMillis();
+            double from = date.toInstant().toEpochMilli();
             date = interval.apply(date);
-            double to = date.getMillis();
+            double to = date.toInstant().toEpochMilli();
             if (to > end) {
                 end = to;
             }

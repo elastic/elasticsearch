@@ -149,7 +149,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(SearchSourceBuilder.SORT_FIELD.getPreferredName(), sorts);
+        builder.xContentList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), sorts);
         builder.field(FROM.getPreferredName(), from);
         if (size != null) {
             builder.field(SIZE.getPreferredName(), size);

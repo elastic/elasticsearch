@@ -33,6 +33,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  testImplementation(project(":modules:analysis-common"))
 }
 
 tasks.named("testingConventions").configure {

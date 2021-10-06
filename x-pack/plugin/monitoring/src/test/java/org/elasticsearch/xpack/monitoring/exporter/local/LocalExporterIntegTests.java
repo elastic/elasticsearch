@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -28,7 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 
@@ -37,7 +34,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.LOGSTASH;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -120,7 +115,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 });
 
                 checkMonitoringTemplates();
-                checkMonitoringPipelines();
                 checkMonitoringDocs();
             }
 
@@ -174,7 +168,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }, 30L, TimeUnit.SECONDS);
 
             checkMonitoringTemplates();
-            checkMonitoringPipelines();
             checkMonitoringDocs();
         } finally {
             stopMonitoring();
@@ -228,22 +221,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
-    }
-
-    /**
-     * Checks that the monitoring ingest pipelines have been created by the local exporter
-     */
-    private void checkMonitoringPipelines() {
-        final Set<String> expectedPipelines =
-                Arrays.stream(PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toSet());
-
-        final GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("xpack_monitoring_*").get();
-
-        // actual pipelines
-        final Set<String> pipelines = response.pipelines().stream().map(PipelineConfiguration::getId).collect(Collectors.toSet());
-
-        assertEquals("Missing expected pipelines", expectedPipelines, pipelines);
-        assertTrue("monitoring ingest pipeline not found", response.isFound());
     }
 
     /**

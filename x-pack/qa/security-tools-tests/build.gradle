@@ -1,7 +1,9 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
+  testImplementation project(xpackModule('core'))
   testImplementation project(xpackModule('security'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -20,6 +18,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -45,26 +44,29 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "data_tier";
 
-    public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.include._tier_preference";
+    public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
     private static final DataTierValidator VALIDATOR = new DataTierValidator();
-    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
-        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> TIER_PREFERENCE_SETTING = new Setting<>(new Setting.SimpleKey(TIER_PREFERENCE),
+        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Property.Dynamic, Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
             for (String s : setting.split(",")) {
                 if (DataTier.validTierName(s) == false) {
                     throw new IllegalArgumentException(
-                            "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
+                        "invalid tier names found in [" + setting + "] allowed values are " + DataTier.ALL_DATA_TIERS);
                 }
             }
         }
     }
 
     private static class DataTierValidator implements Setting.Validator<String> {
-        private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
-            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
+
+        private static final Collection<Setting<?>> dependencies = List.of(
+            IndexModule.INDEX_STORE_TYPE_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING
+        );
 
         public static String getDefaultTierPreference(Settings settings) {
             if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(settings)) {
@@ -149,7 +151,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
                                            PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Settings indexSettings = indexMetadata.getSettings();
-        String tierPreference = INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
+        String tierPreference = TIER_PREFERENCE_SETTING.get(indexSettings);
 
         if (Strings.hasText(tierPreference)) {
             Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes());
@@ -197,8 +199,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
             "tier " + singleTier + " is an invalid tier name";
-        for (ObjectCursor<DiscoveryNode> node : nodes.getNodes().values()) {
-            for (DiscoveryNodeRole discoveryNodeRole : node.value.getRoles()) {
+        for (DiscoveryNode node : nodes.getNodes().values()) {
+            for (DiscoveryNodeRole discoveryNodeRole : node.getRoles()) {
                 String s = discoveryNodeRole.roleName();
                 if (s.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || s.equals(singleTier)) {
                     return true;

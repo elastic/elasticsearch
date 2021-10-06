@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -168,7 +167,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
             // it to disappear from the cluster state as well
             SnapshotsInProgress snapshotsInProgress =
                 client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
-            assertThat(snapshotsInProgress.entries(), Matchers.empty());
+            assertTrue(snapshotsInProgress.isEmpty());
         });
     }
 }

@@ -129,8 +129,7 @@ class IndicesAndAliasesResolver {
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
-//            if (isAllIndices(indicesRequest.indices())) {
-            if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
+            if (isAllIndices(indicesRequest.indices())) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
                         if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata, nameExpressionResolver,

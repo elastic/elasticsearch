@@ -14,8 +14,7 @@ when using scroll, async and point in time searches). This affects Kibana CCS ag
 uses async search by default. This issue can also happen in all modes of remote connections 
 configured for cross cluster search (sniff and proxy). In sniff mode, we only connect to a subset of the 
 remote nodes (by default 3). So if the remote node we want to send a request to is not one of those 3, 
-we must send the request as a proxy request. The workaround is to periodically restart nodes with heap pressure 
-or cancel the aggregation tasks on the nodes.
+we must send the request as a proxy request. The workaround is to periodically restart nodes with heap pressure.
 +
 We have fixed this issue in {es} 7.15.1 and later versions. For more details,
 see {es-pull}78404[#78404].

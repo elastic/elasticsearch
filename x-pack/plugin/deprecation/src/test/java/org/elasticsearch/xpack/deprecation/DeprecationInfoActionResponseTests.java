@@ -144,7 +144,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         }
     }
 
-    public void testFromWithHiddenSettings() throws IOException {
+    public void testRemoveSkippedSettings() throws IOException {
 
         Settings.Builder settingsBuilder = settings(Version.CURRENT);
         settingsBuilder.put("some.deprecated.property", "someValue1");

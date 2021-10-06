@@ -36,7 +36,8 @@ public class DeprecationChecks {
             "deprecation.skip_deprecated_settings",
             Collections.emptyList(),
             Function.identity(),
-            new Setting.Property[] {Setting.Property.NodeScope, Setting.Property.Dynamic}
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
         );
 
     private DeprecationChecks() {

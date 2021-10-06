@@ -123,7 +123,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
         var usageServices = new MonitoringUsageServices(monitoringService, exporters);
-        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices);
+
+        MonitoringTemplateRegistry templateRegistry = new MonitoringTemplateRegistry(settings, clusterService, threadPool, client,
+            xContentRegistry);
+        templateRegistry.initialize();
+
+        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices, templateRegistry);
     }
 
     @Override
@@ -151,6 +156,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);
+        settings.add(MonitoringTemplateRegistry.MONITORING_TEMPLATES_ENABLED);
         settings.add(Collector.INDICES);
         settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
         settings.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);

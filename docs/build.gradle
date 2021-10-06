@@ -207,11 +207,7 @@ teardowns['data_stream_cleanup'] = '''
         method: DELETE
         path: '_data_stream/*'
   - is_true: acknowledged
-  - do:
-      raw:
-        method: DELETE
-        path: '_index_template/*'
-  - is_true: acknowledged
+
 '''
 
 // Used for several full-text search and agg examples

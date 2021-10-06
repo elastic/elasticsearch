@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
  * "hot", "warm", and "cold" tiers as node roles. In contains the
  * roles themselves as well as helpers for validation and determining if a node
  * has a tier configured.
+ *
+ * Related:
  * This is usually used in conjunction with {@link #TIER_PREFERENCE_SETTING}.
  */
 public class DataTier {

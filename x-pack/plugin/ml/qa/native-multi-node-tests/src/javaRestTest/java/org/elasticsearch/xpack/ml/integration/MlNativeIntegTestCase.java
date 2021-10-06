@@ -125,7 +125,6 @@ import static org.hamcrest.Matchers.is;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
-//@ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, maxNumDataNodes = 1)
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override

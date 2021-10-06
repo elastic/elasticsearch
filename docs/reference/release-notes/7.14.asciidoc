@@ -7,10 +7,12 @@ Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 [discrete]
 === Known issues
 
-* Aggregations: In {es} 7.14.0–7.15.0, when a {css} ({css-init}) request is proxied, the memory for the aggregations on the
-proxy node will not be freed. The trigger is {css} using aggregations where minimize 
+* Aggregations: In {es} 7.14.0–7.15.0, when a {ccs} ({ccs-init}) request is proxied, the memory for the aggregations on the
+proxy node will not be freed. The trigger is {ccs} using aggregations where minimize 
 roundtrips is not effective (for example, when minimize roundtrips is explicitly disabled, or implicitly disabled 
-when using scroll, async and point-in-time searches). This affects {kib} {css-init} aggregations because {kib} 
+when using scroll, async and point-in-time searches).
++
+This affects {kib} {ccs-init} aggregations because {kib} 
 uses async search by default. This issue can also happen in all modes of remote connections 
 configured for {ccs} (sniff and proxy). In sniff mode, we only connect to a subset of the 
 remote nodes (by default 3). So if the remote node we want to send a request to is not one of those 3, 

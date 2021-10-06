@@ -127,6 +127,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             formatDate("uuuu.MM", dateFromMillis(context.getStartTime()).withDayOfMonth(1))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78783")
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
         ZoneId timeZone;
         int hoursOffset;

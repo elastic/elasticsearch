@@ -294,7 +294,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             .put("index.number_of_replicas", 0);
         createIndex("myindex", nodeASettings.build());
         final String nodeAId = getNodeId(nodeA);
-        final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
+        final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
         // Mark the nodeA as being replaced
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
@@ -314,6 +314,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
 
+        final String nodeC = internalCluster().startNode();
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         final String nodeBId = getNodeId(nodeB);
 
@@ -338,8 +339,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             ).get();
             assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
         });
-
-        final String nodeC = internalCluster().startNode();
 
         createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
 

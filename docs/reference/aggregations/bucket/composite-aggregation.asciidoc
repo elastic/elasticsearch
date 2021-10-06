@@ -4,9 +4,8 @@
 <titleabbrev>Composite</titleabbrev>
 ++++
 
-[WARNING]
-While this query _can_ be used in Production, it is more expensive than a normal
-terms aggregation and should be load tested for a use case before go-live.
+WARNING: Composite aggregations are expensive. Load test your application that
+before deploying composite aggregations in production.
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 

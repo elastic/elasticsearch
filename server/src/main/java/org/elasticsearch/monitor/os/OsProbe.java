@@ -60,6 +60,10 @@ public class OsProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
 
+    // This property is specified without units because it also needs to be parsed by the launcher
+    // code, which does not have access to all the utility classes of the Elasticsearch server.
+    private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes", "-1");
+
     private static final Method getFreePhysicalMemorySize;
     private static final Method getTotalPhysicalMemorySize;
     private static final Method getFreeSwapSpaceSize;
@@ -120,6 +124,26 @@ public class OsProbe {
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
             return 0;
+        }
+    }
+
+    /**
+     * Returns the overridden total amount of physical memory in bytes.
+     * Total memory may be overridden when some other process is running
+     * that is known to consume a non-negligible amount of memory. This
+     * is read from the "es.total_memory_bytes" system property. Negative
+     * values or not set at all mean no override.
+     */
+    public Long getTotalMemoryOverride() {
+        return getTotalMemoryOverride(memoryOverrideProperty);
+    }
+
+    static Long getTotalMemoryOverride(String memoryOverrideProperty) {
+        try {
+            long memoryOverride = Long.parseLong(memoryOverrideProperty);
+            return (memoryOverride < 0) ? null : memoryOverride;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid value for [es.total_memory_bytes]: [" + memoryOverrideProperty + "]", e);
         }
     }
 
@@ -859,7 +883,7 @@ public class OsProbe {
 
     public OsStats osStats() {
         final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
-        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getTotalMemoryOverride(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);

@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OsProbeTests extends ESTestCase {
 
@@ -305,6 +306,17 @@ public class OsProbeTests extends ESTestCase {
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
+    public void testTotalMemoryOverride() {
+        assertThat(OsProbe.getTotalMemoryOverride("123456789"), is(123456789L));
+        assertThat(OsProbe.getTotalMemoryOverride("-1"), nullValue());
+        assertThat(OsProbe.getTotalMemoryOverride("123456789123456789"), is(123456789123456789L));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("abc"));
+        assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [abc]"));
+        // Although numeric, this value overflows long. This won't be a problem if the override is set appropriately on a 64 bit machine.
+        e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("123456789123456789123456789"));
+        assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [123456789123456789123456789]"));
     }
 
     public void testGetTotalMemoryOnDebian8() throws Exception {

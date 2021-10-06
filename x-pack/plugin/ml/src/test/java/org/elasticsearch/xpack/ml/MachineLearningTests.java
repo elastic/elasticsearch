@@ -11,8 +11,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -96,37 +94,43 @@ public class MachineLearningTests extends ESTestCase {
                 "it is reserved for machine learning. If your intention was to customize machine learning, set the [xpack.ml."));
     }
 
-    public void testMachineMemory_givenStatsFailure() throws IOException {
+    public void testMachineMemory_givenStatsFailure() {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(0, 0));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(0, null, 0));
         assertEquals(0L, MachineLearning.machineMemoryFromStats(stats));
     }
 
-    public void testMachineMemory_givenNoCgroup() throws IOException {
+    public void testMachineMemory_givenOverride() {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 1_234_567_890L, 5_368_709_120L));
+        assertEquals(1_234_567_890L, MachineLearning.machineMemoryFromStats(stats));
+    }
+
+    public void testMachineMemory_givenNoCgroup() {
+        OsStats stats = mock(OsStats.class);
+        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, null, 5_368_709_120L));
         assertEquals(10_737_418_240L, MachineLearning.machineMemoryFromStats(stats));
     }
 
-    public void testMachineMemory_givenCgroupNullLimit() throws IOException {
+    public void testMachineMemory_givenCgroupNullLimit() {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, null, 5_368_709_120L));
         when(stats.getCgroup()).thenReturn(new OsStats.Cgroup("a", 1, "b", 2, 3,
                 new OsStats.Cgroup.CpuStat(4, 5, 6), null, null, null));
         assertEquals(10_737_418_240L, MachineLearning.machineMemoryFromStats(stats));
     }
 
-    public void testMachineMemory_givenCgroupNoLimit() throws IOException {
+    public void testMachineMemory_givenCgroupNoLimit() {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, null, 5_368_709_120L));
         when(stats.getCgroup()).thenReturn(new OsStats.Cgroup("a", 1, "b", 2, 3,
                 new OsStats.Cgroup.CpuStat(4, 5, 6), "c", "18446744073709551615", "4796416"));
         assertEquals(10_737_418_240L, MachineLearning.machineMemoryFromStats(stats));
     }
 
-    public void testMachineMemory_givenCgroupLowLimit() throws IOException {
+    public void testMachineMemory_givenCgroupLowLimit() {
         OsStats stats = mock(OsStats.class);
-        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, 5_368_709_120L));
+        when(stats.getMem()).thenReturn(new OsStats.Mem(10_737_418_240L, null, 5_368_709_120L));
         when(stats.getCgroup()).thenReturn(new OsStats.Cgroup("a", 1, "b", 2, 3,
                 new OsStats.Cgroup.CpuStat(4, 5, 6), "c", "7516192768", "4796416"));
         assertEquals(7_516_192_768L, MachineLearning.machineMemoryFromStats(stats));

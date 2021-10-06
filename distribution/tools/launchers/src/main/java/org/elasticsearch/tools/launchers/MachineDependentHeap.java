@@ -66,15 +66,30 @@ public final class MachineDependentHeap {
 
         Path config = configDir.resolve(ELASTICSEARCH_YML);
         try (InputStream in = Files.newInputStream(config)) {
-            return determineHeapSettings(in);
+            return determineHeapSettings(in, parseForcedMemoryInBytes(userDefinedJvmOptions));
         }
     }
 
-    List<String> determineHeapSettings(InputStream config) {
+    static Long parseForcedMemoryInBytes(List<String> userDefinedJvmOptions) {
+        String totalMemoryBytesOption = userDefinedJvmOptions.stream().filter(option -> option.startsWith("-Des.total_memory_bytes="))
+            .findFirst().orElse(null);
+        if (totalMemoryBytesOption == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(totalMemoryBytesOption.split("=", 2)[1]);
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Unable to parse number of bytes from [" + totalMemoryBytesOption + "]");
+        }
+    }
+
+    List<String> determineHeapSettings(InputStream config, Long availableSystemMemory) {
         MachineNodeRole nodeRole = NodeRoleParser.parse(config);
 
         try {
-            long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
+            if (availableSystemMemory == null) {
+                availableSystemMemory = systemMemoryInfo.availableSystemMemory();
+            }
             return options(nodeRole.heap(availableSystemMemory));
         } catch (SystemMemoryInfo.SystemMemoryInfoException e) {
             // If unable to determine system memory (ex: incompatible jdk version) fallback to defaults

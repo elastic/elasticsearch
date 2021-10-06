@@ -266,12 +266,25 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.allocatedProcessors = allocatedProcessors;
 
             long totalMemory = 0;
+            Long totalMemoryOverride = 0L;
             long freeMemory = 0;
             for (NodeStats nodeStats : nodeStatsList) {
                 if (nodeStats.getOs() != null) {
-                    long total = nodeStats.getOs().getMem().getTotal().getBytes();
+                    org.elasticsearch.monitor.os.OsStats.Mem mem = nodeStats.getOs().getMem();
+                    long total = mem.getTotal().getBytes();
                     if (total > 0) {
                         totalMemory += total;
+                    }
+                    // Only report a total memory override for the whole cluster if every node has overridden total memory
+                    if (totalMemoryOverride != null) {
+                        if (mem.getTotalOverride() != null) {
+                            long totalOverride = mem.getTotalOverride().getBytes();
+                            if (totalOverride > 0) {
+                                totalMemoryOverride += totalOverride;
+                            }
+                        } else {
+                            totalMemoryOverride = null;
+                        }
                     }
                     long free = nodeStats.getOs().getMem().getFree().getBytes();
                     if (free > 0) {
@@ -279,7 +292,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     }
                 }
             }
-            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, freeMemory);
+            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, totalMemoryOverride, freeMemory);
         }
 
         public int getAvailableProcessors() {

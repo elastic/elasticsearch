@@ -10,6 +10,7 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -90,6 +91,8 @@ public class OsStats implements Writeable, ToXContentFragment {
         static final String USED_IN_BYTES = "used_in_bytes";
         static final String TOTAL = "total";
         static final String TOTAL_IN_BYTES = "total_in_bytes";
+        static final String TOTAL_OVERRIDE = "total_override";
+        static final String TOTAL_OVERRIDE_IN_BYTES = "total_override_in_bytes";
 
         static final String FREE_PERCENT = "free_percent";
         static final String USED_PERCENT = "used_percent";
@@ -237,30 +240,47 @@ public class OsStats implements Writeable, ToXContentFragment {
         private static final Logger logger = LogManager.getLogger(Mem.class);
 
         private final long total;
+        private final Long totalOverride;
         private final long free;
 
-        public Mem(long total, long free) {
+        public Mem(long total, Long totalOverride, long free) {
             assert total >= 0 : "expected total memory to be positive, got: " + total;
-            assert free >= 0 : "expected free memory to be positive, got: " + total;
+            assert totalOverride == null || totalOverride >= 0 : "expected total overridden memory to be positive, got: " + totalOverride;
+            assert free >= 0 : "expected free memory to be positive, got: " + free;
             this.total = total;
+            this.totalOverride = totalOverride;
             this.free = free;
         }
 
         public Mem(StreamInput in) throws IOException {
             this.total = in.readLong();
             assert total >= 0 : "expected total memory to be positive, got: " + total;
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.totalOverride = in.readOptionalLong();
+                assert totalOverride == null || totalOverride >= 0
+                    : "expected total overridden memory to be positive, got: " + totalOverride;
+            } else {
+                this.totalOverride = null;
+            }
             this.free = in.readLong();
-            assert free >= 0 : "expected free memory to be positive, got: " + total;
+            assert free >= 0 : "expected free memory to be positive, got: " + free;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalLong(totalOverride);
+            }
             out.writeLong(free);
         }
 
         public ByteSizeValue getTotal() {
             return new ByteSizeValue(total);
+        }
+
+        public ByteSizeValue getTotalOverride() {
+            return totalOverride == null ? null : new ByteSizeValue(totalOverride);
         }
 
         public ByteSizeValue getUsed() {
@@ -295,6 +315,9 @@ public class OsStats implements Writeable, ToXContentFragment {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.MEM);
             builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            if (getTotalOverride() != null) {
+                builder.humanReadableField(Fields.TOTAL_OVERRIDE_IN_BYTES, Fields.TOTAL_OVERRIDE, getTotalOverride());
+            }
             builder.humanReadableField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
             builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
             builder.field(Fields.FREE_PERCENT, getFreePercent());

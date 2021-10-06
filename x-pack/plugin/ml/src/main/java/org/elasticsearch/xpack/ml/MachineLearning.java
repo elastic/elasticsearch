@@ -1286,7 +1286,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     /**
      * Find the memory size (in bytes) of the machine this node is running on.
-     * Takes container limits (as used by Docker for example) into account.
+     * Takes container limits (as used by Docker for example) and forced memory
+     * size overrides into account.
      */
     static long machineMemoryFromStats(OsStats stats) {
         long mem = stats.getMem().getTotal().getBytes();
@@ -1301,6 +1302,16 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     mem = containerLimit.longValue();
                 }
             }
+        }
+        ByteSizeValue memOverride = stats.getMem().getTotalOverride();
+        if (memOverride != null && memOverride.getBytes() != mem) {
+            long diff = memOverride.getBytes() - mem;
+            // Only log if the difference is more than 1%
+            if (Math.abs((double) diff) / (double) Math.max(memOverride.getBytes(), mem) > 0.01) {
+                logger.info("ML memory calculations will be based on total memory override [{}] rather than measured total memory [{}]",
+                    memOverride, ByteSizeValue.ofBytes(mem));
+            }
+            mem = memOverride.getBytes();
         }
         return mem;
     }

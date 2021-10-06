@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -30,6 +31,10 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     }
 
     public void start() {
-
+        try {
+            run();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

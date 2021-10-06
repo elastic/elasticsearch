@@ -793,7 +793,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (preFilter) {
             return new CanMatchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, executor, searchRequest, listener, shardIterators,
-                timeProvider, clusterState, task, (iter) -> {
+                timeProvider, task, (iter) -> {
                 SearchPhase action = searchAsyncAction(
                     task,
                     searchRequest,

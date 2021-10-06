@@ -8,11 +8,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +28,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -42,7 +39,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
 
     private final OriginalIndices originalIndices;
     private final SearchSourceBuilder source;
-    private final List<ShardLevelRequest> shards;
+    private final List<Shard> shards;
     private final SearchType searchType;
     private final Boolean requestCache;
     private final boolean allowPartialSearchResults;
@@ -52,28 +49,20 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
     @Nullable
     private final String clusterAlias;
 
-    public static class ShardLevelRequest implements Writeable {
+    public static class Shard implements Writeable {
         private final ShardId shardId;
-
-        public int getShardRequestIndex() {
-            return shardRequestIndex;
-        }
-
         private final int shardRequestIndex;
-        private final float indexBoost;
-
         private final AliasFilter aliasFilter;
+        private final float indexBoost;
         private final ShardSearchContextId readerId;
         private final TimeValue keepAlive;
 
-        private final Version channelVersion;
-
-        public ShardLevelRequest( ShardId shardId,
-                                  int shardRequestIndex,
-                                  AliasFilter aliasFilter,
-                                  float indexBoost,
-                                  ShardSearchContextId readerId,
-                                  TimeValue keepAlive) {
+        public Shard(ShardId shardId,
+                     int shardRequestIndex,
+                     AliasFilter aliasFilter,
+                     float indexBoost,
+                     ShardSearchContextId readerId,
+                     TimeValue keepAlive) {
             this.shardId = shardId;
             this.shardRequestIndex = shardRequestIndex;
             this.aliasFilter = aliasFilter;
@@ -81,48 +70,41 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             this.readerId = readerId;
             this.keepAlive = keepAlive;
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-            this.channelVersion = Version.CURRENT;
         }
 
-        public ShardLevelRequest(StreamInput in) throws IOException {
+        public Shard(StreamInput in) throws IOException {
             shardId = new ShardId(in);
             shardRequestIndex = in.readVInt();
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                // types no longer relevant so ignore
-                String[] types = in.readStringArray();
-                if (types.length > 0) {
-                    throw new IllegalStateException(
-                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
-                }
-            }
             aliasFilter = new AliasFilter(in);
             indexBoost = in.readFloat();
             readerId = in.readOptionalWriteable(ShardSearchContextId::new);
             keepAlive = in.readOptionalTimeValue();
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
-            channelVersion = Version.min(Version.readVersion(in), in.getVersion());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             out.writeVInt(shardRequestIndex);
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                // types not supported so send an empty array to previous versions
-                out.writeStringArray(Strings.EMPTY_ARRAY);
-            }
             aliasFilter.writeTo(out);
             out.writeFloat(indexBoost);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
-            Version.writeVersion(channelVersion, out);
+        }
+
+        public int getShardRequestIndex() {
+            return shardRequestIndex;
+        }
+
+        public ShardId shardId() {
+            return shardId;
         }
     }
 
     public CanMatchRequest(
         OriginalIndices originalIndices,
         SearchRequest searchRequest,
-        List<ShardLevelRequest> shards,
+        List<Shard> shards,
         int numberOfShards,
         long nowInMillis,
         @Nullable String clusterAlias
@@ -153,7 +135,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         numberOfShards = in.readVInt();
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
-        shards = in.readList(ShardLevelRequest::new);
+        shards = in.readList(Shard::new);
     }
 
     @Override
@@ -187,7 +169,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         return originalIndices.indicesOptions();
     }
 
-    public List<ShardLevelRequest> getShardLevelRequests() {
+    public List<Shard> getShardLevelRequests() {
         return shards;
     }
 
@@ -195,7 +177,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         return shards.stream().map(this::createShardSearchRequest).collect(Collectors.toList());
     }
 
-    public ShardSearchRequest createShardSearchRequest(ShardLevelRequest r) {
+    public ShardSearchRequest createShardSearchRequest(Shard r) {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
             originalIndices, r.shardId, r.shardRequestIndex, numberOfShards, searchType,
             source, requestCache, r.aliasFilter, r.indexBoost, allowPartialSearchResults, scroll,

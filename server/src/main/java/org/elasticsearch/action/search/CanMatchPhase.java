@@ -14,9 +14,9 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.search.SearchService;
@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -65,6 +64,7 @@ public class CanMatchPhase extends SearchPhase {
     private final Map<String, AliasFilter> aliasFilter;
     private final SearchTask task;
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
+    private final Executor executor;
 
     private final CanMatchSearchPhaseResults results;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
@@ -75,7 +75,7 @@ public class CanMatchPhase extends SearchPhase {
                          Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                          Executor executor, SearchRequest request,
                          ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
-                         TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
+                         TransportSearchAction.SearchTimeProvider timeProvider,
                          SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
                          SearchResponse.Clusters clusters, CoordinatorRewriteContextProvider coordinatorRewriteContextProvider) {
         super("can_match");
@@ -92,6 +92,7 @@ public class CanMatchPhase extends SearchPhase {
         this.task = task;
         this.phaseFactory = phaseFactory;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
+        this.executor = executor;
         this.shardItIndexMap = new HashMap<>();
         results = new CanMatchSearchPhaseResults(shardsIts.size());
 
@@ -182,18 +183,18 @@ public class CanMatchPhase extends SearchPhase {
         }
     }
 
-    private Map<Tuple<String, String>, List<SearchShardIterator>> groupByNode(GroupShardsIterator<SearchShardIterator> shards) {
-        Map<Tuple<String, String>, List<SearchShardIterator>> requests = new HashMap<>();
+    private Map<SendingTarget, List<SearchShardIterator>> groupByNode(GroupShardsIterator<SearchShardIterator> shards) {
+        Map<SendingTarget, List<SearchShardIterator>> requests = new HashMap<>();
         for (int i = 0; i < shards.size(); i++) {
             final SearchShardIterator shardRoutings = shards.get(i);
             assert shardRoutings.skip() == false;
             assert shardItIndexMap.containsKey(shardRoutings);
             SearchShardTarget target = shardRoutings.nextOrNull();
             if (target != null) {
-                requests.computeIfAbsent(Tuple.tuple(target.getClusterAlias(), target.getNodeId()),
+                requests.computeIfAbsent(new SendingTarget(target.getClusterAlias(), target.getNodeId()),
                     t -> new ArrayList<>()).add(shardRoutings);
             } else {
-                requests.computeIfAbsent(Tuple.tuple(null, null),
+                requests.computeIfAbsent(new SendingTarget(null, null),
                     t -> new ArrayList<>()).add(shardRoutings);
             }
         }
@@ -202,11 +203,12 @@ public class CanMatchPhase extends SearchPhase {
 
     class Round implements Runnable {
         private final GroupShardsIterator<SearchShardIterator> shards;
-        private final AtomicInteger counter = new AtomicInteger();
+        private final CountDown countDown;
         private final AtomicReferenceArray<Object> responses;
 
         Round(GroupShardsIterator<SearchShardIterator> shards) {
             this.shards = shards;
+            this.countDown = new CountDown(shards.size());
             this.responses = new AtomicReferenceArray<>(shardsIts.size());
         }
 
@@ -224,67 +226,69 @@ public class CanMatchPhase extends SearchPhase {
 
         @Override
         public void run() {
-            final Map<Tuple<String, String>, List<SearchShardIterator>> requests = groupByNode(shards);
+            final Map<SendingTarget, List<SearchShardIterator>> requests = groupByNode(shards);
 
-            for (Map.Entry<Tuple<String, String>, List<SearchShardIterator>> entry : requests.entrySet()) {
+            for (Map.Entry<SendingTarget, List<SearchShardIterator>> entry : requests.entrySet()) {
                 CanMatchRequest canMatchRequest = createCanMatchRequest(entry);
-                List<CanMatchRequest.ShardLevelRequest> shardLevelRequests = canMatchRequest.getShardLevelRequests();
+                List<CanMatchRequest.Shard> shardLevelRequests = canMatchRequest.getShardLevelRequests();
 
-                if (entry.getKey().v2() == null) {
-                    // no target node
-                    for (CanMatchRequest.ShardLevelRequest shardLevelRequest : shardLevelRequests) {
-                        results.consumeShardFailure(shardLevelRequest.getShardRequestIndex());
-                        onOperation(shardLevelRequest.getShardRequestIndex(), null);
+                if (entry.getKey().nodeId == null) {
+                    // no target node: just mark the requests as failed
+                    for (CanMatchRequest.Shard shard : shardLevelRequests) {
+                        onOperationFailed(shard.getShardRequestIndex(), null);
                     }
                     continue;
                 }
 
-                searchTransportService.sendCanMatch(getConnection(entry.getKey().v1(), entry.getKey().v2()), canMatchRequest,
-                    task, new ActionListener<>() {
-                        @Override
-                        public void onResponse(CanMatchNodeResponse canMatchResponse) {
-                            logger.info("Happy response");
-                            for (int i = 0; i < canMatchResponse.getResponses().size(); i++) {
-                                SearchService.CanMatchResponse response = canMatchResponse.getResponses().get(i);
-                                if (response != null) {
-                                    response.setShardIndex(shardLevelRequests.get(i).getShardRequestIndex());
-                                    results.consumeResult(response, () -> {
-                                    });
-                                    onOperation(response.getShardIndex(), response);
+                try {
+                    searchTransportService.sendCanMatch(getConnection(entry.getKey()), canMatchRequest,
+                        task, new ActionListener<>() {
+                            @Override
+                            public void onResponse(CanMatchNodeResponse canMatchResponse) {
+                                for (int i = 0; i < canMatchResponse.getResponses().size(); i++) {
+                                    SearchService.CanMatchResponse response = canMatchResponse.getResponses().get(i);
+                                    if (response != null) {
+                                        response.setShardIndex(shardLevelRequests.get(i).getShardRequestIndex());
+                                        onOperation(response.getShardIndex(), response);
+                                    }
+                                }
+                                for (int i = 0; i < canMatchResponse.getFailures().size(); i++) {
+                                    Exception failure = canMatchResponse.getFailures().get(i);
+                                    if (failure != null) {
+                                        onOperationFailed(shardLevelRequests.get(i).getShardRequestIndex(), failure);
+                                    }
                                 }
                             }
-                            for (int i = 0; i < canMatchResponse.getFailures().size(); i++) {
-                                Exception failure = canMatchResponse.getFailures().get(i);
-                                if (failure != null) {
-                                    results.consumeShardFailure(i);
-                                    onOperationFailed(shardLevelRequests.get(i).getShardRequestIndex(), failure);
-                                }
-                            }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error(e);
-                            for (CanMatchRequest.ShardLevelRequest shardLevelRequest : shardLevelRequests) {
-                                results.consumeShardFailure(shardLevelRequest.getShardRequestIndex());
-                                onOperationFailed(shardLevelRequest.getShardRequestIndex(), e);
+                            @Override
+                            public void onFailure(Exception e) {
+                                for (CanMatchRequest.Shard shard : shardLevelRequests) {
+                                    onOperationFailed(shard.getShardRequestIndex(), e);
+                                }
                             }
                         }
+                    );
+                } catch (Exception e) {
+                    for (CanMatchRequest.Shard shard : shardLevelRequests) {
+                        onOperationFailed(shard.getShardRequestIndex(), e);
                     }
-                );
+                }
             }
         }
 
         private void onOperation(int idx, SearchService.CanMatchResponse response) {
             responses.set(idx, response);
-            if (counter.incrementAndGet() == responses.length()) {
-                finishPhase();
-            }
+            results.consumeResult(response, () -> {
+                if (countDown.countDown()) {
+                    finishPhase();
+                }
+            });
         }
 
         private void onOperationFailed(int idx, Exception e) {
             responses.set(idx, e);
-            if (counter.incrementAndGet() == shards.size()) {
+            results.consumeShardFailure(idx);
+            if (countDown.countDown()) {
                 finishPhase();
             }
         }
@@ -308,12 +312,37 @@ public class CanMatchPhase extends SearchPhase {
         }
     }
 
-    private CanMatchRequest createCanMatchRequest(Map.Entry<Tuple<String, String>, List<SearchShardIterator>> entry) {
+    private static class SendingTarget {
+        @Nullable
+        private final String clusterAlias;
+        @Nullable
+        private final String nodeId;
+
+        SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {
+            this.clusterAlias = clusterAlias;
+            this.nodeId = nodeId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SendingTarget that = (SendingTarget) o;
+            return Objects.equals(clusterAlias, that.clusterAlias) &&
+                Objects.equals(nodeId, that.nodeId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(clusterAlias, nodeId);
+        }
+    }
+
+    private CanMatchRequest createCanMatchRequest(Map.Entry<SendingTarget, List<SearchShardIterator>> entry) {
         final SearchShardIterator first = entry.getValue().get(0);
-        final List<CanMatchRequest.ShardLevelRequest> shardLevelRequests =
-            entry.getValue().stream().map(this::buildShardLevelRequest)
-                .collect(Collectors.toCollection(ArrayList::new));
-        assert entry.getValue().stream().allMatch(ssi -> ssi != null);
+        final List<CanMatchRequest.Shard> shardLevelRequests =
+            entry.getValue().stream().map(this::buildShardLevelRequest).collect(Collectors.toCollection(ArrayList::new));
+        assert entry.getValue().stream().allMatch(Objects::nonNull);
         assert entry.getValue().stream().allMatch(ssi -> ssi.getOriginalIndices() != null);
         assert entry.getValue().stream().allMatch(ssi -> ssi.getOriginalIndices().equals(first.getOriginalIndices()));
         assert entry.getValue().stream().allMatch(ssi -> Objects.equals(ssi.getClusterAlias(), first.getClusterAlias()));
@@ -335,11 +364,11 @@ public class CanMatchPhase extends SearchPhase {
 
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
 
-    public final CanMatchRequest.ShardLevelRequest buildShardLevelRequest(SearchShardIterator shardIt) {
+    public final CanMatchRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        CanMatchRequest.ShardLevelRequest shardRequest = new CanMatchRequest.ShardLevelRequest(shardIt.shardId(),
+        CanMatchRequest.Shard shardRequest = new CanMatchRequest.Shard(shardIt.shardId(),
             shardItIndexMap.get(shardIt), filter, indexBoost, shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
         return shardRequest;
     }
@@ -348,7 +377,7 @@ public class CanMatchPhase extends SearchPhase {
         for (SearchShardIterator it : shardsIts) {
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
-                    Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
+                    Transport.Connection conn = getConnection(new SendingTarget(it.getClusterAlias(), nodeId));
                     return conn == null ? true : conn.getVersion().onOrAfter(request.minCompatibleShardNode());
                 });
                 if (isCompatible == false) {
@@ -369,8 +398,8 @@ public class CanMatchPhase extends SearchPhase {
                     request.source().trackTotalHitsUpTo();
             // total hits is null in the response if the tracking of total hits is disabled
             boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
-                ShardSearchFailure.EMPTY_ARRAY, clusters, null));
+            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0,
+                0, timeProvider.buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY, clusters, null));
             return;
         }
 
@@ -385,12 +414,12 @@ public class CanMatchPhase extends SearchPhase {
     }
 
 
-    public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+    public final void onPhaseFailure(SearchPhase phase, String msg, Exception cause) {
         listener.onFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, ShardSearchFailure.EMPTY_ARRAY));
     }
 
-    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        Transport.Connection conn = nodeIdToConnection.apply(clusterAlias, nodeId);
+    public final Transport.Connection getConnection(SendingTarget sendingTarget) {
+        Transport.Connection conn = nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId);
         Version minVersion = request.minCompatibleShardNode();
         if (minVersion != null && conn != null && conn.getVersion().before(minVersion)) {
             throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
@@ -401,11 +430,6 @@ public class CanMatchPhase extends SearchPhase {
     private int getNumShards() {
         return shardsIts.size();
     }
-
-    long buildTookInMillis() {
-        return timeProvider.buildTookInMillis();
-    }
-
 
     private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<SearchService.CanMatchResponse> {
         private final FixedBitSet possibleMatches;

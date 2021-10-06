@@ -132,7 +132,7 @@ public class PublicationTransportHandler {
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor;
-        if (request.version().onOrAfter(Version.V_8_0_0)) {
+        if (request.version().onOrAfter(BytesTransportRequest.COMPRESSION_SCHEME_VERSION)) {
             if (request.compressionScheme() == Compression.Scheme.LZ4) {
                 compressor = LZ4Compressor.INSTANCE;
             } else {

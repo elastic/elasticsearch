@@ -23,6 +23,8 @@ import java.io.IOException;
  */
 public class BytesTransportRequest extends TransportRequest implements RefCounted {
 
+    public static final Version COMPRESSION_SCHEME_VERSION = Version.V_8_0_0;
+
     private final Compression.Scheme compressionScheme;
     final ReleasableBytesReference bytes;
     private final Version version;
@@ -30,7 +32,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     public BytesTransportRequest(StreamInput in) throws IOException {
         super(in);
 
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(COMPRESSION_SCHEME_VERSION)) {
             compressionScheme = in.readEnum(Compression.Scheme.class);
         } else {
             compressionScheme = null;
@@ -63,7 +65,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
      */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(COMPRESSION_SCHEME_VERSION)) {
             out.writeEnum(compressionScheme);
         } else {
             assert compressionScheme == null;
@@ -74,7 +76,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(COMPRESSION_SCHEME_VERSION)) {
             out.writeOptionalEnum(compressionScheme);
         } else {
             assert compressionScheme == null;

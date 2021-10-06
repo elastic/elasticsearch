@@ -46,10 +46,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 /**
@@ -258,28 +261,75 @@ public class SplitPackagesAuditTask extends DefaultTask {
             }
         }
 
+        private static final String MODULE_INFO = "module-info.class";
+
+        private static Optional<String> toPackageName(String name) {
+            assert !name.endsWith("/");
+            int index = name.lastIndexOf("/");
+            if (index == -1) {
+                if (name.endsWith(".class") && !name.equals(MODULE_INFO)) {
+                    String msg = name + " found in top-level directory"
+                        + " (unnamed package not allowed)";
+                    throw new GradleException(msg);
+                }
+                return Optional.empty();
+            }
+            String pn = name.substring(0, index).replace('/', '.');
+            return Optional.of(pn);
+        }
+
+        private static Set<String> jarPackages(JarFile jf) {
+            return jf.versionedStream()
+                    .filter(e -> !e.isDirectory())
+                    .map(JarEntry::getName)
+                    .filter(n -> !n.startsWith("META-INF") && n.endsWith(".class"))
+                    .map(SplitPackagesAuditAction::toPackageName)
+                    .flatMap(Optional::stream)
+                    .collect(Collectors.toSet());
+        }
+
+        private static Optional<String> toPackageName(Path file) {
+            assert file.getRoot() == null;
+            Path parent = file.getParent();
+            if (parent == null) {
+                String name = file.toString();
+                if (name.endsWith(".class") && !name.equals(MODULE_INFO)) {
+                    String msg = name + " found in top-level directory"
+                        + " (unnamed package not allowed)";
+                    throw new GradleException(msg);
+                }
+                return Optional.empty();
+            }
+
+            String pn = parent.toString().replace(File.separatorChar, '.');
+            return Optional.of(pn);
+        }
+
+        private static Set<String> explodedPackages(Path dir) {
+            try {
+                return Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))
+                    .map(path -> dir.relativize(path))
+                    .map(SplitPackagesAuditAction::toPackageName)
+                    .flatMap(Optional::stream)
+                    .collect(Collectors.toSet());
+            } catch (IOException x) {
+                throw new UncheckedIOException(x);
+            }
+        }
+
         // TODO: want to read packages the same for src dirs and jars, but src dirs we also want the files in the src package dir
         private static Set<String> readPackages(File classpathElement) {
-            Set<String> packages = new HashSet<>();
-            Consumer<Path> addClassPackage = p -> packages.add(getPackageName(p));
-
             try {
                 if (classpathElement.isDirectory()) {
-                    walkJavaFiles(classpathElement.toPath(), ".class", addClassPackage);
+                    return  explodedPackages(classpathElement.toPath());
                 } else if (classpathElement.getName().endsWith(".jar")) {
-                    try (FileSystem jar = FileSystems.newFileSystem(classpathElement.toPath(), Map.of())) {
-                        for (Path root : jar.getRootDirectories()) {
-                            walkJavaFiles(root, ".class", addClassPackage);
-                        }
-                    }
+                    return jarPackages(new JarFile(classpathElement));
                 } else {
                     throw new GradleException("Unsupported classpath element: " + classpathElement);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-
-            return packages;
         }
 
         private static void walkJavaFiles(Path root, String suffix, Consumer<Path> classConsumer) throws IOException {

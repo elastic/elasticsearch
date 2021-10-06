@@ -68,11 +68,6 @@ public abstract class IndexRouting {
     }
 
     /**
-     * Should the routing generation calls be forked from the transport thread?
-     */
-    public abstract boolean mustForkFromTransportThread();
-
-    /**
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
@@ -131,11 +126,6 @@ public abstract class IndexRouting {
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
-
-        @Override
-        public boolean mustForkFromTransportThread() {
-            return false;
-        }
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
@@ -214,11 +204,6 @@ public abstract class IndexRouting {
             super(routingNumShards, routingFactor);
             this.indexName = indexName;
             this.include = FilterPath.compile(Set.copyOf(routingPaths));
-        }
-
-        @Override
-        public boolean mustForkFromTransportThread() {
-            return true;
         }
 
         @Override

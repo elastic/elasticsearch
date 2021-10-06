@@ -32,11 +32,13 @@ import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Map;
 
@@ -99,8 +101,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             }
             case DATE: {
                 long fromValue = randomInt();
-                from = new DateTime(fromValue);
-                to = new DateTime(fromValue + 1);
+                from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue), ZoneOffset.UTC);
+                to = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue + 1), ZoneOffset.UTC);
                 break;
             }
             case INTEGER: {
@@ -156,8 +158,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             }
             case DATE: {
                 long fromValue = randomInt();
-                from = new DateTime(fromValue);
-                to = new DateTime(fromValue - 1);
+                from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue), ZoneOffset.UTC);
+                to = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue - 1), ZoneOffset.UTC);
                 break;
             }
             case INTEGER: {
@@ -283,7 +285,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {
         switch (type) {
             case DATE:
-                return getDateRangeQuery(relation, (DateTime)from, (DateTime)to, includeLower, includeUpper);
+                return getDateRangeQuery(relation, (ZonedDateTime)from, (ZonedDateTime)to, includeLower, includeUpper);
             case INTEGER:
                 return getIntRangeQuery(relation, (int)from, (int)to, includeLower, includeUpper);
             case LONG:
@@ -297,9 +299,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    private Query getDateRangeQuery(ShapeRelation relation, DateTime from, DateTime to, boolean includeLower, boolean includeUpper) {
-        long[] lower = new long[] {from.getMillis() + (includeLower ? 0 : 1)};
-        long[] upper = new long[] {to.getMillis() - (includeUpper ? 0 : 1)};
+    private Query getDateRangeQuery(ShapeRelation relation, ZonedDateTime from, ZonedDateTime to,
+                                    boolean includeLower, boolean includeUpper) {
+        long[] lower = new long[] {from.toInstant().toEpochMilli() + (includeLower ? 0 : 1)};
+        long[] upper = new long[] {to.toInstant().toEpochMilli() - (includeUpper ? 0 : 1)};
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
@@ -312,8 +315,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DATE.dvRangeQuery("field", queryType, from.getMillis(),
-                to.getMillis(), includeLower, includeUpper);
+        Query dvQuery = RangeType.DATE.dvRangeQuery("field", queryType, from.toInstant().toEpochMilli(),
+                to.toInstant().toEpochMilli(), includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
@@ -424,7 +427,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             case INTEGER:
                 return (int)(random().nextInt() * 0.5 - DISTANCE);
             case DATE:
-                return DateTime.now();
+                return ZonedDateTime.now(ZoneOffset.UTC);
             case LONG:
                 return (long)(random().nextLong() * 0.5 - DISTANCE);
             case FLOAT:
@@ -441,7 +444,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             case INTEGER:
                 return (Integer)from + DISTANCE;
             case DATE:
-                return DateTime.now().plusDays(DISTANCE);
+                return ZonedDateTime.now(ZoneOffset.UTC).plusDays(DISTANCE);
             case LONG:
                 return (Long)from + DISTANCE;
             case DOUBLE:

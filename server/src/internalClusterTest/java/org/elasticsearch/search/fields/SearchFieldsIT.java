@@ -35,13 +35,11 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -50,6 +48,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -995,10 +994,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", mapping));
         ensureGreen("test");
 
-        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
-        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
-        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
+        index("test", "type", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -1058,10 +1057,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addMapping("type", mapping));
         ensureGreen("test");
 
-        DateTime date = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
-        org.joda.time.format.DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy-MM-dd");
+        ZonedDateTime date = ZonedDateTime.of(1990, 12, 29, 0, 0, 0, 0, ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd", Locale.ROOT);
 
-        index("test", "type", "1", "text_field", "foo", "date_field", formatter.print(date));
+        index("test", "type", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())

@@ -846,13 +846,6 @@ public final class XContentBuilder implements Closeable, Flushable {
     // typed methods over this.
     //////////////////////////////////
 
-    public XContentBuilder field(String name, Enum<?> value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return field(name).value(value.toString());
-    }
-
     public XContentBuilder field(String name, Object value) throws IOException {
         return field(name).value(value);
     }
@@ -930,6 +923,42 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Maps & Iterable
     //////////////////////////////////
 
+    public XContentBuilder stringListField(String name, Collection<String> values) throws IOException {
+        startArray(name);
+        for (String value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
+        startArray(name);
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, ToXContent... values) throws IOException {
+        startArray(name);
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder enumSet(String name, EnumSet<?> values) throws IOException {
+        startArray(name);
+        for (Enum<?> value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
         return field(name).map(values);
     }
@@ -991,42 +1020,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (writeStartAndEndHeaders) {
             endObject();
         }
-        return this;
-    }
-
-    public XContentBuilder stringListField(String name, Collection<String> values) throws IOException {
-        startArray(name);
-        for (String value : values) {
-            value(value);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
-        startArray(name);
-        for (ToXContent value : values) {
-            value(value);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder xContentList(String name, ToXContent... values) throws IOException {
-        startArray(name);
-        for (ToXContent value : values) {
-            value(value);
-        }
-        endArray();
-        return this;
-    }
-
-    public XContentBuilder enumSet(String name, EnumSet<?> values) throws IOException {
-        startArray(name);
-        for (Enum<?> value : values) {
-            value(value);
-        }
-        endArray();
         return this;
     }
 
@@ -1095,6 +1088,13 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         field(rawFieldName, percentage);
         return this;
+    }
+
+    public XContentBuilder field(String name, Enum<?> value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        return field(name).value(value.toString());
     }
 
     ////////////////////////////////////////////////////////////////////////////

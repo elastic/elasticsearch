@@ -21,7 +21,6 @@ public class UpgradeTransformsResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.client.transform.UpgradeTransformsResponse> {
     public static Response randomUpgradeResponse() {
         return new Response(
-            randomBoolean(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
@@ -40,7 +39,6 @@ public class UpgradeTransformsResponseTests extends AbstractResponseTestCase<
 
     @Override
     protected void assertInstances(Response serverTestInstance, UpgradeTransformsResponse clientInstance) {
-        assertEquals(serverTestInstance.isSuccess(), clientInstance.isSuccess());
         assertEquals(serverTestInstance.getNeedsUpdate(), clientInstance.getNeedsUpdate());
         assertEquals(serverTestInstance.getNoAction(), clientInstance.getNoAction());
         assertEquals(serverTestInstance.getUpdated(), clientInstance.getUpdated());

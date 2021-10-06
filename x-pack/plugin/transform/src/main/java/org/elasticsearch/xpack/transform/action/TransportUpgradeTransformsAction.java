@@ -129,10 +129,6 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
-
-            // todo: consider adding a skip over option
-            final boolean success = true;
-
             final long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
                 ? updatesByStatus.get(UpdateResult.Status.UPDATED)
                 : 0;
@@ -148,11 +144,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                     logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
                     logger.info("Successfully upgraded all transforms, (updated: [{}], no action [{}])", updated, noAction);
 
-                    listener.onResponse(new UpgradeTransformsAction.Response(success, updated, noAction, needsUpdate));
+                    listener.onResponse(new UpgradeTransformsAction.Response(updated, noAction, needsUpdate));
                 }, listener::onFailure));
             } else {
                 // else: dry run
-                listener.onResponse(new UpgradeTransformsAction.Response(success, updated, noAction, needsUpdate));
+                listener.onResponse(new UpgradeTransformsAction.Response(updated, noAction, needsUpdate));
             }
         }, listener::onFailure));
 

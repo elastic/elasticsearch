@@ -32,12 +32,11 @@ public class UpgradeTransformsResponseTests extends ESTestCase {
     }
 
     private static UpgradeTransformsResponse createTestInstance() {
-        return new UpgradeTransformsResponse(randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new UpgradeTransformsResponse(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     private static void toXContent(UpgradeTransformsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field("success", response.isSuccess());
         if (response.getUpdated() != 0) {
             builder.field("updated", response.getUpdated());
         }

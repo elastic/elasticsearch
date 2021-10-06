@@ -79,27 +79,20 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
 
     public static class Response extends ActionResponse implements Writeable, ToXContentObject {
 
-        private final boolean success;
         private final long updated;
         private final long noAction;
         private final long needsUpdate;
 
         public Response(StreamInput in) throws IOException {
-            success = in.readBoolean();
             updated = in.readVLong();
             noAction = in.readVLong();
             needsUpdate = in.readVLong();
         }
 
-        public Response(boolean success, long updated, long noAction, long needsUpdate) {
-            this.success = success;
+        public Response(long updated, long noAction, long needsUpdate) {
             this.updated = updated;
             this.noAction = noAction;
             this.needsUpdate = needsUpdate;
-        }
-
-        public boolean isSuccess() {
-            return success;
         }
 
         public long getUpdated() {
@@ -116,7 +109,6 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(success);
             out.writeVLong(updated);
             out.writeVLong(noAction);
             out.writeVLong(needsUpdate);
@@ -125,7 +117,6 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("success", success);
             if (updated != 0L) {
                 builder.field("updated", updated);
             }
@@ -149,15 +140,14 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return false;
             }
             Response other = (Response) obj;
-            return success == other.success
-                && Objects.equals(this.updated, other.updated)
+            return Objects.equals(this.updated, other.updated)
                 && Objects.equals(this.noAction, other.noAction)
                 && Objects.equals(this.needsUpdate, other.needsUpdate);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(success, updated, noAction, needsUpdate);
+            return Objects.hash(updated, noAction, needsUpdate);
         }
 
         @Override

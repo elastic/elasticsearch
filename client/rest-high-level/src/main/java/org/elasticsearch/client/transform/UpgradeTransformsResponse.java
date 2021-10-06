@@ -14,12 +14,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class UpgradeTransformsResponse {
 
-    public static final ParseField SUCCESS = new ParseField("success");
     public static final ParseField NO_ACTION = new ParseField("no_action");
     public static final ParseField UPDATED = new ParseField("updated");
     public static final ParseField NEEDS_UPDATE = new ParseField("needs_update");
@@ -28,16 +26,15 @@ public class UpgradeTransformsResponse {
         "upgrade_transform",
         true,
         args -> {
-            long updated = args[1] == null ? 0L : (Long) args[1];
-            long noAction = args[2] == null ? 0L : (Long) args[2];
-            long needsUpdate = args[3] == null ? 0L : (Long) args[3];
+            long updated = args[0] == null ? 0L : (Long) args[0];
+            long noAction = args[1] == null ? 0L : (Long) args[1];
+            long needsUpdate = args[2] == null ? 0L : (Long) args[2];
 
-            return new UpgradeTransformsResponse((boolean) args[0], updated, noAction, needsUpdate);
+            return new UpgradeTransformsResponse(updated, noAction, needsUpdate);
         }
     );
 
     static {
-        PARSER.declareBoolean(constructorArg(), SUCCESS);
         PARSER.declareLong(optionalConstructorArg(), UPDATED);
         PARSER.declareLong(optionalConstructorArg(), NO_ACTION);
         PARSER.declareLong(optionalConstructorArg(), NEEDS_UPDATE);
@@ -47,13 +44,11 @@ public class UpgradeTransformsResponse {
         return UpgradeTransformsResponse.PARSER.apply(parser, null);
     }
 
-    private final boolean success;
     private final long updated;
     private final long noAction;
     private final long needsUpdate;
 
-    public UpgradeTransformsResponse(boolean success, long updated, long noAction, long needsUpdate) {
-        this.success = success;
+    public UpgradeTransformsResponse(long updated, long noAction, long needsUpdate) {
         this.updated = updated;
         this.noAction = noAction;
         this.needsUpdate = needsUpdate;
@@ -61,7 +56,7 @@ public class UpgradeTransformsResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(isSuccess(), updated, noAction, needsUpdate);
+        return Objects.hash(updated, noAction, needsUpdate);
     }
 
     @Override
@@ -75,14 +70,7 @@ public class UpgradeTransformsResponse {
         }
 
         final UpgradeTransformsResponse that = (UpgradeTransformsResponse) other;
-        return this.success == that.success
-            && this.updated == that.updated
-            && this.noAction == that.noAction
-            && this.needsUpdate == that.needsUpdate;
-    }
-
-    public boolean isSuccess() {
-        return success;
+        return this.updated == that.updated && this.noAction == that.noAction && this.needsUpdate == that.needsUpdate;
     }
 
     public long getUpdated() {

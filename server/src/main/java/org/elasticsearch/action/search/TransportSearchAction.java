@@ -744,11 +744,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 && (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source))) {
             preFilterShardSize = 1;
         } else if (preFilterShardSize == null) {
-            preFilterShardSize = 1;
+            preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
         }
         return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
-                    /*&& (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))*/
-                    && preFilterShardSize <= numShards;
+                    && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
+                    && preFilterShardSize < numShards;
     }
 
     private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.zone.ZoneRulesException;
 import java.util.HashMap;
 import java.util.Map;

@@ -395,8 +395,8 @@ public class Archives {
             // Clear the asynchronous event handlers
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} |"
-                    + "Unregister-EventSubscriber -Force"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
+                    + "Unregister-Event -Force"
             );
         });
         if (Files.exists(pidFile)) {

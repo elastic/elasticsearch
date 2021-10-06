@@ -31,7 +31,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
         super(in);
 
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            compressionScheme = in.readOptionalEnum(Compression.Scheme.class);
+            compressionScheme = in.readEnum(Compression.Scheme.class);
         } else {
             compressionScheme = null;
         }
@@ -64,7 +64,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalEnum(compressionScheme);
+            out.writeEnum(compressionScheme);
         } else {
             assert compressionScheme == null;
         }

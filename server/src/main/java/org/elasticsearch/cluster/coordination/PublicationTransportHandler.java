@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.compress.LZ4Compressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
@@ -132,12 +133,10 @@ public class PublicationTransportHandler {
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor;
         if (request.version().onOrAfter(Version.V_8_0_0)) {
-            if (request.compressionScheme() == Compression.Scheme.DEFLATE) {
+            if (request.compressionScheme() == Compression.Scheme.LZ4) {
                 compressor = LZ4Compressor.INSTANCE;
-            } else if (request.compressionScheme() == Compression.Scheme.LZ4) {
-                compressor = CompressorFactory.COMPRESSOR;
             } else {
-                compressor = null;
+                compressor = DeflateCompressor.INSTANCE;
             }
         } else {
             compressor = CompressorFactory.compressor(request.bytes());

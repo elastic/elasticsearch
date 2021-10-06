@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public class CompressorFactory {
 
-    public static final Compressor COMPRESSOR = new DeflateCompressor();
+    public static final Compressor COMPRESSOR = DeflateCompressor.INSTANCE;
 
     public static boolean isCompressed(BytesReference bytes) {
         return compressor(bytes) != null;

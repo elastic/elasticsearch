@@ -30,6 +30,8 @@ import java.util.zip.InflaterOutputStream;
  */
 public class DeflateCompressor implements Compressor {
 
+    public static final Compressor INSTANCE = new DeflateCompressor();
+
     // An arbitrary header that we use to identify compressed streams
     // It needs to be different from other compressors and to not be specific
     // enough so that no stream starting with these bytes could be detected as

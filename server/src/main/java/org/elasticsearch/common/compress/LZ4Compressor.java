@@ -41,6 +41,8 @@ public class LZ4Compressor implements Compressor {
 
     @Override
     public InputStream threadLocalInputStream(InputStream in) throws IOException {
+        // Skip the header
+        in.read(new byte[headerLength()]);
         return Compression.Scheme.lz4FrameInputStream(in);
     }
 

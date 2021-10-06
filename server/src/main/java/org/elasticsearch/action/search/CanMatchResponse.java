@@ -33,7 +33,7 @@ public class CanMatchResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(responses, StreamOutput::writeOptionalWriteable);
+        out.writeList(responses);
     }
 
     public List<ResponseOrFailure> getResponses() {
@@ -77,8 +77,9 @@ public class CanMatchResponse extends TransportResponse {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(response != null);
-            if (response != null) {
+            final boolean hasResponse = response != null;
+            out.writeBoolean(hasResponse);
+            if (hasResponse) {
                 response.writeTo(out);
             } else {
                 out.writeException(exception);

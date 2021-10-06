@@ -19,7 +19,6 @@ List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
-  'client:rest:qa:compatibility-used',
   'client:rest-high-level',
   'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',

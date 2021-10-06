@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,41 +22,27 @@ import java.util.Map;
 
 public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequest> {
 
-    protected boolean verbose = false;
-
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
     }
 
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        verbose = in.readBoolean();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readBoolean();   // old 'verbose' option, since removed
+        }
     }
 
     public IndicesSegmentsRequest(String... indices) {
         super(indices);
     }
 
-    /**
-     * <code>true</code> if detailed information about each segment should be returned,
-     * <code>false</code> otherwise.
-     */
-    public boolean verbose() {
-        return verbose;
-    }
-
-    /**
-     * Sets the <code>verbose</code> option.
-     * @see #verbose()
-     */
-    public void verbose(boolean v) {
-        verbose = v;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(verbose);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeBoolean(false);
+        }
     }
 
     @Override

@@ -20,7 +20,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -49,17 +51,20 @@ import java.util.function.Supplier;
 
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
+    private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
+    private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
+
     private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
         (mode) -> {
             XPackLicenseState licenseState = getLicenseState();
             switch (mode) {
                 case JDBC:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.JDBC) == false) {
+                    if (JDBC_FEATURE.check(licenseState) == false) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
                     break;
                 case ODBC:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.ODBC) == false) {
+                    if (ODBC_FEATURE.check(licenseState) == false) {
                         throw LicenseUtils.newComplianceException("odbc");
                     }
                     break;

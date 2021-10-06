@@ -15,36 +15,45 @@ import java.util.Collections;
 import java.util.List;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
+    private final boolean indexed;
+
+    public DenseVectorFieldTypeTests() {
+        this.indexed = randomBoolean();
+    }
+
+    private DenseVectorFieldMapper.DenseVectorFieldType createFieldType() {
+        return new DenseVectorFieldMapper.DenseVectorFieldType("f", Version.CURRENT, 5, indexed, Collections.emptyMap());
+    }
 
     public void testHasDocValues() {
-        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT, 1, Collections.emptyMap());
-        assertTrue(ft.hasDocValues());
+        DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
+        assertNotEquals(indexed, ft.hasDocValues());
+    }
+
+    public void testIsSearchable() {
+        DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
+        assertEquals(indexed, ft.isSearchable());
     }
 
     public void testIsAggregatable() {
-        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT,1, Collections.emptyMap());
+        DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
         assertFalse(ft.isAggregatable());
     }
 
     public void testFielddataBuilder() {
-        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT,1, Collections.emptyMap());
+        DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
         assertNotNull(ft.fielddataBuilder("index", () -> {
             throw new UnsupportedOperationException();
         }));
     }
 
     public void testDocValueFormat() {
-        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT,1, Collections.emptyMap());
+        DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
         expectThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {
-        DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT, 5, Collections.emptyMap());
+        DenseVectorFieldMapper.DenseVectorFieldType ft = createFieldType();
         List<Double> vector = List.of(0.0, 1.0, 2.0, 3.0, 4.0);
         assertEquals(vector, fetchSourceValue(ft, vector));
     }

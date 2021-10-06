@@ -150,8 +150,8 @@ public class VectorTileRequestTests extends ESTestCase {
             aggregationBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         }, (vectorTileRequest) -> {
-            assertThat(vectorTileRequest.getAggBuilder().getAggregatorFactories(), Matchers.iterableWithSize(1));
-            assertThat(vectorTileRequest.getAggBuilder().getAggregatorFactories().contains(aggregationBuilder), Matchers.equalTo(true));
+            assertThat(vectorTileRequest.getAggBuilder(), Matchers.iterableWithSize(1));
+            assertThat(vectorTileRequest.getAggBuilder().contains(aggregationBuilder), Matchers.equalTo(true));
         });
     }
 

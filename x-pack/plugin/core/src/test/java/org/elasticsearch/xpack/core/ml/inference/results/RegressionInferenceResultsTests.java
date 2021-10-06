@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 
@@ -21,11 +20,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 
-public class RegressionInferenceResultsTests extends AbstractWireSerializingTestCase<RegressionInferenceResults> {
+public class RegressionInferenceResultsTests extends InferenceResultsTestCase<RegressionInferenceResults> {
 
     public static RegressionInferenceResults createRandomResults() {
         return new RegressionInferenceResults(randomDouble(),
@@ -34,20 +34,6 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
                 Stream.generate(RegressionFeatureImportanceTests::createRandomInstance)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()));
-    }
-
-    public void testWriteResults() {
-        RegressionInferenceResults result = new RegressionInferenceResults(0.3, RegressionConfig.EMPTY_PARAMS);
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        writeResult(result, document, "result_field", "test");
-
-        assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));
-
-        result = new RegressionInferenceResults(0.5, RegressionConfig.EMPTY_PARAMS);
-        writeResult(result, document, "result_field", "test");
-
-        assertThat(document.getFieldValue("result_field.0.predicted_value", Double.class), equalTo(0.3));
-        assertThat(document.getFieldValue("result_field.1.predicted_value", Double.class), equalTo(0.5));
     }
 
     public void testWriteResultsWithImportance() {
@@ -98,5 +84,13 @@ public class RegressionInferenceResultsTests extends AbstractWireSerializingTest
         stringRep = Strings.toString(result);
         expected = "{\"" + resultsField + "\":1.0,\"feature_importance\":[{\"feature_name\":\"foo\",\"importance\":1.0}]}";
         assertEquals(expected, stringRep);
+    }
+
+    @Override
+    void assertFieldValues(RegressionInferenceResults createdInstance, IngestDocument document, String resultsField) {
+        assertThat(
+            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), Double.class),
+            closeTo(createdInstance.value(), 1e-10)
+        );
     }
 }

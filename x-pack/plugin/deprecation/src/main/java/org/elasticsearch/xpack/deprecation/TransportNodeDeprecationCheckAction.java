@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public class TransportNodeDeprecationCheckAction extends TransportNodesAction<NodesDeprecationCheckRequest,
@@ -35,7 +36,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     private final Settings settings;
     private final XPackLicenseState licenseState;
     private final PluginsService pluginsService;
-    private volatile List<String> skipTheseDeprecatedSettings;
+    private volatile List<String> skipTheseDeprecations;
 
     @Inject
     public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
@@ -49,14 +50,14 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
         this.settings = settings;
         this.pluginsService = pluginsService;
         this.licenseState = licenseState;
-        skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
-            this::updateHideDeprecationsSetting);
+            this::setSkipDeprecations);
     }
 
-    private <T> void updateHideDeprecationsSetting(List<String> hideDeprecationsSetting) {
-        this.skipTheseDeprecatedSettings = hideDeprecationsSetting;
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     @Override
@@ -84,7 +85,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request,
                                                            List<DeprecationChecks.NodeDeprecationCheck<Settings, PluginsAndModules,
                                                                ClusterState, XPackLicenseState, DeprecationIssue>> nodeSettingsChecks) {
-        Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
+        Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(nodeSettingsChecks,
             (c) -> c.apply(filteredSettings, pluginsService.info(), clusterService.state(), licenseState));
 

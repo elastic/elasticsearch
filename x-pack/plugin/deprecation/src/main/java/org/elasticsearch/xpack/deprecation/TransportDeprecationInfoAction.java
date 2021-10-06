@@ -47,7 +47,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
-    private volatile List<String> skipTheseDeprecatedSettings;
+    private volatile List<String> skipTheseDeprecations;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -60,14 +60,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
-        skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
-            this::updateHideDeprecationsSetting);
+            this::setSkipDeprecations);
     }
 
-    private <T> void updateHideDeprecationsSetting(List<String> hideDeprecationsSetting) {
-        this.skipTheseDeprecatedSettings = hideDeprecationsSetting;
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     @Override
@@ -110,7 +110,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                             INDEX_SETTINGS_CHECKS,
                             CLUSTER_SETTINGS_CHECKS,
                             deprecationIssues,
-                            skipTheseDeprecatedSettings
+                            skipTheseDeprecations
                         )
                     );
                 },

@@ -39,7 +39,10 @@ final class ElasticServiceAccounts {
                     .allowRestrictedIndices(true)
                     .build()
             },
-            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[]{
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-*").resources("*").privileges("reserved_fleet-setup").build()
+            },
             null,
             null,
             null,

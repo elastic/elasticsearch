@@ -40,6 +40,8 @@ subprojects {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
       setting 'xpack.security.enabled', 'false'
+      setting 'cluster.deprecation_indexing.enabled', 'false'
+
       if (BuildParams.isSnapshotBuild() == false) {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
       }

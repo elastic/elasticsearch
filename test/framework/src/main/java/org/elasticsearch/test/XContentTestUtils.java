@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -87,6 +88,15 @@ public final class XContentTestUtils {
                 return null;
             } else {
                 return path + ": first element is null, the second element is not null";
+            }
+        } else if (first instanceof byte[]) {
+            if (second instanceof byte[]) {
+                byte[] bf = (byte[]) first;
+                byte[] bs = (byte[]) second;
+                return Arrays.compare(bf, bs) == 0 ? null :
+                    path + ": the elements don't match: " + Arrays.toString(bf) + " != " + Arrays.toString(bs);
+            } else {
+                return path + ": second not a byte array (got" + second + ")";
             }
         } else if (first instanceof List) {
             if (second instanceof List) {

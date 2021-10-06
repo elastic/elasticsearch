@@ -101,8 +101,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
      * Returns true if there are any node replacements ongoing in the cluster
      */
     private static boolean replacementOngoing(RoutingAllocation allocation) {
-        return allocation.nodeShutdowns().values().stream()
-            .anyMatch(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE));
+        return allocation.replacementTargetShutdowns().isEmpty() == false;
     }
 
     /**

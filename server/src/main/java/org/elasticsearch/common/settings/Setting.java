@@ -572,7 +572,7 @@ public class Setting<T> implements ToXContentObject {
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("key", getKey());
-        builder.field("properties", properties);
+        builder.enumSet("properties", properties);
         builder.field("is_group_setting", isGroupSetting());
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();

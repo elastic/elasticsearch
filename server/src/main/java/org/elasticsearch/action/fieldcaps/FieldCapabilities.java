@@ -125,13 +125,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (indices != null) {
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
+            builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
         if (nonSearchableIndices != null) {
-            builder.field(NON_SEARCHABLE_INDICES_FIELD.getPreferredName(), nonSearchableIndices);
+            builder.array(NON_SEARCHABLE_INDICES_FIELD.getPreferredName(), nonSearchableIndices);
         }
         if (nonAggregatableIndices != null) {
-            builder.field(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
+            builder.array(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
@@ -140,7 +140,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             for (Map.Entry<String, Set<String>> entry : entries) {
                 List<String> values = new ArrayList<>(entry.getValue());
                 values.sort(String::compareTo); // provide predictable order
-                builder.field(entry.getKey(), values);
+                builder.stringListField(entry.getKey(), values);
             }
             builder.endObject();
         }

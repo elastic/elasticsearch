@@ -59,12 +59,12 @@ import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -137,7 +137,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         2,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -158,7 +158,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         1,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -221,7 +221,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         50.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -252,7 +252,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         141.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -283,7 +283,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         275.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -314,7 +314,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         270.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -345,7 +345,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         440.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -398,7 +398,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         2,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -419,7 +419,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         2,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -440,7 +440,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         1,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -493,7 +493,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         3,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -514,7 +514,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         4,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        "UTC", // TODO: the default is hardcoded from Joda, we should change this
                         "_rollup.id",
                         job.getId()
                     )
@@ -538,7 +538,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             )
         );
 
-        String timeZone = DateTimeZone.forOffsetHours(-3).getID();
+        String timeZone = ZoneOffset.ofHours(-3).getId();
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
         String field = "the_histo";
         DateHistogramGroupConfig dateHistoConfig = new CalendarInterval(field, new DateHistogramInterval("1d"), null, timeZone);
@@ -633,7 +633,11 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Make sure the timestamp is sufficiently in the past that we don't get bitten
             // by internal rounding, causing no docs to match
-            long timestamp = new DateTime().minusDays(2).minusHours(randomIntBetween(11, 100)).getMillis();
+            long timestamp = ZonedDateTime.now(ZoneOffset.UTC)
+                .minusDays(2)
+                .minusHours(randomIntBetween(11, 100))
+                .toInstant()
+                .toEpochMilli();
             dataset.add(asMap(timestampField, timestamp, valueField, randomLongBetween(1, 100)));
         }
         executeTestCase(dataset, job, System.currentTimeMillis(), (resp) -> {

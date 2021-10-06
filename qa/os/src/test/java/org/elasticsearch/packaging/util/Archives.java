@@ -365,6 +365,7 @@ public class Archives {
                 command.add("echo '" + keystorePassword + "' |");
             }
             command.add(bin.elasticsearch.toString());
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
             return sh.runIgnoreExitCode(String.join(" ", command));

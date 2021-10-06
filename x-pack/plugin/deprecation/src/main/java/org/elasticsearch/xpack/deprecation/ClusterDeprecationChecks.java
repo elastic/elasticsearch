@@ -49,6 +49,8 @@ import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.checkRem
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
 
+    private static final String SPARSE_VECTOR = "sparse_vector";
+
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
         List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
@@ -294,7 +296,7 @@ public class ClusterDeprecationChecks {
     }
 
     protected static boolean isSparseVector(Map<?, ?> property) {
-        return "sparse_vector".equals(property.get("type"));
+        return SPARSE_VECTOR.equals(property.get("type"));
     }
 
     protected static String formatDeprecatedSparseVectorMessage(String type, Map.Entry<?, ?> entry) {
@@ -313,7 +315,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                             mappingAsMap,
                             ClusterDeprecationChecks::isSparseVector,
                             ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
@@ -342,7 +344,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                                 mappingAsMap,
                                 ClusterDeprecationChecks::isSparseVector,
                                 ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);

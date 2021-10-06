@@ -189,7 +189,7 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         assertThat(
             decision.getExplanation(),
             equalTo("node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() +
-                "], so no data from other node [" + testShard.currentNodeId() + "] may be allocated to it")
+                "], so no data may be allocated to it")
         );
 
         routingNode = new RoutingNode(NODE_B.getId(), NODE_B, testShard);
@@ -199,8 +199,8 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         assertThat(
             decision.getExplanation(),
             equalTo("node [" + NODE_B.getId() +
-                "] is replacing the vacating node [" + NODE_A.getId() + "], so no data from other node [" +
-                testShard.currentNodeId() + "] may be allocated to it until the replacement is complete")
+                "] is replacing the vacating node [" + NODE_A.getId() + "], only data currently allocated " +
+                "to the source node may be allocated to it until the replacement is complete")
         );
 
         routingNode = new RoutingNode(NODE_C.getId(), NODE_C, testShard);

@@ -38,12 +38,12 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 shardRouting.currentNodeId(), getReplacementName(allocation, shardRouting.currentNodeId()));
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is being replaced by [%s], so no data from other node [%s] may be allocated to it",
+                "node [%s] is being replaced by [%s], so no data may be allocated to it",
                 node.nodeId(), getReplacementName(allocation, node.nodeId()), shardRouting.currentNodeId());
         } else if (isReplacementTargetName(allocation, node.node().getName())) {
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.node().getName());
             return Decision.single(Decision.Type.NO, NAME,
-                "node [%s] is replacing the vacating node [%s], so no data from other node [%s] " +
+                "node [%s] is replacing the vacating node [%s], only data currently allocated to the source node " +
                     "may be allocated to it until the replacement is complete",
                 node.nodeId(), shutdown == null ? null : shutdown.getNodeId(), shardRouting.currentNodeId());
         } else {

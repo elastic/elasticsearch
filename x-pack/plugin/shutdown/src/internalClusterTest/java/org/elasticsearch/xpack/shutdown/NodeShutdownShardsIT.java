@@ -12,7 +12,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -384,7 +383,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     public void testNodeReplacementOnlyToTarget() throws Exception {
-        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
+        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a")
+            .put("cluster.routing.rebalance.enable", "none"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
         Settings.Builder nodeASettings = Settings.builder()
@@ -425,11 +425,9 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
             for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                assertThat(
-                    "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
-                    sr.currentNodeId(),
-                    equalTo(nodeBId)
-                );
+                assertThat("expected all shards for index to be on node B (" + nodeBId + ") but " +
+                        sr.toString() + " is on " + sr.currentNodeId(),
+                    sr.currentNodeId(), equalTo(nodeBId));
             }
         });
 
@@ -440,14 +438,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             ).get();
             assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
         });
-
-        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-
-        assertTrue("expected all shards for index to be on node B: " +
-                stateResponse.getState().routingTable().allShards("myindex").stream()
-                    .map(ShardRouting::currentNodeId).collect(Collectors.joining(",")),
-            stateResponse.getState().routingTable().allShards("myindex").stream()
-                .allMatch(sr -> sr.currentNodeId().equals(nodeBId)));
     }
 
     private void indexRandomData() throws Exception {

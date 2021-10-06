@@ -32,7 +32,7 @@ public class LogstashFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH);
+        return Logstash.LOGSTASH_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

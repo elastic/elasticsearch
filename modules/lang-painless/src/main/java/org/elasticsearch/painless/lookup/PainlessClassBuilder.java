@@ -21,6 +21,7 @@ final class PainlessClassBuilder {
     final Map<String, PainlessField> staticFields;
     final Map<String, PainlessField> fields;
     PainlessMethod functionalInterfaceMethod;
+    final Map<Class<?>, Object> annotations;
 
     final Map<String, PainlessMethod> runtimeMethods;
     final Map<String, MethodHandle> getterMethodHandles;
@@ -33,6 +34,7 @@ final class PainlessClassBuilder {
         staticFields = new HashMap<>();
         fields = new HashMap<>();
         functionalInterfaceMethod = null;
+        annotations = new HashMap<>();
 
         runtimeMethods = new HashMap<>();
         getterMethodHandles = new HashMap<>();
@@ -40,7 +42,7 @@ final class PainlessClassBuilder {
     }
 
     PainlessClass build() {
-        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod,
+        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod, annotations,
                 runtimeMethods, getterMethodHandles, setterMethodHandles);
     }
 
@@ -61,11 +63,12 @@ final class PainlessClassBuilder {
                 Objects.equals(methods, that.methods) &&
                 Objects.equals(staticFields, that.staticFields) &&
                 Objects.equals(fields, that.fields) &&
-                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod);
+                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod) &&
+                Objects.equals(annotations, that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod);
+        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod, annotations);
     }
 }

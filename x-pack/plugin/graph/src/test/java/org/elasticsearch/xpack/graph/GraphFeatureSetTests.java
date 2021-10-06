@@ -31,7 +31,7 @@ public class GraphFeatureSetTests extends ESTestCase {
     public void testAvailable() throws Exception {
         GraphFeatureSet featureSet = new GraphFeatureSet(Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)).thenReturn(available);
+        when(Graph.GRAPH_FEATURE.checkWithoutTracking(licenseState)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);

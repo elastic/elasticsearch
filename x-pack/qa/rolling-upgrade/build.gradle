@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -30,17 +30,15 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String bwcVersionString = bwcVersion.toString()
-  String baseName = "v" + bwcVersionString
-  Version currentBwcVersion = bwcVersion
+BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+  String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
   String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
-    versions = [bwcVersionString, project.version]
+    versions = [oldVersion, project.version]
     numberOfNodes = 3
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
@@ -56,7 +54,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
-    if (currentBwcVersion.onOrAfter('7.0.0')) {
+    if (bwcVersion.onOrAfter('7.0.0')) {
       setting 'xpack.security.authc.realms.file.file1.order', '0'
       setting 'xpack.security.authc.realms.native.native1.order', '1'
     } else {
@@ -65,7 +63,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       setting 'xpack.security.authc.realms.native1.type', 'native'
       setting 'xpack.security.authc.realms.native1.order', '1'
     }
-    if (currentBwcVersion.onOrAfter('6.6.0')) {
+    if (bwcVersion.onOrAfter('6.6.0')) {
       setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
     }
 
@@ -83,17 +81,15 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     // However, released versions run without assertions, so end users won't
     // be suffering the effects.  This argument effectively removes the
     // incorrect assertion from the older versions used in the BWC tests.
-    if (currentBwcVersion.before('5.6.9') || (currentBwcVersion.onOrAfter('6.0.0') && currentBwcVersion.before('6.2.4'))) {
+    if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
       jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
     }
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
-    if (currentBwcVersion.onOrAfter('7.12.0')) {
+    if (bwcVersion.onOrAfter('7.12.0')) {
       setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
     }
   }
-
-  String oldVersion = bwcVersionString
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
@@ -111,14 +107,14 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', baseName)
     def toBlackList = []
     // Dataframe transforms were not added until 7.2.0
-    if (Version.fromString(oldVersion).before('7.2.0')) {
+    if (bwcVersion.before('7.2.0')) {
       toBlackList << 'old_cluster/80_transform_jobs_crud/Test put batch transform on old cluster'
     }
     // continuous Dataframe transforms were not added until 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList << 'old_cluster/80_transform_jobs_crud/Test put continuous transform on old cluster'
     }
-    if (Version.fromString(oldVersion).before('7.9.0')) {
+    if (bwcVersion.before('7.9.0')) {
       toBlackList.addAll([
         'old_cluster/90_ml_data_frame_analytics_crud/Put outlier_detection job on the old cluster',
         'old_cluster/90_ml_data_frame_analytics_crud/Put regression job on the old cluster',
@@ -157,13 +153,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       'mixed_cluster/121_api_key/Create API key with metadata in a mixed cluster'
     ]
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
-    if (Version.fromString(oldVersion).before('7.4.0')) {
+    if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
       ])
     }
-    if (Version.fromString(oldVersion).before('7.9.0')) {
+    if (bwcVersion.before('7.9.0')) {
       toBlackList.addAll([
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job',
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job stats',
@@ -190,7 +186,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.first_round', 'false'
     def toBlackList = []
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
-    if (Version.fromString(oldVersion).before('7.4.0')) {
+    if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
@@ -198,7 +194,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
       ])
     }
-    if (Version.fromString(oldVersion).before('7.9.0')) {
+    if (bwcVersion.before('7.9.0')) {
       toBlackList.addAll([
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job',
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job stats',
@@ -213,7 +209,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ])
     }
     // API key metadata requires flattened field type introduced in 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList.addAll([
         'mixed_cluster/121_api_key/Create API key with metadata in a mixed cluster'
       ])
@@ -238,19 +234,19 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     def toBlackList = []
     // Dataframe transforms were not added until 7.2.0
-    if (Version.fromString(oldVersion).before('7.2.0')) {
+    if (bwcVersion.before('7.2.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop, and delete old cluster batch transform'
     }
     // continuous Dataframe transforms were not added until 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, stop, delete, old continuous transforms'
     }
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
-    if (Version.fromString(oldVersion).before('7.4.0')) {
+    if (bwcVersion.before('7.4.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop mixed cluster batch transform'
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, mixed continuous transforms'
     }
-    if (Version.fromString(oldVersion).before('7.10.0')) {
+    if (bwcVersion.before('7.10.0')) {
       toBlackList.addAll([
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster outlier_detection job',
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster outlier_detection job stats',
@@ -264,7 +260,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ])
     }
     // API key metadata requires flattened field type introduced in 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList.addAll([
         'upgraded_cluster/121_api_key/Get the mixed API key in the upgraded cluster'
       ])

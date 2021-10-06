@@ -8,21 +8,26 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
 
 public class NodeDeprecationChecks {
 
@@ -92,5 +97,49 @@ public class NodeDeprecationChecks {
         }
 
         return null;
+    }
+
+    private static DeprecationIssue deprecatedAffixSetting(Setting.AffixSetting<?> deprecatedAffixSetting, String detailPattern,
+                                                           String url, DeprecationIssue.Level warningLevel, Settings settings) {
+        List<Setting<?>> deprecatedConcreteSettings = deprecatedAffixSetting.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+
+        if (deprecatedConcreteSettings.isEmpty()) {
+            return null;
+        }
+
+        final String concatSettingNames = deprecatedConcreteSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "settings [%s] are deprecated and will be removed in a future release",
+            concatSettingNames
+        );
+        final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
+
+        return new DeprecationIssue(warningLevel, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkExporterUseIngestPipelineSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return deprecatedAffixSetting(MonitoringDeprecatedSettings.USE_INGEST_PIPELINE_SETTING,
+            "Remove usage of the following properties: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
+
+    static DeprecationIssue checkExporterPipelineMasterTimeoutSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return deprecatedAffixSetting(MonitoringDeprecatedSettings.PIPELINE_CHECK_TIMEOUT_SETTING,
+            "Remove usage of the following properties: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
+
+    static DeprecationIssue checkExporterCreateLegacyTemplateSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return deprecatedAffixSetting(MonitoringDeprecatedSettings.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING,
+            "Remove usage of the following properties: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
     }
 }

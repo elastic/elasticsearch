@@ -12,7 +12,8 @@
 *Details* +
 The `xpack.monitoring.exporters.*.use_ingest` property was deprecated in 7.16.0 and
 has been removed. This parameter controlled the creation of pipelines for monitoring
-indices that previously had no function.
+indices. Those pipelines for monitoring indices previously
+had no function and are now removed. This setting will be removed in a future release.
 
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.
@@ -25,7 +26,7 @@ Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.
 The `xpack.monitoring.exporters.*.index.pipeline.master_timeout` property was
 deprecated in 7.16.0. This parameter set the timeout when waiting for the remote
 Monitoring cluster to create pipelines. Those pipelines for monitoring indices previously
-had no function and are now removed in 8.0.0.
+had no function and are now removed. This setting will be removed in a future release.
 
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting.

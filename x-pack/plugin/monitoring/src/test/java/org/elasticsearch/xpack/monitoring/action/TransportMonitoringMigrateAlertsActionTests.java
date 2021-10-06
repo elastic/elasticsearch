@@ -42,12 +42,12 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
@@ -521,8 +521,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     protected List<String> monitoringTemplateNames() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-            .map(MonitoringTemplateUtils::templateName)
+        return Arrays.stream(MonitoringTemplateRegistry.TEMPLATE_NAMES)
             .collect(Collectors.toList());
     }
 

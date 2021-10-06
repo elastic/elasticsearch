@@ -6,25 +6,26 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import java.io.IOException;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
+
+import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.Version.CURRENT;
@@ -81,10 +82,16 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
-        columnar = in.readBoolean();
-        asyncExecutionId = in.readOptionalString();
-        isPartial = in.readBoolean();
-        isRunning = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            columnar = in.readBoolean();
+            asyncExecutionId = in.readOptionalString();
+            isPartial = in.readBoolean();
+            isRunning = in.readBoolean();
+        } else {
+            asyncExecutionId = null;
+            isPartial = false;
+            isRunning = false;
+        }
     }
 
     public SqlQueryResponse(

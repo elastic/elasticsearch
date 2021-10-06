@@ -515,7 +515,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             builder.field("failed_attempts", failedAllocations);
         }
         if (failedNodeIds.isEmpty() == false) {
-            builder.field("failed_nodes", failedNodeIds);
+            builder.stringListField("failed_nodes", failedNodeIds);
         }
         builder.field("delayed", delayed);
         String details = getDetails();

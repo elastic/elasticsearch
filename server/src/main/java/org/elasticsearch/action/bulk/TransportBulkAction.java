@@ -885,22 +885,4 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             itemResponses.add(BulkItemResponse.failure(slot, indexRequest.opType(), failure));
         }
     }
-
-    boolean routingMustForkFromTransportThread(Iterable<DocWriteRequest<?>> requests, ConcreteIndices concreteIndices) {
-        for (DocWriteRequest<?> request : requests) {
-            if (request == null) {
-                continue;
-            }
-            Index index;
-            try {
-                index = concreteIndices.resolveIfAbsent(request);
-            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                continue;
-            }
-            if (concreteIndices.routing(index).mustForkFromTransportThread()) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

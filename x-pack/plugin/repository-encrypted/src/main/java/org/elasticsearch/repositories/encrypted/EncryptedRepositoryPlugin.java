@@ -42,8 +42,11 @@ import java.util.function.Supplier;
 
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
-    static final LicensedFeature.Momentary ENCRYPTED_SNAPSHOT_FEATURE =
-        LicensedFeature.momentary(null, "encrypted-snapshot", License.OperationMode.PLATINUM);
+    static final LicensedFeature.Momentary ENCRYPTED_SNAPSHOT_FEATURE = LicensedFeature.momentary(
+        null,
+        "encrypted-snapshot",
+        License.OperationMode.PLATINUM
+    );
 
     private static final Boolean ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED;
     static {

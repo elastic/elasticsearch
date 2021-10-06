@@ -41,6 +41,8 @@ public class Compression {
         private static final byte[] DEFLATE_HEADER = new byte[]{'D', 'F', 'L', '\0'};
         private static final byte[] LZ4_HEADER = new byte[]{'L', 'Z', '4', '\0'};
         private static final int LZ4_BLOCK_SIZE;
+        private static final LZ4FrameOutputStream.BLOCKSIZE LZ4_FRAME_BLOCK_SIZE;
+        private static final LZ4FrameOutputStream.FLG.Bits BLOCK_INDEPENDENCE = LZ4FrameOutputStream.FLG.Bits.BLOCK_INDEPENDENCE;
         private static final boolean USE_FORKED_LZ4;
 
         static {
@@ -51,8 +53,14 @@ public class Compression {
                     throw new IllegalArgumentException("lz4_block_size must be equal to 64KB or 256KB");
                 }
                 LZ4_BLOCK_SIZE = lz4BlockSize;
+                if (lz4BlockSize != 64 * 1024) {
+                    LZ4_FRAME_BLOCK_SIZE = LZ4FrameOutputStream.BLOCKSIZE.SIZE_64KB;
+                } else {
+                    LZ4_FRAME_BLOCK_SIZE = LZ4FrameOutputStream.BLOCKSIZE.SIZE_256KB;
+                }
             } else {
                 LZ4_BLOCK_SIZE = 64 * 1024;
+                LZ4_FRAME_BLOCK_SIZE = LZ4FrameOutputStream.BLOCKSIZE.SIZE_64KB;
             }
 
             USE_FORKED_LZ4 = Booleans.parseBoolean(System.getProperty("es.compression.use_forked_lz4", "true"));
@@ -120,7 +128,7 @@ public class Compression {
                 lz4Compressor = LZ4Factory.safeInstance().fastCompressor();
             }
             XXHash32 checksum = XXHashFactory.fastestInstance().hash32();
-            return new LZ4FrameOutputStream(outputStream, LZ4FrameOutputStream.BLOCKSIZE.SIZE_64KB, -1, lz4Compressor, checksum);
+            return new LZ4FrameOutputStream(outputStream, LZ4_FRAME_BLOCK_SIZE, -1, lz4Compressor, checksum, BLOCK_INDEPENDENCE);
         }
     }
 

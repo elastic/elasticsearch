@@ -25,8 +25,10 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -844,6 +846,13 @@ public final class XContentBuilder implements Closeable, Flushable {
     // typed methods over this.
     //////////////////////////////////
 
+    public XContentBuilder field(String name, Enum<?> value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        return field(name).value(value.toString());
+    }
+
     public XContentBuilder field(String name, Object value) throws IOException {
         return field(name).value(value);
     }
@@ -929,6 +938,32 @@ public final class XContentBuilder implements Closeable, Flushable {
         return map(values, true, true);
     }
 
+    public XContentBuilder stringStringMap(String name, Map<String, String> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startObject();
+        for (Map.Entry<String, String> value : values.entrySet()) {
+            field(value.getKey());
+            value(value.getValue());
+        }
+        return endObject();
+    }
+
+    public XContentBuilder xContentValuesMap(String name, Map<String, ? extends ToXContent> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startObject();
+        for (Map.Entry<String, ? extends ToXContent> value : values.entrySet()) {
+            field(value.getKey());
+            value(value.getValue());
+        }
+        return endObject();
+    }
+
     /** writes a map without the start object and end object headers */
     public XContentBuilder mapContents(Map<String, ?> values) throws IOException {
         return map(values, true, false);
@@ -956,6 +991,42 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (writeStartAndEndHeaders) {
             endObject();
         }
+        return this;
+    }
+
+    public XContentBuilder stringListField(String name, Collection<String> values) throws IOException {
+        startArray(name);
+        for (String value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
+        startArray(name);
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, ToXContent... values) throws IOException {
+        startArray(name);
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder enumSet(String name, EnumSet<?> values) throws IOException {
+        startArray(name);
+        for (Enum<?> value : values) {
+            value(value);
+        }
+        endArray();
         return this;
     }
 

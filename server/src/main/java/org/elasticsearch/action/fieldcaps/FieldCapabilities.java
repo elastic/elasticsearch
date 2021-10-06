@@ -140,7 +140,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             for (Map.Entry<String, Set<String>> entry : entries) {
                 List<String> values = new ArrayList<>(entry.getValue());
                 values.sort(String::compareTo); // provide predictable order
-                builder.field(entry.getKey(), values);
+                builder.stringListField(entry.getKey(), values);
             }
             builder.endObject();
         }

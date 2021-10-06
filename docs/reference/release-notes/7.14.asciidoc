@@ -3,6 +3,22 @@
 
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 
+[[known-issues-7.14.2]]
+[discrete]
+=== Known issues
+
+* Aggregations: When a cross cluster search request is proxied, the memory for the aggregations on the
+proxy node will not be freed. The trigger is cross cluster search using aggregations where minimize 
+roundtrips is not effective (e.g. when minimize roundtrips is explicitly disabled, or implicitly disabled 
+when using scroll, async and point in time searches). This issue can happen in all modes of remote connections 
+configured for cross cluster search (sniff and proxy). In sniff mode, we only connect to a subset of the 
+remote nodes (by default 3). So if the remote node we want to send a request to is not one of those 3, 
+we must send the request as a proxy request. The workaround is to periodically restart nodes with heap pressure 
+or cancel the aggregation tasks on the nodes.
++
+We have fixed this issue in {es} 7.15.1 and later versions. For more details,
+see {es-pull}78404[#78404].
+
 [[enhancement-7.14.2]]
 [float]
 === Enhancements

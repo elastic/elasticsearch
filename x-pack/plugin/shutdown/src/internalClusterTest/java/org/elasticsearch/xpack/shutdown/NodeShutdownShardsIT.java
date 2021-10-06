@@ -382,13 +382,12 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     }
 
     public void testNodeReplacementOnlyToTarget() throws Exception {
-        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a")
-            .put("cluster.routing.rebalance.enable", "none"));
+        String nodeA = internalCluster().startNode(
+            Settings.builder().put("node.name", "node-a").put("cluster.routing.rebalance.enable", "none")
+        );
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
-        Settings.Builder nodeASettings = Settings.builder()
-            .put("index.number_of_shards", 4)
-            .put("index.number_of_replicas", 0);
+        Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0);
         createIndex("myindex", nodeASettings.build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
@@ -424,9 +423,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
             for (ShardRouting sr : state.routingTable().allShards("myindex")) {
-                assertThat("expected all shards for index to be on node B (" + nodeBId + ") but " +
-                        sr.toString() + " is on " + sr.currentNodeId(),
-                    sr.currentNodeId(), equalTo(nodeBId));
+                assertThat(
+                    "expected all shards for index to be on node B (" + nodeBId + ") but " + sr.toString() + " is on " + sr.currentNodeId(),
+                    sr.currentNodeId(),
+                    equalTo(nodeBId)
+                );
             }
         });
 

@@ -367,7 +367,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "manage_pipeline", "manage_ilm",
                 // For the endpoint package that ships a transform
                 "manage_transform",
-                InvalidateApiKeyAction.NAME, "grant_api_key",
+                InvalidateApiKeyAction.NAME, "grant_api_key", "manage_own_api_key",
                 GetBuiltinPrivilegesAction.NAME, "delegate_pki",
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",

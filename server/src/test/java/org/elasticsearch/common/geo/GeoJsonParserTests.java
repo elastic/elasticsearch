@@ -26,6 +26,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -36,9 +37,8 @@ import java.util.Collections;
 /**
  * Tests for {@code GeoJSONShapeParser}
  */
-public class GeoJsonParserTests extends BaseGeoParsingTestCase {
+public class GeoJsonParserTests extends ESTestCase {
 
-    @Override
     public void testParsePoint() throws IOException {
         XContentBuilder pointGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -49,7 +49,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(expected, pointGeoJson);
     }
 
-    @Override
     public void testParseLineString() throws IOException {
         XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -67,7 +66,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
     }
 
-    @Override
     public void testParseMultiLineString() throws IOException {
         XContentBuilder multilinesGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -138,7 +136,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
     }
 
-    @Override
     public void testParseEnvelope() throws IOException {
         // test #1: envelope with expected coordinate order (TopLeft, BottomRight)
         XContentBuilder multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", randomBoolean() ? "envelope" : "bbox")
@@ -189,7 +186,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         }
     }
 
-    @Override
     public void testParsePolygon() throws IOException {
         XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -516,7 +512,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(p, polygonGeoJson);
     }
 
-    @Override
     public void testParseMultiPoint() throws IOException {
         XContentBuilder multiPointGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -532,7 +527,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
             new Point(101, 1))), multiPointGeoJson);
     }
 
-    @Override
     public void testParseMultiPolygon() throws IOException {
         // two polygons; one without hole, one with hole
         XContentBuilder multiPolygonGeoJson = XContentFactory.jsonBuilder()
@@ -580,7 +574,6 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(polygons, multiPolygonGeoJson);
     }
 
-    @Override
     public void testParseGeometryCollection() throws IOException {
         XContentBuilder geometryCollectionGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
@@ -641,7 +634,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
 
             Point expectedPt = new Point(100, 0);
-            assertGeometryEquals(expectedPt, pointGeoJson, false);
+            assertGeometryEquals(expectedPt, pointGeoJson);
     }
 
     public void testParseOrientationOption() throws IOException {
@@ -761,6 +754,13 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 GeoJson.fromXContent(GeographyValidator.instance(false), false, true, parser));
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken()); // end of the document
             assertNull(parser.nextToken()); // no more elements afterwards
+        }
+    }
+
+    private void assertGeometryEquals(org.elasticsearch.geometry.Geometry expected, XContentBuilder geoJson) throws IOException {
+        try (XContentParser parser = createParser(geoJson)) {
+            parser.nextToken();
+            assertEquals(expected, GeoJson.fromXContent(GeographyValidator.instance(false), false, true, parser));
         }
     }
 }

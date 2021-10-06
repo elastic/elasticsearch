@@ -262,8 +262,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
 
         assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                ZonedDateTime.parse("2012-01-01T00:00:00.000+00").toInstant().toEpochMilli(),
-                ZonedDateTime.parse("2030-01-01T00:00:00.000+00").toInstant().toEpochMilli() - 1),
+                ZonedDateTime.parse("2012-01-01T00:00:00.000Z").toInstant().toEpochMilli(),
+                ZonedDateTime.parse("2030-01-01T00:00:00.000Z").toInstant().toEpochMilli() - 1),
                 parsedQuery);
 
         // Test Invalid format

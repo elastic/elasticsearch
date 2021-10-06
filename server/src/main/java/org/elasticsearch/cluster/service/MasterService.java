@@ -444,6 +444,9 @@ public class MasterService extends AbstractLifecycleComponent {
                            Map<Object, ClusterStateTaskExecutor.TaskResult> executionResults) {
             this.taskInputs = taskInputs;
             this.previousClusterState = previousClusterState;
+            // In case indices lookup was built lazily then by invoking this method we ensure it gets built and specific validation occurs
+            // TODO: is there a better way?
+            newClusterState.metadata().getIndicesLookup();
             this.newClusterState = newClusterState;
             this.nonFailedTasks = nonFailedTasks;
             this.executionResults = executionResults;

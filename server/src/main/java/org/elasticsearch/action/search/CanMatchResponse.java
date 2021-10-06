@@ -8,27 +8,26 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
 
-public class CanMatchNodeResponse extends TransportResponse {
+public class CanMatchResponse extends TransportResponse {
 
-    private final List<SearchService.CanMatchResponse> responses;
+    private final List<CanMatchShardResponse> responses;
     private final List<Exception> failures;
 
-    public CanMatchNodeResponse(StreamInput in) throws IOException {
+    public CanMatchResponse(StreamInput in) throws IOException {
         super(in);
-        responses = in.readList(i -> i.readOptionalWriteable(SearchService.CanMatchResponse::new));
+        responses = in.readList(i -> i.readOptionalWriteable(CanMatchShardResponse::new));
         failures = in.readList(StreamInput::readException);
     }
 
-    public CanMatchNodeResponse(List<SearchService.CanMatchResponse> responses, List<Exception> failures) {
+    public CanMatchResponse(List<CanMatchShardResponse> responses, List<Exception> failures) {
         this.responses = responses;
         this.failures = failures;
     }
@@ -39,7 +38,7 @@ public class CanMatchNodeResponse extends TransportResponse {
         out.writeCollection(failures, StreamOutput::writeException);
     }
 
-    public List<SearchService.CanMatchResponse> getResponses() {
+    public List<CanMatchShardResponse> getResponses() {
         return responses;
     }
 

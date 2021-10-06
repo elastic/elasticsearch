@@ -35,7 +35,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -91,15 +91,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, CanMatchRequest request, SearchTask task,
-                                     ActionListener<CanMatchNodeResponse> listener) {
+                                     ActionListener<CanMatchResponse> listener) {
                 numRequests.incrementAndGet();
-                final List<SearchService.CanMatchResponse> responses = new ArrayList<>();
+                final List<CanMatchShardResponse> responses = new ArrayList<>();
                 for (CanMatchRequest.Shard shard : request.getShardLevelRequests()) {
-                    responses.add(new SearchService.CanMatchResponse(shard.shardId().id() == 0 ? shard1 :
+                    responses.add(new CanMatchShardResponse(shard.shardId().id() == 0 ? shard1 :
                         shard2, null));
                 }
 
-                new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses, Collections.emptyList()))).start();
+                new Thread(() -> listener.onResponse(new CanMatchResponse(responses, Collections.emptyList()))).start();
             }
         };
 
@@ -158,12 +158,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, CanMatchRequest request, SearchTask task,
-                                     ActionListener<CanMatchNodeResponse> listener) {
+                                     ActionListener<CanMatchResponse> listener) {
                 if (fullFailure && randomBoolean()) {
                     throw new IllegalArgumentException("boom");
                 }
-                final SearchService.CanMatchResponse[] responses =
-                    new SearchService.CanMatchResponse[request.getShardLevelRequests().size()];
+                final CanMatchShardResponse[] responses =
+                    new CanMatchShardResponse[request.getShardLevelRequests().size()];
                 final Exception[] failures = new Exception[request.getShardLevelRequests().size()];
                 for (int i = 0; i < request.getShardLevelRequests().size(); i++) {
                     CanMatchRequest.Shard shard = request.getShardLevelRequests().get(i);
@@ -171,7 +171,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     if (throwException) {
                         failures[i] = new NullPointerException();
                     } else {
-                        responses[i] = new SearchService.CanMatchResponse(shard1, null);
+                        responses[i] = new CanMatchShardResponse(shard1, null);
                     }
                 }
 
@@ -179,7 +179,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     if (fullFailure) {
                         listener.onFailure(new NullPointerException());
                     } else {
-                        listener.onResponse(new CanMatchNodeResponse(Arrays.asList(responses), Arrays.asList(failures)));
+                        listener.onResponse(new CanMatchResponse(Arrays.asList(responses), Arrays.asList(failures)));
                     }
                 }).start();
             }
@@ -238,8 +238,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendCanMatch(Transport.Connection connection, CanMatchRequest request, SearchTask task,
-                                         ActionListener<CanMatchNodeResponse> listener) {
-                    final List<SearchService.CanMatchResponse> responses = new ArrayList<>();
+                                         ActionListener<CanMatchResponse> listener) {
+                    final List<CanMatchShardResponse> responses = new ArrayList<>();
                     for (CanMatchRequest.Shard shard : request.getShardLevelRequests()) {
                         Long min = rarely() ? null : randomLong();
                         Long max = min == null ? null  : randomLongBetween(min, Long.MAX_VALUE);
@@ -253,10 +253,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                             }
                         }
 
-                        responses.add(new SearchService.CanMatchResponse(canMatch, minMax));
+                        responses.add(new CanMatchShardResponse(canMatch, minMax));
                     }
 
-                    new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses, Collections.emptyList()))).start();
+                    new Thread(() -> listener.onResponse(new CanMatchResponse(responses, Collections.emptyList()))).start();
                 }
             };
 
@@ -320,8 +320,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
                 @Override
                 public void sendCanMatch(Transport.Connection connection, CanMatchRequest request, SearchTask task,
-                                         ActionListener<CanMatchNodeResponse> listener) {
-                    final List<SearchService.CanMatchResponse> responses = new ArrayList<>();
+                                         ActionListener<CanMatchResponse> listener) {
+                    final List<CanMatchShardResponse> responses = new ArrayList<>();
                     for (CanMatchRequest.Shard shard : request.getShardLevelRequests()) {
                         final MinAndMax<?> minMax;
                         if (shard.shardId().id() == numShards-1) {
@@ -338,10 +338,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                                 shardToSkip.add(shard.shardId());
                             }
                         }
-                        responses.add(new SearchService.CanMatchResponse(canMatch, minMax));
+                        responses.add(new CanMatchShardResponse(canMatch, minMax));
                     }
 
-                    new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses, Collections.emptyList()))).start();
+                    new Thread(() -> listener.onResponse(new CanMatchResponse(responses, Collections.emptyList()))).start();
                 }
             };
 
@@ -646,14 +646,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, CanMatchRequest request, SearchTask task,
-                                     ActionListener<CanMatchNodeResponse> listener) {
-                final List<SearchService.CanMatchResponse> responses = new ArrayList<>();
+                                     ActionListener<CanMatchResponse> listener) {
+                final List<CanMatchShardResponse> responses = new ArrayList<>();
                 for (CanMatchRequest.Shard shard : request.getShardLevelRequests()) {
                     requests.add(request.createShardSearchRequest(shard));
-                    responses.add(new SearchService.CanMatchResponse(true, null));
+                    responses.add(new CanMatchShardResponse(true, null));
                 }
 
-                new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses, Collections.emptyList()))).start();
+                new Thread(() -> listener.onResponse(new CanMatchResponse(responses, Collections.emptyList()))).start();
             }
         };
 

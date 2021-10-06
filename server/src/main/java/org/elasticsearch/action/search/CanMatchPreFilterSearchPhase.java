@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -147,7 +148,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
                 if (canMatch) {
                     matchedShardLevelRequests.add(searchShardIterator);
                 } else {
-                    SearchService.CanMatchResponse result = new SearchService.CanMatchResponse(canMatch, null);
+                    CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
                     result.setShardIndex(request.shardRequestIndex());
                     results.consumeResult(result, () -> {});
                 }
@@ -245,9 +246,9 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
                     searchTransportService.sendCanMatch(getConnection(entry.getKey()), canMatchRequest,
                         task, new ActionListener<>() {
                             @Override
-                            public void onResponse(CanMatchNodeResponse canMatchResponse) {
+                            public void onResponse(CanMatchResponse canMatchResponse) {
                                 for (int i = 0; i < canMatchResponse.getResponses().size(); i++) {
-                                    SearchService.CanMatchResponse response = canMatchResponse.getResponses().get(i);
+                                    CanMatchShardResponse response = canMatchResponse.getResponses().get(i);
                                     if (response != null) {
                                         response.setShardIndex(shardLevelRequests.get(i).getShardRequestIndex());
                                         onOperation(response.getShardIndex(), response);
@@ -277,7 +278,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
             }
         }
 
-        private void onOperation(int idx, SearchService.CanMatchResponse response) {
+        private void onOperation(int idx, CanMatchShardResponse response) {
             responses.set(idx, response);
             results.consumeResult(response, () -> {
                 if (countDown.countDown()) {
@@ -432,7 +433,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
         return shardsIts.size();
     }
 
-    private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<SearchService.CanMatchResponse> {
+    private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchShardResponse> {
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;
         private int numPossibleMatches;
@@ -444,7 +445,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
 
         @Override
-        void consumeResult(SearchService.CanMatchResponse result, Runnable next) {
+        void consumeResult(CanMatchShardResponse result, Runnable next) {
             try {
                 consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
             } finally {
@@ -480,7 +481,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
 
         @Override
-        Stream<SearchService.CanMatchResponse> getSuccessfulResults() {
+        Stream<CanMatchShardResponse> getSuccessfulResults() {
             return Stream.empty();
         }
     }

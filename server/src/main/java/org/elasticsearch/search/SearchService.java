@@ -15,12 +15,10 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.CanMatchNodeResponse;
+import org.elasticsearch.action.search.CanMatchResponse;
 import org.elasticsearch.action.search.CanMatchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
@@ -33,8 +31,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
@@ -412,7 +408,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // check if we can shortcut the query phase entirely.
             if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
-                final CanMatchResponse canMatchResp;
+                final CanMatchShardResponse canMatchResp;
                 try {
                     ShardSearchRequest clone = new ShardSearchRequest(orig);
                     canMatchResp = canMatch(clone, false);
@@ -420,7 +416,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     l.onFailure(exc);
                     return;
                 }
-                if (canMatchResp.canMatch == false) {
+                if (canMatchResp.canMatch() == false) {
                     l.onResponse(QuerySearchResult.nullInstance());
                     return;
                 }
@@ -1219,7 +1215,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.buildAliasFilter(state, index, resolvedExpressions);
     }
 
-    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
+    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchShardResponse> listener) {
         try {
             listener.onResponse(canMatch(request));
         } catch (IOException e) {
@@ -1227,22 +1223,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public void canMatch(CanMatchRequest request, ActionListener<CanMatchNodeResponse> listener) {
+    public void canMatch(CanMatchRequest request, ActionListener<CanMatchResponse> listener) {
         List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-        List<CanMatchResponse> responses = new ArrayList<>(shardSearchRequests.size());
+        List<CanMatchShardResponse> responses = new ArrayList<>(shardSearchRequests.size());
         List<Exception> failures = new ArrayList<>(shardSearchRequests.size());
         for (int i = 0; i < shardSearchRequests.size(); i++) {
             ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
-            CanMatchResponse canMatchResponse;
+            CanMatchShardResponse canMatchShardResponse;
             try {
-                canMatchResponse = canMatch(shardSearchRequest);
-                responses.add(i, canMatchResponse);
+                canMatchShardResponse = canMatch(shardSearchRequest);
+                responses.add(i, canMatchShardResponse);
             } catch (Exception e) {
                 failures.add(i, e);
             }
 
         }
-        listener.onResponse(new CanMatchNodeResponse(responses, failures));
+        listener.onResponse(new CanMatchResponse(responses, failures));
     }
 
     /**
@@ -1250,11 +1246,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * to check if the query can match any documents. This method can have false positives while if it returns {@code false} the query
      * won't match any documents on the current shard.
      */
-    public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
+    public CanMatchShardResponse canMatch(ShardSearchRequest request) throws IOException {
         return canMatch(request, true);
     }
 
-    private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
+    private CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         Releasable releasable = null;
         try {
@@ -1303,7 +1299,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } else {
                     minMax = null;
                 }
-                return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
+                return new CanMatchShardResponse(canMatch || hasRefreshPending, minMax);
             }
         } finally {
             Releasables.close(releasable);
@@ -1396,42 +1392,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return PipelineTree.EMPTY;
         }
         return request.source().aggregations().buildPipelineTree();
-    }
-
-    public static final class CanMatchResponse extends SearchPhaseResult {
-        private final boolean canMatch;
-        private final MinAndMax<?> estimatedMinAndMax;
-
-        public CanMatchResponse(StreamInput in) throws IOException {
-            super(in);
-            this.canMatch = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
-            } else {
-                estimatedMinAndMax = null;
-            }
-        }
-
-        public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {
-            this.canMatch = canMatch;
-            this.estimatedMinAndMax = estimatedMinAndMax;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(canMatch);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeOptionalWriteable(estimatedMinAndMax);
-            }
-        }
-
-        public boolean canMatch() {
-            return canMatch;
-        }
-
-        public MinAndMax<?> estimatedMinAndMax() {
-            return estimatedMinAndMax;
-        }
     }
 
     /**

@@ -333,12 +333,12 @@ public class DiskThresholdDecider extends AllocationDecider {
         final long shardSize = getExpectedShardSize(shardRouting, 0L,
             allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
         assert shardSize >= 0 : shardSize;
-        double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
-        if (freeSpaceAfterShard < 0) {
+        final long freeBytesAfterShard = usage.getFreeBytes() - shardSize;
+        if (freeBytesAfterShard < 0) {
             return Decision.single(Decision.Type.NO, NAME,
                 "unable to force allocate shard to [%s] during replacement, " +
-                    "as allocating to this node would cause disk usage to exceed 100%% ([%s] free)",
-                node.nodeId(), Strings.format1Decimals(freeSpaceAfterShard, "%"));
+                    "as allocating to this node would cause disk usage to exceed 100%% ([%s] bytes above available disk space)",
+                node.nodeId(), -freeBytesAfterShard);
         } else {
             return super.canForceAllocateDuringReplace(shardRouting, node, allocation);
         }

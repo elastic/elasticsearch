@@ -573,6 +573,6 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         assertThat(decision.getExplanation(), containsString(
             "unable to force allocate shard to [node_0] during replacement, " +
-                "as allocating to this node would cause disk usage to exceed 100% ([-" + shardSize + "%] free)"));
+                "as allocating to this node would cause disk usage to exceed 100% ([" + shardSize + "] bytes above available disk space)"));
     }
 }

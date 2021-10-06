@@ -139,7 +139,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(FIELD, field);
-            builder.field(METRICS, metrics);
+            builder.stringListField(METRICS, metrics);
         }
         return builder.endObject();
     }

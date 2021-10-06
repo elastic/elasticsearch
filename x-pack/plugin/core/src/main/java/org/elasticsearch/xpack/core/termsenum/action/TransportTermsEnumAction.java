@@ -486,14 +486,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 throw blockException;
             }
 
-<<<<<<< HEAD
             this.remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices(),
                 idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
-            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-=======
-            this.remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
             this.localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
->>>>>>> 3651dbc9389... Propagate original indices in NodeTermsEnumRequest (#77776)
 
             // update to concrete indices
             String[] concreteIndices = localIndices == null ? new String[0] :

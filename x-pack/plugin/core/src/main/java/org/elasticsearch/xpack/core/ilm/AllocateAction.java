@@ -143,9 +143,9 @@ public class AllocateAction implements LifecycleAction {
         if (totalShardsPerNode != null) {
             builder.field(TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName(), totalShardsPerNode);
         }
-        builder.field(INCLUDE_FIELD.getPreferredName(), include);
-        builder.field(EXCLUDE_FIELD.getPreferredName(), exclude);
-        builder.field(REQUIRE_FIELD.getPreferredName(), require);
+        builder.stringStringMap(INCLUDE_FIELD.getPreferredName(), include);
+        builder.stringStringMap(EXCLUDE_FIELD.getPreferredName(), exclude);
+        builder.stringStringMap(REQUIRE_FIELD.getPreferredName(), require);
         builder.endObject();
         return builder;
     }

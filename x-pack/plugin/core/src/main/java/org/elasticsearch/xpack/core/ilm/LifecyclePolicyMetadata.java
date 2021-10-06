@@ -101,7 +101,7 @@ public class LifecyclePolicyMetadata extends AbstractDiffable<LifecyclePolicyMet
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(POLICY.getPreferredName(), policy);
-        builder.field(HEADERS.getPreferredName(), headers);
+        builder.stringStringMap(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
         builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
         builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());

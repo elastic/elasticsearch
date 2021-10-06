@@ -192,7 +192,7 @@ public class MultiGetRequest extends ActionRequest
             builder.field(INDEX.getPreferredName(), index);
             builder.field(ID.getPreferredName(), id);
             builder.field(ROUTING.getPreferredName(), routing);
-            builder.field(STORED_FIELDS.getPreferredName(), storedFields);
+            builder.array(STORED_FIELDS.getPreferredName(), storedFields);
             builder.field(VERSION.getPreferredName(), version);
             builder.field(VERSION_TYPE.getPreferredName(), VersionType.toString(versionType));
             builder.field(SOURCE.getPreferredName(), fetchSourceContext);

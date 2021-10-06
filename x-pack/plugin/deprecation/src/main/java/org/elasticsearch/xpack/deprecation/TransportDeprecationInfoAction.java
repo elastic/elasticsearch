@@ -47,6 +47,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
+    private List<String> skipTheseDeprecatedSettings;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -59,6 +60,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        // Safe to register this here because it happens synchronously before the cluster service is started:
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
+            this::updateHideDeprecationsSetting);
+    }
+
+    private <T> void updateHideDeprecationsSetting(List<String> hideDeprecationsSetting) {
+        this.skipTheseDeprecatedSettings = hideDeprecationsSetting;
     }
 
     @Override
@@ -90,12 +99,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN),
                 state
             );
-            final List<String> skipTheseDeprecatedSettings;
-            if (DeprecationChecks.SKIP_DEPRECATIONS_SETTING.exists(clusterService.state().metadata().settings())) {
-                skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(state.metadata().settings());
-            } else {
-                skipTheseDeprecatedSettings = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
-            }
             pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
                 deprecationIssues -> {
                     listener.onResponse(

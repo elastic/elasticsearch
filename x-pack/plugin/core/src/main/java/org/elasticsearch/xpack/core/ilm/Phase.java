@@ -148,7 +148,7 @@ public class Phase implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MIN_AGE.getPreferredName(), minimumAge.getStringRep());
-        builder.field(ACTIONS_FIELD.getPreferredName(), actions);
+        builder.xContentValuesMap(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;
     }

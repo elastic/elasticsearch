@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -380,6 +381,73 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                         )
                 );
             }, () -> fail("expected a 'NO' decision for nodeB but there was no explanation for that node"));
+    }
+
+    public void testNodeReplacementOnlyToTarget() throws Exception {
+        String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
+        // Create an index and pin it to nodeA, when we replace it with nodeB,
+        // it'll move the data, overridding the `_name` allocation filter
+        Settings.Builder nodeASettings = Settings.builder()
+            .put("index.number_of_shards", 4)
+            .put("index.number_of_replicas", 0);
+        createIndex("myindex", nodeASettings.build());
+        final String nodeAId = getNodeId(nodeA);
+        final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
+        final String nodeC = "node_t2"; // TODO: fix this to so it's actually overrideable
+
+        // Mark the nodeA as being replaced
+        PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            nodeAId,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            this.getTestName(),
+            null,
+            nodeB
+        );
+        AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
+        assertTrue(putShutdownResponse.isAcknowledged());
+
+        GetShutdownStatusAction.Response getResp = client().execute(
+            GetShutdownStatusAction.INSTANCE,
+            new GetShutdownStatusAction.Request(nodeAId)
+        ).get();
+
+        assertThat(getResp.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(STALLED));
+
+        internalCluster().startNode(Settings.builder().put("node.name", nodeB));
+        internalCluster().startNode(Settings.builder().put("node.name", nodeC));
+        final String nodeBId = getNodeId(nodeB);
+        final String nodeCId = getNodeId(nodeC);
+
+        logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
+        logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
+        logger.info("--> NodeC: {} -- {}", nodeC, nodeCId);
+
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            for (ShardRouting sr : state.routingTable().allShards("myindex")) {
+                assertThat(
+                    "expected shard on nodeB (" + nodeBId + ") but it was on a different node",
+                    sr.currentNodeId(),
+                    equalTo(nodeBId)
+                );
+            }
+        });
+
+        assertBusy(() -> {
+            GetShutdownStatusAction.Response shutdownStatus = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(nodeAId)
+            ).get();
+            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        });
+
+        ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+
+        assertTrue("expected all shards for index to be on node B: " +
+                stateResponse.getState().routingTable().allShards("myindex").stream()
+                    .map(ShardRouting::currentNodeId).collect(Collectors.joining(",")),
+            stateResponse.getState().routingTable().allShards("myindex").stream()
+                .allMatch(sr -> sr.currentNodeId().equals(nodeBId)));
     }
 
     private void indexRandomData() throws Exception {

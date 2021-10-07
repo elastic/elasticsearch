@@ -101,7 +101,7 @@ public class PolicyStepsRegistry {
                 // action and phase that are changed show up as diffs instead of upserts.
                 // We want to treat any change in the policy as an upsert so the map is
                 // correctly rebuilt
-                new DiffableUtils.NonDiffableValueSerializer<String, LifecyclePolicyMetadata>() {
+                new DiffableUtils.NonDiffableValueSerializer<>() {
                     @Override
                     public void write(LifecyclePolicyMetadata value, StreamOutput out) {
                         // This is never called

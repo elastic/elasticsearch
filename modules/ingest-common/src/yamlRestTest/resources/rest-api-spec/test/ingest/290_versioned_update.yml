@@ -39,7 +39,6 @@
               }
             ]
           }
-  - match: { acknowledged: true }
 
   - do:
       ingest.put_pipeline:

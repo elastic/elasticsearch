@@ -12,17 +12,17 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
@@ -31,6 +31,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,6 +43,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+    private static final Set<String> ACTIONS = Set.of("create", "update", "delete", "index");
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -172,7 +174,7 @@ public final class BulkRequestParser {
                 // or START_OBJECT which will have another set of parameters
                 token = parser.nextToken();
 
-                if (token == XContentParser.Token.START_OBJECT) {
+                if (ACTIONS.contains(action) && token == XContentParser.Token.START_OBJECT) {
                     String currentFieldName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -237,6 +239,9 @@ public final class BulkRequestParser {
                                     + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }
                     }
+                } else if (ACTIONS.contains(action) && token != XContentParser.Token.END_OBJECT) {
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.START_OBJECT + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
                 }
 
                 if ("delete".equals(action)) {

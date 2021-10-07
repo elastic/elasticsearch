@@ -600,5 +600,8 @@ public class ArchiveTests extends PackagingTestCase {
 
         Platforms.onLinux(action);
         Platforms.onWindows(action);
+
+        // desperate measures
+        FileUtils.rm(installation.config);
     }
 }

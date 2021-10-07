@@ -382,6 +382,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                 shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), entry.shardId(c.key), c.value.reason()));
             }
         }
+        int totalShards = entry.shardsByRepoShardId().size();
         return new SnapshotInfo(
             entry.snapshot(),
             List.copyOf(entry.indices().keySet()),
@@ -391,7 +392,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             Version.CURRENT,
             entry.startTime(),
             0L,
-            entry.shards().size(),
+            totalShards,
             successfulShards,
             shardFailures,
             entry.includeGlobalState(),

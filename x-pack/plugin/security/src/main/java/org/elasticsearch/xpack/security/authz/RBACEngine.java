@@ -377,7 +377,7 @@ public class RBACEngine implements AuthorizationEngine {
                 return new ListenableFuture<>();
             });
             if (valueAlreadyInCache.get()) {
-                logger.info("{} waiting for index authorization result", Thread.currentThread());
+//                logger.info("{} waiting for index authorization result", Thread.currentThread());
                 listenableFuture.addListener(ActionListener.wrap(value -> {
                     ((IndicesRequest.Replaceable) requestInfo.getRequest()).indices(value.resolvedIndices.isNoIndicesPlaceholder() ?
                         NO_INDICES_OR_ALIASES_ARRAY :
@@ -385,7 +385,7 @@ public class RBACEngine implements AuthorizationEngine {
                     listener.onResponse(value.indexAuthorizationResult);
                 }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
             } else {
-                logger.info("{} actively computing for index authorization result", Thread.currentThread());
+//                logger.info("{} actively computing for index authorization result", Thread.currentThread());
                 final ActionListener<IndexAuthorizationCacheValue> cachingListener = ActionListener.wrap(value -> {
                     indexAuthorizationLookup.remove(cacheKey, listenableFuture);
                     listenableFuture.onResponse(value);
@@ -514,12 +514,12 @@ public class RBACEngine implements AuthorizationEngine {
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            logger.info("{} loadAuthorizedIndices", Thread.currentThread());
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+//            logger.info("{} loadAuthorizedIndices", Thread.currentThread());
+//            try {
+//                Thread.sleep(2000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
         } else {
@@ -735,12 +735,12 @@ public class RBACEngine implements AuthorizationEngine {
                                                                Set<String> indices,
                                                                Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-        logger.info("{} buildIndicesAccessControl", Thread.currentThread());
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+//        logger.info("{} buildIndicesAccessControl", Thread.currentThread());
+//        try {
+//            Thread.sleep(2000);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
     }

@@ -362,7 +362,7 @@ public class AuthorizationService {
                     authzInfo,
                     metadata.getIndicesLookup(),
                     authzIndicesListener.map(authzIndices -> {
-//                        timeChecker.done(authzIndices);
+                        timeChecker.done(authzIndices);
                         return authzIndices;
                     })
                 );
@@ -404,7 +404,7 @@ public class AuthorizationService {
                                                       final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
                                                       final Metadata metadata,
                                                       final ActionListener<Void> listener) {
-        logger.info("{} handleIndexActionAuthorizationResult: {}", Thread.currentThread(), requestInfo.getAction());
+//        logger.info("{} handleIndexActionAuthorizationResult: {}", Thread.currentThread(), requestInfo.getAction());
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();

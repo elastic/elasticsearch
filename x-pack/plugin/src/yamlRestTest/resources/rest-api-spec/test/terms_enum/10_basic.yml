@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.9.99"
-      reason:  TODO temporary version skip while we wait for backport to 7.x of search_after properties
+      version: " - 7.15.0"
+      reason:  original indices are propagated correctly in 7.15.1
       features: headers
   - do:
       cluster.health:

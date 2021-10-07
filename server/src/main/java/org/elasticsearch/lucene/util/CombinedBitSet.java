@@ -105,4 +105,9 @@ public final class CombinedBitSet extends BitSet implements Bits {
     public void clear(int startIndex, int endIndex) {
         throw new UnsupportedOperationException("not implemented");
     }
+
+    @Override
+    public boolean getAndSet(int i) {
+        throw new UnsupportedOperationException("not implemented");
+    }
 }

@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -327,8 +328,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
 
-        logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
+        logger.info("--> deleting indices, maintenance service should clean up [{}] docs in system index", numberOfCachedBlobs);
         assertAcked(client().admin().indices().prepareDelete("restored-*"));
+
         assertBusy(() -> {
             refreshSystemIndex();
             assertHitCount(
@@ -338,7 +340,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .get(),
                 0L
             );
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private void checkNoBlobStoreAccess() {

@@ -40,6 +40,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.SKIP_DEPRECATIONS_SETTING;
 import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 
 /**
@@ -94,6 +95,8 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return org.elasticsearch.core.List.of(WRITE_DEPRECATION_LOGS_TO_INDEX);
+        return org.elasticsearch.core.List.of(
+            WRITE_DEPRECATION_LOGS_TO_INDEX,
+            SKIP_DEPRECATIONS_SETTING);
     }
 }

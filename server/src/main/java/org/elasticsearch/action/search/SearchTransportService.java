@@ -424,7 +424,8 @@ public class SearchTransportService {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, true, CanMatchShardResponse::new);
-        transportService.registerRequestHandler(QUERY_CAN_MATCH_NODE_NAME, ThreadPool.Names.SAME, CanMatchRequest::new,
+
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NODE_NAME, ThreadPool.Names.SEARCH_COORDINATION, CanMatchRequest::new,
             (request, channel, task) -> {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });

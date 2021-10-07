@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -44,6 +43,8 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -72,6 +73,20 @@ import static org.mockito.Mockito.mock;
 public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     private final CoordinatorRewriteContextProvider EMPTY_CONTEXT_PROVIDER = new StaticCoordinatorRewriteContextProviderBuilder().build();
+
+    private TestThreadPool threadPool;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        terminate(threadPool);
+        super.tearDown();
+    }
 
     public void testFilterShards() throws InterruptedException {
 
@@ -115,7 +130,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Collections.emptyMap(), threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest, null, shardsIter, timeProvider,null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -195,7 +210,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Collections.emptyMap(), threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest, null, shardsIter, timeProvider,null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -270,7 +285,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Collections.emptyMap(), threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest, null, shardsIter, timeProvider, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -355,7 +370,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                Collections.emptyMap(), threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest, null, shardsIter, timeProvider, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -664,7 +679,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             aliasFilters,
             Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
             null,
             shardsIter,

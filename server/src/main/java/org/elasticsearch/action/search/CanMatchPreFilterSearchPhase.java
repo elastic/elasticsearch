@@ -15,6 +15,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -109,23 +111,29 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
     }
 
+    private static boolean assertSearchCoordinationThread() {
+        assert Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH_COORDINATION) :
+                "not called from the right thread " + Thread.currentThread().getName();
+        return true;
+    }
+
     @Override
     public void run() throws IOException {
-        if (shardsIts.size() > 0) {
-            checkNoMissingShards();
-            Version version = request.minCompatibleShardNode();
-            if (version != null && Version.CURRENT.minimumCompatibilityVersion().equals(version) == false) {
-                if (checkMinimumVersion(shardsIts) == false) {
-                    throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]",
-                        request.minCompatibleShardNode());
-                }
+        assert assertSearchCoordinationThread();
+        checkNoMissingShards();
+        Version version = request.minCompatibleShardNode();
+        if (version != null && Version.CURRENT.minimumCompatibilityVersion().equals(version) == false) {
+            if (checkMinimumVersion(shardsIts) == false) {
+                throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]",
+                    request.minCompatibleShardNode());
             }
-
-            runCoordinationPhase();
         }
+
+        runCoordinationPhase();
     }
 
     private void runCoordinationPhase() {
+        assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
             final CanMatchRequest canMatchRequest = new CanMatchRequest(searchShardIterator.getOriginalIndices(), request,
@@ -163,6 +171,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     private void checkNoMissingShards() {
+        assert assertSearchCoordinationThread();
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();
@@ -203,7 +212,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
         return requests;
     }
 
-    class Round implements Runnable {
+    class Round extends AbstractRunnable {
         private final GroupShardsIterator<SearchShardIterator> shards;
         private final CountDown countDown;
         private final AtomicReferenceArray<Object> responses;
@@ -215,19 +224,13 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
 
         public void start() {
-            try {
-                run();
-            } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
-                }
-                onPhaseFailure(CanMatchPreFilterSearchPhase.this, "", e);
-            }
+            executor.execute(this);
         }
 
 
         @Override
-        public void run() {
+        protected void doRun() {
+            assert assertSearchCoordinationThread();
             final Map<SendingTarget, List<SearchShardIterator>> requests = groupByNode(shards);
 
             for (Map.Entry<SendingTarget, List<SearchShardIterator>> entry : requests.entrySet()) {
@@ -312,6 +315,14 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
                 new Round(new GroupShardsIterator<>(remainingShards)).start();
             }
         }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (logger.isDebugEnabled()) {
+                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+            }
+            onPhaseFailure("round", e);
+        }
     }
 
     private static class SendingTarget {
@@ -360,7 +371,7 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
             }
-            onPhaseFailure(this, "", e);
+            onPhaseFailure("finish", e);
         }
     }
 
@@ -405,19 +416,25 @@ public class CanMatchPreFilterSearchPhase extends SearchPhase {
             return;
         }
 
-        try {
-            run();
-        } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(new ParameterizedMessage("Failed to execute [{}] while running [{}] phase", request, getName()), e);
+                }
+                onPhaseFailure("start", e);
             }
-            onPhaseFailure(this, "", e);
-        }
+
+            @Override
+            protected void doRun() throws IOException {
+                CanMatchPreFilterSearchPhase.this.run();
+            }
+        });
     }
 
 
-    public final void onPhaseFailure(SearchPhase phase, String msg, Exception cause) {
-        listener.onFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, ShardSearchFailure.EMPTY_ARRAY));
+    public final void onPhaseFailure(String msg, Exception cause) {
+        listener.onFailure(new SearchPhaseExecutionException(getName(), msg, cause, ShardSearchFailure.EMPTY_ARRAY));
     }
 
     public final Transport.Connection getConnection(SendingTarget sendingTarget) {

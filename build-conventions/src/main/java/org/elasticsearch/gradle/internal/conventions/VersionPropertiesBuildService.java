@@ -52,16 +52,16 @@ abstract class VersionPropertiesBuildService implements BuildService<VersionProp
         return minimumJavaVersion;
     }
 
+    public Properties getProperties() {
+        return properties;
+    }
+
     @Override
     public void close() throws Exception {
     }
 
     public interface Params extends BuildServiceParameters {
         RegularFileProperty getInfoPath();
-    }
-
-    public Properties getProperties() {
-        return properties;
     }
 
 }

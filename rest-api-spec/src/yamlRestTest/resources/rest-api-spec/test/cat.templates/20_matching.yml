@@ -61,7 +61,7 @@ setup:
 
     - do:
         cat.templates:
-            name: "x,*"
+            name: "*"
             h: [name]
             s: [name]
 

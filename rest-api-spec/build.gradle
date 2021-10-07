@@ -81,7 +81,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
-  task.skipTest("tsdb/10_settings/enable", "The profiler results aren't backwards compatible.")   // Remove once we remove the time_series mode setting from 7.x
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

@@ -375,7 +375,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GeoIpProcessor create(
+        public Processor create(
             final Map<String, Processor.Factory> registry,
             final String processorTag,
             final String description, final Map<String, Object> config) throws IOException {
@@ -393,9 +393,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile);
-            if (lazyLoader == null) {
+            if (lazyLoader == null && databaseRegistry.getAvailableDatabases().isEmpty() == false) {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
+            } else if (lazyLoader == null && databaseRegistry.getAvailableDatabases().isEmpty()) {
+                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             }
             final String databaseType;
             try {
@@ -527,6 +529,27 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " +
                     Arrays.toString(validProperties.toArray()));
             }
+        }
+    }
+
+    static class DatabaseUnavailableProcessor extends AbstractProcessor {
+
+        private final String databaseName;
+
+        DatabaseUnavailableProcessor(String tag, String description, String databaseName) {
+            super(tag, description);
+            this.databaseName = databaseName;
+        }
+
+        @Override
+        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+            ingestDocument.appendFieldValue("tags", "_geoip_database_unavailable_" + databaseName, true);
+            return ingestDocument;
+        }
+
+        @Override
+        public String getType() {
+            return TYPE;
         }
     }
 }

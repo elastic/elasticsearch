@@ -70,8 +70,8 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         databaseRegistry.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(databaseRegistry);
 
-        final GeoIpProcessor processor1 = factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
-        final GeoIpProcessor processor2 = factory.create(null, "_tag", null,
+        final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
+        final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(null, "_tag", null,
             new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb")));
 
         final AtomicBoolean completed = new AtomicBoolean(false);

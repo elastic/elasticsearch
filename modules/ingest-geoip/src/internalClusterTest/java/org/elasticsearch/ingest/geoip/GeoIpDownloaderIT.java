@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -40,6 +41,7 @@ import org.junit.After;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -52,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -259,6 +262,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        setupDatabasesInConfigDirectory();
+        Thread.sleep(1000);
         // setup:
         putPipeline();
 
@@ -410,6 +415,36 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         return geoipTmpDirs;
+    }
+
+    private void setupDatabasesInConfigDirectory() throws Exception {
+        StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
+            .map(Environment::configFile)
+            .map(path -> path.resolve("ingest-geoip"))
+            .distinct()
+            .forEach(path -> {
+                try {
+                    Files.createDirectories(path);
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-City.mmdb"),
+                        path.resolve("GeoLite2-City.mmdb"));
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-ASN.mmdb"),
+                        path.resolve("GeoLite2-ASN.mmdb"));
+                    Files.copy(GeoIpDownloaderIT.class.getResourceAsStream("/GeoLite2-Country.mmdb"),
+                        path.resolve("GeoLite2-Country.mmdb"));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+        assertBusy(() -> {
+            GeoIpDownloaderStatsAction.Response  response =
+                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getConfigDatabases(),
+                    containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb"));
+            }
+        });
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")

@@ -22,10 +22,14 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateDatabasesIT extends ESRestTestCase {
 
@@ -36,7 +40,13 @@ public class UpdateDatabasesIT extends ESRestTestCase {
         simulatePipelineRequest.setJsonEntity(body);
         {
             Map<String, Object> response = toMap(client().performRequest(simulatePipelineRequest));
-            assertThat(ObjectPath.eval("docs.0.doc._source.geoip.city_name", response), equalTo("Tumba"));
+            assertThat(ObjectPath.eval("docs.0.doc._source.tags.0", response), equalTo("_geoip_database_unavailable_GeoLite2-City.mmdb"));
+        }
+
+        // Ensure no config databases have been setup:
+        {
+            Map<?, ?> stats = getGeoIpStatsForSingleNode();
+            assertThat(stats, nullValue());
         }
 
         Path configPath = PathUtils.get(System.getProperty("tests.config.dir"));
@@ -46,10 +56,25 @@ public class UpdateDatabasesIT extends ESRestTestCase {
         Files.copy(UpdateDatabasesIT.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
             ingestGeoipDatabaseDir.resolve("GeoLite2-City.mmdb"));
 
-        assertBusy(() -> {
-            Map<String, Object> response = toMap(client().performRequest(simulatePipelineRequest));
-            assertThat(ObjectPath.eval("docs.0.doc._source.geoip.city_name", response), equalTo("Linköping"));
-        });
+        // Ensure that a config database has been setup:
+        {
+            assertBusy(() -> {
+                Map<?, ?> stats = getGeoIpStatsForSingleNode();
+                assertThat(stats, notNullValue());
+                assertThat(stats.get("config_databases"), equalTo(List.of("GeoLite2-City.mmdb")));
+            });
+        }
+
+        Map<String, Object> response = toMap(client().performRequest(simulatePipelineRequest));
+        assertThat(ObjectPath.eval("docs.0.doc._source.geoip.city_name", response), equalTo("Linköping"));
+    }
+
+    private static Map<?, ?> getGeoIpStatsForSingleNode() throws IOException {
+        Request request = new Request("GET", "/_ingest/geoip/stats");
+        Map<String, Object> response = toMap(client().performRequest(request));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+        assertThat(nodes.size(), either(equalTo(0)).or(equalTo(1)));
+        return nodes.isEmpty() ? null : (Map<?, ?>) nodes.values().iterator().next();
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

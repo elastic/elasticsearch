@@ -31,8 +31,8 @@
   - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
+  - match: { _source.geoip.location.lon: -93.2566 }
+  - match: { _source.geoip.location.lat: 45.0546 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_name: "Minnesota" }
@@ -73,8 +73,8 @@
   - length: { _source.geoip.0: 7 }
   - match: { _source.geoip.0.city_name: "Minneapolis" }
   - match: { _source.geoip.0.country_iso_code: "US" }
-  - match: { _source.geoip.0.location.lon: -93.2548 }
-  - match: { _source.geoip.0.location.lat: 44.9399 }
+  - match: { _source.geoip.0.location.lon: -93.2566 }
+  - match: { _source.geoip.0.location.lat: 45.0546 }
   - match: { _source.geoip.0.region_iso_code: "US-MN" }
   - match: { _source.geoip.0.country_name: "United States" }
   - match: { _source.geoip.0.region_name: "Minnesota" }
@@ -114,8 +114,8 @@
   - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
+  - match: { _source.geoip.location.lon: -93.2566 }
+  - match: { _source.geoip.location.lat: 45.0546 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_name: "Minnesota" }
@@ -160,8 +160,8 @@
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.ip: "128.101.101.101" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
+  - match: { _source.geoip.location.lon: -93.2566 }
+  - match: { _source.geoip.location.lat: 45.0546 }
   - match: { _source.geoip.timezone: "America/Chicago" }
   - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_iso_code: "US-MN" }
@@ -266,8 +266,8 @@
   - length: { _source.geoip: 7 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2548 }
-  - match: { _source.geoip.location.lat: 44.9399 }
+  - match: { _source.geoip.location.lon: -93.2566 }
+  - match: { _source.geoip.location.lat: 45.0546 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_name: "Minnesota" }

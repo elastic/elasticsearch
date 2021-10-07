@@ -100,3 +100,11 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
+
+testClusters.configureEach {
+  // Needed for database downloader, uses delete-by-query to cleanup old databases from org.elasticsearch.ingest.geoip database system index
+  module ':modules:reindex'
+  // Downloader is enabled by default, but in test clusters in build disabled by default,
+  // but in the module downloader should be enabled by default
+  systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
+}

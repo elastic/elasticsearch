@@ -53,6 +53,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -87,8 +88,10 @@ public final class DatabaseRegistry implements Closeable {
     private Path geoipTmpDirectory;
     private final LocalDatabases localDatabases;
     private final Consumer<Runnable> genericExecutor;
+    private IngestService ingestService;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
+    private final AtomicBoolean initialized = new AtomicBoolean(false);
 
     DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
@@ -150,6 +153,7 @@ public final class DatabaseRegistry implements Closeable {
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
         ingestService.addIngestClusterStateListener(this::checkDatabases);
+        this.ingestService = ingestService;
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {
@@ -315,6 +319,15 @@ public final class DatabaseRegistry implements Closeable {
                 existing.close();
             }
             LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
+            if (databases.size() == 3 && initialized.compareAndSet(false, true)) {
+                List<String> ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class);
+                if (ids.isEmpty() == false) {
+                    for (String id : ids) {
+                        ingestService.reloadPipeline(id);
+                    }
+                    LOGGER.info("reloaded {} pipelines after successful initial downloading of databases", ids.size());
+                }
+            }
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }
@@ -382,6 +395,10 @@ public final class DatabaseRegistry implements Closeable {
 
     public Set<String> getAvailableDatabases() {
         return Set.copyOf(databases.keySet());
+    }
+
+    public Set<String> getConfigDatabases() {
+        return localDatabases.getConfigDatabases().keySet();
     }
 
     public Set<String> getFilesInTemp() {

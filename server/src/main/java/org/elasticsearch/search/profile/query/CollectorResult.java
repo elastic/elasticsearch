@@ -9,6 +9,7 @@
 package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -60,14 +62,14 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * The total elapsed time for this Collector
      */
-    private final Long time;
+    private final long time;
 
     /**
      * A list of children collectors "embedded" inside this collector
      */
     private List<CollectorResult> children;
 
-    public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
+    public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
         this.collectorName = collectorName;
         this.reason = reason;
         this.time = time;
@@ -126,6 +128,28 @@ public class CollectorResult implements ToXContentObject, Writeable {
      */
     public List<CollectorResult> getProfiledChildren() {
         return children;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        CollectorResult other = (CollectorResult) obj;
+        return collectorName.equals(other.collectorName)
+            && reason.equals(other.reason)
+            && time == other.time
+            && children.equals(other.children);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(collectorName, reason, time, children);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

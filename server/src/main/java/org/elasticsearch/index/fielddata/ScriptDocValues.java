@@ -17,15 +17,22 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.Field;
-import org.elasticsearch.script.FieldValues;
-import org.elasticsearch.script.InvalidConversion;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.script.field.BooleanField;
+import org.elasticsearch.script.field.BytesRefField;
+import org.elasticsearch.script.field.DateMillisField;
+import org.elasticsearch.script.field.DateNanosField;
+import org.elasticsearch.script.field.DoubleField;
+import org.elasticsearch.script.field.Field;
+import org.elasticsearch.script.field.FieldValues;
+import org.elasticsearch.script.field.GeoPointField;
+import org.elasticsearch.script.field.InvalidConversion;
+import org.elasticsearch.script.field.LongField;
+import org.elasticsearch.script.field.StringField;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -160,11 +167,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public Field<Long> toField(String fieldName) {
-            return new Field.LongField(fieldName, this);
+            return new LongField(fieldName, this);
         }
     }
 
-    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
+    public static final class Dates extends ScriptDocValues<ZonedDateTime> {
 
         private final SortedNumericDocValues in;
         private final boolean isNanos;
@@ -172,7 +179,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private JodaCompatibleZonedDateTime[] dates;
+        private ZonedDateTime[] dates;
         private int count;
 
         public Dates(SortedNumericDocValues in, boolean isNanos) {
@@ -184,12 +191,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
          * Fetch the first field value or 0 millis after epoch if there are no
          * in.
          */
-        public JodaCompatibleZonedDateTime getValue() {
+        public ZonedDateTime getValue() {
             return get(0);
         }
 
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
+        public ZonedDateTime get(int index) {
             if (count == 0) {
                 throw new IllegalStateException("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!");
@@ -226,13 +233,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
             }
             if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new JodaCompatibleZonedDateTime[count];
+                dates = new ZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
                 if (isNanos) {
-                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
                 } else {
-                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
                 }
             }
         }
@@ -240,11 +247,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public long getLongValue() {
             throwIfEmpty();
-            Instant dt = dates[0].toInstant();
             if (isNanos) {
-                return ChronoUnit.NANOS.between(java.time.Instant.EPOCH, dt);
+                return DateNanosField.toLong(dates[0]);
             }
-            return dt.toEpochMilli();
+            return DateMillisField.toLong(dates[0]);
         }
 
         @Override
@@ -253,11 +259,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         }
 
         @Override
-        public Field<JodaCompatibleZonedDateTime> toField(String fieldName) {
+        public Field<ZonedDateTime> toField(String fieldName) {
             if (isNanos) {
-                return new Field.DateNanosField(fieldName, this);
+                return new DateNanosField(fieldName, this);
             }
-            return new Field.DateMillisField(fieldName, this);
+            return new DateMillisField(fieldName, this);
         }
     }
 
@@ -327,7 +333,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public Field<Double> toField(String fieldName) {
-            return new Field.DoubleField(fieldName, this);
+            return new DoubleField(fieldName, this);
         }
     }
 
@@ -522,7 +528,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public Field<GeoPoint> toField(String fieldName) {
-            return new Field.GeoPointField(fieldName, this);
+            return new GeoPointField(fieldName, this);
         }
     }
 
@@ -587,18 +593,18 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public long getLongValue() {
             throwIfEmpty();
-            return values[0] ? 1L : 0L;
+            return BooleanField.toLong(values[0]);
         }
 
         @Override
         public double getDoubleValue() {
             throwIfEmpty();
-            return values[0] ? 1.0D : 0.0D;
+            return BooleanField.toDouble(values[0]);
         }
 
         @Override
         public Field<Boolean> toField(String fieldName) {
-            return new Field.BooleanField(fieldName, this);
+            return new BooleanField(fieldName, this);
         }
     }
 
@@ -685,7 +691,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public Field<String> toField(String fieldName) {
-            return new Field.StringField(fieldName, this);
+            return new StringField(fieldName, this);
         }
     }
 
@@ -715,7 +721,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public Field<BytesRef> toField(String fieldName) {
-            return new Field.BytesRefField(fieldName, this);
+            return new BytesRefField(fieldName, this);
         }
     }
 }

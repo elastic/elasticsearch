@@ -8,14 +8,14 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -139,8 +139,9 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     @Override
     protected void validate(ValidationContext context) {
         if (bucketsPaths.length != 1) {
-            context.addValidationError(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
+            context.addValidationError(
+                PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName() + " must contain a single entry for aggregation [" + name + "]"
+            );
         }
 
         context.validateParentAggSequentiallyOrdered(NAME, name);
@@ -181,8 +182,10 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                 } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     units = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -193,22 +196,31 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unexpected token " + token + " in [" + pipelineAggregatorName + "]."
+                );
             }
         }
 
         if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH_FIELD.getPreferredName()
-                    + "] for derivative aggregation [" + pipelineAggregatorName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing required field ["
+                    + BUCKETS_PATH_FIELD.getPreferredName()
+                    + "] for derivative aggregation ["
+                    + pipelineAggregatorName
+                    + "]"
+            );
         }
 
-        DerivativePipelineAggregationBuilder factory =
-                new DerivativePipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
+        DerivativePipelineAggregationBuilder factory = new DerivativePipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
         if (format != null) {
             factory.format(format);
         }
@@ -227,9 +239,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         DerivativePipelineAggregationBuilder other = (DerivativePipelineAggregationBuilder) obj;
-        return Objects.equals(format, other.format) &&
-            gapPolicy == other.gapPolicy &&
-            Objects.equals(units, other.units);
+        return Objects.equals(format, other.format) && gapPolicy == other.gapPolicy && Objects.equals(units, other.units);
     }
 
     @Override

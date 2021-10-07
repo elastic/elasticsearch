@@ -29,8 +29,17 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     public final double negRight;
     public final boolean wrapLongitude;
 
-    public InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-                             double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metadata) {
+    public InternalGeoBounds(
+        String name,
+        double top,
+        double bottom,
+        double posLeft,
+        double posRight,
+        double negLeft,
+        double negRight,
+        boolean wrapLongitude,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.top = top;
         this.bottom = bottom;
@@ -118,39 +127,39 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
             GeoBoundingBox geoBoundingBox = resolveGeoBoundingBox();
             String bBoxSide = path.get(0);
             switch (bBoxSide) {
-            case "top":
-                return geoBoundingBox.top();
-            case "left":
-                return geoBoundingBox.left();
-            case "bottom":
-                return geoBoundingBox.bottom();
-            case "right":
-                return geoBoundingBox.right();
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+                case "top":
+                    return geoBoundingBox.top();
+                case "left":
+                    return geoBoundingBox.left();
+                case "bottom":
+                    return geoBoundingBox.bottom();
+                case "right":
+                    return geoBoundingBox.right();
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
             }
         } else if (path.size() == 2) {
             GeoBoundingBox geoBoundingBox = resolveGeoBoundingBox();
             GeoPoint cornerPoint = null;
             String cornerString = path.get(0);
             switch (cornerString) {
-            case "top_left":
-                cornerPoint = geoBoundingBox.topLeft();
-                break;
-            case "bottom_right":
-                cornerPoint = geoBoundingBox.bottomRight();
-                break;
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+                case "top_left":
+                    cornerPoint = geoBoundingBox.topLeft();
+                    break;
+                case "bottom_right":
+                    cornerPoint = geoBoundingBox.bottomRight();
+                    break;
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
             }
             String latLonString = path.get(1);
             switch (latLonString) {
-            case "lat":
-                return cornerPoint.lat();
-            case "lon":
-                return cornerPoint.lon();
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+                case "lat":
+                    return cornerPoint.lat();
+                case "lon":
+                    return cornerPoint.lon();
+                default:
+                    throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
             }
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
@@ -215,13 +224,13 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         if (super.equals(obj) == false) return false;
 
         InternalGeoBounds other = (InternalGeoBounds) obj;
-        return top == other.top &&
-            bottom == other.bottom &&
-            posLeft == other.posLeft &&
-            posRight == other.posRight &&
-            negLeft == other.negLeft &&
-            negRight == other.negRight &&
-            wrapLongitude == other.wrapLongitude;
+        return top == other.top
+            && bottom == other.bottom
+            && posLeft == other.posLeft
+            && posRight == other.posRight
+            && negLeft == other.negLeft
+            && negRight == other.negRight
+            && wrapLongitude == other.wrapLongitude;
     }
 
     @Override

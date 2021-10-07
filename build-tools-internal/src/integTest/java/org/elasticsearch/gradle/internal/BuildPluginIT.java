@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.junit.Rule;
@@ -47,8 +48,9 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     public void testLicenseAndNotice() throws IOException {
         BuildResult result = getGradleRunner().withArguments("clean", "assemble").build();
         assertTaskSuccessful(result, ":assemble");
-        assertBuildFileExists(result, projectName(), "distributions/elasticsearch.build.jar");
-        try (ZipFile zipFile = new ZipFile(new File(getBuildDir(projectName()), "distributions/elasticsearch.build.jar"))) {
+        String expectedFilePath = "distributions/elasticsearch.build.jar";
+        assertBuildFileExists(result, projectName(), expectedFilePath);
+        try (ZipFile zipFile = new ZipFile(new File(getBuildDir(projectName()), expectedFilePath))) {
             ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
             ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
             assertNotNull("Jar does not have META-INF/LICENSE.txt", licenseEntry);

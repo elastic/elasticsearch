@@ -95,7 +95,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     }
 
     @Override
-    protected NodeCachesStatsResponse newNodeResponse(StreamInput in) throws IOException {
+    protected NodeCachesStatsResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeCachesStatsResponse(in);
     }
 
@@ -105,7 +105,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
         final DiscoveryNode[] resolvedNodes;
         if (request.nodesIds() == null || request.nodesIds().length == 0) {
-            resolvedNodes = dataNodes.values().toArray(DiscoveryNode.class);
+            resolvedNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         } else {
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)

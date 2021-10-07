@@ -44,8 +44,7 @@ public class MutualInformationTests extends AbstractNXYSignificanceHeuristicTest
             long c = randomLong();
             long d = randomLong();
             score = heuristic.getScore(a, b, c, d);
-        } catch (IllegalArgumentException e) {
-        }
+        } catch (IllegalArgumentException e) {}
         assertThat(score, lessThanOrEqualTo(1.0));
         assertThat(score, greaterThanOrEqualTo(0.0));
         heuristic = new MutualInformation(false, true);

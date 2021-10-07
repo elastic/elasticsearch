@@ -35,16 +35,17 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
     public void testSigmaFromInt() throws Exception {
         XContentBuilder content = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("name")
-                    .startObject("extended_stats_bucket")
-                        .field("sigma", 5)
-                        .field("buckets_path", "test")
-                    .endObject()
-                .endObject()
+            .startObject("name")
+            .startObject("extended_stats_bucket")
+            .field("sigma", 5)
+            .field("buckets_path", "test")
+            .endObject()
+            .endObject()
             .endObject();
 
         ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) parse(
-                createParser(content));
+            createParser(content)
+        );
 
         assertThat(builder.sigma(), equalTo(5.0));
     }
@@ -57,15 +58,26 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
         aggBuilders.add(multiBucketAgg);
 
         // First try to point to a non-existent agg
-        assertThat(validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
-                "Validation Failed: 1: " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                + " aggregation does not exist for aggregation [name]: invalid_agg>metric;"));
+        assertThat(
+            validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "invalid_agg>metric")),
+            equalTo(
+                "Validation Failed: 1: "
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " aggregation does not exist for aggregation [name]: invalid_agg>metric;"
+            )
+        );
 
         // Now try to point to a single bucket agg
-        assertThat(validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "global>metric")), equalTo(
-                "Validation Failed: 1: The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                + " must be a multi-bucket aggregation for aggregation [name] found :" + GlobalAggregationBuilder.class.getName()
-                + " for buckets path: global>metric;"));
+        assertThat(
+            validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "global>metric")),
+            equalTo(
+                "Validation Failed: 1: The first aggregation in "
+                    + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                    + " must be a multi-bucket aggregation for aggregation [name] found :"
+                    + GlobalAggregationBuilder.class.getName()
+                    + " for buckets path: global>metric;"
+            )
+        );
 
         // Now try to point to a valid multi-bucket agg
         assertThat(validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "terms>metric")), nullValue());

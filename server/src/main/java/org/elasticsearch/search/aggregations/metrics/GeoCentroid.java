@@ -16,5 +16,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
  */
 public interface GeoCentroid extends Aggregation {
     GeoPoint centroid();
+
     long count();
 }

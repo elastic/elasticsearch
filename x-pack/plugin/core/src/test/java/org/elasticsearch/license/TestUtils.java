@@ -363,22 +363,22 @@ public class TestUtils {
     public static class AssertingLicenseState extends XPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
-        public final List<Long> expirationDateUpdates = new ArrayList<>();
+        public final List<String> expiryWarnings = new ArrayList<>();
 
         public AssertingLicenseState() {
             super(() -> 0);
         }
 
         @Override
-        protected void update(License.OperationMode mode, boolean active, long expirationDate) {
+        protected void update(License.OperationMode mode, boolean active, String expiryWarning) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
-            expirationDateUpdates.add(expirationDate);
+            expiryWarnings.add(expiryWarning);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, long)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, String)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -391,8 +391,8 @@ public class TestUtils {
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, long expirationDate) {
-            super.update(mode, active, expirationDate);
+        public void update(License.OperationMode mode, boolean active, String expiryWarning) {
+            super.update(mode, active, expiryWarning);
         }
     }
 

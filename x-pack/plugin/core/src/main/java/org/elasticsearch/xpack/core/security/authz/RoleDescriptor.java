@@ -246,8 +246,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             builder.field(Fields.GLOBAL.getPreferredName());
             ConfigurableClusterPrivileges.toXContent(builder, params, Arrays.asList(configurableClusterPrivileges));
         }
-        builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
-        builder.array(Fields.APPLICATIONS.getPreferredName(), (Object[]) applicationPrivileges);
+        builder.xContentList(Fields.INDICES.getPreferredName(), indicesPrivileges);
+        builder.xContentList(Fields.APPLICATIONS.getPreferredName(), applicationPrivileges);
         if (runAs != null) {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }

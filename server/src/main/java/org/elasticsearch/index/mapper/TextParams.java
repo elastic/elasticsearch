@@ -36,12 +36,13 @@ public final class TextParams {
         public final IndexAnalyzers indexAnalyzers;
 
         public Analyzers(IndexAnalyzers indexAnalyzers,
-                         Function<FieldMapper, Analyzers> analyzerInitFunction) {
+                         Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
+                         Function<FieldMapper, Integer> positionGapInitFunction) {
             this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> analyzerInitFunction.apply(m).indexAnalyzer.get(), indexAnalyzers::getDefaultIndexAnalyzer)
+                            analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
                 .setSerializerCheck((id, ic, a) -> id || ic ||
                     Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
+                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
@@ -54,7 +55,7 @@ public final class TextParams {
                     return indexAnalyzer.get();
                 })
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.searchQuoteAnalyzer
                 = Parameter.analyzerParam("search_quote_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
@@ -66,10 +67,10 @@ public final class TextParams {
                     }
                     return searchAnalyzer.get();
                 })
-                .setValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
-                .setValidator(v -> {
+                        positionGapInitFunction, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+                .addValidator(v -> {
                     if (v < 0) {
                         throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
                     }

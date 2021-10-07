@@ -53,9 +53,9 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat(null, null), sameInstance(DocValueFormat.IP));
         Exception e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat("ASDFA", null));
-        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom formats"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom formats"));
         e = expectThrows(IllegalArgumentException.class, () -> simpleMappedFieldType().docValueFormat(null, ZoneId.of("America/New_York")));
-        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [ip] does not support custom time zones"));
+        assertThat(e.getMessage(), equalTo("Field [test] of type [ip] does not support custom time zones"));
     }
 
     @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
@@ -141,7 +142,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         Template other = (Template) obj;
         return Objects.equals(settings, other.settings) &&
-            Objects.equals(mappings, other.mappings) &&
+            mappingsEquals(this.mappings, other.mappings) &&
             Objects.equals(aliases, other.aliases);
     }
 
@@ -178,11 +179,33 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+    static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
         if (mapping.size() == 1 && MapperService.SINGLE_MAPPING_NAME.equals(mapping.keySet().iterator().next())) {
             return (Map<String, Object>) mapping.values().iterator().next();
         } else {
             return mapping;
         }
+    }
+
+    static boolean mappingsEquals(CompressedXContent m1, CompressedXContent m2) {
+        if (m1 == m2) {
+            return true;
+        }
+
+        if (m1 == null || m2 == null) {
+            return false;
+        }
+
+        if (m1.equals(m2)) {
+            return true;
+        }
+
+        Map<String, Object> thisUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m1.uncompressed(), true, XContentType.JSON).v2()
+        );
+        Map<String, Object> otherUncompressedMapping = reduceMapping(
+            XContentHelper.convertToMap(m2.uncompressed(), true, XContentType.JSON).v2()
+        );
+        return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
     }
 }

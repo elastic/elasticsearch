@@ -39,9 +39,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class GeoBoundsAggregatorTests extends AggregatorTestCase {
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
-                .wrapLongitude(false);
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field").wrapLongitude(false);
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
@@ -66,9 +64,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("non_existent")
-                .wrapLongitude(false);
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("non_existent").wrapLongitude(false);
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
@@ -99,8 +95,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
             // valid missing values
             for (Object missingVal : List.of("POINT(" + lon + " " + lat + ")", lat + ", " + lon, new GeoPoint(lat, lon))) {
-                GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                    .field("field")
+                GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field")
                     .missing(missingVal)
                     .wrapLongitude(false);
 
@@ -126,14 +121,15 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
 
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field")
                 .missing("invalid")
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
-                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
+                ElasticsearchParseException exception = expectThrows(
+                    ElasticsearchParseException.class,
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType)
+                );
                 assertThat(exception.getMessage(), startsWith("unsupported symbol"));
             }
         }
@@ -147,8 +143,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
         double negLeft = Double.POSITIVE_INFINITY;
         double negRight = Double.NEGATIVE_INFINITY;
         int numDocs = randomIntBetween(50, 100);
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
                 int numValues = randomIntBetween(1, 5);
@@ -176,9 +171,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 }
                 w.addDocument(doc);
             }
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
-                .wrapLongitude(false);
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field").wrapLongitude(false);
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {

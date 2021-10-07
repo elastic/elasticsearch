@@ -13,7 +13,6 @@ import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -192,7 +191,7 @@ public class GeoPolygonDecomposer {
         }
         if (signedArea == 0) {
             // Points are collinear or self-intersection
-            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0." +
+            throw new IllegalArgumentException("Cannot determine orientation: signed area equal to 0." +
                 " Points are collinear or polygon self-intersects.");
         }
         boolean orientation = signedArea < 0;
@@ -339,7 +338,7 @@ public class GeoPolygonDecomposer {
                 edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(nextPoint, null);
                 edges[edgeOffset + i - 1].component = component;
             } else {
-                throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: (" + nextPoint + ")");
+                throw new IllegalArgumentException("Provided shape has duplicate consecutive coordinates at: (" + nextPoint + ")");
             }
         }
 
@@ -464,7 +463,7 @@ public class GeoPolygonDecomposer {
             if (intersections == 0) {
                 // There were no edges that intersect the line of longitude through
                 // holes[i].coordinate, so there's no way this hole is within the polygon.
-                throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
+                throw new IllegalArgumentException("Invalid shape: Hole is not within polygon");
             }
 
             // Next we do a binary search to find the position of holes[i].coordinate in the array.
@@ -480,7 +479,7 @@ public class GeoPolygonDecomposer {
                 // and it didn't match after all.
 
                 // TODO Can this actually happen? Needs a test to exercise it, or else needs to be removed.
-                throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
+                throw new IllegalArgumentException("Invalid shape: Hole is not within polygon");
             }
 
             final int index;
@@ -546,7 +545,7 @@ public class GeoPolygonDecomposer {
                     partitionPoint[1] = current.coordinate.getY();
                     partitionPoint[2] = current.coordinate.getZ();
                     if (connectedComponents > 0 && current.next != edge) {
-                        throw new InvalidShapeException("Shape contains more than one shared point");
+                        throw new IllegalArgumentException("Shape contains more than one shared point");
                     }
 
                     // a negative id flags the edge as visited for the edges(...) method.
@@ -594,10 +593,10 @@ public class GeoPolygonDecomposer {
         // First and last coordinates must be equal
         if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
             if (Double.isNaN(partitionPoint[2])) {
-                throw new InvalidShapeException("Self-intersection at or near point ["
+                throw new IllegalArgumentException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "]");
             } else {
-                throw new InvalidShapeException("Self-intersection at or near point ["
+                throw new IllegalArgumentException("Self-intersection at or near point ["
                     + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
             }
         }
@@ -728,7 +727,7 @@ public class GeoPolygonDecomposer {
             if (next != null) {
                 // self-loop throws an invalid shape
                 if (this.coordinate.equals(next.coordinate)) {
-                    throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: " + this.coordinate);
+                    throw new IllegalArgumentException("Provided shape has duplicate consecutive coordinates at: " + this.coordinate);
                 }
                 this.next = next;
             }

@@ -33,7 +33,6 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,7 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -368,15 +366,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
     }
 
-    public void testHandleSnapshotErrorWithBwCFormat() throws IOException, ExecutionException, InterruptedException {
+    public void testHandleSnapshotErrorWithBwCFormat() throws Exception {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
         final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
 
         final String indexName = "test-index";
         createIndex(indexName);
@@ -402,10 +396,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
         final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
 
         final String indexName = "test-index";
         createIndex(indexName);

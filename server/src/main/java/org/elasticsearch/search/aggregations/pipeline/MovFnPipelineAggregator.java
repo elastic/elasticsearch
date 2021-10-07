@@ -50,9 +50,17 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     private final int window;
     private final int shift;
 
-    MovFnPipelineAggregator(String name, String bucketsPath, Script script, int window, int shift, DocValueFormat formatter,
-                            BucketHelpers.GapPolicy gapPolicy, Map<String, Object> metadata) {
-        super(name, new String[]{bucketsPath}, metadata);
+    MovFnPipelineAggregator(
+        String name,
+        String bucketsPath,
+        Script script,
+        int window,
+        int shift,
+        DocValueFormat formatter,
+        BucketHelpers.GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
+        super(name, new String[] { bucketsPath }, metadata);
         this.bucketsPath = bucketsPath;
         this.script = script;
         this.formatter = formatter;
@@ -64,9 +72,11 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
         @SuppressWarnings("rawtypes")
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-            histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<
+            ? extends InternalMultiBucketAggregation,
+            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
+                ? extends InternalMultiBucketAggregation,
+                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -90,7 +100,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
-            // Default is to reuse existing bucket.  Simplifies the rest of the logic,
+            // Default is to reuse existing bucket. Simplifies the rest of the logic,
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
@@ -102,13 +112,10 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                 int toIndex = clamp(index + shift, values);
                 double movavg = executableScript.execute(
                     vars,
-                    values.subList(fromIndex, toIndex).stream()
-                        .mapToDouble(Double::doubleValue)
-                        .toArray()
+                    values.subList(fromIndex, toIndex).stream().mapToDouble(Double::doubleValue).toArray()
                 );
 
-                List<InternalAggregation> aggs = StreamSupport
-                    .stream(bucket.getAggregations().spliterator(), false)
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
                     .collect(Collectors.toList());
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));

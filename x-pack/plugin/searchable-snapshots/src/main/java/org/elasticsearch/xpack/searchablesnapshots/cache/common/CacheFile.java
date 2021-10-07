@@ -64,21 +64,7 @@ public class CacheFile {
      * for it. Once this instance has been evicted, all listeners notified and all {@link FileChannelReference} for it released,
      * it makes sure to delete the physical file backing this cache.
      */
-    private final AbstractRefCounted refCounter = new AbstractRefCounted("CacheFile") {
-        @Override
-        protected void closeInternal() {
-            assert evicted.get();
-            assert assertNoPendingListeners();
-            try {
-                Files.deleteIfExists(file);
-            } catch (IOException e) {
-                // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-                logger.warn(() -> new ParameterizedMessage("Failed to delete [{}]", file), e);
-            } finally {
-                listener.onCacheFileDelete(CacheFile.this);
-            }
-        }
-    };
+    private final AbstractRefCounted refCounter = AbstractRefCounted.of(this::deleteFile);
 
     private final SparseFileTracker tracker;
     private final CacheKey cacheKey;
@@ -115,7 +101,6 @@ public class CacheFile {
         private final FileChannel fileChannel;
 
         FileChannelReference() throws IOException {
-            super("FileChannel[" + file + "]");
             this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
             refCounter.incRef();
         }
@@ -526,5 +511,18 @@ public class CacheFile {
             assert evicted.get();
         }
         return Collections.emptySortedSet();
+    }
+
+    private void deleteFile() {
+        assert evicted.get();
+        assert assertNoPendingListeners();
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
+            logger.warn(() -> new ParameterizedMessage("Failed to delete [{}]", file), e);
+        } finally {
+            listener.onCacheFileDelete(CacheFile.this);
+        }
     }
 }

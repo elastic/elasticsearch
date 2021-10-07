@@ -28,7 +28,7 @@ import static java.util.Collections.emptyMap;
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true, true, false);
+    private IndicesOptions indicesOptions;
 
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";

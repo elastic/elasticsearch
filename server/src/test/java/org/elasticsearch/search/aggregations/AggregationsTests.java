@@ -95,56 +95,57 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 public class AggregationsTests extends ESTestCase {
 
     private static final List<InternalAggregationTestCase<?>> aggsTests = List.of(
-            new InternalCardinalityTests(),
-            new InternalTDigestPercentilesTests(),
-            new InternalTDigestPercentilesRanksTests(),
-            new InternalHDRPercentilesTests(),
-            new InternalHDRPercentilesRanksTests(),
-            new InternalPercentilesBucketTests(),
-            new InternalMinTests(),
-            new InternalMaxTests(),
-            new InternalAvgTests(),
-            new InternalWeightedAvgTests(),
-            new InternalSumTests(),
-            new InternalValueCountTests(),
-            new InternalSimpleValueTests(),
-            new InternalDerivativeTests(),
-            new InternalBucketMetricValueTests(),
-            new InternalStatsTests(),
-            new InternalStatsBucketTests(),
-            new InternalExtendedStatsTests(),
-            new InternalExtendedStatsBucketTests(),
-            new InternalGeoBoundsTests(),
-            new InternalGeoCentroidTests(),
-            new InternalHistogramTests(),
-            new InternalDateHistogramTests(),
-            new InternalAutoDateHistogramTests(),
-            new InternalVariableWidthHistogramTests(),
-            new LongTermsTests(),
-            new DoubleTermsTests(),
-            new StringTermsTests(),
-            new LongRareTermsTests(),
-            new StringRareTermsTests(),
-            new InternalMissingTests(),
-            new InternalNestedTests(),
-            new InternalReverseNestedTests(),
-            new InternalGlobalTests(),
-            new InternalFilterTests(),
-            new InternalSamplerTests(),
-            new GeoHashGridTests(),
-            new GeoTileGridTests(),
-            new InternalRangeTests(),
-            new InternalDateRangeTests(),
-            new InternalGeoDistanceTests(),
-            new InternalFiltersTests(),
-            new InternalAdjacencyMatrixTests(),
-            new SignificantLongTermsTests(),
-            new SignificantStringTermsTests(),
-            new InternalScriptedMetricTests(),
-            new InternalBinaryRangeTests(),
-            new InternalTopHitsTests(),
-            new InternalCompositeTests(),
-            new InternalMedianAbsoluteDeviationTests());
+        new InternalCardinalityTests(),
+        new InternalTDigestPercentilesTests(),
+        new InternalTDigestPercentilesRanksTests(),
+        new InternalHDRPercentilesTests(),
+        new InternalHDRPercentilesRanksTests(),
+        new InternalPercentilesBucketTests(),
+        new InternalMinTests(),
+        new InternalMaxTests(),
+        new InternalAvgTests(),
+        new InternalWeightedAvgTests(),
+        new InternalSumTests(),
+        new InternalValueCountTests(),
+        new InternalSimpleValueTests(),
+        new InternalDerivativeTests(),
+        new InternalBucketMetricValueTests(),
+        new InternalStatsTests(),
+        new InternalStatsBucketTests(),
+        new InternalExtendedStatsTests(),
+        new InternalExtendedStatsBucketTests(),
+        new InternalGeoBoundsTests(),
+        new InternalGeoCentroidTests(),
+        new InternalHistogramTests(),
+        new InternalDateHistogramTests(),
+        new InternalAutoDateHistogramTests(),
+        new InternalVariableWidthHistogramTests(),
+        new LongTermsTests(),
+        new DoubleTermsTests(),
+        new StringTermsTests(),
+        new LongRareTermsTests(),
+        new StringRareTermsTests(),
+        new InternalMissingTests(),
+        new InternalNestedTests(),
+        new InternalReverseNestedTests(),
+        new InternalGlobalTests(),
+        new InternalFilterTests(),
+        new InternalSamplerTests(),
+        new GeoHashGridTests(),
+        new GeoTileGridTests(),
+        new InternalRangeTests(),
+        new InternalDateRangeTests(),
+        new InternalGeoDistanceTests(),
+        new InternalFiltersTests(),
+        new InternalAdjacencyMatrixTests(),
+        new SignificantLongTermsTests(),
+        new SignificantStringTermsTests(),
+        new InternalScriptedMetricTests(),
+        new InternalBinaryRangeTests(),
+        new InternalTopHitsTests(),
+        new InternalCompositeTests(),
+        new InternalMedianAbsoluteDeviationTests()
+    );
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -223,13 +224,15 @@ public class AggregationsTests extends ESTestCase {
              *
              * - exclude "key", it can be an array of objects and we need strict values
              */
-            Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
-                    || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
-                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
-                    || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
-                    || path.contains(CommonFields.VALUE.getPreferredName())
-                    || path.endsWith(CommonFields.KEY.getPreferredName()))
-                    || path.contains("top_hits");
+            Predicate<String> excludes = path -> (path.isEmpty()
+                || path.endsWith("aggregations")
+                || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
+                || path.endsWith(CommonFields.VALUES.getPreferredName())
+                || path.endsWith("covariance")
+                || path.endsWith("correlation")
+                || path.contains(CommonFields.VALUE.getPreferredName())
+                || path.endsWith(CommonFields.KEY.getPreferredName())) || path.contains("top_hits");
             mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
             mutated = originalBytes;
@@ -273,13 +276,9 @@ public class AggregationsTests extends ESTestCase {
             if (testCase instanceof InternalMultiBucketAggregationTestCase) {
                 InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
-                    multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> createTestInstance(0, currentDepth + 1, maxDepth)
-                    );
+                    multiBucketAggTestCase.setSubAggregationsSupplier(() -> createTestInstance(0, currentDepth + 1, maxDepth));
                 } else {
-                    multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> InternalAggregations.EMPTY
-                    );
+                    multiBucketAggTestCase.setSubAggregationsSupplier(() -> InternalAggregations.EMPTY);
                 }
             } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
                 InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;

@@ -38,9 +38,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public static final String MATCH_TYPE = "match";
     public static final String GEO_MATCH_TYPE = "geo_match";
+    public static final String RANGE_TYPE = "range";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{
         MATCH_TYPE,
-        GEO_MATCH_TYPE
+        GEO_MATCH_TYPE,
+        RANGE_TYPE
     };
 
     private static final ParseField QUERY = new ParseField("query");

@@ -34,13 +34,19 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
         }
         int numCoordinatingStats = randomIntBetween(0, 16);
         List<EnrichStatsAction.Response.CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatingStats);
+        List<EnrichStatsAction.Response.CacheStats> cacheStats = new ArrayList<>(numCoordinatingStats);
         for (int i = 0; i < numCoordinatingStats; i++) {
+            String nodeId = randomAlphaOfLength(4);
             EnrichStatsAction.Response.CoordinatorStats stats = new EnrichStatsAction.Response.CoordinatorStats(
-                randomAlphaOfLength(4), randomIntBetween(0, 8096), randomIntBetween(0, 8096), randomNonNegativeLong(),
+                nodeId, randomIntBetween(0, 8096), randomIntBetween(0, 8096), randomNonNegativeLong(),
                 randomNonNegativeLong());
             coordinatorStats.add(stats);
+            cacheStats.add(
+                new EnrichStatsAction.Response.CacheStats(nodeId, randomNonNegativeLong(), randomNonNegativeLong(),
+                    randomNonNegativeLong(), randomNonNegativeLong())
+            );
         }
-        return new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        return new EnrichStatsAction.Response(executingPolicies, coordinatorStats, cacheStats);
     }
 
     @Override
@@ -67,6 +73,17 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
             assertThat(actual.getRemoteRequestsCurrent(), equalTo(expected.getRemoteRequestsCurrent()));
             assertThat(actual.getRemoteRequestsTotal(), equalTo(expected.getRemoteRequestsTotal()));
             assertThat(actual.getExecutedSearchesTotal(), equalTo(expected.getExecutedSearchesTotal()));
+        }
+
+        assertThat(clientInstance.getCacheStats().size(), equalTo(serverTestInstance.getCacheStats().size()));
+        for (int i = 0; i < clientInstance.getCacheStats().size(); i++) {
+            StatsResponse.CacheStats actual = clientInstance.getCacheStats().get(i);
+            EnrichStatsAction.Response.CacheStats expected = serverTestInstance.getCacheStats().get(i);
+            assertThat(actual.getNodeId(), equalTo(expected.getNodeId()));
+            assertThat(actual.getCount(), equalTo(expected.getCount()));
+            assertThat(actual.getHits(), equalTo(expected.getHits()));
+            assertThat(actual.getMisses(), equalTo(expected.getMisses()));
+            assertThat(actual.getEvictions(), equalTo(expected.getEvictions()));
         }
     }
 

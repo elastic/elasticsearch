@@ -25,8 +25,7 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
     /**
      * Read from a stream.
      */
-    public StatsBucketPipelineAggregationBuilder(StreamInput in)
-            throws IOException {
+    public StatsBucketPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
     }
 
@@ -47,8 +46,11 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected StatsBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> params) {
+        protected StatsBucketPipelineAggregationBuilder buildFactory(
+            String pipelineAggregatorName,
+            String bucketsPath,
+            Map<String, Object> params
+        ) {
             return new StatsBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

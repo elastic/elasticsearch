@@ -10,9 +10,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -37,13 +37,15 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     private ObjectArray<TDigestState> valueSketches;
 
-    MedianAbsoluteDeviationAggregator(String name,
-                                      @Nullable ValuesSource valuesSource,
-                                      DocValueFormat format,
-                                      AggregationContext context,
-                                             Aggregator parent,
-                                             Map<String, Object> metadata,
-                                             double compression) throws IOException {
+    MedianAbsoluteDeviationAggregator(
+        String name,
+        @Nullable ValuesSource valuesSource,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        double compression
+    ) throws IOException {
 
         super(name, context, parent, metadata);
 

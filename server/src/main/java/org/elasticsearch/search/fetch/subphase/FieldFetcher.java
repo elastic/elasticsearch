@@ -92,7 +92,17 @@ public class FieldFetcher {
                 }
                 // only add concrete fields if they are not beneath a known nested field
                 if (nestedParentPath == null) {
-                    ValueFetcher valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    ValueFetcher valueFetcher;
+                    try {
+                        valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    } catch (IllegalArgumentException e) {
+                        StringBuilder error = new StringBuilder("error fetching [").append(field).append(']');
+                        if (isWildcardPattern) {
+                            error.append(" which matched [").append(fieldAndFormat.field).append(']');
+                        }
+                        error.append(": ").append(e.getMessage());
+                        throw new IllegalArgumentException(error.toString(), e);
+                    }
                     fieldContexts.put(field, new FieldContext(field, valueFetcher));
                 }
             }

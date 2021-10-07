@@ -79,7 +79,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
 
     @Override
     protected SamplerAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
+        throws IOException {
         return new SamplerAggregatorFactory(name, shardSize, context, parent, subFactoriesBuilder, metadata);
     }
 
@@ -103,12 +103,16 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
                 if (SamplerAggregator.SHARD_SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     shardSize = parser.intValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName);
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName);
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName
+                );
             }
         }
 

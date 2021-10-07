@@ -23,8 +23,11 @@ public class ParsedStringTerms extends ParsedTerms {
         return StringTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedStringTerms, Void> PARSER =
-            new ObjectParser<>(ParsedStringTerms.class.getSimpleName(), true, ParsedStringTerms::new);
+    private static final ObjectParser<ParsedStringTerms, Void> PARSER = new ObjectParser<>(
+        ParsedStringTerms.class.getSimpleName(),
+        true,
+        ParsedStringTerms::new
+    );
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);
     }
@@ -70,13 +73,13 @@ public class ParsedStringTerms extends ParsedTerms {
 
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
             return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> {
-                    CharBuffer cb = p.charBufferOrNull();
-                    if (cb == null) {
-                        bucket.key = null;
-                    } else {
-                        bucket.key = new BytesRef(cb);
-                    }
-                });
+                CharBuffer cb = p.charBufferOrNull();
+                if (cb == null) {
+                    bucket.key = null;
+                } else {
+                    bucket.key = new BytesRef(cb);
+                }
+            });
         }
     }
 }

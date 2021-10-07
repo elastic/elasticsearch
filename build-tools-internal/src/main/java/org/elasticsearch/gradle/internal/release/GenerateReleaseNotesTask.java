@@ -8,9 +8,11 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.elasticsearch.gradle.Version;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
@@ -22,12 +24,23 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Set;
+import javax.inject.Inject;
+
+import static java.util.Comparator.naturalOrder;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Orchestrates the steps required to generate or update various release notes files.
@@ -47,8 +60,10 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseHighlightsFile;
     private final RegularFileProperty breakingChangesFile;
 
+    private final GitWrapper gitWrapper;
+
     @Inject
-    public GenerateReleaseNotesTask(ObjectFactory objectFactory) {
+    public GenerateReleaseNotesTask(ObjectFactory objectFactory, ExecOperations execOperations) {
         changelogs = objectFactory.fileCollection();
 
         releaseNotesIndexTemplate = objectFactory.fileProperty();
@@ -60,56 +75,194 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
         breakingChangesFile = objectFactory.fileProperty();
+
+        gitWrapper = new GitWrapper(execOperations);
     }
 
     @TaskAction
     public void executeTask() throws IOException {
+        if (needsGitTags(VersionProperties.getElasticsearch())) {
+            findAndUpdateUpstreamRemote(gitWrapper);
+        }
+
         LOGGER.info("Finding changelog files...");
 
-        final Version checkoutVersion = VersionProperties.getElasticsearchVersion();
+        final Map<QualifiedVersion, Set<File>> filesByVersion = partitionFilesByVersion(
+            gitWrapper,
+            VersionProperties.getElasticsearch(),
+            this.changelogs.getFiles()
+        );
 
-        final List<ChangelogEntry> entries = this.changelogs.getFiles()
-            .stream()
-            .map(ChangelogEntry::parse)
-            .filter(
-                // Only process changelogs that are included in this minor version series of ES.
-                // If this change was released in an earlier major or minor version of Elasticsearch, do not
-                // include it in the notes. An earlier patch version is OK, the release notes include changes
-                // for every patch release in a minor series.
-                log -> {
-                    final List<Version> versionsForChangelogFile = log.getVersions()
-                        .stream()
-                        .map(v -> Version.fromString(v, Version.Mode.RELAXED))
-                        .collect(Collectors.toList());
+        final List<ChangelogEntry> entries = new ArrayList<>();
+        final Map<QualifiedVersion, Set<ChangelogEntry>> changelogsByVersion = new HashMap<>();
 
-                    final Predicate<Version> includedInSameMinor = v -> v.getMajor() == checkoutVersion.getMajor()
-                        && v.getMinor() == checkoutVersion.getMinor();
+        filesByVersion.forEach((version, files) -> {
+            Set<ChangelogEntry> entriesForVersion = files.stream().map(ChangelogEntry::parse).collect(toSet());
+            entries.addAll(entriesForVersion);
+            changelogsByVersion.put(version, entriesForVersion);
+        });
 
-                    final Predicate<Version> includedInEarlierMajorOrMinor = v -> v.getMajor() < checkoutVersion.getMajor()
-                        || (v.getMajor() == checkoutVersion.getMajor() && v.getMinor() < checkoutVersion.getMinor());
-
-                    boolean includedInThisMinor = versionsForChangelogFile.stream().anyMatch(includedInSameMinor);
-
-                    if (includedInThisMinor) {
-                        return versionsForChangelogFile.stream().noneMatch(includedInEarlierMajorOrMinor);
-                    } else {
-                        return false;
-                    }
-                }
-            )
-            .collect(Collectors.toList());
+        final Set<QualifiedVersion> versions = getVersions(gitWrapper, VersionProperties.getElasticsearch());
 
         LOGGER.info("Updating release notes index...");
-        ReleaseNotesIndexUpdater.update(this.releaseNotesIndexTemplate.get().getAsFile(), this.releaseNotesIndexFile.get().getAsFile());
+        ReleaseNotesIndexGenerator.update(
+            versions,
+            this.releaseNotesIndexTemplate.get().getAsFile(),
+            this.releaseNotesIndexFile.get().getAsFile()
+        );
 
         LOGGER.info("Generating release notes...");
-        ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), entries);
+        ReleaseNotesGenerator.update(
+            this.releaseNotesTemplate.get().getAsFile(),
+            this.releaseNotesFile.get().getAsFile(),
+            changelogsByVersion
+        );
 
         LOGGER.info("Generating release highlights...");
-        ReleaseHighlightsGenerator.update(this.releaseHighlightsTemplate.get().getAsFile(), this.releaseHighlightsFile.get().getAsFile(), entries);
+        ReleaseHighlightsGenerator.update(
+            this.releaseHighlightsTemplate.get().getAsFile(),
+            this.releaseHighlightsFile.get().getAsFile(),
+            entries
+        );
 
         LOGGER.info("Generating breaking changes / deprecations notes...");
-        BreakingChangesGenerator.update(this.breakingChangesTemplate.get().getAsFile(), this.breakingChangesFile.get().getAsFile(), entries);
+        BreakingChangesGenerator.update(
+            this.breakingChangesTemplate.get().getAsFile(),
+            this.breakingChangesFile.get().getAsFile(),
+            entries
+        );
+    }
+
+    /**
+     * Find all tags in the `major.minor` series for the supplied version
+     * @param gitWrapper used to call `git`
+     * @param currentVersion the version to base the query upon
+     * @return all versions in the series
+     */
+    @VisibleForTesting
+    static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
+        QualifiedVersion v = QualifiedVersion.of(currentVersion);
+        Set<QualifiedVersion> versions = gitWrapper.listVersions("v" + v.getMajor() + '.' + v.getMinor() + ".*").collect(toSet());
+        versions.add(v);
+        return versions;
+    }
+
+    /**
+     * Group a set of files by the version in which they first appeared, up until the supplied version. Any files not
+     * present in an earlier version are assumed to have been introduced in the specified version.
+     *
+     * <p>This method works by finding all git tags prior to {@param versionString} in the same minor series, and
+     * examining the git tree for that tag. By doing this over each tag, it is possible to see how the contents
+     * of the changelog directory changed over time.
+     *
+     * @param gitWrapper used to call `git`
+     * @param versionString the "current" version. Does not require a tag in git.
+     * @param allFilesInCheckout the files to partition
+     * @return a mapping from version to the files added in that version.
+     */
+    @VisibleForTesting
+    static Map<QualifiedVersion, Set<File>> partitionFilesByVersion(
+        GitWrapper gitWrapper,
+        String versionString,
+        Set<File> allFilesInCheckout
+    ) {
+        if (needsGitTags(versionString) == false) {
+            return Map.of(QualifiedVersion.of(versionString), allFilesInCheckout);
+        }
+
+        QualifiedVersion currentVersion = QualifiedVersion.of(versionString);
+
+        // Find all tags for this minor series, using a wildcard tag pattern.
+        String tagWildcard = "v%d.%d*".formatted(currentVersion.getMajor(), currentVersion.getMinor());
+
+        final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
+            // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.
+            .filter(each -> each.isBefore(currentVersion) && (currentVersion.hasQualifier() == each.hasQualifier()))
+            .sorted(naturalOrder())
+            .collect(toList());
+
+        if (earlierVersions.isEmpty()) {
+            throw new GradleException("Failed to find git tags prior to [v" + currentVersion + "]");
+        }
+
+        Map<QualifiedVersion, Set<File>> partitionedFiles = new HashMap<>();
+
+        Set<File> mutableAllFilesInCheckout = new HashSet<>(allFilesInCheckout);
+
+        // 1. For each earlier version
+        earlierVersions.forEach(earlierVersion -> {
+            // 2. Find all the changelog files it contained
+            Set<String> filesInTreeForVersion = gitWrapper.listFiles("v" + earlierVersion, "docs/changelog")
+                .map(line -> Path.of(line).getFileName().toString())
+                .collect(toSet());
+
+            Set<File> filesForVersion = new HashSet<>();
+            partitionedFiles.put(earlierVersion, filesForVersion);
+
+            // 3. Find the `File` object for each one
+            final Iterator<File> filesIterator = mutableAllFilesInCheckout.iterator();
+            while (filesIterator.hasNext()) {
+                File nextFile = filesIterator.next();
+                if (filesInTreeForVersion.contains(nextFile.getName())) {
+                    // 4. And remove it so that it is associated with the earlier version
+                    filesForVersion.add(nextFile);
+                    filesIterator.remove();
+                }
+            }
+        });
+
+        // 5. Associate whatever is left with the current version.
+        partitionedFiles.put(currentVersion, mutableAllFilesInCheckout);
+
+        return partitionedFiles;
+    }
+
+    /**
+     * Ensure the upstream git remote is up-to-date. The upstream is whatever git remote references `elastic/elasticsearch`.
+     * @param gitWrapper used to call `git`
+     */
+    private static void findAndUpdateUpstreamRemote(GitWrapper gitWrapper) {
+        LOGGER.info("Finding upstream git remote");
+        // We need to ensure the tags are up-to-date. Find the correct remote to use
+        String upstream = gitWrapper.listRemotes()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().contains("elastic/elasticsearch"))
+            .findFirst()
+            .map(Map.Entry::getKey)
+            .orElseThrow(
+                () -> new GradleException(
+                    "I need to ensure the git tags are up-to-date, but I couldn't find a git remote for [elastic/elasticsearch]"
+                )
+            );
+
+        LOGGER.info("Updating remote [{}]", upstream);
+        // Now update the remote, and make sure we update the tags too
+        gitWrapper.updateRemote(upstream);
+
+        LOGGER.info("Updating tags from [{}]", upstream);
+        gitWrapper.updateTags(upstream);
+    }
+
+    /**
+     * This methods checks the supplied version and answers {@code false} if the fetching of git
+     * tags can be skipped, or {@code true} otherwise.
+     * <p>
+     * The first version in a minor series will never have any preceding versions, so there's no
+     * need to fetch tags and examine the repository state in the past. This applies when the
+     * version is a release version, a snapshot, or the first alpha version. Subsequent alphas,
+     * betas and release candidates need to check the previous prelease tags.
+     *
+     * @param versionString the version string to check
+     * @return whether fetching git tags is required
+     */
+    @VisibleForTesting
+    static boolean needsGitTags(String versionString) {
+        if (versionString.endsWith(".0") || versionString.endsWith(".0-SNAPSHOT") || versionString.endsWith(".0-alpha1")) {
+            return false;
+        }
+
+        return true;
     }
 
     @InputFiles

@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.search.SearchHit;
@@ -181,7 +182,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams, mock(XPackLicenseState.class));
         task.init(persistentTasksService, taskManager, "task-id", 42);
         task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
 
@@ -258,7 +259,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams, mock(XPackLicenseState.class));
         task.init(persistentTasksService, taskManager, "task-id", 42);
         task.setStatsHolder(new StatsHolder(progress, null, null, new DataCounts("test_job")));
         task.setStep(new StubReindexingStep(task.getStatsHolder().getProgressTracker()));

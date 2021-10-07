@@ -10,8 +10,8 @@ Note that this aggregation includes the `from` value and excludes the `to` value
 Example:
 
 [source,console,id=range-aggregation-example]
---------------------------------------------------
-GET /_search
+----
+GET sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -26,14 +26,14 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
-// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
@@ -59,7 +59,7 @@ Response:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\.//]
 
 ==== Keyed Response
@@ -67,8 +67,8 @@ Response:
 Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
 
 [source,console,id=range-aggregation-keyed-example]
---------------------------------------------------
-GET /_search
+----
+GET sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -84,14 +84,14 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
-// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
@@ -114,14 +114,14 @@ Response:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\.//]
 
 It is also possible to customize the key for each range:
 
 [source,console,id=range-aggregation-custom-keys-example]
---------------------------------------------------
-GET /_search
+----
+GET sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -137,14 +137,14 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
-// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
@@ -167,7 +167,7 @@ Response:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\.//]
 
 ==== Script
@@ -178,7 +178,7 @@ apply a particular currency conversion rate:
 
 [source,console,id=range-aggregation-runtime-field-example]
 ----
-GET /_search
+GET sales/_search
 {
   "runtime_mappings": {
     "price.euros": {
@@ -208,7 +208,7 @@ GET /_search
 }
 ----
 // TEST[setup:sales]
-// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 //////////////////////////
 
@@ -247,8 +247,8 @@ GET /_search
 The following example, not only "bucket" the documents to the different buckets but also computes statistics over the prices in each price range
 
 [source,console,id=range-aggregation-sub-aggregation-example]
---------------------------------------------------
-GET /_search
+----
+GET sales/_search
 {
   "aggs": {
     "price_ranges": {
@@ -268,14 +268,14 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
-// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
@@ -322,8 +322,9 @@ Response:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\.//]
+
 [[search-aggregations-bucket-range-aggregation-histogram-fields]]
 ==== Histogram fields
 
@@ -336,7 +337,7 @@ Here is an example, executing a range aggregation against the following index th
 with latency metrics (in milliseconds) for different networks:
 
 [source,console]
---------------------------------------------------
+----
 PUT metrics_index/_doc/1
 {
   "network.name" : "net-1",
@@ -355,7 +356,7 @@ PUT metrics_index/_doc/2
    }
 }
 
-POST /metrics_index/_search?size=0&filter_path=aggregations
+GET metrics_index/_search?size=0&filter_path=aggregations
 {
   "aggs": {
     "latency_ranges": {
@@ -371,14 +372,13 @@ POST /metrics_index/_search?size=0&filter_path=aggregations
     }
   }
 }
---------------------------------------------------
-
+----
 
 The `range` aggregation will sum the counts of each range computed based on the `values` and
 return the following output:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "aggregations": {
     "latency_ranges": {
@@ -409,7 +409,7 @@ return the following output:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[skip:test not setup]
 
 [IMPORTANT]
@@ -420,7 +420,6 @@ On the other hand, a histogram field is a pre-aggregated field representing mult
 buckets of numerical data and a count of items/documents for each bucket. This mismatch between the range aggregations expected input
 (expecting raw documents) and the histogram field (that provides summary information) limits the outcome of the aggregation
 to only the doc counts for each bucket.
-
 
 **Consequently, when executing a range aggregation over a histogram field, no sub-aggregations are allowed.**
 ========

@@ -91,6 +91,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     .setStartedAtMillis(System.currentTimeMillis())
                     .setNodeSeen(nodeSeen)
                     .setAllocationDelay(request.getAllocationDelay())
+                    .setTargetNodeName(request.getTargetNodeName())
                     .build();
 
                 return ClusterState.builder(currentState)
@@ -109,7 +110,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())) {
+                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
+                    || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
                     clusterService.getRerouteService()
                         .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
                             @Override

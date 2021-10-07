@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -93,10 +93,12 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(
-                Aggregation.class, new ParseField(RateAggregationBuilder.NAME), (p, c) -> {
-            assumeTrue("There is no ParsedRate yet", false);
-            return null;
-        }));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(RateAggregationBuilder.NAME), (p, c) -> {
+                assumeTrue("There is no ParsedRate yet", false);
+                return null;
+            })
+        );
     }
 }

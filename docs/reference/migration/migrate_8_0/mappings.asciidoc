@@ -18,7 +18,6 @@ Use a maximum of 10 completion contexts in a completion field. Specifying more
 than 10 completion contexts will return an error.
 ====
 
-
 .Mapping API endpoints containing mapping types have been removed.
 [%collapsible]
 ====
@@ -107,5 +106,19 @@ These parameters have been removed in 8.0.0.
 *Impact* +
 In 8.0, you can no longer create mappings that include these parameters.
 However, 7.x indices that use these mapping parameters will continue to work.
+====
+
+.The `include_type_name` query parameter has been removed.
+[%collapsible]
+====
+*Details* +
+The `include_type_name` query parameter has been removed from the index
+creation, index template, and mapping APIs. Previously, you could set
+`include_type_name` to `true` to indicate that requests and responses should
+include a mapping type name. Mapping types have been removed in 8.x.
+
+*Impact* +
+Discontinue use of the `include_type_name` query parameter. Requests that
+include the parameter will return an error.
 ====
 // end::notable-breaking-changes[]

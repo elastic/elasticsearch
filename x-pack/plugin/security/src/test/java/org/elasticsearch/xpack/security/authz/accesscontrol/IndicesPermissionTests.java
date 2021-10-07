@@ -48,6 +48,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTime
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -77,7 +78,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), hasSize(1));
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(query));
 
         // no document level security:
@@ -99,7 +100,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), hasSize(1));
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(query));
 
         // index group associated with an alias:
@@ -111,14 +112,14 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), hasSize(1));
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(query));
 
         assertThat(permissions.getIndexPermissions("_alias"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_alias").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_alias").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), hasSize(1));
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), equalTo(query));
 
         // match all fields
@@ -131,13 +132,13 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), hasSize(1));
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(query));
 
         assertThat(permissions.getIndexPermissions("_alias"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_alias").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries().size(), equalTo(1));
+        assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), hasSize(1));
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), equalTo(query));
 
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index_1")
@@ -163,19 +164,19 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries().size(), equalTo(2));
+        assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), hasSize(2));
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(bothQueries));
 
         assertThat(permissions.getIndexPermissions("_index_1"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index_1").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index_1").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_index_1").getDocumentPermissions().getQueries().size(), equalTo(2));
+        assertThat(permissions.getIndexPermissions("_index_1").getDocumentPermissions().getQueries(), hasSize(2));
         assertThat(permissions.getIndexPermissions("_index_1").getDocumentPermissions().getQueries(), equalTo(bothQueries));
 
         assertThat(permissions.getIndexPermissions("_alias"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_alias").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
-        assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries().size(), equalTo(2));
+        assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), hasSize(2));
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getQueries(), equalTo(bothQueries));
 
     }

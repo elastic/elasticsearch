@@ -47,8 +47,11 @@ public class ParsedValueCount extends ParsedAggregation implements ValueCount {
         return builder;
     }
 
-    private static final ObjectParser<ParsedValueCount, Void> PARSER = new ObjectParser<>(ParsedValueCount.class.getSimpleName(), true,
-            ParsedValueCount::new);
+    private static final ObjectParser<ParsedValueCount, Void> PARSER = new ObjectParser<>(
+        ParsedValueCount.class.getSimpleName(),
+        true,
+        ParsedValueCount::new
+    );
 
     static {
         declareAggregationFields(PARSER);

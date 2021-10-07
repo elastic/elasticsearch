@@ -21,10 +21,13 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -310,6 +313,23 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         }
 
         return newCheckPointOperationsSum - oldCheckPointOperationsSum;
+    }
+
+    public static Collection<String> getChangedIndices(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
+        if (oldCheckpoint.isEmpty()) {
+            return newCheckpoint.indicesCheckpoints.keySet();
+        }
+
+        Set<String> indices = new HashSet<>();
+
+        for (Entry<String, long[]> entry : newCheckpoint.indicesCheckpoints.entrySet()) {
+            // compare against the old checkpoint
+            if (Arrays.equals(entry.getValue(), oldCheckpoint.indicesCheckpoints.get(entry.getKey())) == false) {
+                indices.add(entry.getKey());
+            }
+        }
+
+        return indices;
     }
 
     private static Map<String, long[]> readCheckpoints(Map<String, Object> readMap) {

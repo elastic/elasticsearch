@@ -309,7 +309,7 @@ public class RecoverySourceHandler {
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
                 final Translog.Snapshot phase2Snapshot =
-                    shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false, false);
+                    shard.newChangesSnapshot("peer-recovery", startingSeqNo, Long.MAX_VALUE, false, false, true);
                 resources.add(phase2Snapshot);
                 retentionLock.close();
 
@@ -354,9 +354,7 @@ public class RecoverySourceHandler {
     }
 
     private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = shard.newChangesSnapshot("peer-recover", startingSeqNo, Long.MAX_VALUE, false, true)) {
-            return snapshot.totalOperations();
-        }
+        return shard.countChanges("peer-recovery", startingSeqNo, Long.MAX_VALUE);
     }
 
     static void runUnderPrimaryPermit(CancellableThreads.Interruptible runnable, String reason,
@@ -1095,6 +1093,8 @@ public class RecoverySourceHandler {
 
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
+        // use a smaller buffer than the configured chunk size if we only have files smaller than the chunk size
+        final int bufferSize = files.length == 0 ? 0 : (int) Math.min(chunkSizeInBytes, files[files.length - 1].length());
         Releasable temporaryStoreRef = acquireStore(store);
         try {
             final Releasable storeRef = temporaryStoreRef;
@@ -1110,14 +1110,24 @@ public class RecoverySourceHandler {
                     protected void onNewResource(StoreFileMetadata md) throws IOException {
                         offset = 0;
                         IOUtils.close(currentInput);
-                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        if (md.hashEqualsContents()) {
+                            // we already have the file contents on heap no need to open the file again
+                            currentInput = null;
+                        } else {
+                            currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        }
                     }
 
                     @Override
                     protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
                         assert Transports.assertNotTransportThread("read file chunk");
                         cancellableThreads.checkForCancel();
-                        final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
+                        if (currentInput == null) {
+                            // no input => reading directly from the metadata
+                            assert md.hashEqualsContents();
+                            return new FileChunk(md, new BytesArray(md.hash()), 0, true, () -> {});
+                        }
+                        final byte[] buffer = Objects.requireNonNullElseGet(buffers.pollFirst(), () -> new byte[bufferSize]);
                         assert liveBufferCount.incrementAndGet() > 0;
                         final int toRead = Math.toIntExact(Math.min(md.length() - offset, buffer.length));
                         currentInput.readBytes(buffer, 0, toRead, false);

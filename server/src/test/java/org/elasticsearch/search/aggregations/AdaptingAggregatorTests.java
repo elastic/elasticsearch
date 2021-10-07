@@ -67,11 +67,8 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected Aggregator createInternal(
-            Aggregator parent,
-            CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
-        ) throws IOException {
+        protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+            throws IOException {
             return new DummyAdaptingAggregator(
                 parent,
                 factories,
@@ -117,7 +114,7 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
 
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            return new InternalAggregation[] {null};
+            return new InternalAggregation[] { null };
         }
 
         @Override

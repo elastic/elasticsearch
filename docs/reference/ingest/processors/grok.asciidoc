@@ -12,7 +12,7 @@ This processor comes packaged with many
 https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
 If you need help building patterns to match your logs, you will find the
-{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! 
+{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful!
 The https://grokconstructor.appspot.com[Grok Constructor] is also a useful tool.
 
 [[using-grok]]
@@ -26,6 +26,7 @@ The https://grokconstructor.appspot.com[Grok Constructor] is also a useful tool.
 | `field`                | yes       | -                   | The field to use for grok expression parsing
 | `patterns`             | yes       | -                   | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches.
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
+| `ecs_compatibility`    | no        | `disabled`          | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)] field names.
 | `trace_match`          | no        | false               | when true, `_ingest._grok_match_index` will be inserted into your matched document's metadata with the index into the pattern found in `patterns` that matched.
 | `ignore_missing`       | no        | false               | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
@@ -248,7 +249,7 @@ metadata and will not be indexed.
 [[grok-processor-rest-get]]
 ==== Retrieving patterns from REST endpoint
 
-The Grok Processor comes packaged with its own REST endpoint for retrieving which patterns the processor is packaged with.
+The Grok processor comes packaged with its own REST endpoint for retrieving the patterns included with the processor.
 
 [source,console]
 --------------------------------------------------
@@ -267,6 +268,16 @@ The above request will return a response body containing a key-value representat
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+By default, the API returns a list of legacy Grok patterns. These legacy
+patterns predate the {ecs-ref}/ecs-field-reference.html[Elastic Common Schema
+(ECS)] and don't use ECS field names. To return patterns that extract ECS field
+names, specify `v1` in the optional `ecs_compatibility` query parameter.
+
+[source,console]
+----
+GET _ingest/processor/grok?ecs_compatibility=v1
+----
 
 By default, the API returns patterns in the order they are read from disk. This
 sort order preserves groupings of related patterns. For example, all patterns
@@ -293,7 +304,6 @@ The API returns the following response.
 }
 --------------------------------------------------
 // NOTCONSOLE
-
 
 This can be useful to reference as the built-in patterns change across versions.
 

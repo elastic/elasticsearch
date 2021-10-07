@@ -8,10 +8,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,12 +44,19 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-            3, 0, 10, -1);
+        3,
+        0,
+        10,
+        -1
+    );
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private static final ObjectParser<SignificantTermsAggregationBuilder, Void> PARSER = new ObjectParser<>(
         SignificantTermsAggregationBuilder.NAME,
-        SignificanceHeuristic.class, SignificantTermsAggregationBuilder::significanceHeuristic, null);
+        SignificanceHeuristic.class,
+        SignificantTermsAggregationBuilder::significanceHeuristic,
+        null
+    );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
@@ -57,24 +64,33 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
         PARSER.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
 
-        PARSER.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount,
-                TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
+        PARSER.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount, TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
-        PARSER.declareString(SignificantTermsAggregationBuilder::executionHint,
-                TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
+        PARSER.declareString(SignificantTermsAggregationBuilder::executionHint, TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
 
-        PARSER.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
-                (p, context) -> parseInnerQueryBuilder(p),
-                SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
+        PARSER.declareObject(
+            SignificantTermsAggregationBuilder::backgroundFilter,
+            (p, context) -> parseInnerQueryBuilder(p),
+            SignificantTermsAggregationBuilder.BACKGROUND_FILTER
+        );
 
-        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
-                IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+        PARSER.declareField(
+            (b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+            IncludeExclude::parseInclude,
+            IncludeExclude.INCLUDE_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING
+        );
 
-        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
-                IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+        PARSER.declareField(
+            (b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+            IncludeExclude::parseExclude,
+            IncludeExclude.EXCLUDE_FIELD,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
     }
+
     public static SignificantTermsAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName), null);
     }
@@ -105,8 +121,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
     }
 
-    protected SignificantTermsAggregationBuilder(SignificantTermsAggregationBuilder clone,
-                                                 AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected SignificantTermsAggregationBuilder(
+        SignificantTermsAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.executionHint = clone.executionHint;
@@ -187,8 +206,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
      */
     public SignificantTermsAggregationBuilder shardSize(int shardSize) {
         if (shardSize <= 0) {
-            throw new IllegalArgumentException(
-                    "[shardSize] must be greater than  0. Found [" + shardSize + "] in [" + name + "]");
+            throw new IllegalArgumentException("[shardSize] must be greater than  0. Found [" + shardSize + "] in [" + name + "]");
         }
         bucketCountThresholds.setShardSize(shardSize);
         return this;
@@ -201,7 +219,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     public SignificantTermsAggregationBuilder minDocCount(long minDocCount) {
         if (minDocCount < 0) {
             throw new IllegalArgumentException(
-                    "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]");
+                "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]"
+            );
         }
         bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
@@ -214,7 +233,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     public SignificantTermsAggregationBuilder shardMinDocCount(long shardMinDocCount) {
         if (shardMinDocCount < 0) {
             throw new IllegalArgumentException(
-                    "[shardMinDocCount] must be greater than or equal to 0. Found [" + shardMinDocCount + "] in [" + name + "]");
+                "[shardMinDocCount] must be greater than or equal to 0. Found [" + shardMinDocCount + "] in [" + name + "]"
+            );
         }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
@@ -280,16 +300,29 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
         SignificanceHeuristic executionHeuristic = significanceHeuristic.rewrite(context);
 
-        SignificantTermsAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        SignificantTermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new SignificantTermsAggregatorFactory(
+            name,
+            config,
+            includeExclude,
+            executionHint,
+            filterBuilder,
+            bucketCountThresholds,
+            executionHeuristic,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
@@ -320,10 +353,10 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         if (super.equals(obj) == false) return false;
         SignificantTermsAggregationBuilder other = (SignificantTermsAggregationBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
-                && Objects.equals(executionHint, other.executionHint)
-                && Objects.equals(filterBuilder, other.filterBuilder)
-                && Objects.equals(includeExclude, other.includeExclude)
-                && Objects.equals(significanceHeuristic, other.significanceHeuristic);
+            && Objects.equals(executionHint, other.executionHint)
+            && Objects.equals(filterBuilder, other.filterBuilder)
+            && Objects.equals(includeExclude, other.includeExclude)
+            && Objects.equals(significanceHeuristic, other.significanceHeuristic);
     }
 
     @Override

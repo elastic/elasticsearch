@@ -76,7 +76,10 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
             .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
-            .map(singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE)
+            .map(
+                singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE
+                    || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
+            )
             .orElse(false);
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);

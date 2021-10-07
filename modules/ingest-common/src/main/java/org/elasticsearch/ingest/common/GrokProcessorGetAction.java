@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -46,14 +47,19 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     public static class Request extends ActionRequest {
 
         private final boolean sorted;
+        private final String ecsCompatibility;
 
-        public Request(boolean sorted) {
+        public Request(boolean sorted, String ecsCompatibility) {
             this.sorted = sorted;
+            this.ecsCompatibility = ecsCompatibility;
         }
 
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
+            this.ecsCompatibility = in.getVersion().onOrAfter(Version.V_8_0_0)
+                ? in.readString()
+                : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
         }
 
         @Override
@@ -65,10 +71,17 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeString(ecsCompatibility);
+            }
         }
 
         public boolean sorted() {
             return sorted;
+        }
+
+        public String getEcsCompatibility() {
+            return ecsCompatibility;
         }
     }
 
@@ -105,25 +118,38 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final Map<String, String> grokPatterns;
-        private final Map<String, String> sortedGrokPatterns;
+        private final Map<String, String> legacyGrokPatterns;
+        private final Map<String, String> sortedLegacyGrokPatterns;
+        private final Map<String, String> ecsV1GrokPatterns;
+        private final Map<String, String> sortedEcsV1GrokPatterns;
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, Grok.BUILTIN_PATTERNS);
+            this(transportService, actionFilters, Grok.getBuiltinPatterns(false), Grok.getBuiltinPatterns(true));
         }
 
         // visible for testing
-        TransportAction(TransportService transportService, ActionFilters actionFilters, Map<String, String> grokPatterns) {
+        TransportAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Map<String, String> legacyGrokPatterns,
+            Map<String, String> ecsV1GrokPatterns) {
             super(NAME, transportService, actionFilters, Request::new);
-            this.grokPatterns = grokPatterns;
-            this.sortedGrokPatterns = new TreeMap<>(this.grokPatterns);
+            this.legacyGrokPatterns = legacyGrokPatterns;
+            this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
+            this.ecsV1GrokPatterns = ecsV1GrokPatterns;
+            this.sortedEcsV1GrokPatterns = new TreeMap<>(this.ecsV1GrokPatterns);
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             try {
-                listener.onResponse(new Response(request.sorted() ? sortedGrokPatterns : grokPatterns));
+                listener.onResponse(new Response(
+                    request.getEcsCompatibility().equals(Grok.ECS_COMPATIBILITY_MODES[0])
+                        ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
+                        : request.sorted() ? sortedEcsV1GrokPatterns : ecsV1GrokPatterns
+                    )
+                );
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -145,7 +171,11 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             boolean sorted = request.paramAsBoolean("s", false);
-            Request grokPatternsRequest = new Request(sorted);
+            String ecsCompatibility = request.param("ecs_compatibility", GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);
+            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
+            }
+            Request grokPatternsRequest = new Request(sorted, ecsCompatibility);
             return channel -> client.executeLocally(INSTANCE, grokPatternsRequest, new RestToXContentListener<>(channel));
         }
     }

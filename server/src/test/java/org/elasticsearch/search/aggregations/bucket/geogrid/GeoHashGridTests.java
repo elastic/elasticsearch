@@ -16,8 +16,12 @@ import java.util.Map;
 public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket, InternalGeoHashGrid> {
 
     @Override
-    protected InternalGeoHashGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                                        Map<String, Object> metadata) {
+    protected InternalGeoHashGrid createInternalGeoGrid(
+        String name,
+        int size,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
         return new InternalGeoHashGrid(name, size, buckets, metadata);
     }
 

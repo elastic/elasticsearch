@@ -1,0 +1,30 @@
+# supports the 'old' BRO log files, for updated Zeek log format see the patters/ecs-v1/zeek
+# https://www.bro.org/sphinx/script-reference/log-files.html
+
+BRO_BOOL [TF]
+BRO_DATA [^\t]+
+
+# http.log - old format (before the Zeek rename) :
+BRO_HTTP %{NUMBER:timestamp}\t%{NOTSPACE:zeek.session_id}\t%{IP:source.ip}\t%{INT:source.port:int}\t%{IP:destination.ip}\t%{INT:destination.port:int}\t%{INT:zeek.http.trans_depth:int}\t(?:-|%{WORD:http.request.method})\t(?:-|%{BRO_DATA:url.domain})\t(?:-|%{BRO_DATA:url.original})\t(?:-|%{BRO_DATA:http.request.referrer})\t(?:-|%{BRO_DATA:user_agent.original})\t(?:-|%{NUMBER:http.request.body.bytes:long})\t(?:-|%{NUMBER:http.response.body.bytes:long})\t(?:-|%{POSINT:http.response.status_code:int})\t(?:-|%{DATA:zeek.http.status_msg})\t(?:-|%{POSINT:zeek.http.info_code:int})\t(?:-|%{DATA:zeek.http.info_msg})\t(?:-|%{BRO_DATA:zeek.http.filename})\t(?:\(empty\)|%{BRO_DATA:zeek.http.tags})\t(?:-|%{BRO_DATA:url.username})\t(?:-|%{BRO_DATA:url.password})\t(?:-|%{BRO_DATA:zeek.http.proxied})\t(?:-|%{BRO_DATA:zeek.http.orig_fuids})\t(?:-|%{BRO_DATA:http.request.mime_type})\t(?:-|%{BRO_DATA:zeek.http.resp_fuids})\t(?:-|%{BRO_DATA:http.response.mime_type})
+# :long - %{NUMBER:http.request.body.bytes:int}
+# :long - %{NUMBER:http.response.body.bytes:int}
+
+# dns.log - old format
+BRO_DNS %{NUMBER:timestamp}\t%{NOTSPACE:zeek.session_id}\t%{IP:source.ip}\t%{INT:source.port:int}\t%{IP:destination.ip}\t%{INT:destination.port:int}\t%{WORD:network.transport}\t(?:-|%{INT:dns.id:int})\t(?:-|%{BRO_DATA:dns.question.name})\t(?:-|%{INT:zeek.dns.qclass:int})\t(?:-|%{BRO_DATA:zeek.dns.qclass_name})\t(?:-|%{INT:zeek.dns.qtype:int})\t(?:-|%{BRO_DATA:dns.question.type})\t(?:-|%{INT:zeek.dns.rcode:int})\t(?:-|%{BRO_DATA:dns.response_code})\t(?:-|%{BRO_BOOL:zeek.dns.AA})\t(?:-|%{BRO_BOOL:zeek.dns.TC})\t(?:-|%{BRO_BOOL:zeek.dns.RD})\t(?:-|%{BRO_BOOL:zeek.dns.RA})\t(?:-|%{NONNEGINT:zeek.dns.Z:int})\t(?:-|%{BRO_DATA:zeek.dns.answers})\t(?:-|%{DATA:zeek.dns.TTLs})\t(?:-|%{BRO_BOOL:zeek.dns.rejected})
+
+# conn.log - old bro, also supports 'newer' format (optional *zeek.connection.local_resp* flag) compared to non-ecs mode
+BRO_CONN %{NUMBER:timestamp}\t%{NOTSPACE:zeek.session_id}\t%{IP:source.ip}\t%{INT:source.port:int}\t%{IP:destination.ip}\t%{INT:destination.port:int}\t%{WORD:network.transport}\t(?:-|%{BRO_DATA:network.protocol})\t(?:-|%{NUMBER:zeek.connection.duration:float})\t(?:-|%{INT:zeek.connection.orig_bytes:long})\t(?:-|%{INT:zeek.connection.resp_bytes:long})\t(?:-|%{BRO_DATA:zeek.connection.state})\t(?:-|%{BRO_BOOL:zeek.connection.local_orig})\t(?:(?:-|%{BRO_BOOL:zeek.connection.local_resp})\t)?(?:-|%{INT:zeek.connection.missed_bytes:long})\t(?:-|%{BRO_DATA:zeek.connection.history})\t(?:-|%{INT:source.packets:long})\t(?:-|%{INT:source.bytes:long})\t(?:-|%{INT:destination.packets:long})\t(?:-|%{INT:destination.bytes:long})\t(?:\(empty\)|%{BRO_DATA:zeek.connection.tunnel_parents})
+# :long - %{INT:zeek.connection.orig_bytes:int}
+# :long - %{INT:zeek.connection.resp_bytes:int}
+# :long - %{INT:zeek.connection.missed_bytes:int}
+# :long - %{INT:source.packets:int}
+# :long - %{INT:source.bytes:int}
+# :long - %{INT:destination.packets:int}
+# :long - %{INT:destination.bytes:int}
+
+# files.log - old format
+BRO_FILES %{NUMBER:timestamp}\t%{NOTSPACE:zeek.files.fuid}\t(?:-|%{IP:server.ip})\t(?:-|%{IP:client.ip})\t(?:-|%{BRO_DATA:zeek.files.session_ids})\t(?:-|%{BRO_DATA:zeek.files.source})\t(?:-|%{INT:zeek.files.depth:int})\t(?:-|%{BRO_DATA:zeek.files.analyzers})\t(?:-|%{BRO_DATA:file.mime_type})\t(?:-|%{BRO_DATA:file.name})\t(?:-|%{NUMBER:zeek.files.duration:float})\t(?:-|%{BRO_DATA:zeek.files.local_orig})\t(?:-|%{BRO_BOOL:zeek.files.is_orig})\t(?:-|%{INT:zeek.files.seen_bytes:long})\t(?:-|%{INT:file.size:long})\t(?:-|%{INT:zeek.files.missing_bytes:long})\t(?:-|%{INT:zeek.files.overflow_bytes:long})\t(?:-|%{BRO_BOOL:zeek.files.timedout})\t(?:-|%{BRO_DATA:zeek.files.parent_fuid})\t(?:-|%{BRO_DATA:file.hash.md5})\t(?:-|%{BRO_DATA:file.hash.sha1})\t(?:-|%{BRO_DATA:file.hash.sha256})\t(?:-|%{BRO_DATA:zeek.files.extracted})
+# :long - %{INT:zeek.files.seen_bytes:int}
+# :long - %{INT:file.size:int}
+# :long - %{INT:zeek.files.missing_bytes:int}
+# :long - %{INT:zeek.files.overflow_bytes:int}

@@ -28,7 +28,7 @@ GET /my-index-000001/_search
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<remote-clusters-privileges-ccs>>.
 +
 To search a <<point-in-time-api,point in time (PIT)>> for an alias, you
 must have the `read` index privilege for the alias's data streams or indices.
@@ -143,7 +143,7 @@ using the default method.
 
 `_only_nodes:<node-id>,<node-id>`::
 Run the search on only the specified nodes IDs. If suitable shards exist on more
-than one selected nodes, use shards on those nodes using the default method. If
+than one selected node, use shards on those nodes using the default method. If
 none of the specified nodes are available, select shards from any available node
 using the default method.
 

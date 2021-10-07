@@ -65,7 +65,6 @@ public class Page implements Releasable {
         private final Releasable closeable;
 
         private RefCountedCloseable(Releasable closeable) {
-            super("byte array page");
             this.closeable = closeable;
         }
 

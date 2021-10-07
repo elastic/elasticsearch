@@ -54,6 +54,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
@@ -642,7 +643,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (bestEffortConsistency) {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
+            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.forRepo(this.metadata.name()));
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
@@ -1402,7 +1403,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     finalizeSnapshotContext::updatedClusterState,
                     ActionListener.wrap(newRepoData -> {
                         if (writeShardGens) {
-                            cleanupOldShardGens(existingRepositoryData, newRepoData);
+                            cleanupOldShardGens(existingRepositoryData, newRepoData, finalizeSnapshotContext);
                         }
                         finalizeSnapshotContext.onResponse(Tuple.tuple(newRepoData, snapshotInfo));
                     }, onUpdateFailure)
@@ -1457,8 +1458,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
-    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
-        final List<String> toDelete = new ArrayList<>();
+    private void cleanupOldShardGens(
+        RepositoryData existingRepositoryData,
+        RepositoryData updatedRepositoryData,
+        FinalizeSnapshotContext finalizeSnapshotContext
+    ) {
+        final Set<String> toDelete = new HashSet<>();
         final int prefixPathLen = basePath().buildAsString().length();
         updatedRepositoryData.shardGenerations()
             .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
@@ -1469,6 +1474,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     )
                 )
             );
+        for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
+            .entrySet()) {
+            final String containerPath = shardContainer(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).path()
+                .buildAsString()
+                .substring(prefixPathLen) + INDEX_FILE_PREFIX;
+            for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
+                toDelete.add(containerPath + shardGeneration);
+            }
+        }
         try {
             deleteFromContainer(blobContainer(), toDelete.iterator());
         } catch (Exception e) {
@@ -2468,15 +2482,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotsInProgress updatedSnapshotsInProgress;
         boolean changedSnapshots = false;
         final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
-        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
-            if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
+            if (entry.repositoryStateId() == oldGen) {
                 snapshotEntries.add(entry.withRepoGen(newGen));
                 changedSnapshots = true;
             } else {
                 snapshotEntries.add(entry);
             }
         }
-        updatedSnapshotsInProgress = changedSnapshots ? SnapshotsInProgress.of(snapshotEntries) : null;
+        updatedSnapshotsInProgress = changedSnapshots ? snapshotsInProgress.withUpdatedEntriesForRepo(repoName, snapshotEntries) : null;
         final SnapshotDeletionsInProgress updatedDeletionsInProgress;
         boolean changedDeletions = false;
         final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();
@@ -2537,7 +2552,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private for testing
     long readSnapshotIndexLatestBlob() throws IOException {
-        return Numbers.bytesToLong(Streams.readFully(blobContainer().readBlob(INDEX_LATEST_BLOB)).toBytesRef());
+        final BytesReference content = Streams.readFully(Streams.limitStream(blobContainer().readBlob(INDEX_LATEST_BLOB), Long.BYTES + 1));
+        if (content.length() != Long.BYTES) {
+            throw new RepositoryException(
+                metadata.name(),
+                "exception reading blob ["
+                    + INDEX_LATEST_BLOB
+                    + "]: expected 8 bytes but blob was "
+                    + (content.length() < Long.BYTES ? content.length() + " bytes" : "longer")
+            );
+        }
+        return Numbers.bytesToLong(content.toBytesRef());
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {
@@ -2710,6 +2735,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final ShardGeneration indexGeneration;
             final boolean writeShardGens = SnapshotsService.useShardGenerations(context.getRepositoryMetaVersion());
+            final boolean writeFileInfoWriterUUID = SnapshotsService.includeFileInfoWriterUUID(context.getRepositoryMetaVersion());
             // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
             List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
             newSnapshotsList.add(new SnapshotFiles(snapshotId.getName(), indexCommitPointFiles, context.stateIdentifier()));
@@ -2724,11 +2750,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // reference a generation that has not had all its files fully upload.
                 indexGeneration = ShardGeneration.newGeneration();
                 try {
+                    final Map<String, String> serializationParams = Collections.singletonMap(
+                        BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                        Boolean.toString(writeFileInfoWriterUUID)
+                    );
                     INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                         updatedBlobStoreIndexShardSnapshots,
                         shardContainer,
                         indexGeneration.toBlobNamePart(),
-                        compress
+                        compress,
+                        serializationParams
                     );
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(
@@ -2762,7 +2793,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         + blobsToDelete;
                 afterWriteSnapBlob = () -> {
                     try {
-                        writeShardIndexBlobAtomic(shardContainer, newGen, updatedBlobStoreIndexShardSnapshots);
+                        final Map<String, String> serializationParams = Collections.singletonMap(
+                            BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                            Boolean.toString(writeFileInfoWriterUUID)
+                        );
+                        writeShardIndexBlobAtomic(shardContainer, newGen, updatedBlobStoreIndexShardSnapshots, serializationParams);
                     } catch (IOException e) {
                         throw new IndexShardSnapshotFailedException(
                             shardId,
@@ -2806,7 +2841,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
-                    INDEX_SHARD_SNAPSHOT_FORMAT.write(blobStoreIndexShardSnapshot, shardContainer, snapshotUUID, compress);
+                    final Map<String, String> serializationParams = Collections.singletonMap(
+                        BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                        Boolean.toString(writeFileInfoWriterUUID)
+                    );
+                    INDEX_SHARD_SNAPSHOT_FORMAT.write(
+                        blobStoreIndexShardSnapshot,
+                        shardContainer,
+                        snapshotUUID,
+                        compress,
+                        serializationParams
+                    );
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -3208,7 +3253,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration.toBlobNamePart(), compress);
                 } else {
                     writtenGeneration = new ShardGeneration(indexGeneration);
-                    writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
+                    writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots, Collections.emptyMap());
                 }
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
                 return new ShardSnapshotMetaDeleteResult(
@@ -3238,7 +3283,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void writeShardIndexBlobAtomic(
         BlobContainer shardContainer,
         long indexGeneration,
-        BlobStoreIndexShardSnapshots updatedSnapshots
+        BlobStoreIndexShardSnapshots updatedSnapshots,
+        Map<String, String> serializationParams
     ) throws IOException {
         assert indexGeneration >= 0 : "Shard generation must not be negative but saw [" + indexGeneration + "]";
         logger.trace(
@@ -3248,7 +3294,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         writeAtomic(
             shardContainer,
             blobName,
-            out -> INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compress, out),
+            out -> INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compress, serializationParams, out),
             true
         );
     }

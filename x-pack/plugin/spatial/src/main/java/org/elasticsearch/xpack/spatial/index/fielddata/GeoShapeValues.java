@@ -98,7 +98,7 @@ public abstract class GeoShapeValues {
         /**
          * reset the geometry.
          */
-        public void reset(BytesRef bytesRef) {
+        public void reset(BytesRef bytesRef) throws IOException {
             this.reader.reset(bytesRef);
             this.boundingBox.reset(reader.getExtent(), CoordinateEncoder.GEO);
         }
@@ -107,7 +107,7 @@ public abstract class GeoShapeValues {
             return boundingBox;
         }
 
-        public GeoRelation relate(Rectangle rectangle) {
+        public GeoRelation relate(Rectangle rectangle) throws IOException {
             int minX = CoordinateEncoder.GEO.encodeX(rectangle.getMinX());
             int maxX = CoordinateEncoder.GEO.encodeX(rectangle.getMaxX());
             int minY = CoordinateEncoder.GEO.encodeY(rectangle.getMinY());
@@ -121,21 +121,21 @@ public abstract class GeoShapeValues {
             return reader.getDimensionalShapeType();
         }
 
-        public double weight() {
+        public double weight() throws IOException {
             return reader.getSumCentroidWeight();
         }
 
         /**
          * @return the latitude of the centroid of the shape
          */
-        public double lat() {
+        public double lat() throws IOException {
             return CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         }
 
         /**
          * @return the longitude of the centroid of the shape
          */
-        public double lon() {
+        public double lon() throws IOException {
             return CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
         }
 

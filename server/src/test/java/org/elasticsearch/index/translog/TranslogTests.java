@@ -11,6 +11,7 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -21,6 +22,7 @@ import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
@@ -1259,7 +1261,7 @@ public class TranslogTests extends ESTestCase {
         boolean opsHaveValidSequenceNumbers = randomBoolean();
         for (int i = 0; i < numOps; i++) {
             byte[] bytes = new byte[4];
-            ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+            DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));
             out.writeInt(i);
             long seqNo;
             do {
@@ -1291,7 +1293,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(reader.getCheckpoint().maxSeqNo, equalTo(maxSeqNo));
 
         byte[] bytes = new byte[4];
-        ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+        DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));
         out.writeInt(2048);
         writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
 
@@ -1469,7 +1471,7 @@ public class TranslogTests extends ESTestCase {
             TranslogWriter writer = translog.getCurrent();
 
             byte[] bytes = new byte[4];
-            ByteArrayDataOutput out = new ByteArrayDataOutput(new byte[4]);
+            DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(new byte[4]));
             out.writeInt(1);
             writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
             assertThat(persistedSeqNos, empty());
@@ -1501,8 +1503,7 @@ public class TranslogTests extends ESTestCase {
             final int numOps = randomIntBetween(8, 128);
             for (int i = 0; i < numOps; i++) {
                 final byte[] bytes = new byte[4];
-                final ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
-                out.reset(bytes);
+                final DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(bytes));
                 out.writeInt(i);
                 writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), randomNonNegativeLong());
             }

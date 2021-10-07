@@ -11,6 +11,8 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
+import java.io.IOException;
+
 /**
  * Implements most of the logic for the GeoHash aggregation.
  */
@@ -29,7 +31,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     @Override
-    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) {
+    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
 
         if (precision == 0) {
           return 1;
@@ -48,7 +50,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     protected int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue,
-                                            GeoShapeValues.BoundingBox bounds) {
+                                            GeoShapeValues.BoundingBox bounds) throws IOException {
         // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I  can
         // see that eventually we will be visiting twice the same cell which should not happen.
         int idx = 0;
@@ -75,7 +77,8 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     /**
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds) {
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
+        throws IOException {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         if (relateTile(geoValue, hash) != GeoRelation.QUERY_DISJOINT) {
             docValues.resizeCell(1);
@@ -85,12 +88,12 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return 0;
     }
 
-    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) {
+    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
         return validHash(hash) ? geoValue.relate(Geohash.toBoundingBox(hash)) : GeoRelation.QUERY_DISJOINT;
     }
 
     protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex,
-                                           GeoShapeValues.GeoShapeValue geoValue) {
+                                           GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {
             GeoRelation relation = relateTile(geoValue, hashes[i]);

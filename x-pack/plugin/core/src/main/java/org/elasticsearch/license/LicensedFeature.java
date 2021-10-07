@@ -76,16 +76,32 @@ public abstract class LicensedFeature {
         }
     }
 
-    final String family;
-    final String name;
-    final License.OperationMode minimumOperationMode;
-    final boolean needsActive;
+    private final String family;
+    private final String name;
+    private final License.OperationMode minimumOperationMode;
+    private final boolean needsActive;
 
     protected LicensedFeature(String family, String name, License.OperationMode minimumOperationMode, boolean needsActive) {
         this.family = family;
         this.name = name;
         this.minimumOperationMode = minimumOperationMode;
         this.needsActive = needsActive;
+    }
+
+    public String getFamily() {
+        return family;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public License.OperationMode getMinimumOperationMode() {
+        return minimumOperationMode;
+    }
+
+    public boolean isNeedsActive() {
+        return needsActive;
     }
 
     /** Create a momentary feature for hte given license level */

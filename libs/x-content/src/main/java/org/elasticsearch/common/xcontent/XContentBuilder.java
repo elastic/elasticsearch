@@ -25,8 +25,10 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -80,7 +82,6 @@ public final class XContentBuilder implements Closeable, Flushable {
      * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
      * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
-     * <p>
      *
      * @param xContentType the {@link XContentType}
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
@@ -280,8 +281,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Set the "human readable" flag. Once set, some types of values are written in a
      * format easier to read for a human.
      */
-    public XContentBuilder humanReadable(boolean humanReadable) {
-        this.humanReadable = humanReadable;
+    public XContentBuilder humanReadable(boolean isHumanReadable) {
+        this.humanReadable = isHumanReadable;
         return this;
     }
 
@@ -922,12 +923,90 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Maps & Iterable
     //////////////////////////////////
 
+    public XContentBuilder stringListField(String name, Collection<String> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (String value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, Collection<? extends ToXContent> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder xContentList(String name, ToXContent... values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (ToXContent value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder enumSet(String name, EnumSet<?> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (Enum<?> value : values) {
+            value(value);
+        }
+        endArray();
+        return this;
+    }
+
     public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
         return field(name).map(values);
     }
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
         return map(values, true, true);
+    }
+
+    public XContentBuilder stringStringMap(String name, Map<String, String> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startObject();
+        for (Map.Entry<String, String> value : values.entrySet()) {
+            field(value.getKey());
+            value(value.getValue());
+        }
+        return endObject();
+    }
+
+    public XContentBuilder xContentValuesMap(String name, Map<String, ? extends ToXContent> values) throws IOException {
+        field(name);
+        if (values == null) {
+            return nullValue();
+        }
+        startObject();
+        for (Map.Entry<String, ? extends ToXContent> value : values.entrySet()) {
+            field(value.getKey());
+            value(value.getValue());
+        }
+        return endObject();
     }
 
     /** writes a map without the start object and end object headers */
@@ -1025,6 +1104,11 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         field(rawFieldName, percentage);
         return this;
+    }
+
+    public XContentBuilder field(String name, Enum<?> value) throws IOException {
+        field(name);
+        return value(value == null ? null : value.toString());
     }
 
     ////////////////////////////////////////////////////////////////////////////

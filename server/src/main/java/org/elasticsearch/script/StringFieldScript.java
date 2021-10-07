@@ -80,7 +80,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     /**
      * Execute the script for the provided {@code docId}.
-     * <p>
+     *
      * @return a mutable {@link List} that contains the results of the script
      * and will be modified the next time you call {@linkplain #resultsForDoc}.
      */

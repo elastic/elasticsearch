@@ -68,26 +68,32 @@ import static java.util.Collections.singletonList;
 public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugin, MapperPlugin {
     private final AnalyticsUsage usage = new AnalyticsUsage();
 
-    public AnalyticsPlugin() { }
+    public AnalyticsPlugin() {}
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         List<PipelineAggregationSpec> pipelineAggs = new ArrayList<>();
-        pipelineAggs.add(new PipelineAggregationSpec(
-            CumulativeCardinalityPipelineAggregationBuilder.NAME,
-            CumulativeCardinalityPipelineAggregationBuilder::new,
-            usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                CumulativeCardinalityPipelineAggregationBuilder.PARSER)));
-        pipelineAggs.add(new PipelineAggregationSpec(
-            MovingPercentilesPipelineAggregationBuilder.NAME,
-            MovingPercentilesPipelineAggregationBuilder::new,
-            usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
-                MovingPercentilesPipelineAggregationBuilder.PARSER)));
-        pipelineAggs.add(new PipelineAggregationSpec(
-            NormalizePipelineAggregationBuilder.NAME,
-            NormalizePipelineAggregationBuilder::new,
-            usage.track(AnalyticsStatsAction.Item.NORMALIZE,
-                NormalizePipelineAggregationBuilder.PARSER)));
+        pipelineAggs.add(
+            new PipelineAggregationSpec(
+                CumulativeCardinalityPipelineAggregationBuilder.NAME,
+                CumulativeCardinalityPipelineAggregationBuilder::new,
+                usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY, CumulativeCardinalityPipelineAggregationBuilder.PARSER)
+            )
+        );
+        pipelineAggs.add(
+            new PipelineAggregationSpec(
+                MovingPercentilesPipelineAggregationBuilder.NAME,
+                MovingPercentilesPipelineAggregationBuilder::new,
+                usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES, MovingPercentilesPipelineAggregationBuilder.PARSER)
+            )
+        );
+        pipelineAggs.add(
+            new PipelineAggregationSpec(
+                NormalizePipelineAggregationBuilder.NAME,
+                NormalizePipelineAggregationBuilder::new,
+                usage.track(AnalyticsStatsAction.Item.NORMALIZE, NormalizePipelineAggregationBuilder.PARSER)
+            )
+        );
         return pipelineAggs;
     }
 
@@ -97,39 +103,33 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.STRING_STATS, StringStatsAggregationBuilder.PARSER))
-                .addResultReader(InternalStringStats::new)
-                .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
+                usage.track(AnalyticsStatsAction.Item.STRING_STATS, StringStatsAggregationBuilder.PARSER)
+            ).addResultReader(InternalStringStats::new).setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.BOXPLOT, BoxplotAggregationBuilder.PARSER))
-                .addResultReader(InternalBoxplot::new)
-                .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
+                usage.track(AnalyticsStatsAction.Item.BOXPLOT, BoxplotAggregationBuilder.PARSER)
+            ).addResultReader(InternalBoxplot::new).setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, TopMetricsAggregationBuilder.PARSER))
-                .addResultReader(InternalTopMetrics::new)
-                .setAggregatorRegistrar(TopMetricsAggregationBuilder::registerAggregators),
+                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, TopMetricsAggregationBuilder.PARSER)
+            ).addResultReader(InternalTopMetrics::new).setAggregatorRegistrar(TopMetricsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TTestAggregationBuilder.NAME,
                 TTestAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.T_TEST, TTestAggregationBuilder.PARSER))
-                .addResultReader(InternalTTest::new)
-                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage),
+                usage.track(AnalyticsStatsAction.Item.T_TEST, TTestAggregationBuilder.PARSER)
+            ).addResultReader(InternalTTest::new).setAggregatorRegistrar(TTestAggregationBuilder::registerUsage),
             new AggregationSpec(
                 RateAggregationBuilder.NAME,
                 RateAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER))
-                .addResultReader(InternalRate::new)
-                .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
+                usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
+            ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 MultiTermsAggregationBuilder.NAME,
                 MultiTermsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.MULTI_TERMS, MultiTermsAggregationBuilder.PARSER))
-                .addResultReader(InternalMultiTerms::new)
-                .setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators)
+                usage.track(AnalyticsStatsAction.Item.MULTI_TERMS, MultiTermsAggregationBuilder.PARSER)
+            ).addResultReader(InternalMultiTerms::new).setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators)
         );
     }
 
@@ -138,7 +138,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
         return Arrays.asList(
             new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
-            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class));
+            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+        );
     }
 
     @Override
@@ -167,10 +168,19 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         return singletonList(usage);
     }
 

@@ -189,13 +189,13 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class IndexShardTests extends IndexShardTestCase {
 
-    public static ShardStateMetadata load(Logger logger, Path shardPath) throws IOException {
-        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath);
+    public static ShardStateMetadata load(Logger logger, Path... shardPaths) throws IOException {
+        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
     }
 
     public static void write(ShardStateMetadata shardStateMetadata,
-                             Path shardPath) throws IOException {
-        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPath);
+                             Path... shardPaths) throws IOException {
+        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPaths);
     }
 
     public static Engine getEngineFromShard(IndexShard shard) {
@@ -2413,7 +2413,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(shard.indexSettings.getNodeSettings(),
             new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(shard.indexSettings, indicesFieldDataCache,
-            new NoneCircuitBreakerService(), shard.mapperService());
+            new NoneCircuitBreakerService());
         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });
@@ -3469,7 +3469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "_doc", Integer.toString(i));
             shard.refresh("test"); // produce segments
         }
-        List<Segment> segments = shard.segments(false);
+        List<Segment> segments = shard.segments();
         Set<String> names = new HashSet<>();
         for (Segment segment : segments) {
             assertFalse(segment.committed);
@@ -3480,7 +3480,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.flush(new FlushRequest());
         shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
         shard.refresh("test");
-        segments = shard.segments(false);
+        segments = shard.segments();
         for (Segment segment : segments) {
             if (names.contains(segment.getName())) {
                 assertTrue(segment.committed);
@@ -3496,7 +3496,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(shard.isActive());
 
         assertBusy(() -> { // flush happens in the background using the flush threadpool
-            List<Segment> segmentsAfterFlush = shard.segments(false);
+            List<Segment> segmentsAfterFlush = shard.segments();
             assertEquals(1, segmentsAfterFlush.size());
             for (Segment segment : segmentsAfterFlush) {
                 assertTrue(segment.committed);
@@ -3924,11 +3924,11 @@ public class IndexShardTests extends IndexShardTestCase {
             };
             EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getThreadPool(),
                 config.getIndexSettings(), warmer, config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
-                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getSimilarity(), new CodecService(null), config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                config.getPrimaryTermSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER, config.getLeafSorter());
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));

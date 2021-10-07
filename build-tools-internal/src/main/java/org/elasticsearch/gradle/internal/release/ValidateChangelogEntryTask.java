@@ -17,10 +17,10 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
-import javax.inject.Inject;
 import java.net.URI;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
 
 /**
  * Performs additional checks on changelog files, beyond whether they conform to the schema.
@@ -49,13 +49,15 @@ public class ValidateChangelogEntryTask extends DefaultTask {
 
             if (type.equals("known-issue") == false && type.equals("security") == false) {
                 if (entry.getPr() == null) {
-                    throw new GradleException("[" + path + "] must provide a [pr] number (only 'known-issue' and " +
-                        "'security' entries can omit this");
+                    throw new GradleException(
+                        "[" + path + "] must provide a [pr] number (only 'known-issue' and " + "'security' entries can omit this"
+                    );
                 }
 
                 if (entry.getArea() == null) {
-                    throw new GradleException("[" + path + "] must provide an [area] (only 'known-issue' and " +
-                        "'security' entries can omit this");
+                    throw new GradleException(
+                        "[" + path + "] must provide an [area] (only 'known-issue' and " + "'security' entries can omit this"
+                    );
                 }
             }
 

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics.normalize;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -40,8 +40,10 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<NormalizePipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-        NAME, false, (args, name) -> new NormalizePipelineAggregationBuilder(name, (String) args[0],
-        (String) args[1], (List<String>) args[2]));
+        NAME,
+        false,
+        (args, name) -> new NormalizePipelineAggregationBuilder(name, (String) args[0], (String) args[1], (List<String>) args[2])
+    );
 
     static {
         PARSER.declareString(optionalConstructorArg(), FORMAT);
@@ -50,12 +52,18 @@ public class NormalizePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     static final Map<String, Function<double[], DoubleUnaryOperator>> NAME_MAP = Map.of(
-        RescaleZeroToOne.NAME, RescaleZeroToOne::new,
-        RescaleZeroToOneHundred.NAME, RescaleZeroToOneHundred::new,
-        Mean.NAME, Mean::new,
-        ZScore.NAME, ZScore::new,
-        Percent.NAME, Percent::new,
-        Softmax.NAME, Softmax::new
+        RescaleZeroToOne.NAME,
+        RescaleZeroToOne::new,
+        RescaleZeroToOneHundred.NAME,
+        RescaleZeroToOneHundred::new,
+        Mean.NAME,
+        Mean::new,
+        ZScore.NAME,
+        ZScore::new,
+        Percent.NAME,
+        Percent::new,
+        Softmax.NAME,
+        Softmax::new
     );
 
     static String validateMethodName(String name) {

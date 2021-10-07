@@ -29,8 +29,13 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
     public double percentile(double percent) throws IllegalArgumentException {
         Double value = percentiles.get(percent);
         if (value == null) {
-            throw new IllegalArgumentException("Percent requested [" + String.valueOf(percent) + "] was not" +
-                    " one of the computed percentiles. Available keys are: " + percentiles.keySet());
+            throw new IllegalArgumentException(
+                "Percent requested ["
+                    + String.valueOf(percent)
+                    + "] was not"
+                    + " one of the computed percentiles. Available keys are: "
+                    + percentiles.keySet()
+            );
         }
         return value;
     }
@@ -73,8 +78,11 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
         return builder;
     }
 
-    private static final ObjectParser<ParsedPercentilesBucket, Void> PARSER =
-            new ObjectParser<>(ParsedPercentilesBucket.class.getSimpleName(), true, ParsedPercentilesBucket::new);
+    private static final ObjectParser<ParsedPercentilesBucket, Void> PARSER = new ObjectParser<>(
+        ParsedPercentilesBucket.class.getSimpleName(),
+        true,
+        ParsedPercentilesBucket::new
+    );
 
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);

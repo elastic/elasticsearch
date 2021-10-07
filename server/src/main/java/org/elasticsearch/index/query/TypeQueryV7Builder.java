@@ -82,7 +82,7 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
     }
 
     public static TypeQueryV7Builder fromXContent(XContentParser parser) throws IOException {
-        deprecationLogger.compatibleApiWarning("type_query", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.compatibleCritical("type_query", TYPES_DEPRECATION_MESSAGE);
         throw new ParsingException(parser.getTokenLocation(), TYPES_DEPRECATION_MESSAGE);
     }
 

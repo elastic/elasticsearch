@@ -64,6 +64,40 @@ setup:
      - match: { hits.hits.2._id: d2 }
 
 ---
+"script fields api for dates":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 2
+            mappings:
+              properties:
+                dt:
+                  type: date_nanos
+    - do:
+         index:
+           index: test
+           id: d1
+           body: {"dt": "2021-08-24T18:45:52.123456789Z" }
+    - do:
+         indices.refresh: {}
+    - do:
+         search:
+           rest_total_hits_as_int: true
+           index: test
+           body:
+             query: { "match_all": {} }
+             sort: [ { dt: asc } ]
+             script_fields:
+               date_field:
+                 script:
+                   source: "field('dt').getLong(100L)"
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._id: d1 }
+    - match: { hits.hits.0.fields.date_field.0: 1629830752123456789 }
+
+---
 "script score fields api":
     - do:
         indices.create:

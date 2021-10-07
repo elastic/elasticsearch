@@ -53,10 +53,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.joda.time.Instant;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -336,7 +336,6 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         assertThat(taskState, is(TransformStats.State.STOPPED));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPreview() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
@@ -345,12 +344,28 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         TransformConfig transform = validDataFrameTransformConfig("test-preview", sourceIndex, null);
 
         TransformClient client = highLevelClient().transform();
-        PreviewTransformResponse preview = execute(
-            new PreviewTransformRequest(transform),
-            client::previewTransform,
-            client::previewTransformAsync
-        );
+        PreviewTransformResponse preview =
+            execute(new PreviewTransformRequest(transform), client::previewTransform, client::previewTransformAsync);
+        assertExpectedPreview(preview);
+    }
 
+    public void testPreviewById() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+        indexData(sourceIndex);
+
+        String transformId = "test-preview-by-id";
+        TransformConfig transform = validDataFrameTransformConfig(transformId, sourceIndex, "pivot-dest");
+        putTransform(transform);
+
+        TransformClient client = highLevelClient().transform();
+        PreviewTransformResponse preview =
+            execute(new PreviewTransformRequest(transformId), client::previewTransform, client::previewTransformAsync);
+        assertExpectedPreview(preview);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertExpectedPreview(PreviewTransformResponse preview) {
         List<Map<String, Object>> docs = preview.getDocs();
         assertThat(docs, hasSize(2));
         Optional<Map<String, Object>> theresa = docs.stream().filter(doc -> "theresa".equals(doc.get("reviewer"))).findFirst();

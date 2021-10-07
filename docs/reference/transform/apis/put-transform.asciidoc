@@ -23,7 +23,7 @@ Requires the following privileges:
 * cluster: `manage_transform` (the `transform_admin` built-in role grants this 
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, index`.
+* destination index: `read`, `create_index`, `index`.
 
 [[put-transform-desc]]
 == {api-description-title}

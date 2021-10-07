@@ -39,7 +39,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     @Override
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("copy_settings")) {
-            deprecationLogger.compatibleApiWarning("copy_settings", "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
+            deprecationLogger.compatibleCritical("copy_settings", "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
 
             final String rawCopySettings = request.param("copy_settings");
             final boolean copySettings = Booleans.parseBoolean(rawCopySettings);

@@ -30,17 +30,19 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
 
-    public AbstractRangeAggregatorFactory(String name,
-                                          ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
-                                          ValuesSourceConfig config,
-                                          R[] ranges,
-                                          boolean keyed,
-                                          InternalRange.Factory<?, ?> rangeFactory,
-                                          AggregationContext context,
-                                          AggregatorFactory parent,
-                                          AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metadata,
-                                          RangeAggregatorSupplier aggregatorSupplier) throws IOException {
+    public AbstractRangeAggregatorFactory(
+        String name,
+        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
+        ValuesSourceConfig config,
+        R[] ranges,
+        boolean keyed,
+        InternalRange.Factory<?, ?> rangeFactory,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        RangeAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
@@ -55,23 +57,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(
-                name,
-                factories,
-                config,
-                rangeFactory,
-                ranges,
-                keyed,
-                context,
-                parent,
-                cardinality,
-                metadata
-            );
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, factories, config, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
     }
 }

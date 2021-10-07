@@ -54,7 +54,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+    public Client getRemoteClusterClient(String remoteClusterAlias) {
+        return remoteClusterService.getRemoteClusterClient(threadPool(), remoteClusterAlias);
     }
 }

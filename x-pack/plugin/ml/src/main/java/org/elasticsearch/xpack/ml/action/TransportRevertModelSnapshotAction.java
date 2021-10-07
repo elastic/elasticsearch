@@ -113,7 +113,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                             ));
                             return;
                         }
-                        isBlocked(job, ActionListener.wrap(
+                        isBlocked(job, request, ActionListener.wrap(
                             isBlocked -> {
                                 if (isBlocked) {
                                     listener.onFailure(ExceptionsHelper.conflictStatusException(
@@ -163,7 +163,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             createStateIndexListener);
     }
 
-    private void isBlocked(Job job, ActionListener<Boolean> listener) {
+    private void isBlocked(Job job, RevertModelSnapshotAction.Request request, ActionListener<Boolean> listener) {
         if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
             listener.onResponse(false);
             return;
@@ -176,6 +176,13 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             // in order to complete and eventually unblock the job.
             GetTaskRequest getTaskRequest = new GetTaskRequest();
             getTaskRequest.setTaskId(job.getBlocked().getTaskId());
+
+            // If the request is forced, we will also wait for the existing task to finish
+            // to give a chance to this request to be executed without returning an error.
+            // This is particularly useful when a relocating job is calling revert.
+            getTaskRequest.setWaitForCompletion(request.isForce());
+            getTaskRequest.setTimeout(request.timeout());
+
             executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(
                 r -> listener.onResponse(r.getTask().isCompleted() == false),
                 e -> {

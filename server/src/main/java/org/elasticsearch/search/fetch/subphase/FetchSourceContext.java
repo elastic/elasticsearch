@@ -8,17 +8,17 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -111,6 +111,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
@@ -121,7 +125,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             includes = new String[]{parser.text()};
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             includes = list.toArray(new String[list.size()]);
@@ -172,8 +176,21 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
             }
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
-                    + XContentParser.Token.START_OBJECT + "] but found [" + token + "]", parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected one of ["
+                    + XContentParser.Token.VALUE_BOOLEAN
+                    + ", "
+                    + XContentParser.Token.VALUE_STRING
+                    + ", "
+                    + XContentParser.Token.START_ARRAY
+                    + ", "
+                    + XContentParser.Token.START_OBJECT
+                    + "] but found ["
+                    + token
+                    + "]",
+                parser.getTokenLocation()
+            );
         }
         return new FetchSourceContext(fetchSource, includes, excludes);
     }

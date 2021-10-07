@@ -97,7 +97,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         if (randomBoolean()) {
-            client().admin().indices().prepareClose("test").get();
+            client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE).get();
         }
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -232,7 +232,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         final boolean closed = randomBoolean();
         if (closed) {
-            client().admin().indices().prepareClose("test").get();
+            client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE).get();
         }
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();

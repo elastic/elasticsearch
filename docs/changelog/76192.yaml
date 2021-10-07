@@ -5,6 +5,3 @@ type: enhancement
 issues:
  - 76148
  - 74327
-versions:
- - v8.0.0
- - v7.15.0

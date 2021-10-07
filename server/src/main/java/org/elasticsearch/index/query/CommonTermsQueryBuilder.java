@@ -58,7 +58,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     public static CommonTermsQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        deprecationLogger.compatibleApiWarning("common_term_query", COMMON_TERMS_QUERY_DEPRECATION_MSG);
+        deprecationLogger.compatibleCritical("common_term_query", COMMON_TERMS_QUERY_DEPRECATION_MSG);
         throw new ParsingException(parser.getTokenLocation(), COMMON_TERMS_QUERY_DEPRECATION_MSG);
     }
 

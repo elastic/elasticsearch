@@ -6,23 +6,20 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
-
-
-import java.io.IOException;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
+
 public class JLHScore extends SignificanceHeuristic {
     public static final String NAME = "jlh";
     public static final ObjectParser<JLHScore, Void> PARSER = new ObjectParser<>(NAME, JLHScore::new);
 
-    public JLHScore() {
-    }
+    public JLHScore() {}
 
     /**
      * Read from a stream.
@@ -32,8 +29,7 @@ public class JLHScore extends SignificanceHeuristic {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -113,4 +109,3 @@ public class JLHScore extends SignificanceHeuristic {
         }
     }
 }
-

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -140,8 +140,11 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         return values.get(fieldName);
     }
 
-    private static final ObjectParser<ParsedMatrixStats, Void> PARSER =
-            new ObjectParser<>(ParsedMatrixStats.class.getSimpleName(), true, ParsedMatrixStats::new);
+    private static final ObjectParser<ParsedMatrixStats, Void> PARSER = new ObjectParser<>(
+        ParsedMatrixStats.class.getSimpleName(),
+        true,
+        ParsedMatrixStats::new
+    );
     static {
         declareAggregationFields(PARSER);
         PARSER.declareLong(ParsedMatrixStats::setDocCount, CommonFields.DOC_COUNT);
@@ -176,21 +179,27 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
         Map<String, Double> covariances;
         Map<String, Double> correlations;
 
-        private static final ObjectParser<ParsedMatrixStatsResult, Void> RESULT_PARSER =
-                new ObjectParser<>(ParsedMatrixStatsResult.class.getSimpleName(), true, ParsedMatrixStatsResult::new);
+        private static final ObjectParser<ParsedMatrixStatsResult, Void> RESULT_PARSER = new ObjectParser<>(
+            ParsedMatrixStatsResult.class.getSimpleName(),
+            true,
+            ParsedMatrixStatsResult::new
+        );
         static {
-            RESULT_PARSER.declareString((result, name) -> result.name = name,
-                    new ParseField(InternalMatrixStats.Fields.NAME));
-            RESULT_PARSER.declareLong((result, count) -> result.count = count,
-                    new ParseField(InternalMatrixStats.Fields.COUNT));
-            RESULT_PARSER.declareDouble((result, mean) -> result.mean = mean,
-                    new ParseField(InternalMatrixStats.Fields.MEAN));
-            RESULT_PARSER.declareDouble((result, variance) -> result.variance = variance,
-                    new ParseField(InternalMatrixStats.Fields.VARIANCE));
-            RESULT_PARSER.declareDouble((result, skewness) -> result.skewness = skewness,
-                    new ParseField(InternalMatrixStats.Fields.SKEWNESS));
-            RESULT_PARSER.declareDouble((result, kurtosis) -> result.kurtosis = kurtosis,
-                    new ParseField(InternalMatrixStats.Fields.KURTOSIS));
+            RESULT_PARSER.declareString((result, name) -> result.name = name, new ParseField(InternalMatrixStats.Fields.NAME));
+            RESULT_PARSER.declareLong((result, count) -> result.count = count, new ParseField(InternalMatrixStats.Fields.COUNT));
+            RESULT_PARSER.declareDouble((result, mean) -> result.mean = mean, new ParseField(InternalMatrixStats.Fields.MEAN));
+            RESULT_PARSER.declareDouble(
+                (result, variance) -> result.variance = variance,
+                new ParseField(InternalMatrixStats.Fields.VARIANCE)
+            );
+            RESULT_PARSER.declareDouble(
+                (result, skewness) -> result.skewness = skewness,
+                new ParseField(InternalMatrixStats.Fields.SKEWNESS)
+            );
+            RESULT_PARSER.declareDouble(
+                (result, kurtosis) -> result.kurtosis = kurtosis,
+                new ParseField(InternalMatrixStats.Fields.KURTOSIS)
+            );
 
             RESULT_PARSER.declareObject((ParsedMatrixStatsResult result, Map<String, Object> covars) -> {
                 result.covariances = new LinkedHashMap<>(covars.size());

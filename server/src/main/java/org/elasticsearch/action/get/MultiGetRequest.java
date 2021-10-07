@@ -192,7 +192,7 @@ public class MultiGetRequest extends ActionRequest
             builder.field(INDEX.getPreferredName(), index);
             builder.field(ID.getPreferredName(), id);
             builder.field(ROUTING.getPreferredName(), routing);
-            builder.field(STORED_FIELDS.getPreferredName(), storedFields);
+            builder.array(STORED_FIELDS.getPreferredName(), storedFields);
             builder.field(VERSION.getPreferredName(), version);
             builder.field(VERSION_TYPE.getPreferredName(), VersionType.toString(versionType));
             builder.field(SOURCE.getPreferredName(), fetchSourceContext);
@@ -392,7 +392,7 @@ public class MultiGetRequest extends ActionRequest
                         id = parser.text();
                     } else if(parser.getRestApiVersion() == RestApiVersion.V_7 &&
                         TYPE.match(currentFieldName,parser.getDeprecationHandler())) {
-                        deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                        deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                     } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         routing = parser.text();
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {

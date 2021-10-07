@@ -51,7 +51,7 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
     }
 
     protected static <T extends ParsedSingleBucketAggregation> T parseXContent(final XContentParser parser, T aggregation, String name)
-            throws IOException {
+        throws IOException {
         aggregation.setName(name);
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
@@ -72,8 +72,12 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
                 if (CommonFields.META.getPreferredName().equals(currentFieldName)) {
                     aggregation.metadata = parser.map();
                 } else {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
-                            aggregations::add);
+                    XContentParserUtils.parseTypedKeysObject(
+                        parser,
+                        Aggregation.TYPED_KEYS_DELIMITER,
+                        Aggregation.class,
+                        aggregations::add
+                    );
                 }
             }
         }

@@ -21,8 +21,11 @@ public class ParsedLongTerms extends ParsedTerms {
         return LongTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedLongTerms, Void> PARSER =
-            new ObjectParser<>(ParsedLongTerms.class.getSimpleName(), true, ParsedLongTerms::new);
+    private static final ObjectParser<ParsedLongTerms, Void> PARSER = new ObjectParser<>(
+        ParsedLongTerms.class.getSimpleName(),
+        true,
+        ParsedLongTerms::new
+    );
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);
     }

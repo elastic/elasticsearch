@@ -29,7 +29,10 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CumulativeSumPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-        NAME, false, (args, name) -> new CumulativeSumPipelineAggregationBuilder(name, (List<String>) args[0]));
+        NAME,
+        false,
+        (args, name) -> new CumulativeSumPipelineAggregationBuilder(name, (List<String>) args[0])
+    );
 
     static {
         PARSER.declareStringArray(constructorArg(), BUCKETS_PATH_FIELD);

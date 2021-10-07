@@ -158,12 +158,6 @@ public interface AuthorizationEngine {
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener);
 
-
-    default void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                       Metadata metadata, ActionListener<Set<String>> listener) {
-        loadAuthorizedIndices(requestInfo, authorizationInfo, metadata.getIndicesLookup(), listener);
-    }
-
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do
      * not exceed their permissions for a given name. This is used to ensure that a user cannot

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -102,6 +104,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+import static org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY;
 
 public class RBACEngine implements AuthorizationEngine {
 
@@ -116,6 +119,12 @@ public class RBACEngine implements AuthorizationEngine {
 
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
+
+    private final Map<IndexAuthorizationCacheKey, ListenableFuture<ResolvedIndices>> resolvedIndicesLookup =
+        new ConcurrentHashMap<>();
+    private final Map<IndexAuthorizationCacheKey, ListenableFuture<IndexAuthorizationResult>> indexAuthorizationResultLookup =
+        new ConcurrentHashMap<>();
+
 
     public RBACEngine(Settings settings, CompositeRolesStore rolesStore) {
         this.rolesStore = rolesStore;
@@ -332,7 +341,9 @@ public class RBACEngine implements AuthorizationEngine {
             );
         } else if (((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+            var cacheKey = getIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata);
+
+            final ActionListener<ResolvedIndices> resolvedIndicesListener = ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
@@ -341,25 +352,35 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
-                    buildIndicesAccessControlAsync(action, authorizationInfo, resolvedIndices, metadata, listener);
+                    buildIndicesAccessControlAsync(cacheKey, action, authorizationInfo,
+                        Set.copyOf(resolvedIndices.getLocal()), metadata.getIndicesLookup(), listener);
                 }
-            }, listener::onFailure));
+            }, listener::onFailure);
+
+            doAuthorizeIndexActionWithCaching(
+                requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, resolvedIndicesListener);
         } else {
             try {
                 final IndexAuthorizationResult indexAuthorizationResult =
                         authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES);
                 if (indexAuthorizationResult.isGranted()) {
-                    indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                    var cacheKey = getIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata);
+
+                    final ActionListener<ResolvedIndices> resolvedIndicesListener = ActionListener.wrap((resolvedIndices) -> {
                         assert resolvedIndices.isEmpty() == false
-                                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                            : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                         //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                         //'-*' matches no indices so we allow the request to go through, which will yield an empty response
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
-                            buildIndicesAccessControlAsync(action, authorizationInfo, resolvedIndices, metadata, listener);
+                            buildIndicesAccessControlAsync(cacheKey, action, authorizationInfo,
+                                Set.copyOf(resolvedIndices.getLocal()), metadata.getIndicesLookup(), listener);
                         }
-                    }, listener::onFailure));
+                    }, listener::onFailure);
+
+                    doAuthorizeIndexActionWithCaching(
+                        requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, resolvedIndicesListener);
                 } else {
                     listener.onResponse(indexAuthorizationResult);
                 }
@@ -369,45 +390,70 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private final Map<IndicesAccessControlCacheKey, ListenableFuture<IndicesAccessControl>> indicesAccessControlLookup =
-        new ConcurrentHashMap<>();
-
-    private void buildIndicesAccessControlAsync(
-        String action,
+    private void doAuthorizeIndexActionWithCaching(
+        RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
-        ResolvedIndices resolvedIndices,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
         Metadata metadata,
-        ActionListener<IndexAuthorizationResult> listener) {
-
-        final ActionListener<IndicesAccessControl> wrappingListener =
-            listener.map((IndicesAccessControl indicesAccessControl) -> new IndexAuthorizationResult(true, indicesAccessControl));
-
-        if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            final Tuple<IndicesPermission, IndicesPermission> indicesPermissionTuple = getRoleIndicesPermissions(role);
-            final Set<String> requestedIndices = Set.copyOf(resolvedIndices.getLocal());
-            final IndicesAccessControlCacheKey cacheKey = new IndicesAccessControlCacheKey(metadata.version(),
-                action, requestedIndices,
-                indicesPermissionTuple.v1(),
-                indicesPermissionTuple.v2());
+        ActionListener<ResolvedIndices> resolvedIndicesListener
+    ) {
+        final IndexAuthorizationCacheKey cacheKey = getIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata);
+        if (cacheKey != null) {
             final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
-            final ListenableFuture<IndicesAccessControl> listenableFuture = indicesAccessControlLookup.computeIfAbsent(cacheKey, k -> {
+            final ListenableFuture<ResolvedIndices> listenableFuture = resolvedIndicesLookup.computeIfAbsent(cacheKey, k -> {
                 valueAlreadyInCache.set(false);
                 return new ListenableFuture<>();
             });
-
             if (valueAlreadyInCache.get()) {
-                listenableFuture.addListener(wrappingListener);
+                listenableFuture.addListener(resolvedIndicesListener.map(resolvedIndices -> {
+                    ((IndicesRequest.Replaceable) requestInfo.getRequest()).indices(
+                        resolvedIndices.isNoIndicesPlaceholder() ? NO_INDICES_OR_ALIASES_ARRAY : resolvedIndices.toArray());
+                    return resolvedIndices;
+                }));
             } else {
-                final IndicesAccessControl indicesAccessControl =
-                    buildIndicesAccessControl(action, authorizationInfo, requestedIndices, metadata.getIndicesLookup());
-                indicesAccessControlLookup.remove(cacheKey, listenableFuture);
-                wrappingListener.onResponse(indicesAccessControl);
-                listenableFuture.onResponse(indicesAccessControl);
+                indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
+                        resolvedIndicesLookup.remove(cacheKey, listenableFuture);
+                        resolvedIndicesListener.onResponse(resolvedIndices);
+                        listenableFuture.onResponse(resolvedIndices);
+                    },
+                    e -> {
+                        resolvedIndicesLookup.remove(cacheKey, listenableFuture);
+                        resolvedIndicesListener.onFailure(e);
+                        listenableFuture.onFailure(e);
+                    }));
             }
         } else {
-            listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+            indicesAsyncSupplier.getAsync(resolvedIndicesListener);
+        }
+    }
+
+    private void buildIndicesAccessControlAsync(
+        IndexAuthorizationCacheKey cacheKey,
+        String action,
+        AuthorizationInfo authorizationInfo,
+        Set<String> indices,
+        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        ActionListener<IndexAuthorizationResult> listener) {
+
+        if (cacheKey != null) {
+            final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
+            var listenableFuture = indexAuthorizationResultLookup.computeIfAbsent(cacheKey, k -> {
+                valueAlreadyInCache.set(false);
+                return new ListenableFuture<>();
+            });
+            if (valueAlreadyInCache.get()) {
+                listenableFuture.addListener(listener);
+            } else {
+                try {
+                    var indexAuthorizationResult = buildIndicesAccessControl(action, authorizationInfo, indices, aliasAndIndexLookup);
+                    listener.onResponse(indexAuthorizationResult);
+                    listenableFuture.onResponse(indexAuthorizationResult);
+                } finally {
+                    indexAuthorizationResultLookup.remove(cacheKey, listenableFuture);
+                }
+            }
+        } else {
+            listener.onResponse(buildIndicesAccessControl(action, authorizationInfo, indices, aliasAndIndexLookup));
         }
     }
 
@@ -453,7 +499,7 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        if (Arrays.equals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+        if (Arrays.equals(NO_INDICES_OR_ALIASES_ARRAY, indices)) {
             // Special placeholder for no indices.
             // We probably can short circuit this, but it's safer not to and just fall through to the regular authorization
             return false;
@@ -485,40 +531,9 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
-        throw new UnsupportedOperationException("This method is not longer supported. " +
-            "Instead use loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Metadata, ActionListener)");
-    }
-
-    private final Map<AuthorizedIndicesCacheKey, ListenableFuture<Set<String>>> authorizedIndicesLookup = new ConcurrentHashMap<>();
-
-    @Override
-    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Metadata metadata, ActionListener<Set<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            final TransportRequest request = requestInfo.getRequest();
-            final Tuple<IndicesPermission, IndicesPermission> indicesPermissionTuple = getRoleIndicesPermissions(role);
-            final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
-            final AuthorizedIndicesCacheKey cacheKey = new AuthorizedIndicesCacheKey(metadata.version(),
-                requestInfo.getAction(),
-                includeDataStreams,
-                indicesPermissionTuple.v1(),
-                indicesPermissionTuple.v2());
-
-            final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
-            final ListenableFuture<Set<String>> listenableFuture = authorizedIndicesLookup.computeIfAbsent(cacheKey, k -> {
-                valueAlreadyInCache.set(false);
-                return new ListenableFuture<>();
-            });
-
-            if (valueAlreadyInCache.get()) {
-                listenableFuture.addListener(listener);
-            } else {
-                final Set<String> authorizedIndices = resolveAuthorizedIndicesFromRole(role, requestInfo, metadata.getIndicesLookup());
-                authorizedIndicesLookup.remove(cacheKey, listenableFuture);
-                listener.onResponse(authorizedIndices);
-                listenableFuture.onResponse(authorizedIndices);
-            }
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
@@ -727,13 +742,13 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableSet(indicesAndAliases);
     }
 
-    private IndicesAccessControl buildIndicesAccessControl(String action,
-                                                           AuthorizationInfo authorizationInfo,
-                                                           Set<String> indices,
-                                                           Map<String, IndexAbstraction> aliasAndIndexLookup) {
+    private IndexAuthorizationResult buildIndicesAccessControl(String action,
+                                                               AuthorizationInfo authorizationInfo,
+                                                               Set<String> indices,
+                                                               Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
-        return accessControl;
+        return new IndexAuthorizationResult(true, accessControl);
     }
 
     private static RBACAuthorizationInfo ensureRBAC(AuthorizationInfo authorizationInfo) {
@@ -837,69 +852,47 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 
-    private static class AuthorizedIndicesCacheKey {
-        private final long metadataVersion;
-        private final String action;
-        private final boolean includeDataStreams;
-        private final IndicesPermission indicesPermission;
-        private final IndicesPermission limitedByIndicesPermission;
-
-        AuthorizedIndicesCacheKey(
-            long metadataVersion, String action, boolean includeDataStreams,
-            IndicesPermission indicesPermission, IndicesPermission limitedByIndicesPermission) {
-            this.metadataVersion = metadataVersion;
-            this.action = action;
-            this.includeDataStreams = includeDataStreams;
-            this.indicesPermission = indicesPermission;
-            this.limitedByIndicesPermission = limitedByIndicesPermission;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
-            AuthorizedIndicesCacheKey that = (AuthorizedIndicesCacheKey) o;
-            return metadataVersion == that.metadataVersion
-                && includeDataStreams == that.includeDataStreams
-                && action.equals(that.action)
-                && Objects.equals(indicesPermission, that.indicesPermission)
-                && Objects.equals(limitedByIndicesPermission, that.limitedByIndicesPermission);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(metadataVersion, action, includeDataStreams, indicesPermission, limitedByIndicesPermission);
-        }
-
-        @Override
-        public String toString() {
-            return "AuthorizedIndicesCacheKey{" + "metadataVersion=" + metadataVersion
-                + ", action='" + action + '\'' + ", includeDataStreams=" + includeDataStreams
-                + ", indicesPermission=" + indicesPermission
-                + ", limitedByIndicesPermission=" + limitedByIndicesPermission + '}';
-        }
+    private boolean isRequestCacheableForIndexAuthorization(TransportRequest request) {
+        return request instanceof IndicesRequest.Replaceable
+            && (false == request instanceof PutMappingRequest || ((PutMappingRequest) request).getConcreteIndex() == null);
     }
 
-    private static class IndicesAccessControlCacheKey {
-        private final long metadataVersion;
-        private final String action;
-        private final Set<String> requestedIndices;
-        private final IndicesPermission indicesPermission;
-        private final IndicesPermission limitedByIndicesPermission;
+    private IndexAuthorizationCacheKey getIndexAuthorizationCacheKey(
+        RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata
+    ) {
+        if (false == isRequestCacheableForIndexAuthorization(requestInfo.getRequest())) {
+            return null;
+        }
+        final IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
+        return new IndexAuthorizationCacheKey(
+            requestInfo.getAction(),
+            indicesRequest.indices(),
+            indicesRequest.indicesOptions(),
+            metadata.version(),
+            getRoleIndicesPermissions(ensureRBAC(authorizationInfo).getRole())
+        );
+    }
 
-        private IndicesAccessControlCacheKey(
-            long metadataVersion,
+    private static class IndexAuthorizationCacheKey {
+        private final String action;
+        private final String[] requestedIndices;
+        private final IndicesOptions indicesOptions;
+        private final long metadataVersion;
+        // A pair of indicesPermission and limitedByIndicesPermission. The latter is nullable
+        private final Tuple<IndicesPermission, IndicesPermission> indicesPermissions;
+
+        private IndexAuthorizationCacheKey(
             String action,
-            Set<String> requestedIndices,
-            IndicesPermission indicesPermission,
-            IndicesPermission limitedByIndicesPermission) {
-            this.metadataVersion = metadataVersion;
+            String[] requestedIndices,
+            IndicesOptions indicesOptions,
+            long metadataVersion,
+            Tuple<IndicesPermission, IndicesPermission> indicesPermissions
+        ) {
             this.action = action;
             this.requestedIndices = requestedIndices;
-            this.indicesPermission = indicesPermission;
-            this.limitedByIndicesPermission = limitedByIndicesPermission;
+            this.indicesOptions = indicesOptions;
+            this.metadataVersion = metadataVersion;
+            this.indicesPermissions = indicesPermissions;
         }
 
         @Override
@@ -908,26 +901,25 @@ public class RBACEngine implements AuthorizationEngine {
                 return true;
             if (o == null || getClass() != o.getClass())
                 return false;
-            IndicesAccessControlCacheKey that = (IndicesAccessControlCacheKey) o;
-            return metadataVersion == that.metadataVersion
-                && action.equals(that.action)
-                && Objects.equals(requestedIndices, that.requestedIndices)
-                && Objects.equals(indicesPermission, that.indicesPermission)
-                && Objects.equals(limitedByIndicesPermission, that.limitedByIndicesPermission);
+            IndexAuthorizationCacheKey cacheKey = (IndexAuthorizationCacheKey) o;
+            return metadataVersion == cacheKey.metadataVersion && Objects.equals(action, cacheKey.action) && Arrays.equals(requestedIndices,
+                cacheKey.requestedIndices) && Objects.equals(indicesOptions, cacheKey.indicesOptions) && Objects.equals(indicesPermissions,
+                cacheKey.indicesPermissions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(metadataVersion, action, requestedIndices, indicesPermission, limitedByIndicesPermission);
+            int result = Objects.hash(action, indicesOptions, metadataVersion, indicesPermissions);
+            result = 31 * result + Arrays.hashCode(requestedIndices);
+            return result;
         }
 
         @Override
         public String toString() {
-            return "IndicesAccessControlCacheKey{" + "metadataVersion=" + metadataVersion
-                + ", action='" + action + '\''
-                + ", requestedIndices=" + requestedIndices
-                + ", indicesPermission=" + indicesPermission
-                + ", limitedByIndicesPermission=" + limitedByIndicesPermission + '}';
+            return "IndexAuthorizationCacheKey{" + "action='" + action + '\''
+                + ", requestedIndices=" + Arrays.toString(requestedIndices)
+                + ", indicesOptions=" + indicesOptions + ", metadataVersion=" + metadataVersion
+                + ", indicesPermissions=" + indicesPermissions + '}';
         }
     }
 }

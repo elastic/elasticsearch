@@ -794,8 +794,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return new DiscoveryStats(
             new PendingClusterStateStats(0, 0, 0),
             publicationHandler.stats(),
-            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
-        );
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null,
+            clusterApplier.getStats());
     }
 
     public void startInitialJoin() {

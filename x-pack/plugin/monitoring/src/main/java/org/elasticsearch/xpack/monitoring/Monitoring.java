@@ -168,6 +168,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
         settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
+        settings.addAll(MonitoringDeprecatedSettings.getSettings());
         return Collections.unmodifiableList(settings);
     }
 

@@ -119,6 +119,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78736")
     public void testTemplateCheckBlocksAfterSuccessfulVersion() {
         final Exception exception = failureGetException();
         final boolean firstSucceeds = randomBoolean();

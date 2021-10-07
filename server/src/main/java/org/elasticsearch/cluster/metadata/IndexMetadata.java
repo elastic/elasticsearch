@@ -1396,8 +1396,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetadata.customData) {
-                builder.field(cursor.key);
-                builder.map(cursor.value);
+                builder.stringStringMap(cursor.key, cursor.value);
             }
 
             if (context != Metadata.XContentContext.API) {

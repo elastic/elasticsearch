@@ -109,7 +109,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
-  - is_false:  nodes.$node_id.indices.shards
+  - is_false:  nodes.$node_id.indices.shard_stats
 
 ---
 "Metric - multi":
@@ -167,7 +167,7 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
-  - is_false:  nodes.$node_id.indices.shards
+  - is_false:  nodes.$node_id.indices.shard_stats
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -225,7 +225,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
-  - is_false:  nodes.$node_id.indices.shards
+  - is_false:  nodes.$node_id.indices.shard_stats
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -257,7 +257,7 @@
   - is_true:   nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
-  - is_false:  nodes.$node_id.indices.shards
+  - is_false:  nodes.$node_id.indices.shard_stats
 
 ---
 "Metric - _all include_unloaded_segments":
@@ -321,10 +321,10 @@
   # null and cannot be tested here
 
 ---
-"Metric - blank for indices shards":
+"Metric - blank for indices shard_stats":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.14.99"
+      version: " - 7.16.1"
       reason:  "total shard count added in version 7.15.0"
   - do:
       nodes.info: {}
@@ -334,14 +334,14 @@
   - do:
       nodes.stats: {}
 
-  - is_true:  nodes.$node_id.indices.shards
-  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+  - is_true:  nodes.$node_id.indices.shard_stats
+  - match: { nodes.$node_id.indices.shard_stats.total_count: 0 }
 
 ---
-"Metric - _all for indices shards":
+"Metric - _all for indices shard_stats":
   - skip:
       features: [arbitrary_key]
-      version: " - 7.14.99"
+      version: " - 7.16.1"
       reason:  "total shard count added in version 7.15.0"
   - do:
       nodes.info: {}
@@ -351,16 +351,16 @@
   - do:
       nodes.stats: { metric: _all }
 
-  - is_true:  nodes.$node_id.indices.shards
-  - match: { nodes.$node_id.indices.shards.total_count: 0 }
+  - is_true:  nodes.$node_id.indices.shard_stats
+  - match: { nodes.$node_id.indices.shard_stats.total_count: 0 }
 
 
 ---
-"indices shards total count test":
+"indices shard_stats total count test":
 
   - skip:
       features: ["allowed_warnings", arbitrary_key]
-      version: " - 7.14.99"
+      version: " - 7.16.1"
       reason:  "total shard count added in version 7.15.0"
 
   - do:
@@ -387,4 +387,4 @@
   - do:
       nodes.stats: { metric: _all }
 
-  - gte: { nodes.$node_id.indices.shards.total_count: 1 }
+  - gte: { nodes.$node_id.indices.shard_stats.total_count: 1 }

@@ -43,7 +43,6 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
@@ -58,10 +57,6 @@ dependencies {
   api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
-
-  // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
@@ -163,7 +158,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.BlockingWaitStrategy',
@@ -231,20 +225,6 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
-
-            // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-            'org.noggit.JSONParser',
-
-            // from lucene-spatial
-            'com.fasterxml.jackson.databind.JsonSerializer',
-            'com.fasterxml.jackson.databind.JsonDeserializer',
-            'com.fasterxml.jackson.databind.node.ArrayNode',
-            'com.google.common.geometry.S2Cell',
-            'com.google.common.geometry.S2CellId',
-            'com.google.common.geometry.S2Projections',
-            'com.google.common.geometry.S2Point',
-            'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }

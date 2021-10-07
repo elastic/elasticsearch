@@ -133,7 +133,7 @@ public class GetJobRequest implements Validatable, ToXContentObject {
         builder.startObject();
 
         if (jobIds.isEmpty() == false) {
-            builder.field(JOB_IDS.getPreferredName(), jobIds);
+            builder.stringListField(JOB_IDS.getPreferredName(), jobIds);
         }
 
         if (allowNoMatch != null) {

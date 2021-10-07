@@ -5,28 +5,49 @@ beta::[This functionality is in alpha and is subject to change. The design and c
 
 Before you start {es} for the first time, run the `elasticsearch-security-config`
 tool. This tool generates certificates and keys for the transport and HTTP
-layers of {es}, and writes the TLS configuration settings to `elasticsearch.yml`.
+layers of {es}, and writes the Transport Layer Security (TLS) configuration
+settings to `elasticsearch.yml`. These certificates allow you to connect a
+{kib} instance to your secured {es} cluster and encrypt internode communication.
+
+When you start {es} for the first time, passwords are automatically generated
+for the `elastic` and `kibana_system` users. Tools are available to reset these
+passwords if you misplace them or need to rotate passwords.
+
+You can then use the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool to
+generate separate enrollment tokens for connecting a {kib} instance to your
+secured {es} cluster and enrolling additional nodes. 
+
+When you complete the enrollment process for {kib}, it applies the security
+settings from your {es} cluster, authenticates to {es} with the `kibana_system`
+user, and writes the security configuration to `kibana.yml`. A security
+certificate is generated in the {kib} configuration directory. This
+file establishes trust between {kib} and the {es} Certificate Authority (CA) for
+the HTTP layer.
 
 [discrete]
 === Prerequisites
 
-https://www.elastic.co/downloads/elasticsearch#preview-release[Download] the `elasticsearch 8.0.0-alpha1` package distribution for your
+* https://www.elastic.co/downloads/elasticsearch#preview-release[Download] and
+unpack the `elasticsearch 8.0.0-alpha2` package distribution for your
 environment.
+* https://www.elastic.co/downloads/kibana#preview-release[Download] and unpack
+the `kibana 8.0.0-alpha2` package distribution for your environment.
 
 [discrete]
-=== Start {es} with security enabled
-
+[[stack-generate-certificates]]
+=== Generate security certificates
 . Before starting {es} for the first time, run the
 `elasticsearch-security-config` tool from the directory where you downloaded
 the {es} package distribution:
 +
 [source,shell]
 ----
-./bin/elasticsearch-security-config
+bin/elasticsearch-security-config
 ----
 +
 The `elasticsearch-security-config` tool generates the following security
-certificates and keys in `config/auto_config_on_<timestamp>`:
+certificates and keys in `config/tls_auto_config_initial_node_<timestamp>`:
 +
 --
 `http_ca.crt`::
@@ -40,152 +61,110 @@ Keystore that contains the key and certificate for the HTTP layer for this node.
 Keystore that contains the key and certificate for the transport layer for all the nodes in your cluster.
 --
 
-. Start {es}.
+[discrete]
+[[stack-start-with-security]]
+=== Start {es} and enroll {kib} with security enabled
+. From the installation directory, start {es}. Passwords for the `elastic` and 
+`kibana_system` users are generated and output to the terminal.
 +
 [source,shell]
 ----
-./bin/elasticsearch
+bin/elasticsearch
 ----
++
+TIP: You might need to scroll back a bit in the terminal to view the passwords.
 
-. In another terminal window, run the
-<<setup-passwords,`elasticsearch-setup-passwords`>> utility from the directory
-where you downloaded the {es} package distribution:
+. Copy the generated passwords and save them in a secure location. The passwords
+are shown only when you start {es} for the first time.
 +
-[source,shell]
-----
-./bin/elasticsearch-setup-passwords auto
-----
-+
-If you want to use your own passwords, run the command with the
-`interactive` parameter instead of the `auto` parameter. Using this mode
-steps you through password configuration for all of the built-in users.
-+
-[source,shell]
-----
-./bin/elasticsearch-setup-passwords interactive
-----
+NOTE: If you need to reset the password for the `elastic` user, run the
+<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool. To
+reset the password for the `kibana_system` user, run the 
+`elasticsearch-reset-kibana-system-password` tool. Both of these tools are
+available in the {es} `/bin` directory.
 
-. Save the generated passwords. You'll need them to add the built-in user to
-{kib}.
-+
-NOTE: After you set a password for the `elastic` user, you cannot run the
-`elasticsearch-setup-passwords` command a second time. If you forgot the
-password for the `elastic` user or want to change it, use the
-<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool.
-
-. Make an authenticated call to your {es} cluster and enter the password for
-the `elastic` user when prompted:
+. Open a new terminal and verify that you can connect to your {es} cluster by
+making an authenticated call. Enter the password for the `elastic` user when
+prompted:
 +
 [source,shell]
 ----
-curl --cacert config/auto_config_on_<timestamp>/http_ca.crt \
--u elastic https://localhost:9200
+curl --cacert config/tls_auto_config_initial_node_<timestamp>/http_ca.crt \
+-u elastic https://localhost:9200 <1>
 ----
 // NOTCONSOLE
+<1> Ensure that you use `https` in your call, or the request will fail.
 +
 `--cacert`::
 Path to the generated `http_ca.crt` certificate for the HTTP layer.
 
-*Next*: <<add-kib-user,Configure {kib} to connect to {es} with a password>>
+. In your new terminal, navigate to the directory where you installed {es}, and
+run the <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
+to generate an enrollment token for {kib}.
++
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token -s kibana
+----
++
+Copy the enrollment token, which you'll use to enroll {kib} with your {es}
+cluster.
+
+. From the directory where you installed {kib}, start {kib} in interactive mode.
++
+[source,shell]
+----
+bin/kibana --interactiveSetup.enabled=true
+----
++
+This command generates a unique link to enroll your {kib} instance with {es}.
+
+  .. In your terminal, click the generated link to open {kib} in your browser.
+
+  .. In your browser, paste the enrollment token that you copied and click the
+button to connect your {kib} instance with {es}.
+
+  .. Log in to {kib} as the `elastic` user with the password that was generated
+when you started {es}.
 
 [discrete]
-[[add-kib-user]]
-=== Configure {kib} to connect to {es} with a password
-
-With security enabled, users must log in to {kib} with a valid username and
-password.
-
-You'll configure {kib} to use the built-in `kibana_system` user and the password
-that you created earlier. {kib} performs some background tasks that require use
-of the `kibana_system` user.
-
-This account is not meant for individual users and does not have permission to
-log in to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic`
-superuser. 
-
-. Add the `elasticsearch.username` setting to the `$KBN_PATH_CONF/kibana.yml`
-file and set the value to the `kibana_system` user:
-+
-[source,yaml]
-----
-elasticsearch.username: "kibana_system"
-----
-+
-NOTE: The `$KBN_PATH_CONF` variable is the path for the {kib}
-configuration files. If you installed {kib} using archive distributions
-(`zip` or `tar.gz`), the variable defaults to `$KBN_HOME/config`. If you used
-package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.
-
-. From the directory where you installed {kib}, run the following commands
-to create the {kib} keystore and add the secure settings:
-
-   a. Create the {kib} keystore:
+[[stack-enroll-nodes]]
+=== Enroll additional nodes in your cluster
+. In a separate terminal from where {es} is running, navigate to the directory
+where you installed {es} and run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
+to generate an enrollment token for your additional nodes.
 +
 [source,shell]
 ----
-./bin/kibana-keystore create
+bin/elasticsearch-create-enrollment-token -s node
 ----
++
+Copy the enrollment token, which you'll use to enroll additional nodes with
+your {es} cluster.
 
-   b. Add the password for the `kibana_system` user to the {kib} keystore:
+. From the installation directory of your other node, run the
+`elasticsearch-enroll-node` tool and pass your enrollment token with the
+`--enrollment token` parameter.
 +
 [source,shell]
 ----
-./bin/kibana-keystore add elasticsearch.password
-----
-+
-When prompted, enter the password for the `kibana_system` user.
-
-. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
-+
-[source,shell]
-----
-./bin/kibana
+bin/elasticsearch-enroll-node --enrollment token <enrollment-token>
 ----
 
-. Log in to {kib} as the `elastic` user. Use this superuser account to 
-{kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users, and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.
+. Repeat the previous step for any additional nodes that you want to enroll.
 
-*Next*: <<encrypt-kibana-with-elasticsearch,Encrypt traffic between {kib} and {es}>>
-
-[discrete]
-[[encrypt-kibana-with-elasticsearch]]
-=== Encrypt traffic between {kib} and {es}
-
-When you ran the `elasticsearch-security-config` tool, it
-created an `http_ca.crt` file in `config/auto_config_on_<timestamp>`.
-Use this file to configure {kib} to trust the {es} CA for the HTTP layer.
-
-1. Copy the `http_ca.crt` file to the {kib} configuration directory, as defined
-by the `$KBN_PATH_CONF` path.
-
-2. Open `kibana.yml` and add the following line to specify the location of the
-security certificate for the HTTP layer.
-+
-[source,yaml]
-----
-elasticsearch.ssl.certificateAuthorities: $KBN_PATH_CONF/http_ca.crt
-----
-
-3. Add the following line to specify the HTTPS URL for your {es}
+. Start your new nodes, which {es} automatically enrolls into the existing
 cluster.
 +
-[source,yaml]
+[source,shell]
 ----
-elasticsearch.hosts: https://<your_elasticsearch_host>.com:9200
+bin/elasticsearch
 ----
 
-4. Restart {kib}. You can now connect to {kib} securely over HTTPS, such as
-`https://localhost:5601`.
-
-.Connect to a secure monitoring cluster
-****
-If the Elastic monitoring features are enabled and you configured a separate
-{es} monitoring cluster, you can also configure {kib} to connect to
-the monitoring cluster via HTTPS. The steps are the same, but each setting is
-prefixed by `monitoring`. For example, `monitoring.ui.elasticsearch.hosts` and
-`monitoring.ui.elasticsearch.ssl.truststore.path`.
-
-NOTE: You must create a separate `elasticsearch-ca.pem` security file for the
-monitoring cluster. Refer to
-<<encrypt-http-communication,Encrypt HTTP client communications for {es}>>.
-****
+[discrete]
+=== What's next?
+Congratulations! You've successfully started the {stack} with security enabled. {es}
+and {kib} are secured with TLS on the HTTP layer, and internode communication
+is encrypted. If you want to enable HTTPS for web traffic, you
+can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.

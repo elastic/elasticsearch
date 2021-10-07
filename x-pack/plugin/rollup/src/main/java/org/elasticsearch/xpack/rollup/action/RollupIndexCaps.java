@@ -184,7 +184,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(rollupIndexName);
-        builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        builder.xContentList(ROLLUP_JOBS.getPreferredName(), jobCaps);
         builder.endObject();
         return builder;
     }

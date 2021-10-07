@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -211,7 +212,7 @@ public class EmailActionTests extends ESTestCase {
                 .field("from", "from@domain")
                 .field("priority", priority.name());
         if (dataAttachment != null) {
-            builder.field("attach_data", dataAttachment);
+            builder.field("attach_data", (ToXContentObject) dataAttachment);
         } else if (randomBoolean()) {
             dataAttachment = org.elasticsearch.xpack.watcher.notification.email.DataAttachment.DEFAULT;
             builder.field("attach_data", true);

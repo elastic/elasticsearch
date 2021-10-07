@@ -371,11 +371,22 @@ public class MetadataStateFormatTests extends ESTestCase {
         format.failOnPaths(badPath.resolve(MetadataStateFormat.STATE_DIR_NAME));
         format.failOnMethods(Format.FAIL_RENAME_TMP_FILE);
 
-        expectThrows(WriteStateException.class, () -> format.write(state, paths));
+        DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+
+        expectThrows(WriteStateException.class, () -> format.write(newState, paths));
         long firstPathId = format.findMaxGenerationId("foo-", paths[0]);
         assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[1]));
         assertEquals(genId, format.findMaxGenerationId("foo-", badPath));
         assertEquals(genId, firstPathId-1);
+
+        // Since at least one path has the latest generation, we should find the latest
+        // generation when we supply all paths.
+        long allPathsId = format.findMaxGenerationId("foo-", paths);
+        assertEquals(firstPathId, allPathsId);
+
+        // Assert that we can find the new state since one path successfully wrote it.
+        assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
     }
 
     public void testDeleteMetaState() throws IOException {
@@ -404,6 +415,10 @@ public class MetadataStateFormatTests extends ESTestCase {
         for (Path path : paths) {
             assertEquals(false, Files.exists(path.resolve(MetadataStateFormat.STATE_DIR_NAME)));
         }
+
+        // We shouldn't find any state or state generations anymore
+        assertEquals(-1, format.findMaxGenerationId("foo-", paths));
+        assertNull(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
     }
 
     public void testDeleteMetaStateWithErrorPath() throws IOException {
@@ -498,7 +513,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
 
         private void throwDirectoryExceptionCheckPaths(Path dir) throws MockDirectoryWrapper.FakeIOException {
-            if (failurePaths != null && failurePaths.length > 0) {
+            if (failurePaths != null) {
                 for (Path p : failurePaths) {
                     if (p.equals(dir)) {
                         throw new MockDirectoryWrapper.FakeIOException();

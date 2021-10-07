@@ -343,7 +343,7 @@ public abstract class MetadataStateFormat<T> {
      * @return maximum id of state file or -1 if no such files are found
      * @throws IOException if IOException occurs
      */
-    protected long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
+     long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
@@ -362,7 +362,7 @@ public abstract class MetadataStateFormat<T> {
         return maxId;
     }
 
-    protected List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
+    List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
         List<Path> files = new ArrayList<>();
         if (generation == -1) {
             return files;

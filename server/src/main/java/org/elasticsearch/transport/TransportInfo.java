@@ -102,7 +102,7 @@ public class TransportInfo implements ReportingService.Info {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
-        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
+        builder.xContentList(Fields.BOUND_ADDRESS, address.boundAddresses());
         builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {

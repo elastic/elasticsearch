@@ -12,10 +12,11 @@ import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.NodesResponseHeaderTestUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -142,7 +143,8 @@ public class WatcherStatsResponseTests extends ESTestCase {
                         }
                     }
                     snapshots.add(new WatchExecutionSnapshot(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        new DateTime(randomInt(), DateTimeZone.UTC), new DateTime(randomInt(), DateTimeZone.UTC),
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
                         randomFrom(ExecutionPhase.values()), actions, stackTrace));
                 }
             }
@@ -153,7 +155,8 @@ public class WatcherStatsResponseTests extends ESTestCase {
                 queuedWatches = new ArrayList<>(queuedWatchCount);
                 for (int j=0; j<queuedWatchCount; j++) {
                     queuedWatches.add(new QueuedWatch(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        new DateTime(randomInt(), DateTimeZone.UTC), new DateTime(randomInt(), DateTimeZone.UTC)));
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
+                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC)));
                 }
             }
 

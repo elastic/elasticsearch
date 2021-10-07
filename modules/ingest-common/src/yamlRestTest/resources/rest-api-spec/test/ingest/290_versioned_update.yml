@@ -21,14 +21,33 @@
           }
   - match: { acknowledged: true }
 
-  # conditionally update based on missing version
+  # conditional update fails because of missing version
   - do:
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
-        if_version: "null"
+        if_version: 1
         body:  >
           {
             "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "version": 1,
             "processors": [
               {
                 "set" : {

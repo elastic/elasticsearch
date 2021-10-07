@@ -53,7 +53,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
 
         Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
         assertEquals(
-            "invalid value [" + invalidValue + "] specified for [if_version]. must be [null] or an integer value",
+            "invalid value [" + invalidValue + "] specified for [if_version]. must be an integer value",
             ex.getMessage()
         );
     }
@@ -78,7 +78,6 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
                 assertThat(actionRequest.getClass(), equalTo(PutPipelineRequest.class));
                 PutPipelineRequest req = (PutPipelineRequest) actionRequest;
                 assertThat(req.getId(), equalTo("my_pipeline"));
-                assertThat(req.isVersionedUpdate(), equalTo(false));
                 return null;
             }
 
@@ -114,44 +113,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
                 assertThat(actionRequest.getClass(), equalTo(PutPipelineRequest.class));
                 PutPipelineRequest req = (PutPipelineRequest) actionRequest;
                 assertThat(req.getId(), equalTo("my_pipeline"));
-                assertThat(req.isVersionedUpdate(), equalTo(true));
                 assertThat(req.getVersion(), equalTo(numericValue));
-                return null;
-            }
-
-            public boolean wasInvoked() {
-                return wasInvoked;
-            }
-        };
-        verifyingClient.setExecuteVerifier(verifier);
-
-        dispatchRequest(request);
-        assertThat(verifier.wasInvoked(), equalTo(true));
-    }
-
-    public void testNullIfVersionValue() {
-        Map<String, String> params = new HashMap<>();
-        params.put("id", "my_pipeline");
-        params.put("if_version", "null");
-
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
-            .withPath("/_ingest/pipeline/my_pipeline")
-            .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
-            .withParams(params)
-            .build();
-
-        var verifier = new BiFunction<ActionType<AcknowledgedResponse>, ActionRequest, AcknowledgedResponse>() {
-            boolean wasInvoked = false;
-
-            @Override
-            public AcknowledgedResponse apply(ActionType<AcknowledgedResponse> actionType, ActionRequest actionRequest) {
-                wasInvoked  = true;
-                assertThat(actionRequest.getClass(), equalTo(PutPipelineRequest.class));
-                PutPipelineRequest req = (PutPipelineRequest) actionRequest;
-                assertThat(req.getId(), equalTo("my_pipeline"));
-                assertThat(req.isVersionedUpdate(), equalTo(true));
-                assertThat(req.getVersion(), equalTo(null));
                 return null;
             }
 

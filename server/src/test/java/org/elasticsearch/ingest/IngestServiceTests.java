@@ -1552,10 +1552,9 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineId = randomAlphaOfLength(5);
         var clusterState = ClusterState.EMPTY_STATE;
 
-        final Integer version = randomBoolean() ? null : randomInt();
+        final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        request.setVersionedUpdate(true);
         request.setVersion(version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
@@ -1571,7 +1570,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testPutPipelineWithVersionedUpdateDoesNotMatchExistingPipeline() {
         var pipelineId = randomAlphaOfLength(5);
-        final Integer version = randomBoolean() ? null : randomInt();
+        final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         var clusterState = ClusterState.builder(new ClusterName("test"))
@@ -1583,7 +1582,6 @@ public class IngestServiceTests extends ESTestCase {
 
         final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        request.setVersionedUpdate(true);
         request.setVersion(requestedVersion);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
@@ -1600,7 +1598,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testPutPipelineWithVersionedUpdateSpecifiesSameVersion() throws Exception {
         var pipelineId = randomAlphaOfLength(5);
-        final Integer version = randomBoolean() ? null : randomInt();
+        final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         var clusterState = ClusterState.builder(new ClusterName("test"))
@@ -1611,7 +1609,6 @@ public class IngestServiceTests extends ESTestCase {
             ).build();
 
         var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        request.setVersionedUpdate(true);
         request.setVersion(version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
@@ -1627,10 +1624,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {
         var pipelineId = randomAlphaOfLength(5);
-        final Integer existingVersion = randomBoolean() ? randomInt() : null;
-        var pipelineString = existingVersion == null
-            ? randomBoolean() ? "{\"processors\": []}" : "{\"version\": " + existingVersion + ", \"processors\": []}"
-            : "{\"version\": " + existingVersion + ", \"processors\": []}";
+        final Integer existingVersion = randomInt();
+        var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(
@@ -1642,7 +1637,6 @@ public class IngestServiceTests extends ESTestCase {
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
         var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
         var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON);
-        request.setVersionedUpdate(true);
         request.setVersion(existingVersion);
         var updatedState = IngestService.innerPut(request, clusterState);
 
@@ -1653,10 +1647,8 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testPutPipelineWithVersionedUpdateIncrementsVersion() throws Exception {
         var pipelineId = randomAlphaOfLength(5);
-        final Integer existingVersion = randomBoolean() ? randomInt() : null;
-        var pipelineString = existingVersion == null
-            ? randomBoolean() ? "{\"processors\": []}" : "{\"version\": " + existingVersion + ", \"processors\": []}"
-            : "{\"version\": " + existingVersion + ", \"processors\": []}";
+        final Integer existingVersion = randomInt();
+        var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         var clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(
@@ -1667,13 +1659,12 @@ public class IngestServiceTests extends ESTestCase {
 
         var updatedPipelineString = "{\"processors\": []}";
         var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON);
-        request.setVersionedUpdate(true);
         request.setVersion(existingVersion);
         var updatedState = IngestService.innerPut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
         assertThat(updatedConfig, notNullValue());
-        assertThat(updatedConfig.getVersion(), equalTo(existingVersion == null ? 1 : existingVersion + 1));
+        assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
     }
 
     private static Tuple<String, Object> randomMapEntry() {

@@ -41,26 +41,20 @@ public class RestPutPipelineAction extends BaseRestHandler {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1());
         boolean hasIfVersion = restRequest.hasParam("if_version");
-        request.setVersionedUpdate(hasIfVersion);
         if (hasIfVersion) {
             String versionString = restRequest.param("if_version");
-            if (versionString.toLowerCase(Locale.ROOT).equals("null")) {
-                request.setVersion(null);
-            } else {
-                try {
-                    request.setVersion(Integer.parseInt(versionString));
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException(String.format(
-                        Locale.ROOT,
-                        "invalid value [%s] specified for [if_version]. must be [null] or an integer value",
-                        versionString
-                    ));
-                }
+            try {
+                request.setVersion(Integer.parseInt(versionString));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(String.format(
+                    Locale.ROOT,
+                    "invalid value [%s] specified for [if_version]. must be an integer value",
+                    versionString
+                ));
             }
         }
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));
     }
-
 }

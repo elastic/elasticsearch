@@ -27,22 +27,20 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     private final String id;
     private final BytesReference source;
     private final XContentType xContentType;
-    private boolean versionedUpdate;
     private Integer version;
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
      */
-    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType, boolean versionedUpdate, Integer version) {
+    public PutPipelineRequest(String id, BytesReference source, XContentType xContentType, Integer version) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
-        this.versionedUpdate = versionedUpdate;
         this.version = version;
     }
 
     public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, false, null);
+        this(id, source, xContentType, null);
     }
 
     public PutPipelineRequest(StreamInput in) throws IOException {
@@ -51,16 +49,14 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         source = in.readBytesReference();
         xContentType = in.readEnum(XContentType.class);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            versionedUpdate = in.readBoolean();
             version = in.readOptionalInt();
         } else {
-            versionedUpdate = false;
-            version = -1;
+            version = null;
         }
     }
 
     PutPipelineRequest() {
-        this(null, null, null, false, null);
+        this(null, null, null, null);
     }
 
     @Override
@@ -80,20 +76,12 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         return xContentType;
     }
 
-    public boolean isVersionedUpdate() {
-        return versionedUpdate;
-    }
-
     public Integer getVersion() {
         return version;
     }
 
     public void setVersion(Integer version) {
         this.version = version;
-    }
-
-    public void setVersionedUpdate(boolean versionedUpdate) {
-        this.versionedUpdate = versionedUpdate;
     }
 
     @Override
@@ -103,7 +91,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         out.writeBytesReference(source);
         XContentHelper.writeTo(out, xContentType);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(versionedUpdate);
             out.writeOptionalInt(version);
         }
     }

@@ -345,7 +345,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         Map<String, Object> pipelineConfig = null;
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        if (request.isVersionedUpdate() == false &&
+        if (request.getVersion() == null &&
             currentIngestMetadata != null &&
             currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
@@ -443,7 +443,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
 
         BytesReference pipelineSource = request.getSource();
-        if (request.isVersionedUpdate()) {
+        if (request.getVersion() != null) {
             var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
             if (currentPipeline == null) {
                 throw new IllegalArgumentException(String.format(

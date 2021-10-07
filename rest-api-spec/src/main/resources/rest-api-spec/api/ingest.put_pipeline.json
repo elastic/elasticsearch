@@ -28,7 +28,7 @@
     },
     "params":{
       "if_version":{
-        "type":"string",
+        "type":"int",
         "description":"Required version for optimistic concurrency control for pipeline updates"
       },
       "master_timeout":{

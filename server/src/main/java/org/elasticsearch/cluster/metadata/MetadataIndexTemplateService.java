@@ -92,6 +92,16 @@ public class MetadataIndexTemplateService {
         "        }\n" +
         "      }\n" +
         "    }";
+    public static final String DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING = "{\n" +
+        "\"_routing\" : {\n"
+        + "        \"required\" : true\n"
+        + "      },"+
+        "      \"properties\": {\n" +
+        "        \"@timestamp\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }";
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -1024,7 +1034,11 @@ public class MetadataIndexTemplateService {
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
-            mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+            if (template.getDataStreamTemplate().isAllowCustomRouting()) {
+                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING, xContentRegistry)));
+            } else {
+                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+            }
         }
 
         // Only include _timestamp mapping snippet if creating backing index.
@@ -1231,15 +1245,6 @@ public class MetadataIndexTemplateService {
                     MapperService mapperService = tempIndexService.mapperService();
                     for (CompressedXContent mapping : mappings) {
                         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-                    }
-                    if (mapperService.documentMapper() != null
-                        && mapperService.documentMapper().routingFieldMapper() != null
-                        && mapperService.documentMapper().routingFieldMapper().required()) {
-                        if (template.getDataStreamTemplate() != null && template.getDataStreamTemplate().isAllowCustomRouting() == false) {
-                            throw new IllegalArgumentException(
-                                "allow_custom_routing within data_stream field must be true when custom routing is enabled"
-                            );
-                        }
                     }
 
                     if (template.getDataStreamTemplate() != null) {

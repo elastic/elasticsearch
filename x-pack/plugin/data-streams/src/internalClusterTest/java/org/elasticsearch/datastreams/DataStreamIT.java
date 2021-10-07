@@ -1157,7 +1157,7 @@ public class DataStreamIT extends ESIntegTestCase {
         // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
         IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-            .opType(DocWriteRequest.OpType.CREATE);
+            .opType(DocWriteRequest.OpType.CREATE).routing("custom");
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStream, 1)));
         // Index doc with custom routing that targets the data stream
@@ -1633,15 +1633,10 @@ public class DataStreamIT extends ESIntegTestCase {
             new ComposableIndexTemplate.DataStreamTemplate(false, true)
         );
         ComposableIndexTemplate finalTemplate = template;
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate)
-            ).actionGet()
-        );
-        Exception actualException = (Exception) e.getCause();
-        assertTrue(Throwables.getRootCause(actualException).getMessage().contains("must have routing required for partitioned index"));
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate)
+        ).actionGet();
         /**
          * partition size with routing required
          */
@@ -1680,18 +1675,19 @@ public class DataStreamIT extends ESIntegTestCase {
             new ComposableIndexTemplate.DataStreamTemplate(false, false)
         );
         ComposableIndexTemplate finalTemplate1 = template;
-        e = expectThrows(
+        Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(finalTemplate1)
             ).actionGet()
         );
-        actualException = (Exception) e.getCause();
+        Exception actualException = (Exception) e.getCause();
+        System.out.println( Throwables.getRootCause(actualException).getMessage());
         assertTrue(
             Throwables.getRootCause(actualException)
                 .getMessage()
-                .contains("allow_custom_routing within data_stream field must be true when custom routing is enabled")
+                .contains("mapping type [_doc] must have routing required for partitioned index")
         );
     }
 

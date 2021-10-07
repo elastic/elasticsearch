@@ -263,7 +263,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         setupDatabasesInConfigDirectory();
-        Thread.sleep(1000);
         // setup:
         putPipeline();
 

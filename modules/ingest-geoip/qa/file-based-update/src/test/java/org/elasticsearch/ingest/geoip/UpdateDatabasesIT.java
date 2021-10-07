@@ -7,16 +7,12 @@
  */
 package org.elasticsearch.ingest.geoip;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -39,7 +35,7 @@ public class UpdateDatabasesIT extends ESRestTestCase {
         Request simulatePipelineRequest = new Request("POST", "/_ingest/pipeline/_simulate");
         simulatePipelineRequest.setJsonEntity(body);
         {
-            Map<String, Object> response = toMap(client().performRequest(simulatePipelineRequest));
+            Map<String, Object> response = entityAsMap(client().performRequest(simulatePipelineRequest));
             assertThat(ObjectPath.eval("docs.0.doc._source.tags.0", response), equalTo("_geoip_database_unavailable_GeoLite2-City.mmdb"));
         }
 
@@ -65,20 +61,16 @@ public class UpdateDatabasesIT extends ESRestTestCase {
             });
         }
 
-        Map<String, Object> response = toMap(client().performRequest(simulatePipelineRequest));
+        Map<String, Object> response = entityAsMap(client().performRequest(simulatePipelineRequest));
         assertThat(ObjectPath.eval("docs.0.doc._source.geoip.city_name", response), equalTo("Linköping"));
     }
 
     private static Map<?, ?> getGeoIpStatsForSingleNode() throws IOException {
         Request request = new Request("GET", "/_ingest/geoip/stats");
-        Map<String, Object> response = toMap(client().performRequest(request));
+        Map<String, Object> response = entityAsMap(client().performRequest(request));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
         assertThat(nodes.size(), either(equalTo(0)).or(equalTo(1)));
         return nodes.isEmpty() ? null : (Map<?, ?>) nodes.values().iterator().next();
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 
     @Override

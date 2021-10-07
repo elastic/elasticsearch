@@ -180,8 +180,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNumberOfSnapshotsInProgress(inProgressCount);
         awaitClusterState(
             state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .entries()
-                .stream()
+                .asStream()
                 .flatMap(s -> s.shards().stream())
                 .allMatch(
                     e -> e.getKey().getIndexName().equals("test-index-1") == false
@@ -192,6 +191,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repos, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
+
         assertThat(
             clusterAdmin().prepareGetSnapshots(matchAllPattern())
                 .setSnapshots(GetSnapshotsRequest.CURRENT_SNAPSHOT, "-snap*")

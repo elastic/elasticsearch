@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -92,31 +91,29 @@ public class PolicyStepsRegistry {
         return stepMap;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void update(ClusterState clusterState) {
         final IndexLifecycleMetadata meta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
-        Diff<Map<String, LifecyclePolicyMetadata>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(),
-            DiffableUtils.getStringKeySerializer(),
-            // Use a non-diffable value serializer. Otherwise actions in the same
-            // action and phase that are changed show up as diffs instead of upserts.
-            // We want to treat any change in the policy as an upsert so the map is
-            // correctly rebuilt
-            new DiffableUtils.NonDiffableValueSerializer<String, LifecyclePolicyMetadata>() {
-                @Override
-                public void write(LifecyclePolicyMetadata value, StreamOutput out) {
-                    // This is never called
-                    throw new UnsupportedOperationException("should never be called");
-                }
+        DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff =
+            DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(), DiffableUtils.getStringKeySerializer(),
+                // Use a non-diffable value serializer. Otherwise actions in the same
+                // action and phase that are changed show up as diffs instead of upserts.
+                // We want to treat any change in the policy as an upsert so the map is
+                // correctly rebuilt
+                new DiffableUtils.NonDiffableValueSerializer<String, LifecyclePolicyMetadata>() {
+                    @Override
+                    public void write(LifecyclePolicyMetadata value, StreamOutput out) {
+                        // This is never called
+                        throw new UnsupportedOperationException("should never be called");
+                    }
 
-                @Override
-                public LifecyclePolicyMetadata read(StreamInput in, String key) {
-                    // This is never called
-                    throw new UnsupportedOperationException("should never be called");
-                }
-            });
-        DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff = (DiffableUtils.MapDiff) diff;
+                    @Override
+                    public LifecyclePolicyMetadata read(StreamInput in, String key) {
+                        // This is never called
+                        throw new UnsupportedOperationException("should never be called");
+                    }
+                });
 
         for (String deletedPolicyName : mapDiff.getDeletes()) {
             lifecyclePolicyMap.remove(deletedPolicyName);

@@ -256,17 +256,17 @@ public class RefreshListenersTests extends ESTestCase {
         }
         assertEquals(maxListeners, listeners.pendingCount());
 
+        // Checkpoint version produces error if too many listeners registered
+        TestSeqNoListener rejectedListener = new TestSeqNoListener();
+        listeners.addOrNotify(index.getSeqNo(), rejectedListener);
+        Exception error = rejectedListener.error;
+        assertThat(error, instanceOf(IllegalStateException.class));
+
         // Add one more listener which should cause a refresh.
-        if (randomBoolean()) {
-            TestLocationListener forcingListener = new TestLocationListener();
-            listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
-            assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
-            forcingListener.assertNoError();
-        } else {
-            TestSeqNoListener forcingListener = new TestSeqNoListener();
-            listeners.addOrNotify(index.getSeqNo(), forcingListener);
-            assertTrue("Forced listener wasn't executed?", forcingListener.isDone.get());
-        }
+        TestLocationListener forcingListener = new TestLocationListener();
+        listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
+        assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
+        forcingListener.assertNoError();
 
         // That forces all the listeners through. It would be on the listener ThreadPool but we've made all of those execute immediately.
         for (TestLocationListener listener : nonForcedLocationListeners) {
@@ -407,8 +407,7 @@ public class RefreshListenersTests extends ESTestCase {
                         listeners.addOrNotify(processedLocalCheckpoint, seqNoListener);
                         assertBusy(() -> {
                             assertNotNull("location listener never called", listener.forcedRefresh.get());
-                            assertNull(seqNoListener.error);
-                            assertTrue("seqNo listener never called", seqNoListener.isDone.get());
+                            assertTrue("seqNo listener never called", seqNoListener.isDone.get() || seqNoListener.error != null);
                         }, 1, TimeUnit.MINUTES);
                         if ((threadCount * 2) < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
@@ -456,9 +455,10 @@ public class RefreshListenersTests extends ESTestCase {
             assertTrue(listener.forcedRefresh.get());
             listener.assertNoError();
             seqNoListener = new TestSeqNoListener();
-            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
-            assertTrue(seqNoListener.isDone.get());
-            assertEquals(0, listeners.pendingCount());
+            // SeqNo listeners are not forced
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+            assertFalse(seqNoListener.isDone.get());
+            assertEquals(1, listeners.pendingCount());
 
             try (Releasable releaseable2 = listeners.forceRefreshes()) {
                 listener = new TestLocationListener();
@@ -466,9 +466,10 @@ public class RefreshListenersTests extends ESTestCase {
                 assertTrue(listener.forcedRefresh.get());
                 listener.assertNoError();
                 seqNoListener = new TestSeqNoListener();
-                assertTrue(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
-                assertTrue(seqNoListener.isDone.get());
-                assertEquals(0, listeners.pendingCount());
+                // SeqNo listeners are not forced
+                assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+                assertFalse(seqNoListener.isDone.get());
+                assertEquals(1, listeners.pendingCount());
             }
 
             listener = new TestLocationListener();
@@ -476,14 +477,15 @@ public class RefreshListenersTests extends ESTestCase {
             assertTrue(listener.forcedRefresh.get());
             listener.assertNoError();
             seqNoListener = new TestSeqNoListener();
-            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
-            assertTrue(seqNoListener.isDone.get());
-            assertEquals(0, listeners.pendingCount());
+            // SeqNo listeners are not forced
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), seqNoListener));
+            assertFalse(seqNoListener.isDone.get());
+            assertEquals(1, listeners.pendingCount());
         }
 
         assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), new TestLocationListener()));
         assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new TestSeqNoListener()));
-        assertEquals(2, listeners.pendingCount());
+        assertEquals(3, listeners.pendingCount());
     }
 
     public void testSequenceNumberMustBeIssued() throws Exception {
@@ -495,24 +497,6 @@ public class RefreshListenersTests extends ESTestCase {
         String message = "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
             + (issued + 1) + ", max_issued_seqNo=" + issued + "]";
         assertThat(seqNoListener.error.getMessage(), equalTo(message));
-    }
-
-    public void testForcedRefreshDoesNotCompleteUnRefreshedCheckpoint() throws Exception {
-        assertEquals(0, listeners.pendingCount());
-
-        Engine.IndexResult index = index("1");
-        TestSeqNoListener seqNoListener = new TestSeqNoListener();
-        for (int i = 0; i < maxListeners; ++i) {
-            listeners.addOrNotify(index.getSeqNo(), seqNoListener);
-        }
-
-        long mockSeqNo = index.getSeqNo() + 1;
-        listeners.setMaxIssuedSeqNoSupplier(() -> mockSeqNo);
-        TestSeqNoListener forcingListener = new TestSeqNoListener();
-        listeners.addOrNotify(mockSeqNo, forcingListener);
-        assertFalse(forcingListener.isDone.get());
-        assertTrue(seqNoListener.isDone.get());
-        assertEquals(1, listeners.pendingCount());
     }
 
     private Engine.IndexResult index(String id) throws IOException {

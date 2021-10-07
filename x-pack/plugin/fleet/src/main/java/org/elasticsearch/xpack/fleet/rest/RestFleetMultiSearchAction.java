@@ -45,8 +45,12 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_fleet/_msearch"), new Route(POST, "/_fleet/_msearch"),
-            new Route(GET, "/{index}/_fleet/_msearch"), new Route(POST, "/{index}/_fleet/_msearch"));
+        return List.of(
+            new Route(GET, "/_fleet/_msearch"),
+            new Route(POST, "/_fleet/_msearch"),
+            new Route(GET, "/{index}/_fleet/_msearch"),
+            new Route(POST, "/{index}/_fleet/_msearch")
+        );
     }
 
     @Override
@@ -71,7 +75,7 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                     searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
                     return true;
                 } else if ("wait_for_checkpoints_timeout".equals(key)) {
-                    final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value,TimeValue.timeValueSeconds(30));
+                    final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value, TimeValue.timeValueSeconds(30));
                     searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
                     return true;
                 } else {

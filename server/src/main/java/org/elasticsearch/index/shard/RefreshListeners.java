@@ -169,6 +169,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     /**
      * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
      * forces a refresh and calls the listener immediately as well. The checkpoint cannot be greater than the processed local checkpoint.
+     * This method does not respect the forceRefreshes state. It will NEVER force a refresh on the calling thread. Instead, it will simply
+     * add listeners or rejected them if too many listeners are already waiting.
      *
      * @param checkpoint the seqNo checkpoint to listen for
      * @param listener for the refresh.
@@ -195,21 +197,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             }
             List<Tuple<Long, ActionListener<Void>>> listeners = checkpointRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
-            if (refreshForcers == 0 && roomForListener(maxRefreshes, locationRefreshListeners, listeners)) {
+            if (roomForListener(maxRefreshes, locationRefreshListeners, listeners)) {
                 addCheckpointListener(checkpoint, listener, listeners);
                 return false;
             }
         }
         // No free slot so force a refresh and call the listener in this thread
-        forceRefresh.run();
-        if (checkpoint <= lastRefreshedCheckpoint) {
-            listener.onResponse(null);
-            return true;
-        } else {
-            List<Tuple<Long, ActionListener<Void>>> listeners = checkpointRefreshListeners;
-            addCheckpointListener(checkpoint, listener, listeners);
-            return false;
-        }
+        listener.onFailure(new IllegalStateException("Too many listeners waiting on refresh, wait listener rejected."));
+        return true;
     }
 
     private void addCheckpointListener(long checkpoint, ActionListener<Void> listener, List<Tuple<Long, ActionListener<Void>>> listeners) {
@@ -307,14 +302,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         // Increment refresh metric before communicating to listeners.
         refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
 
-        /* We intentionally ignore didRefresh here because our timing is a little off. It'd be a useful flag if we knew everything that made
-         * it into the refresh, but the way we snapshot the translog position before the refresh, things can sneak into the refresh that we
-         * don't know about. */
-        if (null == currentRefreshLocation) {
-            /* The translog had an empty last write location at the start of the refresh so we can't alert anyone to anything. This
-             * usually happens during recovery. The next refresh cycle out to pick up this refresh. */
-            return;
-        }
         /* Set the lastRefreshedLocation so listeners that come in for locations before that will just execute inline without messing
          * around with refreshListeners or synchronizing at all. Note that it is not safe for us to abort early if we haven't advanced the
          * position here because we set and read lastRefreshedLocation outside of a synchronized block. We do that so that waiting for a

@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,6 +83,8 @@ public class PublicationTransportHandler {
     private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
             TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
+    private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
+
     public PublicationTransportHandler(
         BigArrays bigArrays,
         TransportService transportService,
@@ -109,7 +111,8 @@ public class PublicationTransportHandler {
         return new PublishClusterStateStats(
             fullClusterStateReceivedCount.get(),
             incompatibleClusterStateDiffReceivedCount.get(),
-            compatibleClusterStateDiffReceivedCount.get());
+            compatibleClusterStateDiffReceivedCount.get(),
+            serializationStatsTracker.getSerializationStats());
     }
 
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
@@ -207,16 +210,19 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(
+            final long uncompressedSize;
+            try (StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
                 CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
             ) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
+                uncompressedSize = stream.position();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
             }
             final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            serializationStatsTracker.serializedFullState(uncompressedSize, result.length());
             logger.trace(
                 "serialized full cluster state version [{}] for node version [{}] with size [{}]",
                 clusterState.version(),
@@ -236,16 +242,19 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(
+            final long uncompressedSize;
+            try (StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
                 CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
             ) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
+                uncompressedSize = stream.position();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
             }
             final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            serializationStatsTracker.serializedDiff(uncompressedSize, result.length());
             logger.trace(
                 "serialized cluster state diff for version [{}] for node version [{}] with size [{}]",
                 clusterStateVersion,
@@ -429,6 +438,39 @@ public class PublicationTransportHandler {
         protected void closeInternal() {
             serializedDiffs.values().forEach(Releasables::closeExpectNoException);
             serializedStates.values().forEach(Releasables::closeExpectNoException);
+        }
+    }
+
+    private static class SerializationStatsTracker {
+
+        private long fullStateCount;
+        private long totalUncompressedFullStateSize;
+        private long totalCompressedFullStateSize;
+
+        private long diffCount;
+        private long totalUncompressedDiffSize;
+        private long totalCompressedDiffSize;
+
+        public synchronized void serializedFullState(long uncompressedSize, int compressedSize) {
+            fullStateCount += 1;
+            totalUncompressedFullStateSize += uncompressedSize;
+            totalCompressedFullStateSize += compressedSize;
+        }
+
+        public synchronized void serializedDiff(long uncompressedSize, int compressedSize) {
+            diffCount += 1;
+            totalUncompressedDiffSize += uncompressedSize;
+            totalCompressedDiffSize += compressedSize;
+        }
+
+        public synchronized ClusterStateSerializationStats getSerializationStats() {
+            return new ClusterStateSerializationStats(
+                fullStateCount,
+                totalUncompressedFullStateSize,
+                totalCompressedFullStateSize,
+                diffCount,
+                totalUncompressedDiffSize,
+                totalCompressedDiffSize);
         }
     }
 

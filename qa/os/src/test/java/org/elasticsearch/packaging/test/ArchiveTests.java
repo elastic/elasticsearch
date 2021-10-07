@@ -176,18 +176,14 @@ public class ArchiveTests extends PackagingTestCase {
         Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
-        Platforms.onWindows(() -> {
-            sh.run("attrib +r " + tempConf + "/d");
-        });
+        Platforms.onWindows(() -> { sh.run("attrib +r " + tempConf + "/d"); });
         Platforms.onLinux(() -> { sh.run("chmod -w " + tempConf); });
         sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         sh.getEnv().remove("ES_PATH_CONF");
-        Platforms.onWindows(() -> {
-            sh.run("attrib -r " + tempConf + "/d");
-        });
+        Platforms.onWindows(() -> { sh.run("attrib -r " + tempConf + "/d"); });
         FileUtils.rm(tempDir);
         FileUtils.rm(installation.data);
     }

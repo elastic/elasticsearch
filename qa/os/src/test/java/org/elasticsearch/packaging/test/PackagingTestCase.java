@@ -673,9 +673,7 @@ public abstract class PackagingTestCase extends Assert {
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(
-            configLines,
-            not(contains(containsString("automatically generated in order to configure Security"))));
+        assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
     }
 
     public static Optional<String> getAutoConfigDirName(Installation es) {

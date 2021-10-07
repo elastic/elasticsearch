@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -229,12 +230,18 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
+    private Tuple<Compression.Scheme, ReleasableBytesReference> serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
         final Version nodeVersion = node.getVersion();
+        final Compression.Scheme scheme;
+        if (nodeVersion.onOrAfter(BytesTransportRequest.COMPRESSION_SCHEME_VERSION)) {
+            scheme = compressionScheme;
+        } else {
+            scheme = Compression.Scheme.DEFLATE;
+        }
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(nodeVersion, bytesStream))) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(scheme, bytesStream))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
@@ -248,7 +255,7 @@ public class PublicationTransportHandler {
                 nodeVersion,
                 result.length());
             success = true;
-            return result;
+            return new Tuple<>(scheme, result);
         } finally {
             if (success == false) {
                 bytesStream.close();
@@ -256,12 +263,19 @@ public class PublicationTransportHandler {
         }
     }
 
-    private ReleasableBytesReference serializeDiffClusterState(long clusterStateVersion, Diff<ClusterState> diff, DiscoveryNode node) {
+    private Tuple<Compression.Scheme, ReleasableBytesReference> serializeDiffClusterState(long clusterStateVersion, Diff<ClusterState> diff,
+                                                                                          DiscoveryNode node) {
         final Version nodeVersion = node.getVersion();
+        final Compression.Scheme scheme;
+        if (nodeVersion.onOrAfter(BytesTransportRequest.COMPRESSION_SCHEME_VERSION)) {
+            scheme = compressionScheme;
+        } else {
+            scheme = Compression.Scheme.DEFLATE;
+        }
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(nodeVersion, bytesStream))) {
+            try (StreamOutput stream = new OutputStreamStreamOutput(getCompressionOutputStream(scheme, bytesStream))) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
@@ -275,7 +289,7 @@ public class PublicationTransportHandler {
                 nodeVersion,
                 result.length());
             success = true;
-            return result;
+            return new Tuple<>(scheme, result);
         } finally {
             if (success == false) {
                 bytesStream.close();
@@ -283,10 +297,11 @@ public class PublicationTransportHandler {
         }
     }
 
-    private OutputStream getCompressionOutputStream(Version version, BytesStream stream) throws IOException {
-        if (version.onOrAfter(BytesTransportRequest.COMPRESSION_SCHEME_VERSION) && compressionScheme == Compression.Scheme.LZ4) {
+    private OutputStream getCompressionOutputStream(Compression.Scheme scheme, BytesStream stream) throws IOException {
+        if (scheme == Compression.Scheme.LZ4) {
             return LZ4Compressor.INSTANCE.threadLocalOutputStream(Streams.flushOnCloseStream(stream));
         } else {
+            assert scheme == Compression.Scheme.DEFLATE;
             return DeflateCompressor.INSTANCE.threadLocalOutputStream(Streams.flushOnCloseStream(stream));
         }
     }
@@ -306,8 +321,8 @@ public class PublicationTransportHandler {
         private final boolean sendFullVersion;
 
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
-        private final Map<Version, ReleasableBytesReference> serializedStates = new ConcurrentHashMap<>();
-        private final Map<Version, ReleasableBytesReference> serializedDiffs = new HashMap<>();
+        private final Map<Version, Tuple<Compression.Scheme, ReleasableBytesReference>> serializedStates = new ConcurrentHashMap<>();
+        private final Map<Version, Tuple<Compression.Scheme, ReleasableBytesReference>> serializedDiffs = new HashMap<>();
 
         PublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
             discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
@@ -383,10 +398,10 @@ public class PublicationTransportHandler {
 
         private void sendFullClusterState(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
             assert refCount() > 0;
-            ReleasableBytesReference bytes = serializedStates.get(destination.getVersion());
-            if (bytes == null) {
+            Tuple<Compression.Scheme, ReleasableBytesReference> state = serializedStates.get(destination.getVersion());
+            if (state == null) {
                 try {
-                    bytes = serializedStates.computeIfAbsent(
+                    state = serializedStates.computeIfAbsent(
                         destination.getVersion(),
                         v -> serializeFullClusterState(newState, destination));
                 } catch (Exception e) {
@@ -396,12 +411,12 @@ public class PublicationTransportHandler {
                     return;
                 }
             }
-            sendClusterState(destination, bytes, listener);
+            sendClusterState(destination, state, listener);
         }
 
         private void sendClusterStateDiff(DiscoveryNode destination, ActionListener<PublishWithJoinResponse> listener) {
-            final ReleasableBytesReference bytes = serializedDiffs.get(destination.getVersion());
-            assert bytes != null
+            final Tuple<Compression.Scheme, ReleasableBytesReference> diff = serializedDiffs.get(destination.getVersion());
+            assert diff != null
                 : "failed to find serialized diff for node " + destination + " of version [" + destination.getVersion() + "]";
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
@@ -410,7 +425,7 @@ public class PublicationTransportHandler {
                 listener.onFailure(new IllegalStateException("publication context released before transmission"));
                 return;
             }
-            sendClusterState(destination, bytes, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
+            sendClusterState(destination, diff, ActionListener.runAfter(listener.delegateResponse((delegate, e) -> {
                 if (e instanceof TransportException) {
                     final TransportException transportException = (TransportException) e;
                     if (transportException.unwrapCause() instanceof IncompatibleClusterStateVersionException) {
@@ -430,9 +445,10 @@ public class PublicationTransportHandler {
 
         private void sendClusterState(
             DiscoveryNode destination,
-            ReleasableBytesReference bytes,
+            Tuple<Compression.Scheme, ReleasableBytesReference> toSend,
             ActionListener<PublishWithJoinResponse> listener
         ) {
+            ReleasableBytesReference bytes = toSend.v2();
             assert refCount() > 0;
             if (bytes.tryIncRef() == false) {
                 assert false;
@@ -443,7 +459,7 @@ public class PublicationTransportHandler {
                 transportService.sendRequest(
                     destination,
                     PUBLISH_STATE_ACTION_NAME,
-                    new BytesTransportRequest(compressionScheme, bytes, destination.getVersion()),
+                    new BytesTransportRequest(toSend.v1(), bytes, destination.getVersion()),
                     STATE_REQUEST_OPTIONS,
                     new ActionListenerResponseHandler<PublishWithJoinResponse>(
                         ActionListener.runAfter(listener, bytes::decRef),
@@ -458,8 +474,8 @@ public class PublicationTransportHandler {
 
         @Override
         protected void closeInternal() {
-            serializedDiffs.values().forEach(Releasables::closeExpectNoException);
-            serializedStates.values().forEach(Releasables::closeExpectNoException);
+            serializedDiffs.values().stream().map(Tuple::v2).forEach(Releasables::closeExpectNoException);
+            serializedStates.values().stream().map(Tuple::v2).forEach(Releasables::closeExpectNoException);
         }
     }
 

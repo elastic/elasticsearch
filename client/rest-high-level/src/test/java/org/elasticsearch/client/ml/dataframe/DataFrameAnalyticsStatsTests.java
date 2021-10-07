@@ -16,8 +16,8 @@ import org.elasticsearch.client.ml.dataframe.stats.common.DataCountsTests;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.client.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.client.ml.dataframe.stats.regression.RegressionStatsTests;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

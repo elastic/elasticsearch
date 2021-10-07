@@ -40,7 +40,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -206,8 +205,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
-        if (StreamSupport.stream(clusterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().values().spliterator(), false)
-            .allMatch(cur -> cur.value.getFreeBytes() > WATERMARK_BYTES)) {
+        if (clusterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().values().stream()
+            .allMatch(e -> e.getFreeBytes() > WATERMARK_BYTES)) {
             assertAcked(client().admin().cluster().prepareReroute());
         }
 

@@ -139,7 +139,7 @@ public class GetDatafeedRequest extends ActionRequest implements ToXContentObjec
         builder.startObject();
 
         if (datafeedIds.isEmpty() == false) {
-            builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
+            builder.stringListField(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 
         if (allowNoMatch != null) {

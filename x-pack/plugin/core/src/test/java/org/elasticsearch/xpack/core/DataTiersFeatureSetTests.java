@@ -699,9 +699,9 @@ public class DataTiersFeatureSetTests extends ESTestCase {
             for (int idx = 1; idx < dataTierPrefs.length; idx++) {
                 tierBuilder.append(',').append(dataTierPrefs[idx]);
             }
-            settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tierBuilder.toString());
+            settingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, tierBuilder.toString());
         } else if (dataTierPrefs.length == 1) {
-            settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, dataTierPrefs[0]);
+            settingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, dataTierPrefs[0]);
         }
 
         return IndexMetadata.builder(indexName)

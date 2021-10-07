@@ -6,8 +6,6 @@
  * Side Public License, v 1.
  */
 
-includeBuild '../../'
-
 // Include all subdirectories as example projects
 rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
   include ":${subDir.name}"

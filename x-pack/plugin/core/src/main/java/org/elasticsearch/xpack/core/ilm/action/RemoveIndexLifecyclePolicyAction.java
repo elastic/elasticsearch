@@ -72,7 +72,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(HAS_FAILURES_FIELD.getPreferredName(), hasFailures());
-            builder.field(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
+            builder.stringListField(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
             builder.endObject();
             return builder;
         }

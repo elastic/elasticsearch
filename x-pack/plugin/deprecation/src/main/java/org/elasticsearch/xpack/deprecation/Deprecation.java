@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -29,27 +30,30 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.deprecation.logging.DeprecationCacheResetAction;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingTemplateRegistry;
+import org.elasticsearch.xpack.deprecation.logging.RestDeprecationCacheResetAction;
+import org.elasticsearch.xpack.deprecation.logging.TransportDeprecationCacheResetAction;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.SKIP_DEPRECATIONS_SETTING;
 import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.WRITE_DEPRECATION_LOGS_TO_INDEX;
 
 /**
  * The plugin class for the Deprecation API
  */
 public class Deprecation extends Plugin implements ActionPlugin {
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.unmodifiableList(Arrays.asList(
-            new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
-            new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class)
-        ));
+        return org.elasticsearch.core.List.of(
+                new ActionHandler<>(DeprecationInfoAction.INSTANCE, TransportDeprecationInfoAction.class),
+                new ActionHandler<>(NodesDeprecationCheckAction.INSTANCE, TransportNodeDeprecationCheckAction.class),
+                new ActionHandler<>(DeprecationCacheResetAction.INSTANCE, TransportDeprecationCacheResetAction.class));
     }
 
     @Override
@@ -59,7 +63,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
 
-        return Collections.singletonList(new RestDeprecationInfoAction());
+        return org.elasticsearch.core.List.of(new RestDeprecationInfoAction(), new RestDeprecationCacheResetAction());
     }
 
     @Override
@@ -80,14 +84,19 @@ public class Deprecation extends Plugin implements ActionPlugin {
             new DeprecationIndexingTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
         templateRegistry.initialize();
 
-        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings());
+        final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
+
+        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings(),
+            rateLimitingFilterForIndexing);
         clusterService.addListener(component);
 
-        return Collections.singletonList(component);
+        return org.elasticsearch.core.List.of(component, rateLimitingFilterForIndexing);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(WRITE_DEPRECATION_LOGS_TO_INDEX);
+        return org.elasticsearch.core.List.of(
+            WRITE_DEPRECATION_LOGS_TO_INDEX,
+            SKIP_DEPRECATIONS_SETTING);
     }
 }

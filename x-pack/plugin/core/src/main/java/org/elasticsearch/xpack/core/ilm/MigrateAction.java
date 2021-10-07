@@ -117,7 +117,7 @@ public class MigrateAction implements LifecycleAction {
                 });
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
                 Settings.builder()
-                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier))
+                    .put(DataTierAllocationDecider.TIER_PREFERENCE, getPreferredTiersConfiguration(targetTier))
                     .build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return org.elasticsearch.core.List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);

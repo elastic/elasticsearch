@@ -22,7 +22,7 @@ public class SearchableSnapshotsConstants {
     // to short-circuit if not allowed. We should consider making the coupling looser,
     // perhaps through SPI.
     public static final LicensedFeature.Momentary SEARCHABLE_SNAPSHOT_FEATURE =
-        LicensedFeature.momentary(null, "searchable-snapshots", License.OperationMode.PLATINUM);
+        LicensedFeature.momentary(null, "searchable-snapshots", License.OperationMode.ENTERPRISE);
 
     public static final Setting<Boolean> SNAPSHOT_PARTIAL_SETTING = Setting.boolSetting(
         SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY,

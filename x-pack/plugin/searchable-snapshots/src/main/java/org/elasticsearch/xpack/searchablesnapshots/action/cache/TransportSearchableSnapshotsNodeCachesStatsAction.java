@@ -103,7 +103,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
         final DiscoveryNode[] resolvedNodes;
         if (request.nodesIds() == null || request.nodesIds().length == 0) {
-            resolvedNodes = dataNodes.values().toArray(DiscoveryNode.class);
+            resolvedNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         } else {
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)

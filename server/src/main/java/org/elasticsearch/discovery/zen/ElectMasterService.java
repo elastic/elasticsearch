@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.hppc.ObjectContainer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -172,8 +170,8 @@ public class ElectMasterService {
     /**
      * Returns a list of the next possible masters.
      */
-    public DiscoveryNode[] nextPossibleMasters(ObjectContainer<DiscoveryNode> nodes, int numberOfPossibleMasters) {
-        List<DiscoveryNode> sortedNodes = sortedMasterNodes(Arrays.asList(nodes.toArray(DiscoveryNode.class)));
+    public DiscoveryNode[] nextPossibleMasters(Collection<DiscoveryNode> nodes, int numberOfPossibleMasters) {
+        List<DiscoveryNode> sortedNodes = sortedMasterNodes(new ArrayList<>(nodes));
         if (sortedNodes == null) {
             return new DiscoveryNode[0];
         }

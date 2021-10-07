@@ -35,8 +35,11 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
-  target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
-
+  target = new File(providers.systemProperty('csv')
+                      .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
+                      .forUseAtConfigurationTime()
+                      .get()
+  )
   // explicitly add our dependency on the JDK
   String jdkVersion = VersionProperties.versions.get('bundled_jdk').split('@')[0]
   String jdkMajorVersion = jdkVersion.split('[+.]')[0]
@@ -249,8 +252,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
         "bundled_${platform}_${architecture}" {
           it.platform = platform
-          it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = (platform == 'darwin' && architecture == 'aarch64') ? 'azul' : VersionProperties.bundledJdkVendor
+          it.version = VersionProperties.bundledJdkVersion
+          it.vendor = VersionProperties.bundledJdkVendor
           it.architecture = architecture
         }
       }

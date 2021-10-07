@@ -38,7 +38,10 @@ final class ElasticServiceAccounts {
                     .privileges("read", "write", "monitor", "create_index", "auto_configure")
                     .build()
             },
-            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[]{
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-*").resources("*").privileges("reserved_fleet-setup").build()
+            },
             null,
             null,
             null,

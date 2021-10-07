@@ -13,6 +13,13 @@
     "url":{
       "paths":[
         {
+          "path":"/_fleet/_msearch",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
           "path":"/{index}/_fleet/_msearch",
           "methods":[
             "GET",
@@ -20,15 +27,14 @@
           ],
           "parts":{
             "index":{
-              "type":"string",
-              "description":"The name of the index."
+              "type":"list",
+              "description":"A comma-separated list of index names to use as default"
             }
           }
         }
       ]
     },
     "params":{
-
     },
     "body":{
       "description":"The request definitions (metadata-fleet search request definition pairs), separated by newlines",

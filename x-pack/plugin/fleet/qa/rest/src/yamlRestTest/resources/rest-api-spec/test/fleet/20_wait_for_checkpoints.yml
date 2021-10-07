@@ -21,8 +21,8 @@ setup:
 
   - do:
       index:
-        index:  test-after-refresh
-        body:   { }
+        index: test-after-refresh
+        body: { }
 
   - do:
       index:
@@ -77,11 +77,10 @@ setup:
 "Test msearch":
   - do:
       fleet.msearch:
-        index: "test-after-refresh"
         body:
-          - {"allow_partial_search_results" : false, wait_for_checkpoints: [1]}
+          - {"index": "test-after-refresh", "allow_partial_search_results" : false, wait_for_checkpoints: [1]}
           - {query: { match_all: {} } }
-          - {"allow_partial_search_results":  false, wait_for_checkpoints: [2]}
+          - {"index": "test-refresh-disabled", "allow_partial_search_results":  false, wait_for_checkpoints: [2]}
           - {query: { match_all: {} } }
 
   - match: { responses.0._shards.successful: 1 }

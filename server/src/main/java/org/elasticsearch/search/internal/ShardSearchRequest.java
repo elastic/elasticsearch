@@ -124,7 +124,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             clusterAlias,
             readerId,
             keepAlive,
-            SequenceNumbers.NO_OPS_PERFORMED,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT);
     }
 

@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.fleet.rest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -21,9 +21,12 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -42,7 +45,8 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_fleet/_msearch"), new Route(POST, "/{index}/_fleet/_msearch"));
+        return List.of(new Route(GET, "/_fleet/_msearch"), new Route(POST, "/_fleet/_msearch"),
+            new Route(GET, "/{index}/_fleet/_msearch"), new Route(POST, "/{index}/_fleet/_msearch"));
     }
 
     @Override
@@ -50,15 +54,31 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
         final MultiSearchRequest multiSearchRequest = RestMultiSearchAction.parseRequest(
             request,
             client.getNamedWriteableRegistry(),
-            allowExplicitIndex
+            allowExplicitIndex,
+            (key, value, searchRequest) -> {
+                if ("wait_for_checkpoints".equals(key)) {
+                    String[] stringWaitForCheckpoints = nodeStringArrayValue(value);
+                    final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+                    for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+                        waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+                    }
+                    String[] indices = searchRequest.indices();
+                    if (indices.length > 1) {
+                        throw new IllegalArgumentException(
+                            "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
+                        );
+                    }
+                    searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
+                    return true;
+                } else if ("wait_for_checkpoints_timeout".equals(key)) {
+                    final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value,TimeValue.timeValueSeconds(30));
+                    searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
+                    return true;
+                } else {
+                    return false;
+                }
+            }
         );
-
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        if (indices.length > 1) {
-            throw new IllegalArgumentException(
-                "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
-            );
-        }
 
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

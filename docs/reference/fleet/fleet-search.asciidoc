@@ -17,12 +17,10 @@ without prior notice.
 [[wait-for-checkpoint-functionality]]
 == Wait for checkpoint functionality
 
-The fleet search API provides all of the expected functionality of the normal
-Elasticsearch search API. However, it also supports the optional parameter
-`wait_for_checkpoints`. This parameter is a list of sequence number checkpoints.
-When this parameter is present, the search will only be executed on local shards
-when the relevant sequence number checkpoint is visible for search after a refresh.
-The checkpoints are indexed by shard.
+The fleet search API supports the optional parameter `wait_for_checkpoints`. This parameter
+is a list of sequence number checkpoints. When this parameter is present, the search will
+only be executed on local shards when the relevant sequence number checkpoint is visible for
+search after a refresh. The checkpoints are indexed by shard.
 
 If a timeout occurs before the the checkpoint has been refreshed into Elasticsearch,
 the search request will timeout.

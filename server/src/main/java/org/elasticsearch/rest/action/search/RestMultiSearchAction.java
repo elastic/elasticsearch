@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -96,16 +97,17 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                   boolean allowExplicitIndex) throws IOException {
-        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, false);
+        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, (s, o, r) -> false);
     }
 
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}. This variation allows the caller to specify if
-     * wauit_for_checkpoints functionality is supported.
+     * wait_for_checkpoints functionality is supported.
      */
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
-                                                  boolean allowExplicitIndex, boolean supportWaitForCheckpoints) throws IOException {
+                                                  boolean allowExplicitIndex,
+                                                  TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
         if(restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
             restRequest.param("type");
         }
@@ -142,7 +144,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 );
             }
             multiRequest.add(searchRequest);
-        });
+        }, extraParamParser);
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -161,15 +163,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
                                              CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
-        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, false);
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (s, o, r) -> false);
     }
 
     /**
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
-     * This variation allows the caller to specify if wait_for_checkpoints functionality is supported.
+     * This variation allows the caller to provider a param parser.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer, boolean supportWaitForCheckpoints) throws IOException {
+            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+            TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
@@ -181,7 +184,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing,
                 searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, request.getRestApiVersion(),
-                supportWaitForCheckpoints);
+            extraParamParser);
     }
 
     @Override

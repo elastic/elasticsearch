@@ -14,6 +14,8 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -185,7 +187,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            boolean allowExplicitIndex,
                                            RestApiVersion restApiVersion) throws IOException {
         readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing, searchType, ccsMinimizeRoundtrips, registry,
-            allowExplicitIndex, restApiVersion, false);
+            allowExplicitIndex, restApiVersion, (s, o, r) -> false);
 
     }
 
@@ -200,7 +202,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex,
                                            RestApiVersion restApiVersion,
-                                           boolean supportWaitForCheckpoints) throws IOException {
+                                           TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -272,23 +274,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if(restApiVersion == RestApiVersion.V_7 &&
                             ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
                             deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                        } else if ("wait_for_checkpoints".equals(entry.getKey())) {
-                            if (supportWaitForCheckpoints) {
-                                throw new IllegalArgumentException("wait_for_checkpoints parameter not supported");
-                            }
-                            String[] stringWaitForCheckpoints = nodeStringArrayValue(value);
-                            final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
-                            for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
-                                waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
-                            }
-                            searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
-                        } else if ("wait_for_checkpoints_timeout".equals(entry.getKey())) {
-                            if (supportWaitForCheckpoints) {
-                                throw new IllegalArgumentException("wait_for_checkpoints_timeout parameter not supported");
-                            }
-                            final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value,TimeValue.timeValueSeconds(30));
-                            searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
-                        }  else {
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
+                        } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }

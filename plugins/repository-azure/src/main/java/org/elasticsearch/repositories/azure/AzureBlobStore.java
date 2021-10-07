@@ -547,7 +547,11 @@ public class AzureBlobStore implements BlobStore {
             // reclaim them (see MonoSendMany). Additionally, that very same operator requests
             // 128 elements (that's hardcoded) once it's subscribed (later on, it requests
             // by 64 elements), that's why we provide 64kb buffers.
-            return Flux.range(0, (int) Math.ceil((double) length / (double) chunkSize))
+
+            // length is at most 100MB so it's safe to cast back to an integer in this case
+            final int parts = (int) length / chunkSize;
+            final long remaining = length % chunkSize;
+            return Flux.range(0, remaining == 0 ? parts : parts + 1)
                 .map(i -> i * chunkSize)
                 .concatMap(pos -> Mono.fromCallable(() -> {
                     long count = pos + chunkSize > length ? length - pos : chunkSize;

@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.test;
 
 import java.io.File;
 import java.io.IOException;
-
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.description.modifier.Ownership;
 import net.bytebuddy.description.modifier.Visibility;

@@ -1157,7 +1157,8 @@ public class DataStreamIT extends ESIntegTestCase {
         // Index doc that triggers creation of a data stream
         String dataStream = "logs-foobar";
         IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
-            .opType(DocWriteRequest.OpType.CREATE).routing("custom");
+            .opType(DocWriteRequest.OpType.CREATE)
+            .routing("custom");
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStream, 1)));
         // Index doc with custom routing that targets the data stream
@@ -1683,7 +1684,6 @@ public class DataStreamIT extends ESIntegTestCase {
             ).actionGet()
         );
         Exception actualException = (Exception) e.getCause();
-        System.out.println( Throwables.getRootCause(actualException).getMessage());
         assertTrue(
             Throwables.getRootCause(actualException)
                 .getMessage()

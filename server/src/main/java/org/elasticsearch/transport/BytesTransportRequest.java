@@ -77,7 +77,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(COMPRESSION_SCHEME_VERSION)) {
-            out.writeOptionalEnum(compressionScheme);
+            out.writeEnum(compressionScheme);
         } else {
             assert compressionScheme == Compression.Scheme.DEFLATE;
         }

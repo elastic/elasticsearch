@@ -40,13 +40,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
-    private static final List<Tuple<String, String>> EXPECTED_INDEX_ALIAS_PAIRS =
+    private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS =
         List.of(
-            Tuple.tuple(".ml-annotations-6", ".ml-annotations-read"),
-            Tuple.tuple(".ml-annotations-6", ".ml-annotations-write"),
-            Tuple.tuple(".ml-state-000001", ".ml-state-write"),
-            Tuple.tuple(".ml-anomalies-shared", ".ml-anomalies-" + JOB_ID),
-            Tuple.tuple(".ml-anomalies-shared", ".ml-anomalies-.write-" + JOB_ID)
+            Tuple.tuple(List.of(".ml-annotations-6"), ".ml-annotations-read"),
+            Tuple.tuple(List.of(".ml-annotations-6"), ".ml-annotations-write"),
+            Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
+            Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
+            Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
         );
 
     @Override
@@ -88,11 +88,15 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                         is(nullValue()));
                 }
 
-                for (Tuple<String, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
-                    assertThat(
-                        indexAndAlias + " expected not be hidden but was, aliasesMap = " + aliasesMap,
-                        XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
-                        is(nullValue()));
+                for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
+                    List<String> indices = indexAndAlias.v1();
+                    String alias = indexAndAlias.v2();
+                    for (String index : indices) {
+                        assertThat(
+                            indexAndAlias + " expected not be hidden but was, aliasesMap = " + aliasesMap,
+                            XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"),
+                            is(nullValue()));
+                    }
                 }
             }
         } else {
@@ -110,10 +114,14 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     is(equalTo("true")));
             }
 
-            for (Tuple<String, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
+            for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
+                List<String> indices = indexAndAlias.v1();
+                String alias = indexAndAlias.v2();
                 assertThat(
                     indexAndAlias + " expected to be hidden but wasn't, aliasesMap = " + aliasesMap,
-                    XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
+                    indices.stream()
+                        .anyMatch(index ->
+                            Boolean.TRUE.equals(XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"))),
                     is(true));
             }
         }

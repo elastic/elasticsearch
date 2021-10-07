@@ -372,7 +372,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         );
     }
 
-    public SnapshotInfo(SnapshotsInProgress.Entry entry) {
+    public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
         for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shards()) {
@@ -382,21 +382,23 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                 shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), c.key, c.value.reason()));
             }
         }
-        this.snapshot = Objects.requireNonNull(entry.snapshot());
-        this.indices = List.copyOf(entry.indices().keySet());
-        this.dataStreams = List.copyOf(entry.dataStreams());
-        this.featureStates = List.copyOf(entry.featureStates());
-        this.state = SnapshotState.IN_PROGRESS;
-        this.reason = null;
-        this.version = Version.CURRENT;
-        this.startTime = entry.startTime();
-        this.endTime = 0L;
-        this.totalShards = entry.shards().size();
-        this.successfulShards = successfulShards;
-        this.shardFailures = Collections.unmodifiableList(shardFailures);
-        this.includeGlobalState = entry.includeGlobalState();
-        this.userMetadata = entry.userMetadata() == null ? null : Map.copyOf(entry.userMetadata());
-        this.indexSnapshotDetails = Collections.emptyMap();
+        return new SnapshotInfo(
+            entry.snapshot(),
+            List.copyOf(entry.indices().keySet()),
+            entry.dataStreams(),
+            entry.featureStates(),
+            null,
+            Version.CURRENT,
+            entry.startTime(),
+            0L,
+            entry.shards().size(),
+            successfulShards,
+            shardFailures,
+            entry.includeGlobalState(),
+            entry.userMetadata(),
+            SnapshotState.IN_PROGRESS,
+            Collections.emptyMap()
+        );
     }
 
     public SnapshotInfo(

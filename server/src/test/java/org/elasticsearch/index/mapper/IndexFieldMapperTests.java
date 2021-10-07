@@ -8,9 +8,25 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.when;
 
 public class IndexFieldMapperTests extends MapperServiceTestCase {
 
@@ -25,6 +41,33 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> createMapperService(topMapping(b -> b.startObject("_index").endObject())));
         assertThat(e.getMessage(), containsString("_index is not configurable"));
+    }
+
+    public void testFetchFieldValue() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword"))
+        );
+        String index = randomAlphaOfLength(12);
+        withLuceneIndex(mapperService, iw -> {
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+            builder.field("field", "value");
+            builder.endObject();
+            SourceToParse source = new SourceToParse(index, "id", BytesReference.bytes(builder), XContentType.JSON, "", Map.of());
+            iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
+        }, iw -> {
+            IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+            when(searchExecutionContext.getForField(ft)).thenReturn(
+                ft.fielddataBuilder(index, () -> lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            );
+            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source()));
+        });
     }
 
 }

@@ -65,7 +65,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }
     }
 

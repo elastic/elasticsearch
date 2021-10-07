@@ -68,7 +68,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
         if (out.getVersion().onOrAfter(COMPRESSION_SCHEME_VERSION)) {
             out.writeEnum(compressionScheme);
         } else {
-            assert compressionScheme == null;
+            assert compressionScheme == Compression.Scheme.DEFLATE;
         }
         out.writeVInt(bytes.length());
     }
@@ -79,7 +79,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
         if (out.getVersion().onOrAfter(COMPRESSION_SCHEME_VERSION)) {
             out.writeOptionalEnum(compressionScheme);
         } else {
-            assert compressionScheme == null;
+            assert compressionScheme == Compression.Scheme.DEFLATE;
         }
         out.writeBytesReference(bytes);
     }

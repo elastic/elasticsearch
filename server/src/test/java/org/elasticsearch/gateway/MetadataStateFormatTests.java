@@ -456,12 +456,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         // All other state files, including the first directory uncorrupted state files should be cleaned up.
         corruptFile(stateFiles.get(badDirIndex), logger);
 
-        try {
-            format.loadLatestStateWithGeneration(logger, xContentRegistry(), paths);
-            fail("Reading corrupted state should fail");
-        } catch (ElasticsearchException esException) {
-            assertThat(esException.getMessage(), is("java.io.IOException: failed to read " + stateFiles.get(badDirIndex)));
-        }
+        assertThat(expectThrows(ElasticsearchException.class, () -> format.loadLatestStateWithGeneration(logger, xContentRegistry(), paths)).getMessage(), equalTo("java.io.IOException: failed to read " + stateFiles.get(badDirIndex)));
     }
 
     private static class Format extends MetadataStateFormat<DummyState> {

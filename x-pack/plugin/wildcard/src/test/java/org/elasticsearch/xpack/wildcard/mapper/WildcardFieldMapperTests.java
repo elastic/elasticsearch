@@ -19,7 +19,6 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -127,8 +126,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
         keywordFieldType = kwBuilder.build(MapperBuilderContext.ROOT);
         
-        
-        
         rewriteDir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
         RandomIndexWriter iw = new RandomIndexWriter(random(), rewriteDir, iwc);
@@ -142,16 +139,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         iw.forceMerge(1);
         rewriteReader = iw.getReader();
-//        IndexSearcher searcher = newSearcher(reader);
         iw.close();
 
-//        Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
-//        TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-//        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
-
-        
-        
-        
         super.setUp();
     }
     
@@ -813,7 +802,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
-    void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException, IOException {
+    void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException,
+        IOException {
 
         QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
@@ -838,7 +828,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }    
     
 
-    void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException, IOException {
+    void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException,
+        IOException {
         BinaryDvConfirmedAutomatonQuery cq = (BinaryDvConfirmedAutomatonQuery) unwrapAnyConstantScore(combinedQuery);
         Query approximationQuery = cq.getApproximationQuery();
         approximationQuery = getSimplifiedApproximationQuery(approximationQuery);

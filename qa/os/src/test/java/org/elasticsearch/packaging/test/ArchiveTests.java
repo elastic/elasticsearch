@@ -186,7 +186,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
         Platforms.onWindows(() -> {
-            sh.run("attrib +r " + installation.config + " /d");
+            sh.run("attrib +r " + installation.config + " /s /d");
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
         });
@@ -195,7 +195,7 @@ public class ArchiveTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         Platforms.onWindows(() -> {
-            sh.run("attrib -r " + installation.config + " /d");
+            sh.run("attrib -r " + installation.config + " /s /d");
             sh.chown(installation.config);
         });
         Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });

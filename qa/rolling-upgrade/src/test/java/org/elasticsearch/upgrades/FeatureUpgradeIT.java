@@ -9,6 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
@@ -31,12 +32,15 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
             // setup - put something in the tasks index
             // create index
             Request createTestIndex = new Request("PUT", "/feature_test_index_old");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            createTestIndex.setJsonEntity("{\"settings\": {" +
+                "\"index.number_of_replicas\": 0," +
+                "\"index.number_of_shards\": 1" +
+                "}}");
             client().performRequest(createTestIndex);
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}}\n" +
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\", \"_type\": \"_doc\"}}\n" +
                 "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
@@ -67,6 +71,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                 v.compatible(systemIndexWarning);
             }));
             getTasksIndex.addParameter("allow_no_indices", "false");
+            getTasksIndex.addParameter("include_type_name", "false");
 
             assertBusy(() -> {
                 try {
@@ -91,7 +96,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature.size(), equalTo(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.toString()));
-                if (UPGRADE_FROM_VERSION.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+                if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
                     assertThat(feature.get("upgrade_status"), equalTo("UPGRADE_NEEDED"));
                 } else {
                     assertThat(feature.get("upgrade_status"), equalTo("NO_UPGRADE_NEEDED"));

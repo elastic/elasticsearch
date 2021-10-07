@@ -38,6 +38,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         GetFeatureUpgradeStatusRequest,
         GetFeatureUpgradeStatusResponse> {
 
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
+
     private final SystemIndices systemIndices;
 
     @Inject

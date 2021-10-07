@@ -344,7 +344,8 @@ public final class IndexLifecycleTransition {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata())
             .put(IndexMetadata.builder(clusterState.getMetadata().index(index))
-                .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())));
+                .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap()))
+            .build(false));
         return newClusterStateBuilder;
     }
 

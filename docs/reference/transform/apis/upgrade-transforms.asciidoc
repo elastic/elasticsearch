@@ -55,4 +55,4 @@ When all {transform}s are upgraded, you receive a summary:
   "no_action": 1
 }
 ----
-// TESTRESPONSE["no_action": 1]
+// TESTRESPONSE[s/"no_action" : 1/"no_action" : $body.no_action/]

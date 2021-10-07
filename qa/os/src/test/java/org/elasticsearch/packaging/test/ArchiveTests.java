@@ -136,39 +136,51 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same,
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "xpack.security.http.ssl.enabled");
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
@@ -176,19 +188,28 @@ public class ArchiveTests extends PackagingTestCase {
         Path tempDir = createTempDir("custom-config");
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
-        Platforms.onWindows(() -> { sh.run("attrib +r " + tempConf + "/d"); });
+        Platforms.onWindows(() -> {
+            sh.run("attrib +r " + tempConf + "/d");
+            // auto-config requires that the archive owner and the process user be the same
+            sh.chown(tempConf, installation.getOwner());
+        });
         Platforms.onLinux(() -> { sh.run("chmod -w " + tempConf); });
         sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         sh.getEnv().remove("ES_PATH_CONF");
-        Platforms.onWindows(() -> { sh.run("attrib -r " + tempConf + "/d"); });
+        Platforms.onWindows(() -> {
+            sh.run("attrib -r " + tempConf + "/d");
+            // auto-config requires that the archive owner and the process user be the same
+            sh.chown(tempConf, installation.getOwner());
+        });
         FileUtils.rm(tempDir);
         FileUtils.rm(installation.data);
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");

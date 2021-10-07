@@ -274,9 +274,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private Set<IndexMetadata> allIndices() {
-        return StreamSupport.stream(state.metadata().getIndices().values().spliterator(), false)
-            .map(cursor -> cursor.value)
-            .collect(Collectors.toSet());
+        return new HashSet<>(state.metadata().getIndices().values());
     }
 
     private ClusterState moveToCold(Set<IndexMetadata> candidates) {

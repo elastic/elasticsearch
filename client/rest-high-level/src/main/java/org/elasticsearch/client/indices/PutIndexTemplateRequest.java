@@ -401,7 +401,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index_patterns", indexPatterns);
+        builder.stringListField("index_patterns", indexPatterns);
         builder.field("order", order);
         if (version != null) {
             builder.field("version", version);

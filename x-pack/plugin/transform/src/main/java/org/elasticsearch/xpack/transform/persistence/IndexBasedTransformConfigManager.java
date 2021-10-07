@@ -102,10 +102,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    public IndexBasedTransformConfigManager(
-        Client client,
-        NamedXContentRegistry xContentRegistry
-    ) {
+    public IndexBasedTransformConfigManager(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.xContentRegistry = xContentRegistry;
     }
@@ -546,12 +543,12 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void getAllTransformIds(ActionListener<Set<String>> listener) {
-        expandAllTransformIds(false, ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure));
+        expandAllTransformIds(false, MAX_RESULTS_WINDOW, ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure));
     }
 
     @Override
     public void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener) {
-        expandAllTransformIds(true, listener);
+        expandAllTransformIds(true, MAX_RESULTS_WINDOW, listener);
     }
 
     @Override
@@ -807,17 +804,25 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         return QueryBuilders.constantScoreQuery(queryBuilder);
     }
 
-    private void expandAllTransformIds(boolean filterForOutdated, ActionListener<Tuple<Long, Set<String>>> listener) {
-        PageParams startPage = new PageParams(0, MAX_RESULTS_WINDOW);
+    /**
+     * Expand all transform id's
+     *
+     * @param filterForOutdated if true, only returns outdated id's (after de-duplication)
+     * @param maxResultWindow the max result window size (exposed for testing)
+     * @param listener listener to call containing transform id's
+     */
+    void expandAllTransformIds(boolean filterForOutdated, int maxResultWindow, ActionListener<Tuple<Long, Set<String>>> listener) {
+        PageParams startPage = new PageParams(0, maxResultWindow);
 
         Set<String> collectedIds = new HashSet<>();
-        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, null, startPage, listener);
+        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, maxResultWindow, null, startPage, listener);
     }
 
     private void recursiveExpandAllTransformIds(
         Set<String> collectedIds,
         long total,
         boolean filterForOutdated,
+        int maxResultWindow,
         String lastId,
         PageParams page,
         ActionListener<Tuple<Long, Set<String>>> listener
@@ -860,9 +865,17 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 }
 
                 if (searchResponse.getHits().getHits().length == page.getSize()) {
-                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), MAX_RESULTS_WINDOW);
+                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), maxResultWindow);
 
-                    recursiveExpandAllTransformIds(collectedIds, totalHits, filterForOutdated, idOfLastHit, nextPage, listener);
+                    recursiveExpandAllTransformIds(
+                        collectedIds,
+                        totalHits,
+                        filterForOutdated,
+                        maxResultWindow,
+                        idOfLastHit,
+                        nextPage,
+                        listener
+                    );
                     return;
                 }
 

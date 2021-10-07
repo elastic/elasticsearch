@@ -343,8 +343,24 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
         }
         assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+
+        // test recursive retrieval
+        assertAsync(
+            listener -> transformConfigManager.expandAllTransformIds(false, 10, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), transformIds),
+            null,
+            null
+        );
+
         assertAsync(
             listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
+            null,
+            null
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
@@ -391,6 +407,19 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         transformIds.add(transformId);
         assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(
+            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(transformId)),
+            null,
+            null
+        );
+
+        assertAsync(
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
+            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(transformId)),
+            null,
+            null
+        );
     }
 
     public void testStoredDoc() throws InterruptedException {

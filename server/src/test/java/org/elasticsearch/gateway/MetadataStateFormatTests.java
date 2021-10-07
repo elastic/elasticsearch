@@ -406,7 +406,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testDeleteMetaStateWithErrorPath() throws IOException {
+    public void testCleanupOldFilesWithErrorPath() throws IOException {
         Path paths[] = new Path[3];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();

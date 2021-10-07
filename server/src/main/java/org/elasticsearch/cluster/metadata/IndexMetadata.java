@@ -1330,6 +1330,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             try {
                 tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
             } catch (Exception e) {
+                assert e instanceof IllegalArgumentException : e;
                 // BwC hack: the setting failed validation but it will be fixed in
                 // #IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} later so we just store a null
                 // to be able to build a temporary instance

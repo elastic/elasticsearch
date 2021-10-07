@@ -28,7 +28,7 @@ public class RemoteFailureTests extends ESTestCase {
         assertEquals("illegal_argument_exception", failure.type());
         assertEquals("[sql/query] unknown field [test], parser not found", failure.reason());
         assertThat(failure.remoteTrace(),
-                containsString("at org.elasticsearch.xcontent.ObjectParser.getParser(ObjectParser.java:346)"));
+                containsString("at org.elasticsearch.common.xcontent.ObjectParser.getParser(ObjectParser.java:346)"));
         assertNull(failure.cause());
         assertEquals(emptyMap(), failure.headers());
     }

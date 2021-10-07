@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 
 import org.apache.commons.math3.util.FastMath;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -20,47 +22,65 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.NXYSignifica
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PValueScore extends NXYSignificanceHeuristic {
     public static final String NAME = "p_value";
+    public static final ParseField NORMALIZE_ABOVE = new ParseField("normalize_above");
     public static final ConstructingObjectParser<PValueScore, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
         boolean backgroundIsSuperset = args[0] == null || (boolean) args[0];
-        return new PValueScore(backgroundIsSuperset);
+        return new PValueScore(backgroundIsSuperset, (Long)args[1]);
     });
     static {
         PARSER.declareBoolean(optionalConstructorArg(), BACKGROUND_IS_SUPERSET);
+        PARSER.declareLong(optionalConstructorArg(), NORMALIZE_ABOVE);
     }
 
     private static final MlChiSquaredDistribution CHI_SQUARED_DISTRIBUTION = new MlChiSquaredDistribution(1);
 
-    public PValueScore(boolean backgroundIsSuperset) {
+    private final long normalizeAbove;
+
+    public PValueScore(boolean backgroundIsSuperset, Long normalizeAbove) {
         super(true, backgroundIsSuperset);
+        if (normalizeAbove != null && normalizeAbove <= 0) {
+            throw new IllegalArgumentException(
+                "[" + NORMALIZE_ABOVE.getPreferredName() + "] must be a positive value, provided [" + normalizeAbove + "]"
+            );
+        }
+        this.normalizeAbove = normalizeAbove == null ? 0L : normalizeAbove;
     }
 
     public PValueScore(StreamInput in) throws IOException {
         super(true, in.readBoolean());
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            normalizeAbove = in.readVLong();
+        } else {
+            normalizeAbove = 0L;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(backgroundIsSuperset);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVLong(normalizeAbove);
+        }
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if ((obj instanceof PValueScore) == false) {
-            return false;
-        }
-        return super.equals(obj);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        PValueScore that = (PValueScore) o;
+        return normalizeAbove == that.normalizeAbove;
     }
 
     @Override
     public int hashCode() {
-        int result = NAME.hashCode();
-        result = 31 * result + super.hashCode();
-        return result;
+        return Objects.hash(super.hashCode(), normalizeAbove);
     }
 
     @Override
@@ -72,6 +92,9 @@ public class PValueScore extends NXYSignificanceHeuristic {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
+        if (normalizeAbove > 0) {
+            builder.field(NORMALIZE_ABOVE.getPreferredName(), normalizeAbove);
+        }
         builder.endObject();
         return builder;
     }
@@ -111,6 +134,19 @@ public class PValueScore extends NXYSignificanceHeuristic {
 
         if (allDocsNotInClass == 0L || allDocsInClass == 0L) {
             return 0.0;
+        }
+
+        if (normalizeAbove > 0L) {
+            if (allDocsInClass > normalizeAbove) {
+                double factor = (double) normalizeAbove / allDocsInClass;
+                allDocsInClass = (long)(allDocsInClass * factor);
+                docsContainTermInClass = (long)(docsContainTermInClass * factor);
+            }
+            if (allDocsNotInClass > normalizeAbove) {
+                double factor = (double) normalizeAbove / allDocsNotInClass;
+                allDocsNotInClass = (long)(allDocsNotInClass * factor);
+                docsContainTermNotInClass = (long)(docsContainTermNotInClass * factor);
+            }
         }
 
         // casting to `long` to round down to nearest whole number
@@ -164,15 +200,25 @@ public class PValueScore extends NXYSignificanceHeuristic {
     }
 
     public static class PValueScoreBuilder extends NXYBuilder {
+        private final long normalizeAbove;
 
-        public PValueScoreBuilder(boolean backgroundIsSuperset) {
+        public PValueScoreBuilder(boolean backgroundIsSuperset, Long normalizeAbove) {
             super(true, backgroundIsSuperset);
+            this.normalizeAbove = normalizeAbove == null ? 0L : normalizeAbove;
+            if (normalizeAbove != null && normalizeAbove <= 0) {
+                throw new IllegalArgumentException(
+                    "[" + NORMALIZE_ABOVE.getPreferredName() + "] must be a positive value, provided [" + normalizeAbove + "]"
+                );
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
             builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
+            if (normalizeAbove > 0) {
+                builder.field(NORMALIZE_ABOVE.getPreferredName(), normalizeAbove);
+            }
             builder.endObject();
             return builder;
         }

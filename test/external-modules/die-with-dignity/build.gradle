@@ -22,6 +22,9 @@ tasks.named("javaRestTest").configure {
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
   systemProperty "die.with.dignity.test", "true"
+  // disable exit on out of memory error to let DieWithDignityIT verify that OOM handling without that works (including OOMs that are not caused by
+  // memory like native threads. We leave it to the JVM to test that exit on OOM works via the flag.
+  jvmArgs '-XX:-ExitOnOutOfMemoryError'
 }
 
 tasks.named("test").configure {

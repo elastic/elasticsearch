@@ -301,6 +301,8 @@ public class PackageTests extends PackagingTestCase {
     public void test82JvmOptionsTotalMemoryOverride() throws Exception {
         assumeTrue(isSystemd());
 
+        install();
+
         assertPathsExist(installation.envFile);
         stopElasticsearch();
 
@@ -310,8 +312,8 @@ public class PackageTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
-            assertThat(nodesResponse, containsString("\"total_override_in_bytes\":891289600"));
+            final String nodesStatsResponse = makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+            assertThat(nodesStatsResponse, containsString("\"total_override_in_bytes\":891289600"));
 
             // 40% of 850MB
             assertThat(sh.run("ps auwwx").stdout, containsString("-Xmx340m -Xms340m"));

@@ -17,9 +17,4 @@ public class IndicesSegmentsRequestBuilder
     public IndicesSegmentsRequestBuilder(ElasticsearchClient client, IndicesSegmentsAction action) {
         super(client, action, new IndicesSegmentsRequest());
     }
-
-    public IndicesSegmentsRequestBuilder setVerbose(boolean verbose) {
-        request.verbose = verbose;
-        return this;
-    }
 }

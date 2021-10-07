@@ -96,6 +96,8 @@ subprojects {
           // The error messages are different
           'search/330_fetch_fields/error includes field name',
           'search/330_fetch_fields/error includes glob pattern',
+          // we need a @timestamp field to be defined in index mapping
+          'search/380_sort_segments_on_timestamp/*',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

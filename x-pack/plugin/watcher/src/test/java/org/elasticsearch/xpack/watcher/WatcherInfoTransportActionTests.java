@@ -20,13 +20,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
+import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -52,12 +53,12 @@ import static org.mockito.Mockito.when;
 
 public class WatcherInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private Client client;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -69,7 +70,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
+        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

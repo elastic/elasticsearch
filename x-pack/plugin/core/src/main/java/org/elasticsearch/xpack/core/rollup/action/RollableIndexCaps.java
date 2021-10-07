@@ -64,7 +64,7 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(indexName);
         {
-            builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+            builder.xContentList(ROLLUP_JOBS.getPreferredName(), jobCaps);
         }
         builder.endObject();
         return builder;

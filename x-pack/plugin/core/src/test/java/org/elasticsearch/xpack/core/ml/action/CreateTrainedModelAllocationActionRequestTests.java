@@ -17,7 +17,9 @@ public class CreateTrainedModelAllocationActionRequestTests extends AbstractWire
         return new Request(
             new StartTrainedModelDeploymentAction.TaskParams(
                 randomAlphaOfLength(10),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 8)
             )
         );
     }

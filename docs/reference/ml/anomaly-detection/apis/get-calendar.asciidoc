@@ -49,7 +49,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 `size`::
     (Optional, integer) Specifies the maximum number of calendars to obtain.
     This parameter is supported only when you omit the `<calendar_id>`. Defaults
-    to `10000`.
+    to `100`.
 
 [[ml-get-calendar-request-body]]
 == {api-request-body-title}
@@ -61,7 +61,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 `page`.`size`::
     (Optional, integer) Specifies the maximum number of calendars to obtain.
     This object is  supported only when you omit the `<calendar_id>`. Defaults
-    to `10000`.
+    to `100`.
 
 [[ml-get-calendar-results]]
 == {api-response-body-title}

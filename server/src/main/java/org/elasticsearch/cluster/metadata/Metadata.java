@@ -1614,13 +1614,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
                 for (var aliasCursor : indexMetadata.getAliases()) {
                     AliasMetadata aliasMetadata = aliasCursor.value;
-                    aliasToIndices.compute(aliasMetadata.getAlias(), (aliasName, val) -> {
-                       if (val == null) {
-                           val = new ArrayList<>();
-                       }
-                       val.add(indexMetadata);
-                       return val;
-                    });
+                    List<IndexMetadata> e = aliasToIndices.computeIfAbsent(aliasMetadata.getAlias(), k -> new ArrayList<>());
+                    e.add(indexMetadata);
                 }
             }
 

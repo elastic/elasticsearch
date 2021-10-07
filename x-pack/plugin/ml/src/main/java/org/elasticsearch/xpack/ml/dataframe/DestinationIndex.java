@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -209,9 +208,7 @@ public final class DestinationIndex {
     @Nullable
     private static Integer findMaxSettingValue(GetSettingsResponse settingsResponse, String settingKey) {
         Integer maxValue = null;
-        Iterator<Settings> settingsIterator = settingsResponse.getIndexToSettings().valuesIt();
-        while (settingsIterator.hasNext()) {
-            Settings settings = settingsIterator.next();
+        for (Settings settings : settingsResponse.getIndexToSettings().values()) {
             Integer indexValue = settings.getAsInt(settingKey, null);
             if (indexValue != null) {
                 maxValue = maxValue == null ? indexValue : Math.max(indexValue, maxValue);

@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -41,7 +40,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 break;
             case DATE_FIELD_NAME:
                 long randomDateMills = randomLongBetween(0, 2_000_000_000_000L);
-                origin = randomBoolean() ? new Origin(randomDateMills) : new Origin(new DateTime(randomDateMills).toString());
+                origin = randomBoolean() ? new Origin(randomDateMills) : new Origin(Instant.ofEpochMilli(randomDateMills).toString());
                 pivot = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
                 break;
             default: // DATE_NANOS_FIELD_NAME

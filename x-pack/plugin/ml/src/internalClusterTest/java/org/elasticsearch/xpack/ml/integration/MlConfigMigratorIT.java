@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -162,9 +161,7 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         doAnswer(invocation -> {
                 ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
                 ClusterState result = listener.execute(clusterState);
-                for (ObjectCursor<Metadata.Custom> value : result.metadata().customs().values()){
-                    customs.add(value.value);
-                }
+                customs.addAll(result.metadata().customs().values());
                 listener.clusterStateProcessed("source", mock(ClusterState.class), mock(ClusterState.class));
                 return null;
         }).when(clusterService).submitStateUpdateTask(eq("remove-migrated-ml-configs"), any());

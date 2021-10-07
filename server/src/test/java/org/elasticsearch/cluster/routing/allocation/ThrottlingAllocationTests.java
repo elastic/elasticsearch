@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -338,9 +338,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (ObjectCursor<IndexMetadata> cursor: metadata.indices().values()) {
-            Index index = cursor.value.getIndex();
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor.value);
+        for (IndexMetadata im : metadata.indices().values()) {
+            Index index = im.getIndex();
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(im);
             final int recoveryType = randomInt(5);
             if (recoveryType <= 4) {
                 addInSyncAllocationIds(index, indexMetadataBuilder, gatewayAllocator, node1);

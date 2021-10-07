@@ -544,7 +544,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         context.bigArrays(),
                         getMockScriptService(),
                         b -> {},
-                        PipelineTree.EMPTY
+                        PipelineTree.EMPTY,
+                        () -> false
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;

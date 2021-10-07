@@ -135,7 +135,7 @@ public class Manifest implements ToXContentFragment {
         builder.field(CURRENT_TERM_PARSE_FIELD.getPreferredName(), currentTerm);
         builder.field(CLUSTER_STATE_VERSION_PARSE_FIELD.getPreferredName(), clusterStateVersion);
         builder.field(GENERATION_PARSE_FIELD.getPreferredName(), globalGeneration);
-        builder.array(INDEX_GENERATIONS_PARSE_FIELD.getPreferredName(), indexEntryList().toArray());
+        builder.xContentList(INDEX_GENERATIONS_PARSE_FIELD.getPreferredName(), indexEntryList());
         return builder;
     }
 

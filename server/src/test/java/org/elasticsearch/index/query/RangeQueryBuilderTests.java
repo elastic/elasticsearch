@@ -293,8 +293,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                ZonedDateTime.parse("2014-11-01T00:00:00.000+00").toInstant().toEpochMilli(),
-                ZonedDateTime.parse("2014-12-08T23:59:59.999+00").toInstant().toEpochMilli()),
+                ZonedDateTime.parse("2014-11-01T00:00:00.000Z").toInstant().toEpochMilli(),
+                ZonedDateTime.parse("2014-12-08T23:59:59.999Z").toInstant().toEpochMilli()),
                 parsedQuery);
 
         query = "{\n" +
@@ -310,8 +310,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                ZonedDateTime.parse("2014-11-30T23:59:59.999+00").toInstant().toEpochMilli() + 1,
-                ZonedDateTime.parse("2014-12-08T00:00:00.000+00").toInstant().toEpochMilli() - 1),
+                ZonedDateTime.parse("2014-11-30T23:59:59.999Z").toInstant().toEpochMilli() + 1,
+                ZonedDateTime.parse("2014-12-08T00:00:00.000Z").toInstant().toEpochMilli() - 1),
                 parsedQuery);
     }
 

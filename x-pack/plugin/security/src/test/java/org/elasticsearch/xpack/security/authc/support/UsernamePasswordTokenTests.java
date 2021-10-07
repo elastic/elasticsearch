@@ -104,9 +104,4 @@ public class UsernamePasswordTokenTests extends ESTestCase {
     public static String basicAuthHeaderValue(String username, String passwd) {
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(passwd.toCharArray()));
     }
-
-    public void test1() {
-        System.out.println(UsernamePasswordToken.basicAuthHeaderValue("test_manage",
-            new SecureString("x-pack-test-password".toCharArray())));
-    }
 }

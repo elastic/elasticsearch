@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

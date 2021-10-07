@@ -22,14 +22,9 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 public class MachineDependentHeapTests extends LaunchersTestCase {
-
-    private static final long BYTES_IN_GB = 1024L * 1024L * 1024L;
 
     public void testDefaultHeapSize() throws Exception {
         MachineDependentHeap heap = new MachineDependentHeap(systemMemoryInGigabytes(8));
@@ -47,68 +42,38 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
     }
 
     public void testMasterOnlyOptions() {
-        List<String> options = calculateHeap(16, null, "master");
+        List<String> options = calculateHeap(16, "master");
         assertThat(options, containsInAnyOrder("-Xmx9830m", "-Xms9830m"));
 
-        calculateHeap(20, 16 * BYTES_IN_GB, "master");
-        assertThat(options, containsInAnyOrder("-Xmx9830m", "-Xms9830m"));
-
-        options = calculateHeap(64, null, "master");
-        assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
-
-        options = calculateHeap(77, 64 * BYTES_IN_GB, "master");
+        options = calculateHeap(64, "master");
         assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
     }
 
     public void testMlOnlyOptions() {
-        List<String> options = calculateHeap(1, null, "ml");
+        List<String> options = calculateHeap(1, "ml");
         assertThat(options, containsInAnyOrder("-Xmx409m", "-Xms409m"));
 
-        options = calculateHeap(4, BYTES_IN_GB, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx409m", "-Xms409m"));
-
-        options = calculateHeap(4, null, "ml");
+        options = calculateHeap(4, "ml");
         assertThat(options, containsInAnyOrder("-Xmx1024m", "-Xms1024m"));
 
-        options = calculateHeap(6, 4 * BYTES_IN_GB, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx1024m", "-Xms1024m"));
-
-        options = calculateHeap(32, null, "ml");
-        assertThat(options, containsInAnyOrder("-Xmx2048m", "-Xms2048m"));
-
-        options = calculateHeap(100, 32 * BYTES_IN_GB, "ml");
+        options = calculateHeap(32, "ml");
         assertThat(options, containsInAnyOrder("-Xmx2048m", "-Xms2048m"));
     }
 
     public void testDataNodeOptions() {
-        List<String> options = calculateHeap(1, null, "data");
+        List<String> options = calculateHeap(1, "data");
         assertThat(options, containsInAnyOrder("-Xmx512m", "-Xms512m"));
 
-        options = calculateHeap(5, BYTES_IN_GB, "data");
-        assertThat(options, containsInAnyOrder("-Xmx512m", "-Xms512m"));
-
-        options = calculateHeap(8, null, "data");
+        options = calculateHeap(8, "data");
         assertThat(options, containsInAnyOrder("-Xmx4096m", "-Xms4096m"));
 
-        options = calculateHeap(42, 8 * BYTES_IN_GB, "data");
-        assertThat(options, containsInAnyOrder("-Xmx4096m", "-Xms4096m"));
-
-        options = calculateHeap(64, null, "data");
+        options = calculateHeap(64, "data");
         assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
 
-        options = calculateHeap(65, 64 * BYTES_IN_GB, "data");
-        assertThat(options, containsInAnyOrder("-Xmx31744m", "-Xms31744m"));
-
-        options = calculateHeap(0.5, null, "data");
+        options = calculateHeap(0.5, "data");
         assertThat(options, containsInAnyOrder("-Xmx204m", "-Xms204m"));
 
-        options = calculateHeap(3, BYTES_IN_GB / 2, "data");
-        assertThat(options, containsInAnyOrder("-Xmx204m", "-Xms204m"));
-
-        options = calculateHeap(0.2, null, "data");
-        assertThat(options, containsInAnyOrder("-Xmx128m", "-Xms128m"));
-
-        options = calculateHeap(1, BYTES_IN_GB / 5, "data");
+        options = calculateHeap(0.2, "data");
         assertThat(options, containsInAnyOrder("-Xmx128m", "-Xms128m"));
     }
 
@@ -118,30 +83,15 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
         assertThat(options, containsInAnyOrder("-Xmx1024m", "-Xms1024m"));
     }
 
-    public void testParseForcedMemoryInBytes() {
-        assertThat(MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Da=b", "-Dx=y")), nullValue());
-        assertThat(
-            MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Da=b", "-Des.total_memory_bytes=123456789", "-Dx=y")),
-            is(123456789L)
-        );
-        assertThat(MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Des.total_memory_bytes=987654321")), is(987654321L));
-        try {
-            MachineDependentHeap.parseForcedMemoryInBytes(List.of("-Des.total_memory_bytes=invalid"));
-            fail("expected parse to fail");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("Unable to parse number of bytes from [-Des.total_memory_bytes=invalid]"));
-        }
-    }
-
-    private static List<String> calculateHeap(double memoryInGigabytes, Long forcedMemoryInBytes, String... roles) {
+    private static List<String> calculateHeap(double memoryInGigabytes, String... roles) {
         MachineDependentHeap machineDependentHeap = new MachineDependentHeap(systemMemoryInGigabytes(memoryInGigabytes));
         String configYaml = "node.roles: [" + String.join(",", roles) + "]";
-        return calculateHeap(machineDependentHeap, configYaml, forcedMemoryInBytes);
+        return calculateHeap(machineDependentHeap, configYaml);
     }
 
-    private static List<String> calculateHeap(MachineDependentHeap machineDependentHeap, String configYaml, Long forcedMemoryInBytes) {
+    private static List<String> calculateHeap(MachineDependentHeap machineDependentHeap, String configYaml) {
         try (InputStream in = new ByteArrayInputStream(configYaml.getBytes(StandardCharsets.UTF_8))) {
-            return machineDependentHeap.determineHeapSettings(in, forcedMemoryInBytes);
+            return machineDependentHeap.determineHeapSettings(in);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

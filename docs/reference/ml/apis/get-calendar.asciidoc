@@ -28,13 +28,26 @@ You can get information for a single calendar or for all calendars by using
   (string) Identifier for the calendar.
 
 
+==== Query Parameters
+
+`from`::
+    (Optional, integer) Skips the specified number of calendars. This parameter
+    is supported only when you omit the `<calendar_id>`. Defaults to `0`.
+
+`size`::
+    (Optional, integer) Specifies the maximum number of calendars to obtain.
+    This parameter is supported only when you omit the `<calendar_id>`. Defaults
+    to `100`.
+
 ==== Request Body
 
-`from`:::
-    (integer) Skips the specified number of calendars.
+`page.from`:::
+    (integer) Skips the specified number of calendars. This object is 
+    supported only when you omit the `<calendar_id>`. Defaults to `0`.
 
-`size`:::
-    (integer) Specifies the maximum number of calendars to obtain.
+`page.size`:::
+    (integer) Specifies the maximum number of calendars to obtain. This object
+    is supported only when you omit the `<calendar_id>`. Defaults to `100`.
 
 
 ==== Results

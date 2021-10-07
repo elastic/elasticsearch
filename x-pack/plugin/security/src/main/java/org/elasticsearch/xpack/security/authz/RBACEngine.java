@@ -35,14 +35,19 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -98,7 +103,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
@@ -108,6 +113,10 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 import static org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY;
 
 public class RBACEngine implements AuthorizationEngine {
+
+    public static final Setting<Integer> CACHE_MAX_SIZE_SETTING = Setting.intSetting(
+        "xpack.security.authz.rbac.cache.max_size", Netty4Transport.WORKER_COUNT,
+        0, Setting.Property.NodeScope);
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = StringMatcher.of(
         ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME, GetApiKeyAction.NAME);
@@ -119,17 +128,26 @@ public class RBACEngine implements AuthorizationEngine {
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
 
     private final CompositeRolesStore rolesStore;
+    private final ThreadPool threadPool;
     private final FieldPermissionsCache fieldPermissionsCache;
 
-    // TODO allocate size as thread pool size
-    private final Map<IndexAuthorizationCacheKey, ListenableFuture<IndexAuthorizationCacheValue>> indexAuthorizationLookup =
-        new ConcurrentHashMap<>();
-    // TODO setting to disable it
-    // TODO We can just pass threadPool to RBACEngine
+    private final Cache<IndexAuthorizationCacheKey, ListenableFuture<IndexAuthorizationCacheValue>> indexAuthorizationCache;
 
-    public RBACEngine(Settings settings, CompositeRolesStore rolesStore) {
+    public RBACEngine(Settings settings, CompositeRolesStore rolesStore, ThreadPool threadPool) {
         this.rolesStore = rolesStore;
+        this.threadPool = threadPool;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        final int cacheSize = CACHE_MAX_SIZE_SETTING.get(settings);
+        if (cacheSize > 0) {
+            logger.debug("Enable index authorization cache with maximum size of [{}]", cacheSize);
+            this.indexAuthorizationCache =
+                CacheBuilder.<IndexAuthorizationCacheKey, ListenableFuture<IndexAuthorizationCacheValue>>builder()
+                    .setMaximumWeight(cacheSize)
+                    .setExpireAfterWrite(TimeValue.timeValueMinutes(5))  // a fallback just in case
+                    .build();
+        } else {
+            this.indexAuthorizationCache = null;
+        }
     }
 
     @Override
@@ -265,11 +283,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+    public void authorizeIndexAction(RequestInfo requestInfo,
+                                     AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
                                      Metadata metadata,
-                                     ThreadPool threadPool,
-                                     ActionListener<IndexAuthorizationResult> listener) {
+                                     ActionListener<IndexAuthorizationResult> listener
+    ) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
@@ -344,14 +363,14 @@ public class RBACEngine implements AuthorizationEngine {
         } else if (((IndicesRequest) request).allowsRemoteIndices()) {
             // remote indices are allowed
             authorizeIndexActionAndMaybeCache(
-                requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, threadPool, listener);
+                requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, listener);
         } else {
             try {
                 final IndexAuthorizationResult indexAuthorizationResult =
                         authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES);
                 if (indexAuthorizationResult.isGranted()) {
                     authorizeIndexActionAndMaybeCache(
-                        requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, threadPool, listener);
+                        requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, listener);
                 } else {
                     listener.onResponse(indexAuthorizationResult);
                 }
@@ -366,16 +385,21 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
         Metadata metadata,
-        ThreadPool threadPool,
         ActionListener<IndexAuthorizationResult> listener
     ) {
         var cacheKey = getIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata);
         if (cacheKey != null) {
             var valueAlreadyInCache = new AtomicBoolean(true);
-            var listenableFuture = indexAuthorizationLookup.computeIfAbsent(cacheKey, k -> {
-                valueAlreadyInCache.set(false);
-                return new ListenableFuture<>();
-            });
+            ListenableFuture<IndexAuthorizationCacheValue> listenableFuture;
+            try {
+                listenableFuture = indexAuthorizationCache.computeIfAbsent(cacheKey, k -> {
+                    valueAlreadyInCache.set(false);
+                    return new ListenableFuture<>();
+                });
+            } catch (ExecutionException e) {
+                listener.onFailure(e);
+                return;
+            }
             if (valueAlreadyInCache.get()) {
 //                logger.info("{} waiting for index authorization result", Thread.currentThread());
                 listenableFuture.addListener(ActionListener.wrap(value -> {
@@ -387,11 +411,11 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
 //                logger.info("{} actively computing for index authorization result", Thread.currentThread());
                 final ActionListener<IndexAuthorizationCacheValue> cachingListener = ActionListener.wrap(value -> {
-                    indexAuthorizationLookup.remove(cacheKey, listenableFuture);
+                    indexAuthorizationCache.invalidate(cacheKey, listenableFuture);
                     listenableFuture.onResponse(value);
                     listener.onResponse(value.indexAuthorizationResult);
                 }, e -> {
-                    indexAuthorizationLookup.remove(cacheKey, listenableFuture);
+                    indexAuthorizationCache.invalidate(cacheKey, listenableFuture);
                     listenableFuture.onFailure(e);
                     listener.onFailure(e);
                 });
@@ -846,14 +870,14 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 
-    private boolean isRequestCacheableForIndexAuthorization(TransportRequest request) {
-        return request instanceof IndicesRequest.Replaceable
-            && (false == request instanceof PutMappingRequest || ((PutMappingRequest) request).getConcreteIndex() == null);
-    }
-
     private IndexAuthorizationCacheKey getIndexAuthorizationCacheKey(
         RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata
     ) {
+        // Cache is disabled
+        if (indexAuthorizationCache == null) {
+            return null;
+        }
+        // Request is not qualified for cache
         if (false == isRequestCacheableForIndexAuthorization(requestInfo.getRequest())) {
             return null;
         }
@@ -865,6 +889,14 @@ public class RBACEngine implements AuthorizationEngine {
             metadata.version(),
             getRoleIndicesPermissions(ensureRBAC(authorizationInfo).getRole())
         );
+    }
+
+    /**
+     * Only cache requests that genuinely need wildcard expansion and replacement.
+     */
+    private boolean isRequestCacheableForIndexAuthorization(TransportRequest request) {
+        return request instanceof IndicesRequest.Replaceable
+            && (false == request instanceof PutMappingRequest || ((PutMappingRequest) request).getConcreteIndex() == null);
     }
 
     private static class IndexAuthorizationCacheKey {

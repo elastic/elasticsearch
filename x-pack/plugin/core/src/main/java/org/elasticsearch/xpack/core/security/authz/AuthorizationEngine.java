@@ -140,7 +140,6 @@ public interface AuthorizationEngine {
 
     default void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Metadata metadata,
-                                      ThreadPool threadPool,
                                       ActionListener<IndexAuthorizationResult> listener) {
         authorizeIndexAction(requestInfo, authorizationInfo, indicesAsyncSupplier, metadata.getIndicesLookup(), listener);
     }

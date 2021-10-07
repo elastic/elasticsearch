@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -110,7 +111,7 @@ public class RBACEngineTests extends ESTestCase {
 
     @Before
     public void createEngine() {
-        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class));
+        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class), mock(ThreadPool.class));
     }
 
     public void testSameUserPermission() {

@@ -120,7 +120,6 @@ public class AuthorizationService {
     private final AuditTrailService auditTrailService;
     private final IndicesAndAliasesResolver indicesAndAliasesResolver;
     private final AuthenticationFailureHandler authcFailureHandler;
-    private final ThreadPool threadPool;
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
     private final AuthorizationEngine rbacEngine;
@@ -140,12 +139,11 @@ public class AuthorizationService {
         this.auditTrailService = auditTrailService;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
-        this.threadPool = threadPool;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.rbacEngine = new RBACEngine(settings, rolesStore, threadPool);
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
@@ -386,7 +384,7 @@ public class AuthorizationService {
                     )
             );
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
-                metadata, threadPool, wrapPreservingContext(new AuthorizationResultListener<>(result ->
+                metadata, wrapPreservingContext(new AuthorizationResultListener<>(result ->
                     handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine, authorizedIndicesSupplier,
                         resolvedIndicesAsyncSupplier, metadata, listener),
                     listener::onFailure, requestInfo, requestId, authzInfo), threadContext));
@@ -438,7 +436,6 @@ public class AuthorizationService {
                         }, ril::onFailure));
                     },
                     metadata,
-                    threadPool,
                     wrapPreservingContext(new AuthorizationResultListener<>(
                         authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
                         listener::onFailure, aliasesRequestInfo, requestId, authzInfo), threadContext));
@@ -661,7 +658,7 @@ public class AuthorizationService {
                         new RequestInfo(requestInfo.getAuthentication(), requestInfo.getRequest(), bulkItemAction, bulkAuthzContext);
                     authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                        metadata, threadPool, ActionListener.wrap(indexAuthorizationResult ->
+                        metadata, ActionListener.wrap(indexAuthorizationResult ->
                                 groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
                             groupedActionListener::onFailure));
                 });

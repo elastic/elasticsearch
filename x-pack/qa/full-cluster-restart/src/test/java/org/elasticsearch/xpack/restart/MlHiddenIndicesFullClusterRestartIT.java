@@ -18,9 +18,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -33,14 +30,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
-    private static final String OLD_CLUSTER_JOB_ID = "ml-hidden-indices-old-cluster-job";
+    private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
+    private static final List<Tuple<String, String>> EXPECTED_INDEX_ALIAS_PAIRS =
+        List.of(
+            Tuple.tuple(".ml-annotations-6", ".ml-annotations-read"),
+            Tuple.tuple(".ml-annotations-6", ".ml-annotations-write"),
+            Tuple.tuple(".ml-state-000001", ".ml-state-write"),
+            Tuple.tuple(".ml-anomalies-shared", ".ml-anomalies-" + JOB_ID),
+            Tuple.tuple(".ml-anomalies-shared", ".ml-anomalies-.write-" + JOB_ID)
+        );
 
     @Override
     protected Settings restClientSettings() {
@@ -63,32 +70,27 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation
-            createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
-            openAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
+            createAnomalyDetectorJob(JOB_ID);
+            openAnomalyDetectorJob(JOB_ID);
 
             if (getOldClusterVersion().before(Version.V_7_7_0)) {
                 Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
                 Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
 
+                assertThat("Index settings map was: " + indexSettingsMap, indexSettingsMap, is(aMapWithSize(greaterThanOrEqualTo(4))));
                 for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
                     String indexName = e.getKey();
                     @SuppressWarnings("unchecked")
                     Map<String, Object> settings = (Map<String, Object>) e.getValue();
                     assertThat(settings, is(notNullValue()));
-                    assertThat("Index " + indexName + " expected not to be hidden but was",
+                    assertThat("Index " + indexName + " expected not to be hidden but was, settings = " + settings,
                         XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
                         is(nullValue()));
                 }
 
-                List<Tuple<String, String>> expected =
-                    List.of(
-                        Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
-                        Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME),
-                        Tuple.tuple(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                    );
-                for (Tuple<String, String> indexAndAlias : expected) {
+                for (Tuple<String, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
                     assertThat(
-                        indexAndAlias + " should not be hidden",
+                        indexAndAlias + " expected not be hidden but was, aliasesMap = " + aliasesMap,
                         XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
                         is(nullValue()));
                 }
@@ -97,29 +99,20 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
             Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
             Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
 
+            assertThat("Index settings map was: " + indexSettingsMap, indexSettingsMap, is(aMapWithSize(greaterThanOrEqualTo(4))));
             for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
                 String indexName = e.getKey();
-                // .ml-config is supposed to be a system index, *not* a hidden index
-                if (".ml-config".equals(indexName)) {
-                    continue;
-                }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> settings = (Map<String, Object>) e.getValue();
                 assertThat(settings, is(notNullValue()));
-                assertThat("Index " + indexName + " expected to be hidden but wasn't",
+                assertThat("Index " + indexName + " expected to be hidden but wasn't, settings = " + settings,
                     XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
                     is(equalTo("true")));
             }
 
-            // TODO: Include all the ML aliases
-            List<Tuple<String, String>> expected =
-                List.of(
-                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.READ_ALIAS_NAME),
-                    Tuple.tuple(AnnotationIndex.INDEX_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
-                );
-            for (Tuple<String, String> indexAndAlias : expected) {
+            for (Tuple<String, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
                 assertThat(
-                    indexAndAlias + " should be hidden, " + aliasesMap,
+                    indexAndAlias + " expected to be hidden but wasn't, aliasesMap = " + aliasesMap,
                     XContentMapValues.extractValue(aliasesMap, indexAndAlias.v1(), "aliases", indexAndAlias.v2(), "is_hidden"),
                     is(true));
             }
@@ -127,7 +120,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     }
 
     private Response getMlIndicesSettings() throws IOException {
-        Request getSettingsRequest = new Request("GET", ".ml-*/_settings");
+        Request getSettingsRequest =
+            new Request("GET", ".ml-anomalies-*,.ml-state*,.ml-stats-*,.ml-notifications*,.ml-annotations*/_settings");
         getSettingsRequest
             .setOptions(RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(WarningsHandler.PERMISSIVE)

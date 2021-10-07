@@ -1429,7 +1429,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
             new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
             new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
-            new AssociatedIndexDescriptor(".ml-annotations*", "Ml annotations indices")
+            new AssociatedIndexDescriptor(".ml-annotations*", "ML annotations indices")
         );
 
     @Override

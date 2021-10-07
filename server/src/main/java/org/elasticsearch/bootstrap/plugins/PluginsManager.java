@@ -21,6 +21,8 @@ import java.nio.file.Path;
 
 public class PluginsManager {
 
+    public static final String SYNC_PLUGINS_ACTION = "org.elasticsearch.plugins.cli.action.SyncPluginsAction";
+
     public static boolean configExists(Environment env) {
         return Files.exists(env.configFile().resolve("elasticsearch-plugins.yml"));
     }
@@ -29,12 +31,10 @@ public class PluginsManager {
         ClassLoader classLoader = buildClassLoader(env);
 
         @SuppressWarnings("unchecked")
-        final Class<SyncPluginsProvider> installClass = (Class<SyncPluginsProvider>) classLoader.loadClass(
-            "org.elasticsearch.plugins.cli.action.SyncPluginsAction"
-        );
+        final Class<SyncPluginsProvider> installClass = (Class<SyncPluginsProvider>) classLoader.loadClass(SYNC_PLUGINS_ACTION);
 
         final SyncPluginsProvider provider = installClass.getConstructor(Terminal.class, Environment.class)
-            .newInstance(LoggerTerminal.getLogger("org.elasticsearch.plugins.cli.action.SyncPluginsAction"), env);
+            .newInstance(LoggerTerminal.getLogger(SYNC_PLUGINS_ACTION), env);
 
         provider.execute();
     }

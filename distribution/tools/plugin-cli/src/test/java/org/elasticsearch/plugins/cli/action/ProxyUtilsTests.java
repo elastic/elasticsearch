@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins.cli.action;
 
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.Proxy.Type;

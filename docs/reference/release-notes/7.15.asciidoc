@@ -3,6 +3,12 @@
 
 Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
 
+[[known-issues-7.15.0]]
+[discrete]
+=== Known issues
+
+include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
+
 [[breaking-7.15.0]]
 [float]
 === Breaking changes

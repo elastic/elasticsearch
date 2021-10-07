@@ -332,7 +332,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
             "name='" + name + '\'' +
             ", dataStreams=" + dataStreams +
             ", writeDataStream='" + writeDataStream + '\'' +
-            ", filter=" + filter.string() +
+            ", filter=" + (filter != null ? filter.string() : "null") +
             '}';
     }
 }

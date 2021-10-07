@@ -70,6 +70,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             .withProjectDir(getProjectDir())
             .withPluginClasspath()
             .withTestKitDir(testkit)
+            .forwardOutput()
             .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0));
     }
 

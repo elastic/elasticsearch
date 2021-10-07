@@ -108,3 +108,11 @@ testClusters.configureEach {
   // but in the module downloader should be enabled by default
   systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
 }
+
+// 7.x yaml tests need to use different lat/lon that match databases from geoip-fixture:
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.replaceValueInMatch("_source.geoip.location.lon", -93.2566)
+  task.replaceValueInMatch("_source.geoip.0.location.lon", -93.2566)
+  task.replaceValueInMatch("_source.geoip.location.lat", 45.0546)
+  task.replaceValueInMatch("_source.geoip.0.location.lat", 45.0546)
+}

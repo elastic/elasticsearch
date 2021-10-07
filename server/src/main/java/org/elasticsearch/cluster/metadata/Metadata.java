@@ -189,7 +189,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private volatile SortedMap<String, IndexAbstraction> indicesLookup;
+    private SortedMap<String, IndexAbstraction> indicesLookup;
 
     Metadata(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetadata coordinationMetadata,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
@@ -306,12 +306,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
         if (indicesLookup != null) {
             return indicesLookup;
-        }
-        synchronized (this) {
+        } else {
             DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
             indicesLookup = Collections.unmodifiableSortedMap(Builder.buildIndicesLookup(dataStreamMetadata, indices));
+            return indicesLookup;
         }
-        return indicesLookup;
     }
 
     /**

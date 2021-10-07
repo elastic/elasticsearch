@@ -67,6 +67,8 @@ class IndexLifecycleRunner {
                 builder.failure(task, e);
             }
         }
+        // Trigger indices lookup creation and related validation
+        state.metadata().getIndicesLookup();
         return builder.build(state);
     };
 

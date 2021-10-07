@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -114,7 +115,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         if (targetNodeName != null && type != Type.REPLACE) {
             throw new IllegalArgumentException(new ParameterizedMessage("target node name is only valid for REPLACE type shutdowns, " +
                 "but was given type [{}] and target node name [{}]", type, targetNodeName).getFormattedMessage());
-        } else if (targetNodeName == null && type == Type.REPLACE) {
+        } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }
         this.targetNodeName = targetNodeName;

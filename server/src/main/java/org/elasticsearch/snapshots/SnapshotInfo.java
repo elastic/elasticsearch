@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -375,11 +375,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
-        for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shards()) {
+        for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId()) {
             if (c.value.state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
             } else if (c.value.state() == SnapshotsInProgress.ShardState.FAILED) {
-                shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), c.key, c.value.reason()));
+                shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), entry.shardId(c.key), c.value.reason()));
             }
         }
         return new SnapshotInfo(

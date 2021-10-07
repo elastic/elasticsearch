@@ -173,7 +173,7 @@ public class EnrichPolicyRunner implements Runnable {
         final Map<String, Object> mapping
     ) {
         // First ensure mapping is set
-        if (mapping.get("properties") == null) {
+        if (mapping.get("properties") == null && mapping.get("runtime") == null) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
                 policyName,
@@ -215,7 +215,8 @@ public class EnrichPolicyRunner implements Runnable {
                 );
             }
             Map<?, ?> currentProperties = ((Map<?, ?>) currentField.get("properties"));
-            if (currentProperties == null) {
+            Map<?, ?> runtimeProperties = (Map<?, ?>) currentField.get("runtime");
+            if (currentProperties == null && runtimeProperties == null) {
                 if (fieldRequired) {
                     throw new ElasticsearchException(
                         "Could not traverse mapping to field [{}]. Expected the [{}] field to have sub fields but none were configured.",
@@ -227,6 +228,9 @@ public class EnrichPolicyRunner implements Runnable {
                 }
             }
             currentField = ((Map<?, ?>) currentProperties.get(fieldPart));
+            if(currentField == null) {
+                currentField = ((Map<?, ?>) runtimeProperties.get(fieldPart));
+            }
             if (currentField == null) {
                 if (fieldRequired) {
                     throw new ElasticsearchException(

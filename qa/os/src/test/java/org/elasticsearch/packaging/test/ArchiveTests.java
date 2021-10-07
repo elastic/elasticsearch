@@ -136,8 +136,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
-        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
-        // we don't trigger false negatives for the auto-configuration process
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();
@@ -148,8 +146,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
-        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
-        // we don't trigger false negatives for the auto-configuration process
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
@@ -159,8 +155,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
-        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
-        // we don't trigger false negatives for the auto-configuration process
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
@@ -170,8 +164,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
-        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
-        // we don't trigger false negatives for the auto-configuration process
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
@@ -185,8 +177,7 @@ public class ArchiveTests extends PackagingTestCase {
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
         Platforms.onWindows(() -> {
-            sh.chown(tempDir, installation.getOwner());
-            sh.run("attrib +r " + tempConf + "/*.* /s");
+            sh.run("attrib +r " + tempConf + "/d");
         });
         Platforms.onLinux(() -> { sh.run("chmod -w " + tempConf); });
         sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
@@ -194,18 +185,14 @@ public class ArchiveTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         sh.getEnv().remove("ES_PATH_CONF");
-        Platforms.onLinux(() -> sh.run("chmod +w " + tempConf));
         Platforms.onWindows(() -> {
-            sh.run("attrib -r " + tempConf + "/*.* /s");
-            sh.chown(tempDir);
+            sh.run("attrib -r " + tempConf + "/d");
         });
         FileUtils.rm(tempDir);
         FileUtils.rm(installation.data);
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
-        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
-        // we don't trigger false negatives for the auto-configuration process
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");

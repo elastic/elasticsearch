@@ -84,7 +84,9 @@ import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -673,8 +675,7 @@ public abstract class PackagingTestCase extends Assert {
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(
             configLines,
-            Matchers.not(hasItem("# have been automatically generated in order to configure Security.               #"))
-        );
+            not(contains(containsString("automatically generated in order to configure Security"))));
     }
 
     public static Optional<String> getAutoConfigDirName(Installation es) {

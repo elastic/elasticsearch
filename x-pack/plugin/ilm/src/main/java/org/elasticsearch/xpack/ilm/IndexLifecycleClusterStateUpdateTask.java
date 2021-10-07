@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.ilm.Step;
  */
 public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterStateTaskListener {
 
+    static final class TimeoutException extends Exception {}
+
     private final ListenableFuture<Void> listener = new ListenableFuture<>();
 
     protected final Index index;
@@ -63,7 +65,10 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     @Override
     public final void onFailure(String source, Exception e) {
         listener.onFailure(e);
-        handleFailure(source, e);
+        //we ignore timeout exception, task will be retried on the next cluster state update
+        if (e instanceof TimeoutException == false) {
+            handleFailure(source, e);
+        }
     }
 
     /**

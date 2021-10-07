@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -442,16 +443,26 @@ public class MetadataStateFormatTests extends ESTestCase {
 
         List<Path> stateFiles = format.findStateFilesByGeneration(genId, paths);
 
-        format.failOnPaths(paths[1].resolve(MetadataStateFormat.STATE_DIR_NAME));
+        final int badDirIndex = 1;
+
+        format.failOnPaths(paths[badDirIndex].resolve(MetadataStateFormat.STATE_DIR_NAME));
         format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
 
-        // Ensure clean-up old files doesn't fail with one bad dir
+        // Ensure clean-up old files doesn't fail with one bad dir. We pretend we want to
+        // keep a newer generation that doesn't exist (genId + 1).
         format.cleanupOldFiles(genId + 1, paths);
 
-        corruptFile(stateFiles.get(1), logger);
+        // We simulated failure on deleting one stale state file, there should be one that's remaining from the old state.
+        // We'll corrupt this remaining file and check to see if loading the state throws an exception.
+        // All other state files, including the first directory uncorrupted state files should be cleaned up.
+        corruptFile(stateFiles.get(badDirIndex), logger);
 
-        // Ensure we find the corrupted metadata without the leader first state path
-        expectThrows(ElasticsearchException.class, () -> format.loadLatestStateWithGeneration(logger, xContentRegistry(), paths));
+        try {
+            format.loadLatestStateWithGeneration(logger, xContentRegistry(), paths);
+            fail("Reading corrupted state should fail");
+        } catch (ElasticsearchException esException) {
+            assertThat(esException.getMessage(), is("java.io.IOException: failed to read " + stateFiles.get(badDirIndex)));
+        }
     }
 
     private static class Format extends MetadataStateFormat<DummyState> {

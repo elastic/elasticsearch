@@ -664,6 +664,7 @@ POST /my-index-000001/_scripts/painless/_execute
       if (clientip != null) emit(clientip);
     """
   },
+  "context": "ip_field",
   "context_setup": {
     "document": {
       "message": "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"

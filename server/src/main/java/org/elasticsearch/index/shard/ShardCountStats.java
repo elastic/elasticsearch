@@ -56,7 +56,7 @@ public class ShardCountStats implements Writeable, ToXContentFragment {
     }
 
     static final class Fields {
-        static final String SHARDS = "shards";
+        static final String SHARDS = "shard_stats";
         static final String TOTAL_COUNT = "total_count";
     }
 

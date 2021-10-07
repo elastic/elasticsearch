@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.watcher.actions.throttler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
 import java.time.Clock;
@@ -39,7 +40,7 @@ public class ActionThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.WATCHER) == false) {
+        if (WatcherConstants.WATCHER_FEATURE.check(licenseState) == false) {
             return Result.throttle(LICENSE, "watcher license does not allow action execution");
         }
         if (periodThrottler != null) {

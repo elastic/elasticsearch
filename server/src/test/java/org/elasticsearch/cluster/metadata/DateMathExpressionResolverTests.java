@@ -126,8 +126,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         assertThat(result.get(3), equalTo(".logstash-" +
             formatDate("uuuu.MM", dateFromMillis(context.getStartTime()).withDayOfMonth(1))));
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78783")
+    
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
         ZoneId timeZone;
         int hoursOffset;
@@ -138,6 +137,9 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         } else {
             hoursOffset = randomIntBetween(-11, 13);
             minutesOffset = randomIntBetween(0, 59);
+            if (hoursOffset < 0) {
+                minutesOffset = -minutesOffset;
+            }
             timeZone = ZoneOffset.ofHoursMinutes(hoursOffset, minutesOffset);
         }
         ZonedDateTime now;

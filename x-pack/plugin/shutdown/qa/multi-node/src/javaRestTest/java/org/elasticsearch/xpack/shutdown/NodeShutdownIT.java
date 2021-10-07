@@ -174,7 +174,7 @@ public class NodeShutdownIT extends ESRestTestCase {
         Request allocationExplainRequest = new Request("GET", "_cluster/allocation/explain");
         allocationExplainRequest.setJsonEntity("{\"index\": \"" + indexName + "\", \"shard\":  0, \"primary\":  false}");
         Map<String, Object> allocationExplainMap = entityAsMap(client().performRequest(allocationExplainRequest));
-        List<Map<String, Object>> decisions = (List<Map<String, Object>>) allocationExplainMap.get("node_allocation_decision");
+        List<Map<String, Object>> decisions = (List<Map<String, Object>>) allocationExplainMap.get("node_allocation_decisions");
         assertThat(decisions, notNullValue());
 
         Optional<Map<String, Object>> maybeDecision = decisions.stream()

@@ -211,4 +211,24 @@ Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
 ====
 
+[discrete]
+[[breaking_78_cluster_coordination_changes]]
+=== Cluster coordination changes
+
+.The old form of the <<voting-config-exclusions>> API is deprecated.
+[%collapsible]
+====
+*Details* +
+In earlier versions you would add a voting config exclusion by specifying the
+node names in the path: `POST /_cluster/voting_config_exclusions/{node_name}`.
+In 7.8.0 the preferred form of the API now specifies the node names or ids as a
+query parameter: `POST /_cluster/voting_config_exclusions?node_ids=...` or
+`POST /_cluster/voting_config_exclusions?node_names=...`. The older API is now
+deprecated.
+
+*Impact* +
+Discontinue use of the older API, and specify the excluded nodes in the query
+parameters instead.
+====
+
 //end::notable-breaking-changes[]

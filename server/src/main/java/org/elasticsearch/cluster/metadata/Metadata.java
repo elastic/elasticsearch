@@ -306,11 +306,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
         if (indicesLookup != null) {
             return indicesLookup;
-        } else {
-            DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
-            indicesLookup = Collections.unmodifiableSortedMap(Builder.buildIndicesLookup(dataStreamMetadata, indices));
-            return indicesLookup;
         }
+        DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
+        indicesLookup = Collections.unmodifiableSortedMap(Builder.buildIndicesLookup(dataStreamMetadata, indices));
+        return indicesLookup;
     }
 
     /**

@@ -94,6 +94,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -137,6 +138,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -161,6 +163,7 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private List<AggregationContext> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
+    private AnalysisModule analysisModule;
 
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST;
@@ -181,6 +184,19 @@ public abstract class AggregatorTestCase extends ESTestCase {
         plugins.add(new AggCardinalityPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
+    }
+
+    @Before
+    public void initAnalysisRegistry() throws Exception {
+        analysisModule = createAnalysisModule();
+    }
+
+    /**
+     * @return a new analysis module. Tests that require a fully constructed analysis module (used to create an analysis registry)
+     *         should override this method
+     */
+    protected AnalysisModule createAnalysisModule() throws Exception {
+        return null;
     }
 
     /**
@@ -288,6 +304,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
+            Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
             searchExecutionContext,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
             bytesToPreallocate,
@@ -489,7 +506,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
-
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce
             int toReduceSize = aggs.size();
@@ -497,7 +513,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> toReduce = aggs.subList(0, r);
             InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(
-                context.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
+                context.bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY, () -> false);
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
             aggs.add(reduced);
@@ -507,7 +523,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-            context.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines);
+            context.bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines, () -> false);
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
@@ -636,7 +652,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 context.bigArrays(),
                 getMockScriptService(),
                 context.multiBucketConsumer(),
-                builder.buildPipelineTree()
+                builder.buildPipelineTree(),
+                () -> false
             )
         );
         @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok

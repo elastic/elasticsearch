@@ -96,7 +96,7 @@ public class IndexLifecycleMetadata implements XPackMetadataCustom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(POLICIES_FIELD.getPreferredName(), policyMetadatas);
+        builder.xContentValuesMap(POLICIES_FIELD.getPreferredName(), policyMetadatas);
         builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
         return builder;
     }

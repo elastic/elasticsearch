@@ -310,7 +310,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
+            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(new DiscoveryNode[0]));
         }
     }
 

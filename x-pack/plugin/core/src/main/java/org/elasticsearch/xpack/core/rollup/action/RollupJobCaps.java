@@ -107,7 +107,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
             builder.startObject(FIELDS.getPreferredName());
             {
                 for (Map.Entry<String, RollupFieldCaps> fieldCap : fieldCapLookup.entrySet()) {
-                    builder.array(fieldCap.getKey(), fieldCap.getValue());
+                    builder.xContentList(fieldCap.getKey(), fieldCap.getValue());
                 }
             }
             builder.endObject();

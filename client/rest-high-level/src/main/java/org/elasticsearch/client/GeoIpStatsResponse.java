@@ -156,7 +156,7 @@ public class GeoIpStatsResponse implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("files_in_temp", filesInTemp);
+            builder.stringListField("files_in_temp", filesInTemp);
             builder.field("databases", databases.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(Map.Entry::getValue)

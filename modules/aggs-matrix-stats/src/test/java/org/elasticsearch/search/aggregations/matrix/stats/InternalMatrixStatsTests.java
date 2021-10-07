@@ -157,7 +157,8 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             bigArrays,
             mockScriptService,
             b -> {},
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());

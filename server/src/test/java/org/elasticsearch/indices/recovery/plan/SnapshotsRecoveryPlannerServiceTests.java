@@ -471,7 +471,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     // StoreFileMetadata doesn't implement #equals, we rely on StoreFileMetadata#isSame for equality checks
     private boolean containsFile(List<StoreFileMetadata> files, StoreFileMetadata fileMetadata) {
         for (StoreFileMetadata file : files) {
-            if (file.isSame(fileMetadata)) {
+            if (fileMetadata.name().equals(file.name()) && file.isSame(fileMetadata)) {
                 return true;
             }
         }

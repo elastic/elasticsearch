@@ -20,8 +20,10 @@ import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -162,17 +164,27 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
-     * @return Returns a container with all values stored in this map.
-     */
-    public ObjectContainer<VType> values() {
-        return map.values();
-    }
-
-    /**
      * Returns a direct iterator over the keys.
      */
     public Iterator<VType> valuesIt() {
         return iterator(map.values());
+    }
+
+    /**
+     * Returns a {@link Collection} view of the values contained in the map.
+     */
+    public Collection<VType> values() {
+        return new AbstractCollection<VType>() {
+            @Override
+            public Iterator<VType> iterator() {
+                return valuesIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+        };
     }
 
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {

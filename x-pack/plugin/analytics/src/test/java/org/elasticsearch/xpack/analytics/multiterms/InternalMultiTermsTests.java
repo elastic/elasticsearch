@@ -377,7 +377,8 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
             bigArrays,
             mockScriptService,
-            () -> PipelineAggregator.PipelineTree.EMPTY
+            () -> PipelineAggregator.PipelineTree.EMPTY,
+            () -> false
         );
 
         InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(org.elasticsearch.core.List.of(terms1, terms2), context);

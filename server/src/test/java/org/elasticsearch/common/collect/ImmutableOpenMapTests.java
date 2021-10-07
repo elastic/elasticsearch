@@ -15,6 +15,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,9 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ImmutableOpenMapTests extends ESTestCase {
@@ -34,6 +38,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
         .fPut("EU", "€")
         .fPut("UK", "£")
         .fPut("Korea", "₩")
+        .build();
+
+    ImmutableOpenMap<String, Integer> countryPopulations = ImmutableOpenMap.<String, Integer>builder()
+        .fPut("Poland", 37_846_611)
+        .fPut("France", 65_273_511)
+        .fPut("Spain", 46_754_778)
+        .fPut("Germany", 83_783_942)
+        .fPut("Italy", 60_461_826)
         .build();
 
     public void testStreamOperationsAreSupported() {
@@ -118,6 +130,56 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testEmptyKeySetWorks() {
         assertThat(ImmutableOpenMap.of().keySet().size(), equalTo(0));
+    }
+
+    public void testEmptyValuesIsCollection() {
+        assertThat(ImmutableOpenMap.of().values(), empty());
+    }
+
+    public void testValuesIsCollection() {
+        assertThat(countryPopulations.values(), containsInAnyOrder(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942));
+    }
+
+    public void testValuesToArray() {
+        Integer[] populations = countryPopulations.values().toArray(new Integer[0]);
+
+        assertThat(populations, arrayContainingInAnyOrder(37_846_611, 46_754_778, 60_461_826, 65_273_511, 83_783_942));
+    }
+
+    public void testStreamOperationOnValues() {
+        assertThat(countryPopulations.values().stream()
+                .filter(e -> e > 60_000_000)
+                .sorted(Comparator.reverseOrder())
+                .limit(2).collect(Collectors.toList()),
+            equalTo(org.elasticsearch.core.List.of(83_783_942, 65_273_511)));
+    }
+
+    public void testStreamOperationsOnRandomMapValues() {
+        ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
+
+        int limit = randomIntBetween(0, map.size());
+        List<String> collectedViaStream = map.values()
+            .stream()
+            .filter(e -> (e.contains("ab") || e.contains("cd") || e.contains("ef")) == false)
+            .sorted()
+            .limit(limit)
+            .collect(Collectors.toList());
+
+        SortedSet<String> filteredSortedStrings = new TreeSet<>();
+        for (ObjectObjectCursor<Long, String> cursor : map) {
+            if ((cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) == false) {
+                filteredSortedStrings.add(cursor.value);
+            }
+        }
+        int i = 0;
+        List<String> collectedIteratively = new ArrayList<>();
+        for (String s : filteredSortedStrings) {
+            if (i++ >= limit) {
+                break;
+            }
+            collectedIteratively.add(s);
+        }
+        assertThat(collectedViaStream, equalTo(collectedIteratively));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

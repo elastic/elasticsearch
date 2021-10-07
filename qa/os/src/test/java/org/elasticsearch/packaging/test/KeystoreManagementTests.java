@@ -246,7 +246,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         runContainer(
             distribution(),
             builder().volume(localConfigDir.resolve("config"), installation.config)
-                .envVar("KEYSTORE_PASSWORD", password)
+                .envVar("KEYSTORE_PASSWORD", KEYSTORE_PASSWORD)
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
         waitForElasticsearch(installation, USERNAME, PASSWORD);

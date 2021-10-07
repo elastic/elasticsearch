@@ -498,7 +498,7 @@ public class Docker {
      * @param installation the installation to check
      * @param username the username to authenticate with
      * @param password the password to authenticate with
-     * @param password the CA cert to trust
+     * @param caCert the CA cert to trust
      */
     public static void waitForElasticsearch(Installation installation, String username, String password, Path caCert) {
         try {
@@ -561,7 +561,7 @@ public class Docker {
      * @param path the path to fetch
      * @param user the user to authenticate with
      * @param password the password to authenticate with
-     * @param password CA cert to trust, if non-null use the https URL
+     * @param caCert CA cert to trust, if non-null use the https URL
      * @return a parsed JSON response
      * @throws Exception if something goes wrong
      */

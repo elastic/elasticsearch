@@ -237,9 +237,6 @@ public final class BulkRequestParser {
                                     + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }
                     }
-                } else if (token != XContentParser.Token.END_OBJECT) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
-                            + XContentParser.Token.START_OBJECT + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
                 }
 
                 if ("delete".equals(action)) {

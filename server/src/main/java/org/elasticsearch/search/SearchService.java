@@ -1373,7 +1373,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
-                boolean needsWaitForRefresh = request.waitForCheckpoint() != SequenceNumbers.NO_OPS_PERFORMED;
+                boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
                 // If this request requests wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,
                 // this can be improved in the future by manually checking that the requested checkpoint has already been refresh.
                 // However, this will request modifying the engine to surface that information.

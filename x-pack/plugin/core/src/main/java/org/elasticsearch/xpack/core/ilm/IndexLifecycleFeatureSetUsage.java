@@ -64,7 +64,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         if (policyStats != null) {
             builder.field("policy_count", policyStats.size());
-            builder.field("policy_stats", policyStats);
+            builder.xContentList("policy_stats", policyStats);
         }
     }
 

@@ -48,13 +48,6 @@ plugins {
   id "com.diffplug.spotless" version "5.15.1" apply false
 }
 
-String licenseCommit
-if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-  licenseCommit = BuildParams.gitRevision ?: "master" // leniency for non git builds
-} else {
-  licenseCommit = "v${version}"
-}
-
 /**
  * This is a convenient method for declaring test artifact dependencies provided by the internal
  * test artifact plugin. It replaces basically the longer dependency notation with explicit capability
@@ -145,20 +138,13 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 }
 
 subprojects {
-  // common maven publishing configuration
-  group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
-  description = "Elasticsearch subproject ${project.path}"
+  apply plugin: 'elasticsearch.base'
 }
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
-  plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    project.noticeFile = project.rootProject.file('NOTICE.txt')
-  }
 
   plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
@@ -170,8 +156,8 @@ allprojects {
   // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
-    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
-            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+    isEclipse = providers.systemProperty("eclipse.launcher").forUseAtConfigurationTime().isPresent() ||   // Detects gradle launched from Eclipse's IDE
+            providers.systemProperty("eclipse.application").forUseAtConfigurationTime().isPresent() ||    // Detects gradle launched from the Eclipse compiler server
             gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
             gradle.startParameter.taskNames.contains('cleanEclipse')
   }

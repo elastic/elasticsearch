@@ -208,7 +208,8 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
         Exception e = expectThrows(
             IllegalArgumentException.class,

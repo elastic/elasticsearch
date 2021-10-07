@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -1061,7 +1062,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
-        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+        final DeprecationIssue expectedIssue1 = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "cannot set ssl properties without explicitly enabling or disabling ssl",
             "https://ela.st/es-deprecation-7-explicit-ssl-required",
             String.format(Locale.ROOT,
@@ -1071,10 +1072,20 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 problemSettingKey2),
             false,null
         );
+        final DeprecationIssue expectedIssue2 = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "cannot set ssl properties without explicitly enabling or disabling ssl",
+            "https://ela.st/es-deprecation-7-explicit-ssl-required",
+            String.format(Locale.ROOT,
+                "setting [%s] is unset but the following settings exist: [%s,%s]",
+                httpSslEnabledKey,
+                problemSettingKey2,
+                problemSettingKey1),
+            false,null
+        );
 
         assertThat(
             NodeDeprecationChecks.checkSslServerEnabled(nodeSettings, null, clusterState, licenseState),
-            equalTo(expectedIssue)
+            either(equalTo(expectedIssue1)).or(equalTo(expectedIssue2))
         );
     }
 

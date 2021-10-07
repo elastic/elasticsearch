@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -254,6 +255,26 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
         assertThat(e.getMessage(), equalTo("System indices cannot have index.hidden set to true."));
+    }
+
+    public void testSpecialCharactersAreReplacedWhenConvertingToAutomaton() {
+        CharacterRunAutomaton automaton = new CharacterRunAutomaton(
+            SystemIndexDescriptor.buildAutomaton(".system-index*", ".system-alias")
+        );
+
+        // None of these should match, ever.
+        assertFalse(automaton.run(".my-system-index"));
+        assertFalse(automaton.run("my.system-index"));
+        assertFalse(automaton.run("some-other-index"));
+
+        // These should only fail if the trailing `*` doesn't get properly replaced with `.*`
+        assertTrue("if the trailing * isn't replaced, suffixes won't match properly", automaton.run(".system-index-1"));
+        assertTrue("if the trailing * isn't replaced, suffixes won't match properly", automaton.run(".system-index-asdf"));
+
+        // These should only fail if the leading `.` doesn't get properly replaced with `\\.`
+        assertFalse("if the leading dot isn't replaced, it can match date math", automaton.run("<system-index-{now/d}>"));
+        assertFalse("if the leading dot isn't replaced, it can match any single-char prefix", automaton.run("Osystem-index"));
+        assertFalse("the leading dot got dropped", automaton.run("system-index-1"));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

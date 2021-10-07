@@ -138,7 +138,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> generateContextApiSpecCluster.get().singleNode().getAllHttpSocketURI().get(0)}"
-      systemProperty "jdksrc", providers.systemProperty("jdksrc").getOrNull()
+      systemProperty "jdksrc", providers.systemProperty("jdksrc").forUseAtConfigurationTime().getOrNull()
       systemProperty "packageSources", providers.systemProperty("packageSources").forUseAtConfigurationTime().getOrNull()
     }.assertNormalExitValue()
   }

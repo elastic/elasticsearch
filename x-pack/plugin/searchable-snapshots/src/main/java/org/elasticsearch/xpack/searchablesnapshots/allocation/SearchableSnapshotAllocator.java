@@ -398,7 +398,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         );
         final AsyncCacheStatusFetch asyncFetch = asyncFetchStore.computeIfAbsent(shardId, sid -> new AsyncCacheStatusFetch());
         final DiscoveryNodes nodes = allocation.nodes();
-        final DiscoveryNode[] dataNodes = asyncFetch.addFetches(nodes.getDataNodes().values().toArray(DiscoveryNode.class));
+        final DiscoveryNode[] dataNodes = asyncFetch.addFetches(nodes.getDataNodes().values().toArray(new DiscoveryNode[0]));
         if (dataNodes.length > 0) {
             client.execute(
                 TransportSearchableSnapshotCacheStoresAction.TYPE,

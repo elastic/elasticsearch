@@ -36,18 +36,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -277,7 +276,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasEntry("event.code", "deprecated_route_POST_/_test_cluster/deprecated_settings"),
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
@@ -354,7 +353,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 for (int i = 0; i < hits; i++) {
                     final JsonNode hit = jsonNode.at("/hits/hits/" + i + "/_source");
 
-                    final Map<String, Object> document = new TreeMap<>();
+                    final Map<String, Object> document = new HashMap<>();
                     hit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue().textValue()));
 
                     documents.add(document);
@@ -365,7 +364,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasKey("@timestamp"),
                             hasKey("elasticsearch.cluster.name"),
@@ -464,7 +463,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
                 assertThat(
                     documents,
-                    hasItems(
+                    containsInAnyOrder(
                         allOf(
                             hasKey("@timestamp"),
                             hasKey("elasticsearch.cluster.name"),

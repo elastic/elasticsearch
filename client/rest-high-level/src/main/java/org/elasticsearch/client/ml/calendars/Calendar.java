@@ -75,7 +75,7 @@ public class Calendar implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
-        builder.field(JOB_IDS.getPreferredName(), jobIds);
+        builder.stringListField(JOB_IDS.getPreferredName(), jobIds);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }

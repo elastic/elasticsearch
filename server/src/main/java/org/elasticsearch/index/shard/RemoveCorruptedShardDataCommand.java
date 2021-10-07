@@ -57,7 +57,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
@@ -108,7 +107,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path dataPath, ClusterState clusterState,
+    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path[] dataPaths, ClusterState clusterState,
                                            CheckedConsumer<ShardPath, IOException> consumer)
     throws IOException {
         final Settings settings = environment.settings();
@@ -131,9 +130,9 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
-                indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
-                    .map(imd -> imd.value)
-                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
+                indexMetadata = clusterState.metadata().indices().values().stream()
+                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))
+                    .findFirst()
                     .orElse(null);
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
@@ -154,15 +153,18 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         final Index index = indexMetadata.getIndex();
         final ShardId shId = new ShardId(index, shardId);
 
-        final Path shardPathLocation = dataPath
-            .resolve(NodeEnvironment.INDICES_FOLDER)
-            .resolve(index.getUUID())
-            .resolve(Integer.toString(shId.id()));
-        if (Files.exists(shardPathLocation)) {
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
-                new Path[]{shardPathLocation}, dataPath);
-            if (shardPath != null) {
-                consumer.accept(shardPath);
+        for (Path dataPath : dataPaths) {
+            final Path shardPathLocation = dataPath
+                .resolve(NodeEnvironment.INDICES_FOLDER)
+                .resolve(index.getUUID())
+                .resolve(Integer.toString(shId.id()));
+            if (Files.exists(shardPathLocation)) {
+                final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
+                    new Path[]{shardPathLocation}, dataPath);
+                if (shardPath != null) {
+                    consumer.accept(shardPath);
+                    return;
+                }
             }
         }
     }
@@ -225,13 +227,13 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     // Visible for testing
     @Override
-    public void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment environment) throws IOException {
+    public void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
         warnAboutIndexBackup(terminal);
 
         final ClusterState clusterState =
-            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPath), environment).v2();
+            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPaths), environment).v2();
 
-        findAndProcessShardPath(options, environment, dataPath, clusterState, shardPath -> {
+        findAndProcessShardPath(options, environment, dataPaths, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {

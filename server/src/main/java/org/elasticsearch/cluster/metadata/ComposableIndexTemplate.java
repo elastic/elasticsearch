@@ -199,12 +199,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
+        builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
             builder.field(TEMPLATE.getPreferredName(), this.template);
         }
         if (this.componentTemplates != null) {
-            builder.field(COMPOSED_OF.getPreferredName(), this.componentTemplates);
+            builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
         }
         if (this.priority != null) {
             builder.field(PRIORITY.getPreferredName(), priority);

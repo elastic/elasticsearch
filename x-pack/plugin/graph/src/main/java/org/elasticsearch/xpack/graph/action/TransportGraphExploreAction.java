@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.graph.Graph;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -93,7 +94,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.GRAPH)) {
+        if (Graph.GRAPH_FEATURE.check(licenseState)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));

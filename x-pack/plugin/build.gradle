@@ -115,6 +115,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("rollup/put_job/Test basic put_job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/start_job/Test start job twice", "rollup was an experimental feature, also see #41227")
   task.skipTest("ml/trained_model_cat_apis/Test cat trained models", "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)")
+  task.skipTest("api_key/10_basic/Test invalidate api keys with single id", "waiting for https://github.com/elastic/elasticsearch/pull/78664")
 
   task.replaceKeyInDo("license.delete", "xpack-license.delete")
   task.replaceKeyInDo("license.get", "xpack-license.get")
@@ -218,6 +219,10 @@ testClusters.configureEach {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile serviceTokens.name, serviceTokens
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

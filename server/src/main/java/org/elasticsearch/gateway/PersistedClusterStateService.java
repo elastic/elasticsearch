@@ -139,7 +139,7 @@ public class PersistedClusterStateService {
 
     public PersistedClusterStateService(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
-        this(new Path[] { nodeEnvironment.nodeDataPath() }, nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
+        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
             relativeTimeMillisSupplier);
     }
 
@@ -205,7 +205,7 @@ public class PersistedClusterStateService {
      * Remove all persisted cluster states from the given data paths, for use in tests. Should only be called when there is no open
      * {@link Writer} on these paths.
      */
-    public static void deleteAll(Path... dataPaths) throws IOException {
+    public static void deleteAll(Path[] dataPaths) throws IOException {
         for (Path dataPath : dataPaths) {
             Lucene.cleanLuceneIndex(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
         }

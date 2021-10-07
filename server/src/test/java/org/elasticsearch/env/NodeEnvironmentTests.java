@@ -62,7 +62,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
         env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertThat(env.nodeDataPath(), equalTo(PathUtils.get(dataPath)));
+        assertThat(env.nodeDataPaths()[0], equalTo(PathUtils.get(dataPath)));
 
         env.close();
         assertThat(env.lockedShards(), empty());

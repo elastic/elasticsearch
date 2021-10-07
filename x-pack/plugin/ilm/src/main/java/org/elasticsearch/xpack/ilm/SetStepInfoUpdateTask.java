@@ -46,7 +46,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) throws IOException {
+    protected ClusterState doExecute(ClusterState currentState) throws IOException {
         IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it

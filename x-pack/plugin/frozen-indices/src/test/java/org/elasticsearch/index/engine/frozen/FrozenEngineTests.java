@@ -166,19 +166,19 @@ public class FrozenEngineTests extends EngineTestCase {
                         SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
-                            assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                            assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                             assertEquals(1, listener.afterRefresh.get());
                         }
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         assertEquals(0, segmentsStats.getCount());
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
-                            assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                            assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                             assertEquals(2, listener.afterRefresh.get());
                         }
                         assertFalse(frozenEngine.isReaderOpen());
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
-                        assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                        assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                     }
                 }
             }

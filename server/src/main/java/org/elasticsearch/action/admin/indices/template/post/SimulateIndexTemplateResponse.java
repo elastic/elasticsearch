@@ -87,7 +87,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             for (Map.Entry<String, List<String>> entry : overlappingTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), entry.getKey());
-                builder.field(INDEX_PATTERNS.getPreferredName(), entry.getValue());
+                builder.stringListField(INDEX_PATTERNS.getPreferredName(), entry.getValue());
                 builder.endObject();
             }
             builder.endArray();

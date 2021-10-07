@@ -30,4 +30,18 @@ had no function and are now removed in 8.0.0.
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting.
 ====
+
+.The `index.template.create_legacy_templates` setting on Monitoring HTTP exporter configurations has been removed.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.index.template.create_legacy_templates` property was
+deprecated in 7.16.0. This parameter instructed the exporter to install the previous version
+of monitoring templates on the monitoring cluster. These older templates were meant to assist
+in transitioning to the current monitoring data format. They are currently empty and are no
+longer of any use.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.index.template.create_legacy_templates` setting.
+====
 //end::notable-breaking-changes[]

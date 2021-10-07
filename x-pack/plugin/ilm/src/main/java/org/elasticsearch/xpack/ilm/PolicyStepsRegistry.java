@@ -92,10 +92,9 @@ public class PolicyStepsRegistry {
         return stepMap;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void update(ClusterState clusterState) {
         final IndexLifecycleMetadata meta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
-
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
         Diff<Map<String, LifecyclePolicyMetadata>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicyMetadatas(),
@@ -128,7 +127,7 @@ public class PolicyStepsRegistry {
         if (mapDiff.getUpserts().isEmpty() == false) {
             for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-                        policyMetadata.getHeaders());
+                    policyMetadata.getHeaders());
                 lifecyclePolicyMap.put(policyMetadata.getName(), policyMetadata);
                 List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient, licenseState);
                 if (policyAsSteps.isEmpty() == false) {

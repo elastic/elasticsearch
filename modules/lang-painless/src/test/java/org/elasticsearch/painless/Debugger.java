@@ -8,7 +8,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
+import org.elasticsearch.painless.action.AbstractPainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.phase.UserTreeVisitor;

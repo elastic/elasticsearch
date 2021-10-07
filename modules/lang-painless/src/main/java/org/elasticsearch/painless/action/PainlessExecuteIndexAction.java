@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,27 +24,29 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  * A concrete implementation of {@link AbstractPainlessExecuteAction} that executes
- * script contexts that don't require an index to run. Unlike the {@link PainlessExecuteIndexAction},
- * this action requires the manage cluster privilege. For backward compatibility this action
- * also handles index contexts that are passed in the request body.
+ * scripts that require an index context. Unlike the {@link PainlessExecuteAction},
+ * this action doesn't require any cluster privilege to run, only the read privilege on
+ * the provided index is needed.
  */
-public class PainlessExecuteAction extends AbstractPainlessExecuteAction {
+public class PainlessExecuteIndexAction extends AbstractPainlessExecuteAction {
 
-    public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
-    private static final String NAME = "cluster:admin/scripts/painless/execute";
+    public static final PainlessExecuteIndexAction INSTANCE = new PainlessExecuteIndexAction();
+    private static final String NAME = "indices:data/read/scripts/painless/execute";
 
-    private PainlessExecuteAction() {
+    private PainlessExecuteIndexAction() {
         super(NAME);
     }
 
@@ -56,8 +57,8 @@ public class PainlessExecuteAction extends AbstractPainlessExecuteAction {
 
         @Inject
         public TransportAction(ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
+                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
             super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
@@ -73,43 +74,36 @@ public class PainlessExecuteAction extends AbstractPainlessExecuteAction {
         }
 
         @Override
-        protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
-            if (request.concreteIndex() != null) {
-                return super.checkRequestBlock(state, request);
-            }
-            return null;
-        }
-
-        @Override
         protected boolean resolveIndex(Request request) {
-            return request.index() != null;
+            return true;
         }
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            if (request.concreteIndex() == null) {
-                return null;
-            }
             return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
         }
 
         @Override
-        protected Response shardOperation(Request request, ShardId shardId) throws IOException {
-            IndexService indexService;
-            if (request.index() != null) {
-                ClusterState clusterState = clusterService.state();
-                IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-                String indexExpression = request.index();
-                Index[] concreteIndices =
-                    indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
-                if (concreteIndices.length != 1) {
-                    throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
-                }
-                Index concreteIndex = concreteIndices[0];
-                indexService = indicesServices.indexServiceSafe(concreteIndex);
-            } else {
-                indexService = null;
+        protected void resolveRequest(ClusterState state, InternalRequest internalRequest) {
+            Request request = internalRequest.request();
+            ScriptContext<?> scriptContext = request.getContext();
+            if (needDocumentAndIndex(scriptContext) == false) {
+                throw new IllegalArgumentException("[" + scriptContext.name + "] is not supported when an index is provided.");
             }
+        }
+
+        @Override
+        protected Response shardOperation(Request request, ShardId shardId) throws IOException {
+            ClusterState clusterState = clusterService.state();
+            IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+            String indexExpression = request.index();
+            Index[] concreteIndices =
+                indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
+            if (concreteIndices.length != 1) {
+                throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
+            }
+            Index concreteIndex = concreteIndices[0];
+            IndexService indexService = indicesServices.indexServiceSafe(concreteIndex);
             return innerShardOperation(request, scriptService, indexService);
         }
     }
@@ -119,18 +113,19 @@ public class PainlessExecuteAction extends AbstractPainlessExecuteAction {
         @Override
         public List<Route> routes() {
             return List.of(
-                new Route(GET, "/_scripts/painless/_execute"),
-                new Route(POST, "/_scripts/painless/_execute"));
+                new Route(GET, "{index}/_scripts/painless/_execute"),
+                new Route(POST, "{index}/_scripts/painless/_execute"));
         }
 
         @Override
         public String getName() {
-            return "_scripts_painless_execute";
+            return "_scripts_painless_index_execute";
         }
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
+            request.index(restRequest.param("index"));
             return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }

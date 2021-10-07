@@ -5,8 +5,8 @@ experimental::[]
 The Painless execute API runs a script and returns a result.
 
 [[painless-execute-api-request]]
-==== {api-request-title}
 `POST /_scripts/painless/_execute`
+`POST /{index}/_scripts/painless/_execute`
 
 [[painless-execute-api-desc]]
 ==== {api-description-title}
@@ -39,7 +39,7 @@ context is specified.
 [%collapsible%open]
 ====
 `painless_test`::
-The default context if no other context is specified. See 
+The default context if no other context is specified. See
 <<painless-execute-test,test context>>.
 
 `filter`::
@@ -61,12 +61,12 @@ NOTE: Result ordering in the field contexts is not guaranteed.
 --
 
 ****
-`boolean_field`:: 
+`boolean_field`::
 The context for {ref}/boolean.html[`boolean` fields]. The script returns a `true`
 or `false` response. See
 <<painless-runtime-boolean,boolean_field context>>.
 
-`date_field`:: 
+`date_field`::
 The context for {ref}/date.html[`date` fields]. `emit` takes a `long` value and
 the script returns a sorted list of dates. See
 <<painless-runtime-datetime,date_time context>>.
@@ -110,20 +110,16 @@ which is the default if no value is provided for `context`.
 `document`:: (Required, string)
 Document that's temporarily indexed in-memory and accessible from the script.
 
-`index`:: (Required, string)
-Index containing a mapping that's compatible with the indexed document.
-====
-
 `params`:: (`Map`, read-only)
 Specifies any named parameters that are passed into the script as variables.
 
 `query`:: (Optional, object)
-NOTE: This parameter only applies when `score` is specified as the script 
+NOTE: This parameter only applies when `score` is specified as the script
 `context`.
 +
 Use this parameter to specify a query for computing a score. Besides deciding
-whether or not the document matches, the 
-{ref}/query-filter-context.html#query-context[query clause] also calculates a 
+whether or not the document matches, the
+{ref}/query-filter-context.html#query-context[query clause] also calculates a
 relevance score in the `_score` metadata field.
 
 [[painless-execute-test]]
@@ -186,7 +182,7 @@ PUT /my-index-000001
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": "doc['field'].value.length() <= params.max_length",
@@ -196,7 +192,6 @@ POST /_scripts/painless/_execute
   },
   "context": "filter",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "field": "four"
     }
@@ -240,7 +235,7 @@ PUT /my-index-000001
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": "doc['rank'].value / params.max_rank",
@@ -250,7 +245,6 @@ POST /_scripts/painless/_execute
   },
   "context": "score",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "rank": 4
     }
@@ -282,7 +276,7 @@ Choose a field context based on the data type you want to return.
 Use the `boolean_field` field context when you want to return a `true`
 or `false` value from a script valuation. {ref}/boolean.html[Boolean fields]
 accept `true` and `false` values, but can also accept strings that are
-interpreted as either true or false. 
+interpreted as either true or false.
 
 Let's say you have data for the top 100 science fiction books of all time. You
 want to write scripts that return a boolean response such as whether books
@@ -318,7 +312,7 @@ whether a book was published before the year 1972:
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -327,7 +321,6 @@ POST /_scripts/painless/_execute
   },
   "context": "boolean_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "name": "Dune",
       "author": "Frank Herbert",
@@ -357,7 +350,7 @@ least one character, but is less than five characters:
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -367,7 +360,6 @@ POST /_scripts/painless/_execute
   },
   "context": "boolean_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "name": "Dune",
       "author": "Frank Herbert",
@@ -439,7 +431,7 @@ calculation of `pageTime` times the `page_count` to determine approximately
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -455,7 +447,6 @@ POST /_scripts/painless/_execute
   },
   "context": "date_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "name": "Revelation Space",
       "author": "Alastair Reynolds",
@@ -496,7 +487,7 @@ runtime field.
 You need to multiply this value, but only for
 sensors that match a specific model number.
 
-Add the following fields to your index mapping. The `voltage` field is a 
+Add the following fields to your index mapping. The `voltage` field is a
 sub-field of the `measures` object.
 
 [source,console]
@@ -530,7 +521,7 @@ that match the specified criteria.
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -541,7 +532,6 @@ POST /_scripts/painless/_execute
   },
   "context": "double_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "@timestamp": 1516470094000,
       "model_number": "QVKC92Q",
@@ -573,7 +563,7 @@ define a geo-point field in several ways, and include values for latitude and
 longitude in the document for your script.
 
 If you already have a known geo-point, it's simpler to clearly state the
-positions of `lat` and `lon` in your index mappings. 
+positions of `lat` and `lon` in your index mappings.
 
 [source,console]
 ----
@@ -597,7 +587,7 @@ that retrieves the `lat` and `long` values.
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -606,7 +596,6 @@ POST /_scripts/painless/_execute
   },
   "context": "geo_point_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "lat": 41.12,
       "lon": -71.34
@@ -617,7 +606,7 @@ POST /_scripts/painless/_execute
 // TEST[continued]
 
 Because this you're working with a geo-point field type, the response includes
-results that are formatted as `coordinates`. 
+results that are formatted as `coordinates`.
 
 [source,console-result]
 ----
@@ -638,7 +627,7 @@ results that are formatted as `coordinates`.
 ===== `ip_field`
 The `ip_field` context is useful for data that includes IP addresses of type
 {ref}/ip.html[`ip`]. For example, let's say you have a `message` field from an Apache
-log. This field contains an IP address, but also other data that you don't need. 
+log. This field contains an IP address, but also other data that you don't need.
 
 You can add the `message` field to your index mappings as a `wildcard` to accept
 pretty much any data you want to put in that field.
@@ -667,17 +656,15 @@ value matching the IP address. If the pattern doesn’t match
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
       String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
-      if (clientip != null) emit(clientip); 
+      if (clientip != null) emit(clientip);
     """
   },
-  "context": "ip_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "message": "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
     }
@@ -726,7 +713,7 @@ script in the `keyword_field` runtime field context:
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -735,7 +722,6 @@ POST /_scripts/painless/_execute
   },
   "context": "keyword_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "@timestamp": "2020-04-30T14:31:43-05:00"
     }
@@ -777,7 +763,7 @@ PUT /my-index-000001/
             "type": "long"
           },
           "end": {
-           "type": "long" 
+           "type": "long"
           }
         }
       }
@@ -792,7 +778,7 @@ field from the `measures` object and subtracts it from the `start` field:
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my-index-000001/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -801,7 +787,6 @@ POST /_scripts/painless/_execute
   },
   "context": "long_field",
   "context_setup": {
-    "index": "my-index-000001",
     "document": {
       "measures": {
         "voltage": "4.0",

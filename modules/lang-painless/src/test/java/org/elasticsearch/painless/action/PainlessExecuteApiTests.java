@@ -14,8 +14,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.painless.PainlessPlugin;
-import org.elasticsearch.painless.action.PainlessExecuteAction.Request;
-import org.elasticsearch.painless.action.PainlessExecuteAction.Response;
+import org.elasticsearch.painless.action.AbstractPainlessExecuteAction.Request;
+import org.elasticsearch.painless.action.AbstractPainlessExecuteAction.Response;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -33,7 +33,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
+import static org.elasticsearch.painless.action.AbstractPainlessExecuteAction.innerShardOperation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
@@ -69,23 +69,24 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "field", "type=long");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
+        Request.ContextSetup contextSetup = new Request.ContextSetup(new BytesArray("{\"field\": 3}"), null);
         contextSetup.setXContentType(XContentType.JSON);
-        Request request = new Request(new Script("doc['field'].value >= 3"), "filter", contextSetup);
+        Request request = new Request(new Script("doc['field'].value >= 3"), "filter", contextSetup)
+            .index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(true));
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
+        contextSetup = new Request.ContextSetup(new BytesArray("{\"field\": 3}"), null);
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max",
-            singletonMap("max", 3)), "filter", contextSetup);
+            singletonMap("max", 3)), "filter", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(true));
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 2}"), null);
+        contextSetup = new Request.ContextSetup(new BytesArray("{\"field\": 2}"), null);
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless", "doc['field'].value >= params.max",
-            singletonMap("max", 3)), "filter", contextSetup);
+            singletonMap("max", 3)), "filter", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(false));
     }
@@ -94,12 +95,12 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
             new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
             "Math.round((_score + (doc['rank'].value / params.max_rank)) * 100.0) / 100.0", singletonMap("max_rank", 5.0)), "score",
-            contextSetup);
+            contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertThat(response.getResult(), equalTo(0.93D));
     }
@@ -108,20 +109,20 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['rank'].value < params.max_rank)", singletonMap("max_rank", 5.0)), "boolean_field",
-                contextSetup);
+                contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Collections.singletonList(true), response.getResult());
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(false); emit(true); emit (false);", emptyMap()), "boolean_field",
-                contextSetup);
+                contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Arrays.asList(false, false, true), response.getResult());
     }
@@ -130,22 +131,22 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_date", "type=date");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"test_date\":\"2015-01-01T12:10:30Z\"}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['test_date'].value.toInstant().toEpochMilli())", emptyMap()), "date_field",
-                contextSetup);
+                contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Collections.singletonList("2015-01-01T12:10:30.000Z"), response.getResult());
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(ZonedDateTime.parse(\"2021-01-01T00:00:00Z\").toInstant().toEpochMilli());\n" +
                 "emit(ZonedDateTime.parse(\"1942-05-31T15:16:17Z\").toInstant().toEpochMilli());\n" +
                 "emit(ZonedDateTime.parse(\"2035-10-13T10:54:19Z\").toInstant().toEpochMilli());",
-                emptyMap()), "date_field", contextSetup);
+                emptyMap()), "date_field", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(
                 Arrays.asList(
@@ -160,22 +161,22 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['rank'].value); emit(Math.log(doc['rank'].value))", emptyMap()), "double_field",
-                contextSetup);
+                contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         List<Double> doubles = (List<Double>)response.getResult();
         assertEquals(4.0, doubles.get(0), 0.00001);
         assertEquals(Math.log(4.0), doubles.get(1), 0.00001);
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(3.1); emit(2.29); emit(-12.47); emit(-12.46); emit(Double.MAX_VALUE); emit(0.0);",
-                emptyMap()), "double_field", contextSetup);
+                emptyMap()), "double_field", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         doubles = (List<Double>)response.getResult();
         assertEquals(3.1, doubles.get(0), 0.00001);
@@ -191,23 +192,23 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"test_point\":\"30.0,40.0\"}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['test_point'].value.lat, doc['test_point'].value.lon)", emptyMap()),
-                "geo_point_field", contextSetup);
+                "geo_point_field", contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         List<Map<String, Object>> points = (List<Map<String, Object>>)response.getResult();
         assertEquals(40.0, (double)((List<Object>)points.get(0).get("coordinates")).get(0), 0.00001);
         assertEquals(30.0, (double)((List<Object>)points.get(0).get("coordinates")).get(1), 0.00001);
         assertEquals("Point", points.get(0).get("type"));
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(78.96, 12.12); emit(13.45, 56.78);",
-                emptyMap()), "geo_point_field", contextSetup);
+                emptyMap()), "geo_point_field", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         points = (List<Map<String, Object>>)response.getResult();
         assertEquals(12.12, (double)((List<Object>)points.get(0).get("coordinates")).get(0), 0.00001);
@@ -222,21 +223,21 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_ip", "type=ip");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"test_ip\":\"192.168.1.254\"}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['test_ip'].value);", emptyMap()),
-                "ip_field", contextSetup);
+                "ip_field", contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Collections.singletonList("192.168.1.254"), response.getResult());
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(\"192.168.0.1\"); emit(\"2001:db8::8a2e:370:7334\"); emit(\"2001:0db8:0000:0000:0000:8a2e:0370:7333\"); " +
                         "emit(\"127.0.0.1\"); emit(\"255.255.255.255\"); emit(\"0.0.0.0\");",
-                emptyMap()), "ip_field", contextSetup);
+                emptyMap()), "ip_field", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Arrays.asList(
                 "192.168.0.1", "2001:db8::8a2e:370:7334", "2001:db8::8a2e:370:7333", "127.0.0.1", "255.255.255.255", "0.0.0.0"),
@@ -247,20 +248,20 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_value", "type=long");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"test_value\":\"42\"}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['test_value'].value); emit(doc['test_value'].value - 2);", emptyMap()),
-                "long_field", contextSetup);
+                "long_field", contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Arrays.asList(42L, 40L), response.getResult());
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(3L); emit(1L); emit(20000000000L); emit(10L); emit(-1000L); emit(0L);",
-                emptyMap()), "long_field", contextSetup);
+                emptyMap()), "long_field", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Arrays.asList(3L, 1L, 20000000000L, 10L, -1000L, 0L), response.getResult());
     }
@@ -269,21 +270,21 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index",
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
                 new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['rank'].value + doc['text'].value)", emptyMap()),
-                "keyword_field", contextSetup);
+                "keyword_field", contextSetup).index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Collections.singletonList("4quick brown fox"), response.getResult());
 
-        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(\"test\"); emit(\"baz was not here\"); emit(\"Data\"); emit(\"-10\"); emit(\"20\"); emit(\"9\");",
-                emptyMap()), "keyword_field", contextSetup);
+                emptyMap()), "keyword_field", contextSetup).index("index");
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Arrays.asList("test", "baz was not here", "Data", "-10", "20", "9"), response.getResult());
     }
@@ -292,10 +293,11 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        Request.ContextSetup contextSetup = new Request.ContextSetup(new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
-            "emit(\"foo\", \"bar\"); emit(\"foo2\", 2);", emptyMap()), "composite_field", contextSetup);
+            "emit(\"foo\", \"bar\"); emit(\"foo2\", 2);", emptyMap()), "composite_field", contextSetup)
+            .index("index");
         Response response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Map.of(
             "composite_field.foo", List.of("bar"),

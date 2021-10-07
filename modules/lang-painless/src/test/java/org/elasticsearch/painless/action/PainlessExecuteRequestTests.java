@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.painless.action.PainlessExecuteAction.Request.ContextSetup;
+import org.elasticsearch.painless.action.AbstractPainlessExecuteAction.Request.ContextSetup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -33,7 +33,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase<PainlessExecuteAction.Request> {
+public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase<AbstractPainlessExecuteAction.Request> {
 
     // Testing XContent serialization manually here, because the xContentType field in ContextSetup determines
     // how the request needs to parse and the xcontent serialization framework randomizes that. The XContentType
@@ -42,7 +42,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
     // as I know this request class is the only case where this is a problem.
     public final void testFromXContent() throws Exception {
         for (int i = 0; i < 20; i++) {
-            PainlessExecuteAction.Request testInstance = createTestInstance();
+            AbstractPainlessExecuteAction.Request testInstance = createTestInstance();
             ContextSetup contextSetup = testInstance.getContextSetup();
             XContent xContent = randomFrom(XContentType.values()).xContent();
             if (contextSetup != null && contextSetup.getXContentType() != null) {
@@ -72,28 +72,32 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
     }
 
     @Override
-    protected PainlessExecuteAction.Request createTestInstance() {
+    protected AbstractPainlessExecuteAction.Request createTestInstance() {
         Script script = new Script(randomAlphaOfLength(10));
         ScriptContext<?> context = randomBoolean() ? randomFrom(PainlessExecuteAction.Request.SUPPORTED_CONTEXTS.values()) : null;
         ContextSetup contextSetup = randomBoolean() ? randomContextSetup() : null;
-        return new PainlessExecuteAction.Request(script, context != null ? context.name : null, contextSetup);
+        AbstractPainlessExecuteAction.Request req =
+            new AbstractPainlessExecuteAction.Request(script, context != null ? context.name : null, contextSetup);
+        if (randomBoolean()) {
+            req.index(randomAlphaOfLength(4));
+        }
+        return req;
     }
 
     @Override
-    protected Writeable.Reader<PainlessExecuteAction.Request> instanceReader() {
-        return PainlessExecuteAction.Request::new;
+    protected Writeable.Reader<AbstractPainlessExecuteAction.Request> instanceReader() {
+        return AbstractPainlessExecuteAction.Request::new;
     }
 
     public void testValidate() {
         Script script = new Script(ScriptType.STORED, null, randomAlphaOfLength(10), Collections.emptyMap());
-        PainlessExecuteAction.Request request = new PainlessExecuteAction.Request(script, null, null);
+        AbstractPainlessExecuteAction.Request request = new AbstractPainlessExecuteAction.Request(script, null, null);
         Exception e = request.validate();
         assertNotNull(e);
         assertEquals("Validation Failed: 1: only inline scripts are supported;", e.getMessage());
     }
 
     private static ContextSetup randomContextSetup()  {
-        String index = randomBoolean() ? randomAlphaOfLength(4) : null;
         QueryBuilder query = randomBoolean() ? new MatchAllQueryBuilder() : null;
         BytesReference doc = null;
         XContentType xContentType = randomFrom(XContentType.values()).canonical();
@@ -108,7 +112,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
             }
         }
 
-        ContextSetup contextSetup = new ContextSetup(index, doc, query);
+        ContextSetup contextSetup = new ContextSetup(doc, query);
         contextSetup.setXContentType(xContentType);
         return contextSetup;
     }

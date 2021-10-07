@@ -1,0 +1,322 @@
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: Adapt version after backport
+      features: headers
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["my-index"], "privileges": ["all"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "manage_role"
+        body: >
+          {
+            "cluster": [ "manage" ],
+            "indices": [
+              { "names": ["my-index"], "privileges": ["read"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "read_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["my-index"], "privileges": ["read"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_admin"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "user with full privileges"
+          }
+
+  - do:
+      security.put_user:
+        username: "test_read"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "read_role" ],
+            "full_name" : "user with read privilege"
+          }
+
+  - do:
+      security.put_user:
+        username: "test_manage"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "manage_role" ],
+            "full_name" : "user with manage privileges"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+      indices.create:
+        index: my-index
+        body:
+          mappings:
+            properties:
+              field:
+                type: keyword
+              rank:
+                type: long
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_admin"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test_manage"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test_read"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "manage_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "read_role"
+        ignore: 404
+
+---
+"Execute with defaults":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.count / params.total"
+            params:
+              count: 100.0
+              total: 1000.0
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9tYW5hZ2U6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.count / params.total"
+            params:
+              count: 100.0
+              total: 1000.0
+
+---
+"Execute with painless_test context":
+  # requires the manage cluster privilege
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.var1 - params.var2"
+            params:
+              var1: 10
+              var2: 100
+          context: "painless_test"
+
+  # requires the manage cluster privilege
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9tYW5hZ2U6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.var1 - params.var2"
+            params:
+              var1: 10
+              var2: 100
+          context: "painless_test"
+  - match: { result: "-90" }
+
+---
+"Execute with filter context":
+  # requires the read privilege on my_index
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        index: "my-index"
+        body:
+          script:
+            source: "doc['field'].value.length() <= params.max_length"
+            params:
+              max_length: 4
+          context: "filter"
+          context_setup:
+            document:
+              field: "four"
+  - match: { result: true }
+
+  # (old way) requires the manage cluster and the read privilege on my_index
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['field'].value.length() <= params.max_length"
+            params:
+              max_length: 4
+          context: "filter"
+          context_setup:
+            index: "my-index"
+            document:
+              field: "four"
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9tYW5hZ2U6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['field'].value.length() <= params.max_length"
+            params:
+              max_length: 4
+          context: "filter"
+          context_setup:
+            index: "my-index"
+            document:
+              field: "four"
+  - match: { result: true }
+
+---
+"Execute with score context":
+  # requires the read privilege on my_index
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        index: "my-index"
+        body:
+          script:
+            source: "doc['rank'].value / params.max_rank"
+            params:
+              max_rank: 5.0
+          context: "score"
+          context_setup:
+            document:
+              rank: 4
+  - match: { result: 0.8 }
+
+  # (old way) requires the manage cluster and the read privilege on my_index
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['rank'].value / params.max_rank"
+            params:
+              max_rank: 5.0
+          context: "score"
+          context_setup:
+            index: "my-index"
+            document:
+              rank: 4
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9tYW5hZ2U6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      scripts_painless_execute:
+        body:
+          script:
+            source: "doc['rank'].value / params.max_rank"
+            params:
+              max_rank: 5.0
+          context: "score"
+          context_setup:
+            index: "my-index"
+            document:
+              rank: 4
+  - match: { result: 0.8 }
+
+---
+"Execute with runtime field context":
+  # requires the read privilege on my_index
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        index: "my-index"
+        body:
+          script:
+            source: "emit(doc['rank'].value < params.max_rank);"
+            params:
+              max_rank: 5.0
+          context: "boolean_field"
+          context_setup:
+            document:
+              rank: 4
+  - match: { result: [ true ] }
+
+  # (old way) requires the manage cluster and the read privilege on my_index
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF9tYW5hZ2U6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value < params.max_rank);"
+            params:
+              max_rank: 5.0
+          context: "boolean_field"
+          context_setup:
+            index: "my-index"
+            document:
+              rank: 4
+  - match: { result: [ true ] }
+
+  # (old way) requires the manage cluster and the read privilege on my_index
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic dGVzdF9yZWFkOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['rank'].value < params.max_rank);"
+            params:
+              max_rank: 5.0
+          context: "boolean_field"
+          context_setup:
+            index: "my-index"
+            document:
+              rank: 4
+

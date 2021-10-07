@@ -13,8 +13,8 @@ it will return those results to you.
 [[dissect-syntax]]
 ==== Dissect patterns
 Dissect patterns are comprised of _variables_ and _separators_. Anything
-defined by a percent sign and curly braces `%{}` is considered a variable, 
-such as `%{clientip}`. You can assign variables to any part of data in a field, 
+defined by a percent sign and curly braces `%{}` is considered a variable,
+such as `%{clientip}`. You can assign variables to any part of data in a field,
 and then return only the parts that you want. Separators are any values between
 variables, which could be spaces, dashes, or other delimiters.
 
@@ -52,7 +52,7 @@ this:
 Using that same logic, you can create variables for the remaining chunks of
 data. Double quotation marks are separators, so include those in your dissect
 pattern. The pattern replaces `GET` with a `%{verb}` variable, but keeps `HTTP`
-as part of the pattern. 
+as part of the pattern.
 
 [source,js]
 ----
@@ -62,7 +62,7 @@ as part of the pattern.
 ----
 // NOTCONSOLE
 
-Combining the two patterns results in a dissect pattern that looks like this: 
+Combining the two patterns results in a dissect pattern that looks like this:
 
 [source,js]
 ----
@@ -113,7 +113,7 @@ In this example, `message` is the `<field_name>` and `response` is the
 
 [source,console]
 ----
-POST /_scripts/painless/_execute
+POST /my_index/_scripts/painless/_execute
 {
   "script": {
     "source": """
@@ -123,7 +123,6 @@ POST /_scripts/painless/_execute
   },
   "context": "long_field", <2>
   "context_setup": {
-    "index": "my-index",
     "document": {          <3>
       "message": """247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] "GET /images/hm_nbg.jpg HTTP/1.0" 304 0"""
     }
@@ -152,7 +151,7 @@ If you have a functional dissect pattern, you can add it to a runtime field to
 manipulate data. Because runtime fields don't require you to index fields, you
 have incredible flexibility to modify your script and how it functions. If you
 already <<dissect-patterns-test,tested your dissect pattern>> using the Painless
-execute API, you can use that _exact_ Painless script in your runtime field. 
+execute API, you can use that _exact_ Painless script in your runtime field.
 
 To start, add the `message` field as a `wildcard` type like in the previous
 section, but also add `@timestamp` as a `date` in case you want to operate on

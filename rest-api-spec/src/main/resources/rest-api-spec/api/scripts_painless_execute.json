@@ -18,6 +18,19 @@
             "GET",
             "POST"
           ]
+        },
+        {
+          "path":"/{index}/_scripts/painless/_execute",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index": {
+              "type": "string",
+              "description": "The name of the index"
+            }
+          }
         }
       ]
     },

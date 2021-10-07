@@ -25,8 +25,10 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.painless.action.AbstractPainlessExecuteAction;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
+import org.elasticsearch.painless.action.PainlessExecuteIndexAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -108,7 +110,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
         }
         testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
-        whitelists.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
+        whitelists.put(AbstractPainlessExecuteAction.PainlessTestScript.CONTEXT, testWhitelists);
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
@@ -159,13 +161,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public List<ScriptContext<?>> getContexts() {
-        return Collections.singletonList(PainlessExecuteAction.PainlessTestScript.CONTEXT);
+        return Collections.singletonList(AbstractPainlessExecuteAction.PainlessTestScript.CONTEXT);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(PainlessExecuteAction.INSTANCE, PainlessExecuteAction.TransportAction.class));
+        actions.add(new ActionHandler<>(PainlessExecuteIndexAction.INSTANCE, PainlessExecuteIndexAction.TransportAction.class));
         actions.add(new ActionHandler<>(PainlessContextAction.INSTANCE, PainlessContextAction.TransportAction.class));
         return actions;
     }
@@ -177,6 +180,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new PainlessExecuteAction.RestAction());
+        handlers.add(new PainlessExecuteIndexAction.RestAction());
         handlers.add(new PainlessContextAction.RestAction());
         return handlers;
     }

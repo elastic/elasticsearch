@@ -190,9 +190,7 @@ public class ArchiveTests extends PackagingTestCase {
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
         });
-        Platforms.onLinux(() -> {
-            sh.run("chmod u-w " + installation.config);
-        });
+        Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
@@ -200,9 +198,7 @@ public class ArchiveTests extends PackagingTestCase {
             sh.run("attrib -r " + installation.config + " /d");
             sh.chown(installation.config);
         });
-        Platforms.onLinux(() -> {
-            sh.run("chmod u+w " + installation.config);
-        });
+        Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
         FileUtils.rm(installation.data);
     }
 

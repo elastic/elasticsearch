@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@link SystemMemoryInfo} which returns a user-overridden memory size if
+ * A {@link SystemMemoryInfo} which returns a user-overridden memory size if one
  * has been specified using the {@code es.total_memory_bytes} system property, or
  * else returns the value provided by a fallback provider.
  */

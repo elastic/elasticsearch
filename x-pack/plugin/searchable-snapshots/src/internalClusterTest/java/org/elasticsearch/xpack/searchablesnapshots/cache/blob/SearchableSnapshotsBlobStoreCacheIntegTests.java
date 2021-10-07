@@ -328,11 +328,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
 
-        logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
+        logger.info("--> deleting indices, maintenance service should clean up [{}] docs in system index", numberOfCachedBlobs);
         assertAcked(client().admin().indices().prepareDelete("restored-*"));
-        // waits for the data node that hosts the .snapshot-blob-cache primary shard
-        // to process the cluster state update and to trigger a clean up
-        ensureClusterStateConsistency();
 
         assertBusy(() -> {
             refreshSystemIndex();

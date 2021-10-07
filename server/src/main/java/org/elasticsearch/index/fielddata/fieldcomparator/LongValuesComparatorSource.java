@@ -90,7 +90,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         final long lMissingValue = (Long) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new LongComparator(numHits, null, null, reversed, sortPos) {
+        LongComparator comparator = new LongComparator(numHits, null, null, reversed, sortPos) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new LongLeafComparator(context) {
@@ -101,6 +101,9 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                 };
             }
         };
+        // TODO: when LUCENE-10154 is available, instead of disableSkipping this comparator should implement `getPointValue`
+        comparator.disableSkipping();
+        return comparator;
     }
 
     @Override

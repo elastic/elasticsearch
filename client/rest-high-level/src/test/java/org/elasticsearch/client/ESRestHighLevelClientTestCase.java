@@ -240,8 +240,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         request.persistentSettings(persistentSettings);
         request.transientSettings(transientSettings);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         assertTrue(execute(
-            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync).isAcknowledged());
+            request, highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync, options).isAcknowledged());
     }
 
     protected void putConflictPipeline() throws IOException {

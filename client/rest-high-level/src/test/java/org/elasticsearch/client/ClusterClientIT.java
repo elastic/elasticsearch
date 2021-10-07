@@ -74,9 +74,10 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterUpdateSettingsRequest setRequest = new ClusterUpdateSettingsRequest();
         setRequest.transientSettings(transientSettings);
         setRequest.persistentSettings(map);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
 
         ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::putSettings,
-            highLevelClient().cluster()::putSettingsAsync);
+            highLevelClient().cluster()::putSettingsAsync, options);
 
         assertAcked(setResponse);
         assertThat(setResponse.getTransientSettings().get(transientSettingKey), notNullValue());
@@ -98,7 +99,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(resetRequest, highLevelClient().cluster()::putSettings,
-            highLevelClient().cluster()::putSettingsAsync);
+            highLevelClient().cluster()::putSettingsAsync, options);
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
         assertThat(resetResponse.getPersistentSettings().get(persistentSettingKey), equalTo(null));

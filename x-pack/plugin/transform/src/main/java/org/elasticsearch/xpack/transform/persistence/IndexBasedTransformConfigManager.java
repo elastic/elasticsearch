@@ -28,8 +28,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -66,7 +64,6 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -103,16 +100,13 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     private static final int MAX_RESULTS_WINDOW = 10_000;
 
     private final Client client;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedXContentRegistry xContentRegistry;
 
     public IndexBasedTransformConfigManager(
         Client client,
-        IndexNameExpressionResolver expressionResolver,
         NamedXContentRegistry xContentRegistry
     ) {
         this.client = client;
-        this.indexNameExpressionResolver = expressionResolver;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -263,42 +257,19 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void deleteOldIndices(ClusterState state, ActionListener<Long> listener) {
-        Set<String> indicesToDelete = new HashSet<>(
-            Arrays.asList(
-                indexNameExpressionResolver.concreteIndexNames(
-                    state,
-                    IndicesOptions.LENIENT_EXPAND_OPEN,
-                    TransformInternalIndexConstants.INDEX_NAME_PATTERN
-                )
-            )
-        );
-
-        indicesToDelete.addAll(
-            Arrays.asList(
-                indexNameExpressionResolver.concreteIndexNames(
-                    state,
-                    IndicesOptions.LENIENT_EXPAND_OPEN,
-                    TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
-                )
-            )
-        );
-
-        indicesToDelete.remove(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
-
-        if (indicesToDelete.isEmpty()) {
-            listener.onResponse(0L);
-            return;
-        }
-
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
+    public void deleteOldIndices(ActionListener<Boolean> listener) {
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED,
+            "-" + TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME
+        ).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged() == false) {
                 listener.onFailure(new ElasticsearchStatusException("Failed to delete internal indices", RestStatus.INTERNAL_SERVER_ERROR));
                 return;
             }
-            listener.onResponse((long) indicesToDelete.size());
+            listener.onResponse(true);
         }, listener::onFailure));
     }
 
@@ -541,8 +512,9 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                             .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
                     ) {
                         TransformConfig config = TransformConfig.fromXContent(parser, null, true);
-                        ids.add(config.getId());
-                        configs.add(config);
+                        if (ids.add(config.getId())) {
+                            configs.add(config);
+                        }
                     } catch (IOException e) {
                         foundConfigsListener.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
                         return;

@@ -140,8 +140,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 : 0;
 
             if (request.isDryRun() == false) {
-                transformConfigManager.deleteOldIndices(state, ActionListener.wrap(deletedIndices -> {
-                    logger.debug("Deleted [{}] old transform internal indices", deletedIndices);
+                transformConfigManager.deleteOldIndices(ActionListener.wrap(aBool -> {
                     logger.info("Successfully upgraded all transforms, (updated: [{}], no action [{}])", updated, noAction);
 
                     listener.onResponse(new UpgradeTransformsAction.Response(updated, noAction, needsUpdate));

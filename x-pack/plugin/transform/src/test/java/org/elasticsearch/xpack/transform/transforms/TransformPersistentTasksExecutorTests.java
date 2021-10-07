@@ -400,11 +400,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     public TransformPersistentTasksExecutor buildTaskExecutor() {
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
-        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(
-            client,
-            TestIndexNameExpressionResolver.newInstance(),
-            xContentRegistry()
-        );
+        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             Settings.EMPTY,

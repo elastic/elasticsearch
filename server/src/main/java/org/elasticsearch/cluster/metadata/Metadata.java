@@ -1436,10 +1436,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        /**
+         * @return a new <code>Metadata</code> instance
+         */
         public Metadata build() {
             return build(true);
         }
 
+        /**
+         * @param builtIndicesLookupEagerly Controls whether indices lookup should be build as part of the execution of this method
+         *                                  or after when needed. Almost all of the time indices lookup should be built eagerly, however
+         *                                  in certain cases when <code>Metdata</code> instances are build that are not published and
+         *                                  many indices have been defined then it makes sense to skip building indices lookup.
+         *
+         * @return a new <code>Metadata</code> instance
+         */
         public Metadata build(boolean builtIndicesLookupEagerly) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures

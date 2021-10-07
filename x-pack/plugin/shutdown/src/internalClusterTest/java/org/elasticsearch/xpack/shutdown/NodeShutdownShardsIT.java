@@ -385,8 +385,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(
             Settings.builder().put("node.name", "node-a").put("cluster.routing.rebalance.enable", "none")
         );
-        // Create an index and pin it to nodeA, when we replace it with nodeB,
-        // it'll move the data, overridding the `_name` allocation filter
         Settings.Builder nodeASettings = Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0);
         createIndex("myindex", nodeASettings.build());
         final String nodeAId = getNodeId(nodeA);

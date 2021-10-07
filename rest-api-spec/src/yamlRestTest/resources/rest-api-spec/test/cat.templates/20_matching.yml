@@ -78,8 +78,8 @@ setup:
 ---
 "Matching all templates with other patterns":
     - skip:
-        version: " - 7.99.99"
-        reason: "support for multiple patterns added in 8.0.0"
+        version: " - 7.15.99"
+        reason: "support for multiple patterns added in 7.16.0"
 
     - do:
         cat.templates:
@@ -149,8 +149,8 @@ setup:
 ---
 "Matching lists of names":
     - skip:
-        version: " - 7.99.99"
-        reason: "support for multiple patterns added in 8.0.0"
+        version: " - 7.15.99"
+        reason: "support for multiple patterns added in 7.16.0"
 
     - do:
         cat.templates:
@@ -164,8 +164,8 @@ setup:
 ---
 "Matching names and wildcards":
     - skip:
-        version: " - 7.99.99"
-        reason: "support for multiple patterns added in 8.0.0"
+        version: " - 7.15.99"
+        reason: "support for multiple patterns added in 7.16.0"
 
     - do:
         cat.templates:

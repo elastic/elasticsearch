@@ -185,6 +185,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
+        assumeTrue("Windows sucks HARD", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onWindows(() -> {
             sh.run("attrib +r " + installation.config + " /s /d");
             // auto-config requires that the archive owner and the process user be the same

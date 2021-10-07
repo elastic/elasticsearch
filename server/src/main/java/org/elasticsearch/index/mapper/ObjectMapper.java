@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -114,15 +115,42 @@ public class ObjectMapper extends Mapper implements Cloneable {
                                     Map<String, Object> node,
                                     MappingParserContext parserContext)
             throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
-                    iterator.remove();
+
+            return parse(name, false, (n, c) -> {
+                ObjectMapper.Builder builder = new Builder(n);
+                for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                    Map.Entry<String, Object> entry = iterator.next();
+                    String fieldName = entry.getKey();
+                    Object fieldNode = entry.getValue();
+                    if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
+                        iterator.remove();
+                    }
                 }
+                return builder;
+            }, parserContext);
+        }
+
+
+
+        private static Mapper.Builder parse(
+            String name,
+            boolean allowDotsInFieldNames,
+            BiFunction<String, MappingParserContext, Mapper.Builder> parser,
+            MappingParserContext parserContext
+        ) {
+            if (allowDotsInFieldNames) {
+                return parser.apply(name, parserContext);
             }
+            String[] fieldNameParts = name.split("\\.");
+            String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+            Mapper.Builder builder = parser.apply(realFieldName, parserContext);
+            for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                ObjectMapper.Builder intermediate
+                    = new ObjectMapper.Builder(fieldNameParts[i]);
+                intermediate.add(builder);
+                builder = intermediate;
+            }
+
             return builder;
         }
 
@@ -199,16 +227,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    String[] fieldNameParts = fieldName.split("\\.");
-                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
-                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder intermediate
-                            = new ObjectMapper.Builder(fieldNameParts[i]);
-                        intermediate.add(fieldBuilder);
-                        fieldBuilder = intermediate;
-                    }
-                    objBuilder.add(fieldBuilder);
+                    objBuilder.add(parse(
+                        fieldName,
+                        parserContext.allowDotsInFieldNames(),
+                        (n, c) -> typeParser.parse(n, propNode, c),
+                        parserContext
+                    ));
                     propNode.remove("type");
                     MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();

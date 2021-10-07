@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -134,6 +135,15 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(m));
             assertEquals("Failed to parse mapping: Invalid format: [[test_format]]: expected string value", e.getMessage());
         }
+    }
+
+    public void testAllowDotsInLeafFields() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("allow_dots_in_leaf_fields", true)));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, topMapping(b -> b.field("allow_dots_in_leaf_fields", false)))
+        );
+        assertThat(e.getMessage(), containsString("Can't change parameter [allow_dots_in_leaf_fields] from [true] to [false]"));
     }
 
     public void testRuntimeSection() throws IOException {

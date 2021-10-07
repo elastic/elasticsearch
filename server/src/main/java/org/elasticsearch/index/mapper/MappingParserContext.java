@@ -60,6 +60,21 @@ public class MappingParserContext {
         this.idFieldDataEnabled = idFieldDataEnabled;
     }
 
+    protected MappingParserContext(MappingParserContext in) {
+        this(
+            in.similarityLookupService,
+            in.typeParsers,
+            in.runtimeFieldParsers,
+            in.indexVersionCreated.minimumIndexCompatibilityVersion(),
+            in.searchExecutionContextSupplier,
+            in.dateFormatter,
+            in.scriptCompiler,
+            in.indexAnalyzers,
+            in.indexSettings,
+            in.idFieldDataEnabled
+        );
+    }
+
     public IndexAnalyzers getIndexAnalyzers() {
         return indexAnalyzers;
     }
@@ -116,6 +131,10 @@ public class MappingParserContext {
         return false;
     }
 
+    public boolean allowDotsInFieldNames() {
+        return false;
+    }
+
     protected Function<String, SimilarityProvider> similarityLookupService() {
         return similarityLookupService;
     }
@@ -131,11 +150,13 @@ public class MappingParserContext {
         return new MultiFieldParserContext(in);
     }
 
+    MappingParserContext createDotsInFieldNamesContext() {
+        return new DotsInFieldNamesParserContext(this);
+    }
+
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
-            super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                in.idFieldDataEnabled);
+            super(in);
         }
 
         @Override
@@ -146,13 +167,22 @@ public class MappingParserContext {
 
     static class DynamicTemplateParserContext extends MappingParserContext {
         DynamicTemplateParserContext(MappingParserContext in) {
-            super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                in.idFieldDataEnabled);
+            super(in);
         }
 
         @Override
         public boolean isFromDynamicTemplate() {
+            return true;
+        }
+    }
+
+    private static class DotsInFieldNamesParserContext extends MappingParserContext {
+        DotsInFieldNamesParserContext(MappingParserContext in) {
+            super(in);
+        }
+
+        @Override
+        public boolean allowDotsInFieldNames() {
             return true;
         }
     }

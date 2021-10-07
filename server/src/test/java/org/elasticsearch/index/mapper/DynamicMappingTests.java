@@ -586,4 +586,22 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             Strings.toString(doc.dynamicMappingsUpdate())
         );
     }
+
+    public void testDynamicConcreteDotsInFieldNames() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("allow_dots_in_leaf_fields", true)));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("instrument.name", "fred");
+            b.startObject("metrics");
+            b.field("temp", 20);
+            b.field("temp.min", 15);
+            b.field("temp.max", 25);
+            b.endObject();
+        }));
+        assertEquals("{\"_doc\":{\"properties\":{" +
+            "\"instrument.name\":{\"type\":\"text\",\"fields\":{\"instrument.name.keyword\":{\"type\":\"keyword\"}}}," +
+            "\"metrics\":{\"type\":\"object\",\"properties\":{" +
+            "\"temp\":{\"type\":\"int\"},\"temp.min\":{\"type\":\"int\"},\"temp.max\":{\"type\":\"int\"}" +
+            "}}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate()));
+    }
 }

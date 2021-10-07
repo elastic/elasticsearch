@@ -679,12 +679,16 @@ public final class DocumentParser {
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-            currentFieldName = paths[paths.length - 1];
-            Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
-            parentMapper = parentMapperTuple.v2();
-            parseDynamicValue(context, parentMapper, currentFieldName, token);
-            for (int i = 0; i < parentMapperTuple.v1(); i++) {
-                context.path().remove();
+            if (context.root().allowDotsInLeafFields()) {
+                parseDynamicValue(context, parentMapper, currentFieldName, token);
+            } else {
+                currentFieldName = paths[paths.length - 1];
+                Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
+                parentMapper = parentMapperTuple.v2();
+                parseDynamicValue(context, parentMapper, currentFieldName, token);
+                for (int i = 0; i < parentMapperTuple.v1(); i++) {
+                    context.path().remove();
+                }
             }
         }
     }
@@ -855,6 +859,12 @@ public final class DocumentParser {
         String fieldPath = context.path().pathAsText(fieldName);
         // Check if mapper is a metadata mapper first
         Mapper mapper = context.getMetadataMapper(fieldPath);
+        if (mapper != null) {
+            return mapper;
+        }
+
+        // Is the full name of the mapper a direct child of this object?
+        mapper = objectMapper.getMapper(fieldPath);
         if (mapper != null) {
             return mapper;
         }

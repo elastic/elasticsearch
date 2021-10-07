@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -139,6 +140,7 @@ public interface AuthorizationEngine {
 
     default void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Metadata metadata,
+                                      ThreadPool threadPool,
                                       ActionListener<IndexAuthorizationResult> listener) {
         authorizeIndexAction(requestInfo, authorizationInfo, indicesAsyncSupplier, metadata.getIndicesLookup(), listener);
     }

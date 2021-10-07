@@ -13,9 +13,9 @@
 *Details* +
 In 8.0, we're deprecating the `elasticsearch-setup-passwords` tool. To
 manually reset the password for the `elastic` user, use the
-<<reset-elastic-password,`elasticsearch-reset-elastic-password`>> tool. To
+{ref}/reset-elastic-password.html[`elasticsearch-reset-elastic-password`] tool. To
 change passwords for other users, use either {kib} or the {es}
-<<security-api-change-password,change passwords API>>. We will remove the 
+{ref}/security-api-change-password.html[change passwords API]. We will remove the 
 `elasticsearch-setup-passwords` tool in a future release.
 
 *Impact* +

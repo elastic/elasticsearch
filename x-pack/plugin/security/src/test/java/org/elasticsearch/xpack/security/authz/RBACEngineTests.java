@@ -81,6 +81,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
@@ -1066,7 +1067,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = new DataStream(dataStreamName, null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
-        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices);
+        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices, emptyList());
         lookup.put(ds.getName(), iads);
         for (IndexMetadata im : backingIndices) {
             lookup.put(im.getIndex().getName(), new IndexAbstraction.Index(im, iads));
@@ -1099,7 +1100,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = new DataStream(dataStreamName, null,
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
-        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices);
+        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices, emptyList());
         lookup.put(ds.getName(), iads);
         for (IndexMetadata im : backingIndices) {
             lookup.put(im.getIndex().getName(), new IndexAbstraction.Index(im, iads));

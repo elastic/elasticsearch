@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.StreamsUtils;

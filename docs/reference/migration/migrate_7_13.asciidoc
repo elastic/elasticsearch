@@ -154,15 +154,17 @@ aggregations are rarely useful and often unintended.
 The `path.data` setting accepts a list of data paths, but if you specify
 multiple paths then the behaviour is unintuitive and usually does not give the
 desired outcomes. Support for multiple data paths is now deprecated and will be
-removed in 8.0.0.
+removed in a future release.
 
 *Impact* +
-Specify a single path in `path.data`. If needed, you can create a filesystem
-which spans multiple disks with a hardware virtualisation layer such as RAID,
-or a software virtualisation layer such as Logical Volume Manager (LVM) on
-Linux or Storage Spaces on Windows. If you wish to use multiple data paths on a
-single machine then you must run one node for each data path.
+To avoid deprecation warnings, specify a single path in `path.data`. If needed,
+you can create a filesystem which spans multiple disks with a hardware
+virtualisation layer such as RAID, or a software virtualisation layer such as
+Logical Volume Manager (LVM) on Linux or Storage Spaces on Windows. If you wish
+to use multiple data paths on a single machine then you must run one node for
+each data path.
 
+// tag::mdp-migration[]
 If you currently use multiple data paths in a
 {ref}/high-availability-cluster-design.html[highly available cluster] then you 
 can migrate to a setup that uses a single path for each node without downtime 
@@ -240,6 +242,7 @@ If you currently use multiple data paths but your cluster is not highly
 available then the you can migrate to a non-deprecated configuration by taking
 a snapshot, creating a new cluster with the desired configuration and restoring
 the snapshot into it.
+// end::mdp-migration[]
 ====
 
 [[action-destructive-defaults-to-true]]

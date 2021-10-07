@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

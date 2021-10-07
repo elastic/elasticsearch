@@ -31,12 +31,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
@@ -59,6 +59,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -209,7 +210,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                 .indices()
                 .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
                 .get()
-                .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+                .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.TIER_PREFERENCE),
             equalTo("data_content,data_hot")
         );
 
@@ -331,8 +332,9 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         logger.info("--> verifying number of documents in index [{}]", restoredAgainIndex);
         assertHitCount(client().prepareSearch(restoredAgainIndex).setSize(0).setTrackTotalHits(true).get(), numberOfDocs);
 
-        logger.info("--> deleting indices, maintenance service should clean up snapshot blob cache index");
+        logger.info("--> deleting indices, maintenance service should clean up [{}] docs in system index", numberOfCachedBlobs);
         assertAcked(client().admin().indices().prepareDelete("restored-*"));
+
         assertBusy(() -> {
             refreshSystemIndex();
             assertHitCount(
@@ -342,7 +344,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .get(),
                 0L
             );
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private void checkNoBlobStoreAccess(boolean useSoftDeletes) {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.client.transport;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -542,8 +541,8 @@ final class TransportClientNodesService implements Closeable {
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }
-                for (ObjectCursor<DiscoveryNode> cursor : entry.getValue().getState().nodes().getDataNodes().values()) {
-                    newNodes.add(cursor.value);
+                for (DiscoveryNode node : entry.getValue().getState().nodes().getDataNodes().values()) {
+                    newNodes.add(node);
                 }
             }
 

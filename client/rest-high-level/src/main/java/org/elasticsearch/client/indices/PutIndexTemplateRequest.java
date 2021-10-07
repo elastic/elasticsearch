@@ -419,7 +419,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         if (template != null) {
             builder.field("template", template);
         } else {
-            builder.field("index_patterns", indexPatterns);
+            builder.stringListField("index_patterns", indexPatterns);
         }
 
         builder.field("order", order);

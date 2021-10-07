@@ -179,6 +179,16 @@ public class LogicalPlanTests extends ESTestCase {
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
     }
 
+    public void testRepeatedQuery() throws Exception {
+        LogicalPlan plan = parser.createStatement("sequence " + " [any where true] [runs=2]" + " [any where true]");
+        plan = defaultPipes(plan);
+        assertEquals(Sequence.class, plan.getClass());
+        Sequence seq = (Sequence) plan;
+
+        List<? extends LogicalPlan> queries = seq.queries();
+        assertEquals(3, queries.size());
+    }
+
     private LogicalPlan wrapFilter(Expression exp) {
         LogicalPlan filter = new Filter(Source.EMPTY, relation(), exp);
         Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);

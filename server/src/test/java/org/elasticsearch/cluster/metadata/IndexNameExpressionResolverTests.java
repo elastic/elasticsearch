@@ -1983,16 +1983,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     "ml",
                     "ml indices",
                     org.elasticsearch.core.List.of(
-                        new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                        new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
                 "watcher",
                 new Feature("watcher", "watcher indices",
-                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches", "watches index"))),
+                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
                 "stack-component",
                 new Feature("stack-component", "stack component",
                     org.elasticsearch.core.List.of(
                         new SystemIndexDescriptor(
-                            ".external-sys-idx",
+                            ".external-sys-idx*",
                             "external",
                             Type.EXTERNAL_UNMANAGED,
                             org.elasticsearch.core.List.of("stack-component", "other")
@@ -2467,11 +2467,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Map.of("ml",
                 new Feature("ml", "ml indices",
                     org.elasticsearch.core.List.of(
-                        new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                        new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
                 "watcher",
                 new Feature("watcher", "watcher indices",
-                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches", "watches index")))
+                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches*", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);

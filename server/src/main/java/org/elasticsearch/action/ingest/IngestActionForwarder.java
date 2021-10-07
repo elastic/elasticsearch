@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -53,6 +53,6 @@ public final class IngestActionForwarder implements ClusterStateApplier {
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(new DiscoveryNode[0]);
     }
 }

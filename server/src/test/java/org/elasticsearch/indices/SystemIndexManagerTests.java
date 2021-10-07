@@ -179,7 +179,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     /**
-     * Check that the manager won't try to upgrade indices where the `index.format` setting
+     * Check that the manager recognizes the need to upgrade indices where the `index.format` setting
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
@@ -190,7 +190,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     /**
-     * Check that the manager won't try to upgrade indices where the mapping type
+     * Check that the manager recognizes the need to upgrade indices where the mapping type
      * differs from the type specified in the descriptor.
      */
     public void testManagerSkipsIndicesWithWrongType() {

@@ -43,11 +43,11 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
@@ -637,7 +637,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 value = randomBoolean();
                 break;
             case DATE_FIELD_NAME:
-                value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
+                value = ZonedDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis()), ZoneOffset.UTC).toString();
                 break;
             case DATE_NANOS_FIELD_NAME:
                 value = Instant.now().toString();

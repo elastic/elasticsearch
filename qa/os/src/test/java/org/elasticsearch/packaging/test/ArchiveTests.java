@@ -185,26 +185,24 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
-        Path tempDir = createTempDir("custom-config");
-        Path tempConf = tempDir.resolve("elasticsearch");
-        FileUtils.copyDirectory(installation.config, tempConf);
         Platforms.onWindows(() -> {
-            sh.run("attrib +r " + tempConf + "/d");
+            sh.run("attrib +r " + installation.config + " /d");
             // auto-config requires that the archive owner and the process user be the same
-            sh.chown(tempConf, installation.getOwner());
+            sh.chown(installation.config, installation.getOwner());
         });
-        Platforms.onLinux(() -> { sh.run("chmod -w " + tempConf); });
-        sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
+        Platforms.onLinux(() -> {
+            sh.run("chmod u-w " + installation.config);
+        });
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
-        sh.getEnv().remove("ES_PATH_CONF");
         Platforms.onWindows(() -> {
-            sh.run("attrib -r " + tempConf + "/d");
-            // auto-config requires that the archive owner and the process user be the same
-            sh.chown(tempConf, installation.getOwner());
+            sh.run("attrib -r " + installation.config + " /d");
+            sh.chown(installation.config);
         });
-        FileUtils.rm(tempDir);
+        Platforms.onLinux(() -> {
+            sh.run("chmod u+w " + installation.config);
+        });
         FileUtils.rm(installation.data);
     }
 

@@ -81,7 +81,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
             builder.field("explanation", explanation);
         }
         if (Objects.nonNull(allocationDecision)) {
-            builder.startObject("node_allocation_decisions");
+            builder.startObject("node_allocation_decision");
             {
                 allocationDecision.toXContent(builder, params);
             }

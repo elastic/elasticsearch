@@ -46,7 +46,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
         mlInitializationService = new MlInitializationService(client(), threadPool, mlDailyMaintenanceService, clusterService);
     }
 
-    public void testThatMlIndicesBecomeHiddenWhenTheNodeBecomesMaster() {
+    public void testThatMlIndicesBecomeHiddenWhenTheNodeBecomesMaster() throws Exception {
         String[] mlHiddenIndexNames = {
             ".ml-anomalies-7",
             ".ml-state-000001",
@@ -84,6 +84,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
         }
 
         mlInitializationService.onMaster();
+        assertBusy(() -> assertTrue(mlInitializationService.areMlInternalIndicesHidden()));
 
         settingsResponse =
             client().admin().indices().prepareGetSettings(allIndexNames)
@@ -94,14 +95,14 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
             Settings settings = settingsResponse.getIndexToSettings().get(indexName);
             assertThat(settings, is(notNullValue()));
             assertThat(
-                "Index " + indexName + " expected to be hidden but wasn't",
+                "Index " + indexName + " expected to be hidden but wasn't, settings = " + settings,
                 settings.getAsBoolean(SETTING_INDEX_HIDDEN, false), is(equalTo(true)));
         }
         for (String indexName : otherIndexNames) {
             Settings settings = settingsResponse.getIndexToSettings().get(indexName);
             assertThat(settings, is(notNullValue()));
             assertThat(
-                "Index " + indexName + " expected not to be hidden but was",
+                "Index " + indexName + " expected not to be hidden but was, settings = " + settings,
                 settings.getAsBoolean(SETTING_INDEX_HIDDEN, false), is(equalTo(false)));
         }
     }

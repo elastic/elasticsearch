@@ -53,6 +53,7 @@ public class MlInitializationService implements ClusterStateListener {
     private final Client client;
     private final ThreadPool threadPool;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean mlInternalIndicesHidden = new AtomicBoolean(false);
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
@@ -98,7 +99,7 @@ public class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlIndicesHidden);
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
@@ -140,7 +141,12 @@ public class MlInitializationService implements ClusterStateListener {
         return mlDailyMaintenanceService;
     }
 
-    private void makeMlIndicesHidden() {
+    /** For testing */
+    public boolean areMlInternalIndicesHidden() {
+        return mlInternalIndicesHidden.get();
+    }
+
+    private void makeMlInternalIndicesHidden() {
         String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
 
         // Step 5: Handle errors encountered on the way.
@@ -150,7 +156,7 @@ public class MlInitializationService implements ClusterStateListener {
                     logger.error("One or more of the ML internal aliases could not be made hidden.");
                     return;
                 }
-                logger.debug("All the ML internal indices and aliases were successfully made hidden");
+                mlInternalIndicesHidden.set(true);
             },
             e -> logger.error("An error occurred while making ML internal indices and aliases hidden", e)
         );
@@ -176,6 +182,7 @@ public class MlInitializationService implements ClusterStateListener {
                 }
                 if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                     logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
+                    finalListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 String indicesWithNonHiddenAliasesString =

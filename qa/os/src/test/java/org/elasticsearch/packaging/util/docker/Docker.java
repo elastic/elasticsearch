@@ -568,7 +568,7 @@ public class Docker {
         sh.run("docker restart " + containerId);
     }
 
-    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+    static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
         final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
         if (result.isSuccess() == false) {
             throw new FileNotFoundException(path + " does not exist");

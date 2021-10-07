@@ -23,7 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
@@ -82,7 +81,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue(result.isSuccess());
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate missing keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_FOUND));
     }
@@ -98,7 +97,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // We don't add a user here. We explicitly disable security for packages for now after installation. We will update in a followup
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate unprotected keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
@@ -109,7 +108,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution(), builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false")));
+        installation = Docker.runContainer(distribution(), builder());
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -118,7 +117,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         }
 
         final Installation.Executables bin = installation.executables();
-        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
+        Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
         assertThat("has-passwd should indicate unprotected keystore", r.stdout, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
@@ -244,16 +243,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
         // restart ES with password and mounted config dir containing password protected keystore
-        Map<Path, Path> volumes = Map.of(localConfigDir.resolve("config"), installation.config);
-        Map<String, String> envVars = Map.of(
-            "KEYSTORE_PASSWORD",
-            KEYSTORE_PASSWORD,
-            "ingest.geoip.downloader.enabled",
-            "false",
-            "ELASTIC_PASSWORD",
-            PASSWORD
+        runContainer(
+            distribution(),
+            builder().volume(localConfigDir.resolve("config"), installation.config)
+                .envVar("KEYSTORE_PASSWORD", password)
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
-        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation, USERNAME, PASSWORD);
         ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
     }
@@ -277,17 +272,13 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
             // restart ES with password and mounted config dir containing password protected keystore
-            Map<Path, Path> volumes = Map.of(localConfigDir.resolve("config"), installation.config, tempDir, Path.of("/run/secrets"));
-            Map<String, String> envVars = Map.of(
-                "KEYSTORE_PASSWORD_FILE",
-                "/run/secrets/" + passwordFilename,
-                "ingest.geoip.downloader.enabled",
-                "false",
-                "ELASTIC_PASSWORD",
-                PASSWORD
+            runContainer(
+                distribution(),
+                builder().volume(localConfigDir.resolve("config"), installation.config)
+                    .volume(tempDir, "/run/secrets")
+                    .envVar("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+                    .envVar("ELASTIC_PASSWORD", PASSWORD)
             );
-
-            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation, USERNAME, PASSWORD);
             ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
@@ -309,9 +300,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path localConfigPath = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
         // restart ES with password and mounted config dir containing password protected keystore
-        Map<Path, Path> volumes = Map.of(localConfigPath.resolve("config"), installation.config);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
+        Shell.Result r = runContainerExpectingFailure(
+            distribution(),
+            builder().volume(localConfigPath.resolve("config"), installation.config).envVar("KEYSTORE_PASSWORD", "wrong")
+        );
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
@@ -358,7 +350,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // Mount a temporary directory for copying the keystore
         Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
         Path tempDirectory = createTempDir(KeystoreManagementTests.class.getSimpleName());
-        Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
 
         // It's very tricky to properly quote a pipeline that you're passing to
         // a docker exec command, so we're just going to put a small script in the
@@ -371,7 +362,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), builder().volumes(volumes));
+        runContainer(distribution(), builder().volume(tempDirectory, dockerTemp));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);

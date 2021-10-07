@@ -81,6 +81,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
+  task.skipTest("nodes.stats/11_indices_metrics/Metric - _all for indices shards", "Muted because we are intentionally making a breaking bugfix. Unmute when #78531 is backported")
+  task.skipTest("nodes.stats/11_indices_metrics/indices shards total count test", "Muted because we are intentionally making a breaking bugfix. Unmute when #78531 is backported")
+  task.skipTest("nodes.stats/11_indices_metrics/Metric - blank for indices shards", "Muted because we are intentionally making a breaking bugfix. Unmute when #78531 is backported")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

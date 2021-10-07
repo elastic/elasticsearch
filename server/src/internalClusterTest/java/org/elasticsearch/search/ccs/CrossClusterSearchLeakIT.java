@@ -66,7 +66,6 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
      *     <li>scroll vs no scroll</li>
      * </ul>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78673")
     public void testSearch() throws Exception {
         assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo")
             .setMapping("f", "type=keyword")
@@ -105,7 +104,7 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
             searchRequest.allowPartialSearchResults(false);
             boolean scroll = randomBoolean();
             searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .aggregation(terms("f").field("f").size(docs + between(scroll ? 1 : 0, 10))).size(between(0, 1000)));
+                .aggregation(terms("f").field("f").size(docs + between(0, 10))).size(between(scroll ? 1 : 0, 1000)));
             if (scroll) {
                 searchRequest.scroll("30s");
             }

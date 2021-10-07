@@ -431,7 +431,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
 
         // Ensure clean-up old files doesn't fail with one bad dir
-        format.cleanupOldFiles(1, paths);
+        format.cleanupOldFiles(genId + 1, paths);
 
         corruptFile(stateFiles.get(1), logger);
 

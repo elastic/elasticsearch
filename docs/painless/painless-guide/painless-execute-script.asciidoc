@@ -5,6 +5,7 @@ experimental::[]
 The Painless execute API runs a script and returns a result.
 
 [[painless-execute-api-request]]
+==== {api-request-title}
 `POST /_scripts/painless/_execute`
 `POST /{index}/_scripts/painless/_execute`
 
@@ -109,6 +110,8 @@ which is the default if no value is provided for `context`.
 ====
 `document`:: (Required, string)
 Document that's temporarily indexed in-memory and accessible from the script.
+
+====
 
 `params`:: (`Map`, read-only)
 Specifies any named parameters that are passed into the script as variables.

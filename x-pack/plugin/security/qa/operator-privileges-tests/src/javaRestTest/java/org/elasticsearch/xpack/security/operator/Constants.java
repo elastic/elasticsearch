@@ -421,6 +421,7 @@ public class Constants {
         "indices:data/read/mtv[shard]",
         "indices:data/read/open_point_in_time",
         "indices:data/read/rank_eval",
+        "indices:data/read/scripts/painless/execute",
         "indices:data/read/scroll",
         "indices:data/read/scroll/clear",
         "indices:data/read/search",

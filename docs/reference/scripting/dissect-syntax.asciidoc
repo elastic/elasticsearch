@@ -113,7 +113,7 @@ In this example, `message` is the `<field_name>` and `response` is the
 
 [source,console]
 ----
-POST /my_index/_scripts/painless/_execute
+POST /my-index/_scripts/painless/_execute
 {
   "script": {
     "source": """

@@ -58,17 +58,19 @@ public class RestTemplatesAction extends AbstractCatAction {
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(templateNames);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
-        final StepListener<GetIndexTemplatesResponse> getIndexTemplatesStep = new StepListener<>();
 
         final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest
             = new GetComposableIndexTemplateAction.Request();
         getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
         getComposableTemplatesRequest.masterNodeTimeout(
             request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout()));
-        final StepListener<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new StepListener<>();
 
         return channel -> {
+
+            final StepListener<GetIndexTemplatesResponse> getIndexTemplatesStep = new StepListener<>();
             client.admin().indices().getTemplates(getIndexTemplatesRequest, getIndexTemplatesStep);
+
+            final StepListener<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new StepListener<>();
             client.execute(GetComposableIndexTemplateAction.INSTANCE, getComposableTemplatesRequest, getComposableTemplatesStep);
 
             final ActionListener<Table> tableListener = new RestResponseListener<>(channel) {

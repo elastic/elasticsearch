@@ -421,7 +421,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         assertNull(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
     }
 
-    public void testDeleteMetaStateWithErrorPath() throws IOException {
+    public void testCleanupOldFilesWithErrorPath() throws IOException {
         Path paths[] = new Path[3];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();
@@ -446,7 +446,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
 
         // Ensure clean-up old files doesn't fail with one bad dir
-        format.cleanupOldFiles(1, paths);
+        format.cleanupOldFiles(genId + 1, paths);
 
         corruptFile(stateFiles.get(1), logger);
 

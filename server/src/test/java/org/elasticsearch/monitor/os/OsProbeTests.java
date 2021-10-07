@@ -314,7 +314,8 @@ public class OsProbeTests extends ESTestCase {
         assertThat(OsProbe.getTotalMemoryOverride("123456789123456789"), is(123456789123456789L));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("abc"));
         assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [abc]"));
-        // Although numeric, this value overflows long. This won't be a problem if the override is set appropriately on a 64 bit machine.
+        // Although numeric, this value overflows long. This won't be a problem in practice for sensible
+        // overrides, as it will be a very long time before machines have more than 8 exabytes of RAM.
         e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("123456789123456789123456789"));
         assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [123456789123456789123456789]"));
     }

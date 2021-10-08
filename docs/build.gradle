@@ -115,6 +115,10 @@ tasks.named("integTest").configure {
   }
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}
+
 tasks.named("buildRestTests").configure {
   docs = docsFileTree
 }

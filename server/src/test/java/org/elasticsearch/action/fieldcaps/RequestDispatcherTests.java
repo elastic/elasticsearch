@@ -8,22 +8,36 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.cursors.IntCursor;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -31,6 +45,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,6 +53,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -52,6 +68,7 @@ import org.elasticsearch.transport.nio.MockNioTransport;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,40 +76,47 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponseTests.randomIndexResponse;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.elasticsearch.action.fieldcaps.FieldCapTestHelper.randomIndexResponse;
+import static org.elasticsearch.action.fieldcaps.RequestDispatcher.GROUP_REQUESTS_VERSION;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-// TODO: Add more tests
+/**
+ * Besides the assertions in each test, the variants of {@link RequestDispatcher} are verified in
+ * {@link RequestTracker#verifyAfterComplete()} after each test.
+ */
 public class RequestDispatcherTests extends ESAllocationTestCase {
     static final Logger logger = LogManager.getLogger(RequestDispatcherTests.class);
 
-    /**
-     * Verify that in a happy case, each node in the new cluster receives at most one request and
-     * - Without query filter each index is requested once in a single node request
-     * - With query filter every shard of each index is requested once
-     */
-    public void testHappyNewCluster() throws Exception {
+    public void testHappyCluster() {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
         final ClusterState clusterState;
+        final boolean newVersionOnly = randomBoolean();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomNewVersion()));
+                final Version nodeVersion;
+                if (newVersionOnly || randomBoolean()) {
+                    nodeVersion = randomNewVersion();
+                } else {
+                    nodeVersion = randomOldVersion();
+                }
+                discoNodes.add(newNode("node_" + i, nodeVersion));
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
@@ -104,67 +128,201 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
-
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
             logger.debug("--> test with indices {}", indices);
-            final ResponseCollector collector = new ResponseCollector(indices);
-            final QueryBuilder filter = randomBoolean() ? new RangeQueryBuilder("timestamp").from(randomNonNegativeLong()) : null;
+            final PlainActionFuture<CombinedResponse> listener = new PlainActionFuture<>();
+            final boolean withFilter = randomBoolean();
+            final FieldCapabilitiesRequest mainRequest = randomFieldCapRequest(withFilter);
+            final CombinedResponse.Builder responseBuilder = newResponseBuilder(mainRequest, transportService.threadPool, listener);
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                new FieldCapabilitiesRequest().fields("*").indexFilter(filter),
+                mainRequest,
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                collector::addIndexResponse,
-                collector::addFailure);
+                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                responseBuilder,
+                responseBuilder::complete);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
             dispatcher.execute();
-            collector.awaitCompletion();
-            assertThat("no shard request sent on the new cluster", transportService.sentShardRequests, empty());
-            Map<String, List<NodeRequest>> requestsPerNode = transportService.sentNodeRequests.stream()
-                .collect(Collectors.groupingBy(r -> r.node.getId()));
-            for (Map.Entry<String, List<NodeRequest>> e : requestsPerNode.entrySet()) {
-                assertThat("node " + e.getKey() + " received more than 1 node request", e.getValue(), hasSize(1));
-            }
-            Map<String, Set<NodeRequest>> requestsPerIndex = new HashMap<>();
-            for (NodeRequest request : transportService.sentNodeRequests) {
-                for (ShardId shardId : request.request.shardIds()) {
-                    requestsPerIndex.computeIfAbsent(shardId.getIndexName(), index -> new HashSet<>()).add(request);
-                }
+            final CombinedResponse mergedResp = listener.actionGet();
+            verifyMergedResponse(mainRequest, mergedResp, indices, Collections.emptyList());
+            assertThat("Happy case should complete after one round", dispatcher.executionRound(), equalTo(1));
+            for (NodeRequest nodeRequest : requestTracker.sentNodeRequests) {
+                assertThat("All requests occur in round 0",nodeRequest.round, equalTo(0));
             }
             for (String index : indices) {
-                final Set<NodeRequest> nodeRequests = requestsPerIndex.get(index);
-                assertNotNull("index " + index + " was not requested", nodeRequests);
-                if (filter == null) {
-                    assertThat("index was request more than once [" + nodeRequests + "]", nodeRequests, hasSize(1));
+                final List<NodeRequest> nodeRequests = requestTracker.nodeRequests(index);
+                final List<ShardRequest> shardRequests = requestTracker.shardRequests(index);
+                if (withFilter) {
+                    Set<ShardId> requestedShardIds = new HashSet<>();
+                    for (NodeRequest nodeRequest : nodeRequests) {
+                        for (ShardId shardId : nodeRequest.requestedShardIds(index)) {
+                            assertTrue(requestedShardIds.add(shardId));
+                        }
+                    }
+                    for (ShardRequest shardRequest : shardRequests) {
+                        assertTrue(requestedShardIds.add(shardRequest.request.shardId()));
+                    }
+                    final Set<ShardId> assignedShardIds = clusterState.routingTable().index(index).randomAllActiveShardsIt()
+                        .getShardRoutings().stream()
+                        .map(ShardRouting::shardId).collect(Collectors.toSet());
+                    assertThat(requestedShardIds, equalTo(assignedShardIds));
                 } else {
-                    Map<ShardId, List<ShardId>> groupShardIds = nodeRequests.stream().flatMap(r -> r.request.shardIds().stream())
-                        .collect(Collectors.groupingBy(s -> s));
-                    for (IndexShardRoutingTable shardRoutingTable : clusterState.routingTable().index(index)) {
-                        final ShardId shardId = shardRoutingTable.shardId();
-                        assertNotNull(groupShardIds.get(shardId));
-                        assertThat("ShardId [" + shardId + "] was request more than once", groupShardIds.get(shardId), hasSize(1));
+                    assertThat("index " + index + " wasn't requested one time", nodeRequests.size() + shardRequests.size(), equalTo(1));
+                }
+            }
+        }
+    }
+
+    public void testRetryThenOk() {
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final ClusterState clusterState;
+        {
+            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+            int numNodes = randomIntBetween(2, 10);
+            for (int i = 0; i < numNodes; i++) {
+                discoNodes.add(newNode("node_" + i, randomBoolean() ? randomNewVersion() : randomOldVersion()));
+            }
+            Metadata.Builder metadata = Metadata.builder();
+            for (String index : allIndices) {
+                final Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 3))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
+                metadata.put(IndexMetadata.builder(index).settings(settings));
+            }
+            clusterState = newClusterState(metadata.build(), discoNodes.build());
+        }
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            logger.debug("--> test with indices {}", indices);
+            final PlainActionFuture<CombinedResponse> listener = new PlainActionFuture<>();
+            final boolean withFilter = randomBoolean();
+            final FieldCapabilitiesRequest mainRequest = randomFieldCapRequest(withFilter);
+            final CombinedResponse.Builder responseBuilder = newResponseBuilder(mainRequest, transportService.threadPool, listener);
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                newRandomParentTask(),
+                mainRequest,
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                indices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                responseBuilder,
+                responseBuilder::complete);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
+
+            final Map<String, Integer> maxFailedRounds = new HashMap<>();
+            for (String index : randomSubsetOf(between(1, indices.size()), indices)) {
+                maxFailedRounds.put(index, randomIntBetween(1, maxPossibleRounds(clusterState, index, withFilter) - 1));
+            }
+
+            final AtomicInteger failedTimes = new AtomicInteger();
+            transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                      TransportRequest request, TransportRequestOptions options,
+                                                                      TransportResponseHandler<T> handler) {
+                    final int currentRound = dispatcher.executionRound();
+                    if (request instanceof FieldCapabilitiesNodeRequest) {
+                        FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                        Set<String> requestedIndices = nodeRequest.shardIds().stream()
+                            .map(ShardId::getIndexName)
+                            .collect(Collectors.toSet());
+                        if (currentRound > 0) {
+                            assertThat("Only failed indices are retried after the first found",
+                                requestedIndices, everyItem(in(maxFailedRounds.keySet())));
+                        }
+                        List<String> successIndices = new ArrayList<>();
+                        List<String> failedIndices = new ArrayList<>();
+                        for (String index : requestedIndices) {
+                            final Integer maxRound = maxFailedRounds.get(index);
+                            if (maxRound == null || currentRound >= maxRound) {
+                                successIndices.add(index);
+                            } else {
+                                failedIndices.add(index);
+                                failedTimes.incrementAndGet();
+                            }
+                        }
+                        transportService.sendResponse(handler,
+                            randomNodeResponse(nodeRequest, successIndices, failedIndices, Collections.emptySet()));
+                    } else {
+                        FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                        final String index = indexRequest.index();
+                        if (currentRound > 0) {
+                            assertThat("Only failed index is executed after the first found", index, in(maxFailedRounds.keySet()));
+                        }
+                        final Integer maxRound = maxFailedRounds.get(index);
+                        if (maxRound == null || currentRound >= maxRound) {
+                            transportService.sendResponse(handler, randomIndexResponse(index, true));
+                        } else {
+                            failedTimes.incrementAndGet();
+                            transportService.sendFailure(handler, new IllegalStateException("shard was closed"));
+                        }
+                    }
+                }
+            });
+
+            dispatcher.execute();
+            final CombinedResponse mergedResp = listener.actionGet();
+            verifyMergedResponse(mainRequest, mergedResp, indices, Collections.emptyList());
+            assertThat(failedTimes.get(), greaterThan(0));
+            int maxRound = maxFailedRounds.values().stream().mapToInt(n -> n).max().getAsInt();
+            assertThat(dispatcher.executionRound(), equalTo(maxRound + 1));
+            for (String index : indices) {
+                if (withFilter) {
+                    ObjectIntMap<ShardId> copies = new ObjectIntHashMap<>();
+                    for (ShardRouting shardRouting : clusterState.routingTable().index(index).randomAllActiveShardsIt()) {
+                        copies.addTo(shardRouting.shardId(), 1);
+                    }
+                    final int executedRounds = maxFailedRounds.getOrDefault(index, 0);
+                    for (int round = 0; round <= executedRounds; round++) {
+                        final Set<ShardId> requestedShards = new HashSet<>();
+                        for (NodeRequest nodeRequest : requestTracker.nodeRequests(index, round)) {
+                            for (ShardId shardId : nodeRequest.requestedShardIds(index)) {
+                                assertTrue(requestedShards.add(shardId));
+                            }
+                        }
+                        for (ShardRequest shardRequest : requestTracker.shardRequests(index, round)) {
+                            assertTrue(requestedShards.add(shardRequest.request.shardId()));
+                        }
+                        final Set<ShardId> availableShards = new HashSet<>();
+                        for (ObjectIntCursor<ShardId> e : copies) {
+                            if (e.value > 0) {
+                                availableShards.add(e.key);
+                                copies.addTo(e.key, -1);
+                            }
+                        }
+                        assertThat("round: " + round, requestedShards, equalTo(availableShards));
+                    }
+                } else {
+                    final Integer failedRounds = maxFailedRounds.get(index);
+                    final int sentRequests = requestTracker.shardRequests(index).size() + requestTracker.nodeRequests(index).size();
+                    if (failedRounds != null) {
+                        assertThat(sentRequests, equalTo(failedRounds + 1));
+                    } else {
+                        assertThat(sentRequests, equalTo(1));
                     }
                 }
             }
         }
     }
 
-    /**
-     * Verify that in a happy case in a mixed cluster, each new node receives at most one node request and
-     * - Without filter each index is requested once in a node/shard request
-     * - With filter every shard of each index is requested once in both node and shard requests
-     */
-    public void testHappyMixedCluster() throws Exception {
+    public void testRetryButFails() {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
         final ClusterState clusterState;
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomBoolean() ? randomNewVersion(): randomOldVersion()));
+                discoNodes.add(newNode("node_" + i, randomBoolean() ? randomNewVersion() : randomOldVersion()));
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
@@ -176,186 +334,146 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             clusterState = newClusterState(metadata.build(), discoNodes.build());
         }
-
-        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
-            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
-            final ResponseCollector collector = new ResponseCollector(indices);
-            final QueryBuilder filter = randomBoolean() ? new RangeQueryBuilder("timestamp").from(randomNonNegativeLong()) : null;
-            logger.debug("--> test with indices={}, filter={}", indices, filter != null);
-            final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
-                transportService,
-                newRandomParentTask(),
-                new FieldCapabilitiesRequest().indexFilter(filter).fields("*"),
-                OriginalIndices.NONE,
-                randomNonNegativeLong(),
-                indices.toArray(new String[0]),
-                collector::addIndexResponse,
-                collector::addFailure);
-            dispatcher.execute();
-            collector.awaitCompletion();
-
-            // Node-level requests must be sent at most once for each new node
-            Map<String, List<NodeRequest>> nodeRequestsPerNode = transportService.sentNodeRequests.stream()
-                .collect(Collectors.groupingBy(r -> r.node.getId()));
-            for (Map.Entry<String, List<NodeRequest>> e : nodeRequestsPerNode.entrySet()) {
-                assertThat("node " + e.getKey() + " received more than 1 node request", e.getValue(), hasSize(1));
-            }
-            if (filter == null) {
-                Map<String, Object> requestsPerIndex = new HashMap<>();
-                for (NodeRequest nodeRequest : transportService.sentNodeRequests) {
-                    for (ShardId shardId : nodeRequest.request.shardIds()) {
-                        final Object existing = requestsPerIndex.put(shardId.getIndexName(), nodeRequest);
-                        if (existing != null) {
-                            assertThat("Index was requested in " + existing, existing, sameInstance(nodeRequest));
-                        }
-                    }
-                }
-                for (ShardRequest shardRequest : transportService.sentShardRequests) {
-                    final Object existing = requestsPerIndex.put(shardRequest.request.index(), shardRequest);
-                    assertNull("Index was requested in " + existing, existing);
-                }
-            } else {
-                Map<ShardId, List<ShardId>> groupedShards = new HashMap<>();
-                for (NodeRequest request : transportService.sentNodeRequests) {
-                    for (ShardId shardId : request.request.shardIds()) {
-                        groupedShards.computeIfAbsent(shardId, index -> new ArrayList<>()).add(shardId);
-                    }
-                }
-                for (ShardRequest request : transportService.sentShardRequests) {
-                    groupedShards.computeIfAbsent(request.request.shardId(), index -> new ArrayList<>()).add(request.request.shardId());
-                }
-                for (String index : indices) {
-                    for (IndexShardRoutingTable shardRoutingTable : clusterState.routingTable().index(index)) {
-                        final ShardId shardId = shardRoutingTable.shardId();
-                        assertNotNull(groupedShards.get(shardId));
-                        assertThat("ShardId [" + shardId + "] was request more than once", groupedShards.get(shardId), hasSize(1));
-                    }
-                }
-            }
-        }
-    }
-
-    public void testRetryWithoutFilterNewCluster() throws Exception {
-        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
-        final ClusterState clusterState;
-        {
-            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(2, 10);
-            for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomNewVersion()));
-            }
-            Metadata.Builder metadata = Metadata.builder();
-            for (String index : allIndices) {
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 3))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadata.put(IndexMetadata.builder(index).settings(settings));
-            }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
-        }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
             logger.debug("--> test with indices {}", indices);
-            final ResponseCollector collector = new ResponseCollector(indices);
+            final PlainActionFuture<CombinedResponse> listener = new PlainActionFuture<>();
+            final boolean withFilter = randomBoolean();
+            final FieldCapabilitiesRequest mainRequest = randomFieldCapRequest(withFilter);
+            final CombinedResponse.Builder responseBuilder = newResponseBuilder(mainRequest, transportService.threadPool, listener);
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                new FieldCapabilitiesRequest().fields("*"),
+                mainRequest,
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                collector::addIndexResponse,
-                collector::addFailure);
+                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                responseBuilder,
+                responseBuilder::complete);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
 
-            String failedIndex = randomFrom(indices);
-            Set<String> assignedNodes = clusterState.routingTable().index(failedIndex).randomAllActiveShardsIt().getShardRoutings()
-                .stream().map(ShardRouting::currentNodeId)
-                .collect(Collectors.toSet());
-            int numFailures = randomIntBetween(1, assignedNodes.size() - 1);
+            List<String> failedIndices = randomSubsetOf(between(1, indices.size()), indices);
+
+            final AtomicInteger failedTimes = new AtomicInteger();
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
-                final Set<DiscoveryNode> failedNodes = new HashSet<>();
-
                 @Override
                 public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
                                                                       TransportRequest request, TransportRequestOptions options,
                                                                       TransportResponseHandler<T> handler) {
-                    final String nodeId = connection.getNode().getId();
-                    assertThat(request, instanceOf(FieldCapabilitiesNodeRequest.class));
-                    FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
-                    final Map<String, List<ShardId>> shardsPerIndex = nodeRequest.shardIds().stream()
-                        .collect(Collectors.groupingBy(ShardId::getIndexName));
-                    for (Map.Entry<String, List<ShardId>> e : shardsPerIndex.entrySet()) {
-                        final String index = e.getKey();
-                        List<ShardId> shardsPerNode = clusterState.routingTable().index(index)
-                            .randomAllActiveShardsIt().getShardRoutings()
-                            .stream().filter(shr -> shr.currentNodeId().equals(nodeId))
-                            .map(ShardRouting::shardId)
-                            .collect(Collectors.toList());
-                        assertThat(shardsPerNode, containsInAnyOrder(shardsPerIndex.get(index).toArray(new ShardId[0])));
-                    }
-                    if (shardsPerIndex.containsKey(failedIndex)) {
-                        assertTrue("Node " + connection.getNode() + " was tried already", failedNodes.add(connection.getNode()));
-                    }
-                    if (failedNodes.size() <= numFailures) {
-                        List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
-                        List<FieldCapabilitiesFailure> indexFailures = new ArrayList<>();
-                        for (String index : shardsPerIndex.keySet()) {
-                            if (index.equals(failedIndex)) {
-                                indexFailures.add(
-                                    new FieldCapabilitiesFailure(new String[]{failedIndex}, new IllegalStateException("shard is closed")));
+                    final int currentRound = dispatcher.executionRound();
+                    if (request instanceof FieldCapabilitiesNodeRequest) {
+                        FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                        Set<String> requestedIndices = nodeRequest.shardIds().stream()
+                            .map(ShardId::getIndexName)
+                            .collect(Collectors.toSet());
+                        if (currentRound > 0) {
+                            assertThat("Only failed indices are retried after the first found",
+                                requestedIndices, everyItem(in(failedIndices)));
+                        }
+                        List<String> toRespondIndices = new ArrayList<>();
+                        List<String> toFailIndices = new ArrayList<>();
+                        for (String index : requestedIndices) {
+                            if (failedIndices.contains(index)) {
+                                toFailIndices.add(index);
+                                failedTimes.incrementAndGet();
                             } else {
-                                indexResponses.add(randomIndexResponse(index, true));
+                                toRespondIndices.add(index);
                             }
                         }
-                        FieldCapabilitiesNodeResponse resp = new FieldCapabilitiesNodeResponse(indexResponses, indexFailures);
-                        sendResponse(transportService.threadPool, handler, resp);
+                        transportService.sendResponse(
+                            handler, randomNodeResponse(nodeRequest, toRespondIndices, toFailIndices, Collections.emptySet()));
                     } else {
-                        sendResponse(transportService.threadPool, handler, randomSuccessResponse(request));
+                        FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                        final String index = indexRequest.index();
+                        if (currentRound > 0) {
+                            assertThat("Only failed index is executed after the first found", index, in(failedIndices));
+                        }
+                        if (failedIndices.contains(index)) {
+                            failedTimes.incrementAndGet();
+                            transportService.sendFailure(handler, new IllegalStateException("shard was closed"));
+                        } else {
+                            transportService.sendResponse(handler, randomIndexResponse(index, true));
+                        }
                     }
                 }
             });
+
             dispatcher.execute();
-            collector.awaitCompletion();
-            assertThat("no shard request sent on the new cluster", transportService.sentShardRequests, empty());
-            Map<String, Set<NodeRequest>> requestsPerIndex = new HashMap<>();
-            for (NodeRequest request : transportService.sentNodeRequests) {
-                for (ShardId shardId : request.request.shardIds()) {
-                    requestsPerIndex.computeIfAbsent(shardId.getIndexName(), index -> new HashSet<>()).add(request);
-                }
-            }
+            final CombinedResponse mergedResp = listener.actionGet();
+            List<String> successIndices = indices.stream().filter(i -> failedIndices.contains(i) == false).collect(Collectors.toList());
+
+            verifyMergedResponse(mainRequest, mergedResp, successIndices, failedIndices);
+            assertThat(failedTimes.get(), greaterThan(0));
+
+            int maxRound = failedIndices.stream().mapToInt(index -> maxPossibleRounds(clusterState, index, withFilter)).max().getAsInt();
+            assertThat(dispatcher.executionRound(), equalTo(maxRound));
             for (String index : indices) {
-                final Set<NodeRequest> nodeRequests = requestsPerIndex.get(index);
-                assertNotNull("index " + index + " was not requested", nodeRequests);
-                if (index.equals(failedIndex)) {
-                    assertThat(nodeRequests, hasSize(numFailures + 1));
+                if (withFilter) {
+                    ObjectIntMap<ShardId> copies = new ObjectIntHashMap<>();
+                    for (ShardRouting shardRouting : clusterState.routingTable().index(index).randomAllActiveShardsIt()) {
+                        copies.addTo(shardRouting.shardId(), 1);
+                    }
+                    final int executedRounds = failedIndices.contains(index) ? maxPossibleRounds(clusterState, index, true) : 0;
+                    for (int round = 0; round <= executedRounds; round++) {
+                        final Set<ShardId> requestedShards = new HashSet<>();
+                        for (NodeRequest nodeRequest : requestTracker.nodeRequests(index, round)) {
+                            for (ShardId shardId : nodeRequest.requestedShardIds(index)) {
+                                assertTrue(requestedShards.add(shardId));
+                            }
+                        }
+                        for (ShardRequest shardRequest : requestTracker.shardRequests(index, round)) {
+                            assertTrue(requestedShards.add(shardRequest.request.shardId()));
+                        }
+                        final Set<ShardId> availableShards = new HashSet<>();
+                        for (ObjectIntCursor<ShardId> e : copies) {
+                            if (e.value > 0) {
+                                availableShards.add(e.key);
+                                copies.addTo(e.key, -1);
+                            }
+                        }
+                        assertThat("round: " + round, requestedShards, equalTo(availableShards));
+                    }
+                    if (failedIndices.contains(index)) {
+                        for (ObjectIntCursor<ShardId> cursor : copies) {
+                            assertThat("All copies of shard " + cursor.key + " must be tried", cursor.value, equalTo(0));
+                        }
+                    }
                 } else {
-                    assertThat("index was request more than once [" + nodeRequests + "]", nodeRequests, hasSize(1));
+                    final int sentRequests = requestTracker.shardRequests(index).size() + requestTracker.nodeRequests(index).size();
+                    if (failedIndices.contains(index)) {
+                        assertThat(sentRequests, equalTo(maxPossibleRounds(clusterState, index, false)));
+                    } else {
+                        assertThat(sentRequests, equalTo(1));
+                    }
                 }
             }
         }
     }
 
-    public void testRetryWithoutFilterMixedCluster() throws Exception {
-
-    }
-
-    public void testRetryWithFilterNewCluster() throws Exception {
+    public void testSuccessWithAnyMatch() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
         final ClusterState clusterState;
+        final boolean newVersionOnly = randomBoolean();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-            int numNodes = randomIntBetween(2, 10);
+            int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, randomNewVersion()));
+                final Version nodeVersion;
+                if (newVersionOnly || randomBoolean()) {
+                    nodeVersion = randomNewVersion();
+                } else {
+                    nodeVersion = randomOldVersion();
+                }
+                discoNodes.add(newNode("node_" + i, nodeVersion));
             }
             Metadata.Builder metadata = Metadata.builder();
             for (String index : allIndices) {
                 final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 3))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
                 metadata.put(IndexMetadata.builder(index).settings(settings));
             }
@@ -364,165 +482,346 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
             logger.debug("--> test with indices {}", indices);
-            final QueryBuilder filter = new RangeQueryBuilder("timestamp").from(randomNonNegativeLong());
-            final ResponseCollector collector = new ResponseCollector(indices);
+            final PlainActionFuture<CombinedResponse> listener = new PlainActionFuture<>();
+            final boolean withFilter = true;
+            final FieldCapabilitiesRequest mainRequest = randomFieldCapRequest(withFilter);
+            final CombinedResponse.Builder responseBuilder = newResponseBuilder(mainRequest, transportService.threadPool, listener);
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
                 newRandomParentTask(),
-                new FieldCapabilitiesRequest().indexFilter(filter).fields("*"),
+                mainRequest,
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                collector::addIndexResponse,
-                collector::addFailure);
-
-            String failedIndex = randomFrom(indices);
-            int totalShards = clusterState.routingTable().index(failedIndex).randomAllActiveShardsIt().size();
-            int allowFailures = randomIntBetween(1, totalShards - 1);
-            final Map<String, Set<ShardId>> failedShards = new HashMap<>();
+                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                responseBuilder,
+                responseBuilder::complete);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
+            final AtomicInteger failedTimes = new AtomicInteger();
+            final Set<ShardId> allUnmatchedShardIds = new HashSet<>();
+            for (String index : indices) {
+                final Set<ShardId> shardIds = new HashSet<>();
+                for (ShardRouting shardRouting : clusterState.routingTable().index(index).randomAllActiveShardsIt()) {
+                    shardIds.add(shardRouting.shardId());
+                }
+                assertThat("suspect index requires at lease two shards", shardIds.size(), greaterThan(1));
+                allUnmatchedShardIds.addAll(randomSubsetOf(between(1, shardIds.size() - 1), shardIds));
+            }
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
                 public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
                                                                       TransportRequest request, TransportRequestOptions options,
                                                                       TransportResponseHandler<T> handler) {
-                    final DiscoveryNode node = connection.getNode();
-                    assertThat(request, instanceOf(FieldCapabilitiesNodeRequest.class));
-                    FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
-                    List<ShardId> suspectShardIds = nodeRequest.shardIds().stream()
-                        .filter(shr -> shr.getIndexName().equals(failedIndex))
-                        .collect(Collectors.toList());
-                    if (suspectShardIds.isEmpty()) {
-                        sendResponse(transportService.threadPool, handler, randomSuccessResponse(request));
-                    } else {
-                        final boolean toFail =
-                            failedShards.values().stream().mapToInt(Set::size).sum() + suspectShardIds.size() <= allowFailures;
-                        failedShards.compute(node.getId(), (n, curr) -> {
-                            if (curr == null) {
-                                return new HashSet<>(suspectShardIds);
+                    if (request instanceof FieldCapabilitiesNodeRequest) {
+                        FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                        Set<String> toRespondIndices = new HashSet<>();
+                        Set<ShardId> unmatchedShardIds = new HashSet<>();
+                        for (ShardId shardId : nodeRequest.shardIds()) {
+                            if (allUnmatchedShardIds.contains(shardId)) {
+                                assertTrue(unmatchedShardIds.add(shardId));
                             } else {
-                                for (ShardId shardId : suspectShardIds) {
-                                    assertTrue("shard " + shardId + " was request on node " + node.getId(), curr.add(shardId));
-                                }
-                                return curr;
-                            }
-                        });
-                        List<FieldCapabilitiesIndexResponse> indexResponses = new ArrayList<>();
-                        List<FieldCapabilitiesFailure> indexFailures = new ArrayList<>();
-                        Set<String> indices = nodeRequest.shardIds().stream().map(ShardId::getIndexName).collect(Collectors.toSet());
-                        for (String index : indices) {
-                            if (toFail && index.equals(failedIndex)) {
-                                indexFailures.add(
-                                    new FieldCapabilitiesFailure(new String[]{failedIndex}, new IllegalStateException("shard is closed")));
-                            } else {
-                                indexResponses.add(randomIndexResponse(index, true));
+                                toRespondIndices.add(shardId.getIndexName());
                             }
                         }
-                        FieldCapabilitiesNodeResponse resp = new FieldCapabilitiesNodeResponse(indexResponses, indexFailures);
-                        sendResponse(transportService.threadPool, handler, resp);
+                        transportService.sendResponse(handler, randomNodeResponse(nodeRequest, toRespondIndices,
+                            Collections.emptyList(), unmatchedShardIds));
+                    } else {
+                        FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                        if (allUnmatchedShardIds.contains(indexRequest.shardId())) {
+                            failedTimes.incrementAndGet();
+                            transportService.sendResponse(handler, randomIndexResponse(indexRequest.index(), false));
+                        } else {
+                            transportService.sendResponse(handler, randomIndexResponse(indexRequest.index(), true));
+                        }
                     }
                 }
             });
-            // TODO: more assertions
             dispatcher.execute();
-            collector.awaitCompletion();
-            assertThat("no shard request sent on the new cluster", transportService.sentShardRequests, empty());
+            final CombinedResponse mergedResp = listener.actionGet();
+            verifyMergedResponse(mainRequest, mergedResp, indices, Collections.emptyList());
+            assertThat(dispatcher.executionRound(), equalTo(1));
+            for (String index : indices) {
+                final List<NodeRequest> nodeRequests = requestTracker.nodeRequests(index);
+                final List<ShardRequest> shardRequests = requestTracker.shardRequests(index);
+                Set<ShardId> requestedShardIds = new HashSet<>();
+                for (NodeRequest nodeRequest : nodeRequests) {
+                    for (ShardId shardId : nodeRequest.requestedShardIds(index)) {
+                        assertTrue(requestedShardIds.add(shardId));
+                    }
+                }
+                for (ShardRequest shardRequest : shardRequests) {
+                    assertTrue(requestedShardIds.add(shardRequest.request.shardId()));
+                }
+                final Set<ShardId> assignedShardIds = clusterState.routingTable().index(index).randomAllActiveShardsIt()
+                    .getShardRoutings().stream()
+                    .map(ShardRouting::shardId).collect(Collectors.toSet());
+                assertThat(requestedShardIds, equalTo(assignedShardIds));
+            }
         }
     }
 
-    public void testRetryWithFilterMixedCluster() throws Exception {
-
+    public void testStopAfterAllShardsUnmatched() {
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).collect(Collectors.toList());
+        final ClusterState clusterState;
+        final boolean newVersionOnly = randomBoolean();
+        {
+            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+            int numNodes = randomIntBetween(1, 10);
+            for (int i = 0; i < numNodes; i++) {
+                final Version nodeVersion;
+                if (newVersionOnly || randomBoolean()) {
+                    nodeVersion = randomNewVersion();
+                } else {
+                    nodeVersion = randomOldVersion();
+                }
+                discoNodes.add(newNode("node_" + i, nodeVersion));
+            }
+            Metadata.Builder metadata = Metadata.builder();
+            for (String index : allIndices) {
+                final Settings.Builder settings = Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 10))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
+                metadata.put(IndexMetadata.builder(index).settings(settings));
+            }
+            clusterState = newClusterState(metadata.build(), discoNodes.build());
+        }
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            logger.debug("--> test with indices {}", indices);
+            final PlainActionFuture<CombinedResponse> listener = new PlainActionFuture<>();
+            final boolean withFilter = true;
+            final FieldCapabilitiesRequest mainRequest = randomFieldCapRequest(withFilter);
+            final CombinedResponse.Builder responseBuilder = newResponseBuilder(mainRequest, transportService.threadPool, listener);
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                newRandomParentTask(),
+                mainRequest,
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                indices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                responseBuilder,
+                responseBuilder::complete);
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
+            final AtomicInteger failedTimes = new AtomicInteger();
+            final List<String> unmatchedIndices = randomSubsetOf(between(1, indices.size()), indices);
+            transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                      TransportRequest request, TransportRequestOptions options,
+                                                                      TransportResponseHandler<T> handler) {
+                    if (request instanceof FieldCapabilitiesNodeRequest) {
+                        FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                        Set<String> toRespondIndices = new HashSet<>();
+                        Set<ShardId> unmatchedShardIds = new HashSet<>();
+                        for (ShardId shardId : nodeRequest.shardIds()) {
+                            if (unmatchedIndices.contains(shardId.getIndexName())) {
+                                assertTrue(unmatchedShardIds.add(shardId));
+                            } else {
+                                toRespondIndices.add(shardId.getIndexName());
+                            }
+                        }
+                        transportService.sendResponse(handler, randomNodeResponse(nodeRequest, toRespondIndices,
+                            Collections.emptyList(), unmatchedShardIds));
+                    } else {
+                        FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                        if (unmatchedIndices.contains(indexRequest.index())) {
+                            failedTimes.incrementAndGet();
+                            transportService.sendResponse(handler, randomIndexResponse(indexRequest.index(), false));
+                        } else {
+                            transportService.sendResponse(handler, randomIndexResponse(indexRequest.index(), true));
+                        }
+                    }
+                }
+            });
+            dispatcher.execute();
+            final CombinedResponse mergedResp = listener.actionGet();
+            final List<String> successIndices = indices.stream()
+                .filter(index -> unmatchedIndices.contains(index) == false)
+                .collect(Collectors.toList());
+            verifyMergedResponse(mainRequest, mergedResp, successIndices, Collections.emptyList());
+            assertThat(dispatcher.executionRound(), equalTo(1));
+            for (String index : indices) {
+                final List<NodeRequest> nodeRequests = requestTracker.nodeRequests(index);
+                final List<ShardRequest> shardRequests = requestTracker.shardRequests(index);
+                Set<ShardId> requestedShardIds = new HashSet<>();
+                for (NodeRequest nodeRequest : nodeRequests) {
+                    for (ShardId shardId : nodeRequest.requestedShardIds(index)) {
+                        assertTrue(requestedShardIds.add(shardId));
+                    }
+                }
+                for (ShardRequest shardRequest : shardRequests) {
+                    assertTrue(requestedShardIds.add(shardRequest.request.shardId()));
+                }
+                final Set<ShardId> assignedShardIds = clusterState.routingTable().index(index).randomAllActiveShardsIt()
+                    .getShardRoutings().stream()
+                    .map(ShardRouting::shardId).collect(Collectors.toSet());
+                assertThat(requestedShardIds, equalTo(assignedShardIds));
+            }
+        }
     }
 
-    public void testUnassignedShards() throws Exception {
-
-    }
-
-    public void testFailsAfterTryAllShards() throws Exception {
-
-    }
-
-    public void testWithFilterSuccessSingleMatch() throws Exception {
-
-    }
-
-    public void testWithFilterStopAfterAllShardsDoNotMatch() throws Exception {
-
-    }
-
-    static Version randomNewVersion() {
-        return VersionUtils.randomVersionBetween(random(), Version.V_7_16_0, Version.CURRENT);
-    }
-
-    static Version randomOldVersion() {
-        final Version previousVersion = VersionUtils.getPreviousVersion(Version.V_7_16_0);
-        return VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
-    }
-
-    static ClusterService mockClusterService(ClusterState clusterState) {
-        final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, clusterSettings);
-        when(clusterService.operationRouting()).thenReturn(operationRouting);
-        return clusterService;
-    }
-
-    static final class NodeRequest {
+    private static class NodeRequest {
+        final int round;
         final DiscoveryNode node;
         final FieldCapabilitiesNodeRequest request;
 
-        NodeRequest(DiscoveryNode node, FieldCapabilitiesNodeRequest request) {
+        NodeRequest(int round, DiscoveryNode node, FieldCapabilitiesNodeRequest request) {
+            this.round = round;
             this.node = node;
             this.request = request;
         }
+
+        Set<String> indices() {
+            return request.shardIds().stream().map(ShardId::getIndexName).collect(Collectors.toSet());
+        }
+
+        Set<ShardId> requestedShardIds(String index) {
+            return request.shardIds().stream().filter(s -> s.getIndexName().equals(index)).collect(Collectors.toSet());
+        }
     }
 
-    static final class ShardRequest {
+    private static class ShardRequest {
+        final int round;
         final DiscoveryNode node;
         final FieldCapabilitiesIndexRequest request;
 
-        ShardRequest(DiscoveryNode node, FieldCapabilitiesIndexRequest request) {
+        ShardRequest(int round, DiscoveryNode node, FieldCapabilitiesIndexRequest request) {
+            this.round = round;
             this.node = node;
             this.request = request;
         }
     }
 
-    static TransportResponse randomSuccessResponse(TransportRequest request) {
-        if (request instanceof FieldCapabilitiesIndexRequest) {
-            FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
-            return randomIndexResponse(indexRequest.index(), true);
-        } else if (request instanceof FieldCapabilitiesNodeRequest) {
-            FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
-            Set<String> indices = nodeRequest.shardIds().stream().map(ShardId::getIndexName).collect(Collectors.toSet());
-            List<FieldCapabilitiesIndexResponse> indexResponses = indices.stream()
-                .map(index -> randomIndexResponse(index, true)).collect(Collectors.toList());
-            return new FieldCapabilitiesNodeResponse(indexResponses, Collections.emptyList());
-        } else {
-            throw new AssertionError("unknown request " + request);
+    private static class RequestTracker {
+        private final RequestDispatcher dispatcher;
+        private final RoutingTable routingTable;
+        private final boolean withFilter;
+        private final AtomicInteger currentRound = new AtomicInteger();
+
+        final List<NodeRequest> sentNodeRequests = new CopyOnWriteArrayList<>();
+        final List<ShardRequest> sentShardRequests = new CopyOnWriteArrayList<>();
+
+        RequestTracker(RequestDispatcher dispatcher, RoutingTable routingTable, boolean withFilter) {
+            this.dispatcher = dispatcher;
+            this.routingTable = routingTable;
+            this.withFilter = withFilter;
+        }
+
+        void verifyAfterComplete() {
+            final int lastRound = dispatcher.executionRound();
+            // No requests are sent in the last round
+            for (NodeRequest request : sentNodeRequests) {
+                assertThat(request.round, lessThan(lastRound));
+            }
+            for (ShardRequest request : sentShardRequests) {
+                assertThat(request.round, lessThan(lastRound));
+            }
+            for (int i = 0; i < lastRound; i++) {
+                int round = i;
+                List<ShardRequest> shardRequests = sentShardRequests.stream().filter(r -> r.round == round).collect(Collectors.toList());
+                List<NodeRequest> nodeRequests = sentNodeRequests.stream().filter(r -> r.round == round).collect(Collectors.toList());
+                if (withFilter == false) {
+                    // Without filter, each index is requested once in each round.
+                    ObjectIntMap<String> requestsPerIndex = new ObjectIntHashMap<>();
+                    shardRequests.forEach(r -> requestsPerIndex.addTo(r.request.index(), 1));
+                    nodeRequests.forEach(r -> r.indices().forEach(index -> requestsPerIndex.addTo(index, 1)));
+                    for (ObjectIntCursor<String> e : requestsPerIndex) {
+                        assertThat("index " + e.key + " has requested more than once", e.value, equalTo(1));
+                    }
+                }
+                // With or without filter, each new node receives at most one request each round
+                final Map<DiscoveryNode, List<NodeRequest>> requestsPerNode = sentNodeRequests.stream()
+                    .filter(r -> r.round == round)
+                    .collect(Collectors.groupingBy(r -> r.node));
+                for (Map.Entry<DiscoveryNode, List<NodeRequest>> e : requestsPerNode.entrySet()) {
+                    assertThat("node " + e.getKey().getName() + " receives more than 1 requests in round " + currentRound,
+                        e.getValue(), hasSize(1));
+                }
+                // No shardId is requested more than once in a round
+                Set<ShardId> requestedShards = new HashSet<>();
+                for (ShardRequest shardRequest : shardRequests) {
+                    assertTrue(requestedShards.add(shardRequest.request.shardId()));
+                }
+                for (NodeRequest nodeRequest : nodeRequests) {
+                    for (ShardId shardId : nodeRequest.request.shardIds()) {
+                        assertTrue(requestedShards.add(shardId));
+                    }
+                }
+            }
+
+            // Request only shards that assigned to target nodes
+            for (NodeRequest nodeRequest : sentNodeRequests) {
+                for (String index : nodeRequest.indices()) {
+                    final Set<ShardId> requestedShardIds = nodeRequest.requestedShardIds(index);
+                    final Set<ShardId> assignedShardIds = assignedShardsOnNode(routingTable.index(index), nodeRequest.node.getId());
+                    assertThat(requestedShardIds, everyItem(in(assignedShardIds)));
+                }
+            }
+            for (ShardRequest shardRequest : sentShardRequests) {
+                final String index = shardRequest.request.index();
+                final Set<ShardId> assignedShardIds = assignedShardsOnNode(routingTable.index(index), shardRequest.node.getId());
+                assertThat(shardRequest.request.shardId(), in(assignedShardIds));
+            }
+
+            // No shard is requested twice
+            Map<String, Set<ShardId>> requestedShardIdsPerNode = new HashMap<>();
+            for (NodeRequest nodeRequest : sentNodeRequests) {
+                final Set<ShardId> shardIds = requestedShardIdsPerNode.computeIfAbsent(nodeRequest.node.getId(), k -> new HashSet<>());
+                for (ShardId shardId : nodeRequest.request.shardIds()) {
+                    assertTrue(shardIds.add(shardId));
+                }
+            }
+            for (ShardRequest shardRequest : sentShardRequests) {
+                final Set<ShardId> shardIds = requestedShardIdsPerNode.computeIfAbsent(shardRequest.node.getId(), k -> new HashSet<>());
+                assertTrue(shardIds.add(shardRequest.request.shardId()));
+            }
+        }
+
+        void verifyAndTrackRequest(Transport.Connection connection, String action, TransportRequest request) {
+            final int requestRound = dispatcher.executionRound();
+            final DiscoveryNode node = connection.getNode();
+            if (action.equals(TransportFieldCapabilitiesAction.ACTION_NODE_NAME)) {
+                assertTrue(node.getVersion().toString(), node.getVersion().onOrAfter(GROUP_REQUESTS_VERSION));
+                assertThat(request, instanceOf(FieldCapabilitiesNodeRequest.class));
+                FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                sentNodeRequests.add(new NodeRequest(requestRound, node, nodeRequest));
+            } else {
+                assertThat(action, equalTo(TransportFieldCapabilitiesAction.ACTION_SHARD_NAME));
+                assertTrue(node.getVersion().toString(), node.getVersion().before(GROUP_REQUESTS_VERSION));
+                assertThat(request, instanceOf(FieldCapabilitiesIndexRequest.class));
+                FieldCapabilitiesIndexRequest shardRequest = (FieldCapabilitiesIndexRequest) request;
+                sentShardRequests.add(new ShardRequest(requestRound, node, shardRequest));
+            }
+        }
+
+        List<ShardRequest> shardRequests(String index) {
+            return sentShardRequests.stream().filter(r -> r.request.index().equals(index)).collect(Collectors.toList());
+        }
+
+        List<ShardRequest> shardRequests(String index, int round) {
+            return sentShardRequests.stream().filter(r -> r.round == round && r.request.index().equals(index))
+                .collect(Collectors.toList());
+        }
+
+        List<NodeRequest> nodeRequests(String index, int round) {
+            return sentNodeRequests.stream().filter(r -> r.round == round && r.indices().contains(index))
+                .collect(Collectors.toList());
+        }
+
+        List<NodeRequest> nodeRequests(String index) {
+            return sentNodeRequests.stream().filter(r -> r.indices().contains(index)).collect(Collectors.toList());
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends TransportResponse> void sendResponse(ThreadPool threadPool,
-                                                                   TransportResponseHandler<T> handler,
-                                                                   TransportResponse r) {
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                handler.handleException(new TransportException(e));
-            }
+    private static  class TestTransportService extends TransportService {
+        final SetOnce<RequestTracker> requestTracker = new SetOnce<>();
 
-            @Override
-            protected void doRun() {
-                handler.handleResponse((T) r);
-            }
-        });
-    }
-
-    static final class TestTransportService extends TransportService {
-        final List<NodeRequest> sentNodeRequests = new CopyOnWriteArrayList<>();
-        final List<ShardRequest> sentShardRequests = new CopyOnWriteArrayList<>();
         final ThreadPool threadPool;
         private TransportInterceptor.AsyncSender interceptor = null;
 
@@ -564,33 +863,27 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
                                                                       TransportRequest request, TransportRequestOptions options,
                                                                       TransportResponseHandler<T> handler) {
-                    transportService.verifyAndTrackRequest(connection, action, request);
+                    final RequestTracker requestTracker = transportService.requestTracker.get();
+                    assertNotNull("Request tracker wasn't set", requestTracker);
+                    requestTracker.verifyAndTrackRequest(connection, action, request);
+
                     if (transportService.interceptor != null) {
                         transportService.interceptor.sendRequest(connection, action, request, options, handler);
                     } else {
-                        sendResponse(threadPool, handler, randomSuccessResponse(request));
+                        if (request instanceof FieldCapabilitiesNodeRequest) {
+                            FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
+                            Set<String> indices = nodeRequest.shardIds().stream().map(ShardId::getIndexName).collect(Collectors.toSet());
+                            transportService.sendResponse(handler,
+                                randomNodeResponse(nodeRequest, indices, Collections.emptyList(), Collections.emptySet()));
+                        } else {
+                            FieldCapabilitiesIndexRequest indexRequest = (FieldCapabilitiesIndexRequest) request;
+                            transportService.sendResponse(handler, randomIndexResponse(indexRequest.index(), true));
+                        }
                     }
                 }
             });
             transportService.start();
             return transportService;
-        }
-
-        private void verifyAndTrackRequest(Transport.Connection connection, String action, TransportRequest request) {
-            final DiscoveryNode node = connection.getNode();
-            if (action.equals(TransportFieldCapabilitiesAction.ACTION_NODE_NAME)) {
-                assertTrue(node.getVersion().onOrAfter(Version.V_7_16_0));
-                sentNodeRequests.add(new NodeRequest(connection.getNode(), (FieldCapabilitiesNodeRequest) request));
-                logger.debug("--> received node-level request: node {}, shards {}",
-                    node.getId(), ((FieldCapabilitiesNodeRequest) request).shardIds());
-            } else if (action.equals(TransportFieldCapabilitiesAction.ACTION_SHARD_NAME)) {
-                assertTrue(node.getVersion().before(Version.V_7_16_0));
-                sentShardRequests.add(new ShardRequest(connection.getNode(), (FieldCapabilitiesIndexRequest) request));
-                logger.debug("--> received shard-level request: node {}, shard {}",
-                    node.getId(), ((FieldCapabilitiesIndexRequest) request).shardId());
-            } else {
-                throw new AssertionError("unexpected action [" + action + "]");
-            }
         }
 
         void setTransportInterceptor(TransportInterceptor.AsyncSender interceptor) {
@@ -601,44 +894,102 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         protected void doClose() throws IOException {
             super.doClose();
             threadPool.shutdown();
+            requestTracker.get().verifyAfterComplete();
+        }
+
+        @SuppressWarnings("unchecked")
+        <T extends TransportResponse> void sendResponse(TransportResponseHandler<T> handler, TransportResponse resp) {
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    handler.handleResponse((T) resp);
+                }
+            });
+        }
+
+        <T extends TransportResponse> void sendFailure(TransportResponseHandler<T> handler, Exception e) {
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    handler.handleException(new TransportException(e));
+                }
+            });
         }
     }
 
-    static final class ResponseCollector {
-        final Map<String, FieldCapabilitiesIndexResponse> responses = new HashMap<>();
-        final Map<String, Exception> failures = new HashMap<>();
-        final List<String> indices;
-        final CountDownLatch latch;
+    static CombinedResponse.Builder newResponseBuilder(FieldCapabilitiesRequest request, ThreadPool threadPool,
+                                                       ActionListener<CombinedResponse> listener) {
+        return CombinedResponse.newBuilder(request.getMergeMode(), randomBoolean(), field -> false,
+            randomBoolean() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            listener);
+    }
 
-        ResponseCollector(List<String> indices) {
-            this.indices = indices;
-            this.latch = new CountDownLatch(indices.size());
-        }
+    static FieldCapabilitiesRequest randomFieldCapRequest(boolean withFilter) {
+        final QueryBuilder filter = withFilter ? new RangeQueryBuilder("timestamp").from(randomNonNegativeLong()) : null;
+        return new FieldCapabilitiesRequest().fields("*")
+            .setMergeMode(randomFrom(MergeResultsMode.values()))
+            .indexFilter(filter);
+    }
 
-        private synchronized void assertIndex(String index) {
-            assertThat(index, in(indices));
-            assertThat(failures, not(hasKey(index)));
-            assertThat(responses, not(hasKey(index)));
+    static FieldCapabilitiesNodeResponse randomNodeResponse(FieldCapabilitiesNodeRequest request, Collection<String> successIndices,
+                                                            Collection<String> failedIndices, Set<ShardId> unmatchedShardIds) {
+        final List<FieldCapabilitiesFailure> indexFailures = failedIndices.stream()
+            .map(index -> new FieldCapabilitiesFailure(new String[]{index}, new IllegalStateException(randomAlphaOfLength(10))))
+            .collect(Collectors.toList());
+        if (request.getMergeMode() == MergeResultsMode.NO_MERGE) {
+            final List<FieldCapabilitiesIndexResponse> indexResponses = successIndices.stream()
+                .map(index -> randomIndexResponse(index, true)).collect(Collectors.toList());
+            return new FieldCapabilitiesNodeResponse(indexResponses, indexFailures, unmatchedShardIds);
+        } else {
+            // TODO: generate the field
+            return new FieldCapabilitiesNodeResponse(
+                new ArrayList<>(successIndices), Collections.emptyMap(), indexFailures, unmatchedShardIds);
         }
+    }
 
-        synchronized void addIndexResponse(FieldCapabilitiesIndexResponse resp) {
-            logger.debug("--> receive response for index {} can_match {}", resp.getIndexName(), resp.canMatch());
-            assertIndex(resp.getIndexName());
-            responses.put(resp.getIndexName(), resp);
-            latch.countDown();
+    static void verifyMergedResponse(FieldCapabilitiesRequest request, CombinedResponse response,
+                                     List<String> successIndices, List<String> failedIndices) {
+        successIndices = successIndices.stream().sorted().collect(Collectors.toList());
+        failedIndices = failedIndices.stream().sorted().collect(Collectors.toList());
+        assertThat(response.getMergeMode(), equalTo(request.getMergeMode()));
+        final List<String> indicesWithResponses;
+        switch (request.getMergeMode()) {
+            case NO_MERGE:
+                assertThat(response.getResponseMap(), anEmptyMap());
+                assertThat(response.getResponseBuilder(), anEmptyMap());
+                indicesWithResponses = response.getIndexResponses().stream().filter(FieldCapabilitiesIndexResponse::canMatch)
+                    .map(FieldCapabilitiesIndexResponse::getIndexName).sorted().collect(Collectors.toList());
+                assertThat(indicesWithResponses, equalTo(successIndices));
+                break;
+            case INTERNAL_PARTIAL_MERGE:
+            case FULL_MERGE:
+                assertThat(response.getIndexResponses(), empty());
+                indicesWithResponses = response.getIndices().stream().sorted().collect(Collectors.toList());
+                assertThat(indicesWithResponses, equalTo(successIndices));
+                break;
         }
+        assertThat(response.getIndexFailures().stream().flatMap(f -> Stream.of(f.getIndices())).sorted().collect(Collectors.toList()),
+            equalTo(failedIndices));
+    }
 
-        synchronized void addFailure(String index, Exception e) {
-            logger.debug("--> receive failure for index {}", index);
-            assertIndex(index);
-            failures.put(index, e);
-            latch.countDown();
+    static Set<ShardId> assignedShardsOnNode(IndexRoutingTable routingTable, String nodeId) {
+        final Set<ShardId> shardIds = new HashSet<>();
+        for (ShardRouting shardRouting : routingTable.randomAllActiveShardsIt()) {
+            if (shardRouting.currentNodeId().equals(nodeId)) {
+                shardIds.add(shardRouting.shardId());
+            }
         }
-
-        void awaitCompletion() throws InterruptedException {
-            assertTrue("expected " + indices.size() + ", got: " + responses.size() + " responses; " + failures.size() + " failures",
-                latch.await(120, TimeUnit.SECONDS));
-        }
+        return shardIds;
     }
 
     static Task newRandomParentTask() {
@@ -655,6 +1006,67 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        return applyStartedShardsUntilNoChange(clusterState, createAllocationService());
+        final Settings settings = Settings.EMPTY;
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ArrayList<AllocationDecider> deciders = new ArrayList<>();
+        deciders.add(new EnableAllocationDecider(settings, clusterSettings));
+        deciders.add(new SameShardAllocationDecider(settings, clusterSettings));
+        deciders.add(new ReplicaAfterPrimaryActiveAllocationDecider());
+        Collections.shuffle(deciders, random());
+        final MockAllocationService allocationService = new MockAllocationService(new AllocationDeciders(deciders),
+            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+        return applyStartedShardsUntilNoChange(clusterState, allocationService);
+    }
+
+    /**
+     * Returns the maximum number of rounds that a given index can be executed in case of failures.
+     */
+    static int maxPossibleRounds(ClusterState clusterState, String index, boolean withFilter) {
+        final IndexRoutingTable routingTable = clusterState.routingTable().index(index);
+        if (withFilter) {
+            ObjectIntMap<ShardId> numCopiesPerShard = new ObjectIntHashMap<>();
+            for (ShardRouting shard : routingTable.randomAllActiveShardsIt()) {
+                numCopiesPerShard.addTo(shard.shardId(), 1);
+            }
+            int maxRound = 0;
+            for (ObjectIntCursor<ShardId> numCopies : numCopiesPerShard) {
+                maxRound = Math.max(maxRound, numCopies.value);
+            }
+            return maxRound;
+        } else {
+            ObjectIntMap<String> requestsPerNode = new ObjectIntHashMap<>();
+            for (ShardRouting shard : routingTable.randomAllActiveShardsIt()) {
+                final String nodeId = shard.currentNodeId();
+                if (clusterState.nodes().get(nodeId).getVersion().onOrAfter(GROUP_REQUESTS_VERSION)) {
+                    requestsPerNode.put(nodeId, 1);
+                } else {
+                    requestsPerNode.addTo(nodeId, 1);
+                }
+            }
+            int totalRequests = 0;
+            for (IntCursor cursor : requestsPerNode.values()) {
+                totalRequests += cursor.value;
+            }
+            return totalRequests;
+        }
+    }
+
+    static Version randomNewVersion() {
+        return VersionUtils.randomVersionBetween(random(), GROUP_REQUESTS_VERSION, Version.CURRENT);
+    }
+
+    static Version randomOldVersion() {
+        final Version previousVersion = VersionUtils.getPreviousVersion(GROUP_REQUESTS_VERSION);
+        return VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
+    }
+
+    static ClusterService mockClusterService(ClusterState clusterState) {
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, clusterSettings);
+        when(clusterService.operationRouting()).thenReturn(operationRouting);
+        return clusterService;
     }
 }

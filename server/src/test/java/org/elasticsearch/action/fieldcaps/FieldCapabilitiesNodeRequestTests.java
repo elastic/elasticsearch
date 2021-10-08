@@ -40,7 +40,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             ? Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5))
             : null;
 
-        return new FieldCapabilitiesNodeRequest(randomShards, randomFields, originalIndices, indexFilter, nowInMillis, runtimeFields);
+        return new FieldCapabilitiesNodeRequest(randomShards, randomFields, originalIndices, indexFilter, nowInMillis, runtimeFields,
+            randomFrom(MergeResultsMode.values()));
     }
 
     private List<ShardId> randomShardIds(int numShards) {
@@ -85,29 +86,29 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             case 0:
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(shardIds, instance.fields(), instance.originalIndices(),
-                    instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields());
+                    instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields(), instance.getMergeMode());
             case 1:
                 String[] fields = randomFields(instance.fields().length + 2);
                 return new FieldCapabilitiesNodeRequest(instance.shardIds(), fields, instance.originalIndices(),
-                    instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields());
+                    instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields(), instance.getMergeMode());
             case 2:
                 OriginalIndices originalIndices = randomOriginalIndices(instance.indices().length + 1);
                 return new FieldCapabilitiesNodeRequest(instance.shardIds(), instance.fields(), originalIndices,
-                    instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields());
+                    instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields(), instance.getMergeMode());
             case 3:
                 QueryBuilder indexFilter = instance.indexFilter() == null ? QueryBuilders.matchAllQuery() : null;
                 return new FieldCapabilitiesNodeRequest(instance.shardIds(), instance.fields(), instance.originalIndices(),
-                    indexFilter, instance.nowInMillis(), instance.runtimeFields());
+                    indexFilter, instance.nowInMillis(), instance.runtimeFields(), instance.getMergeMode());
             case 4:
                 long nowInMillis = instance.nowInMillis() + 100;
                 return new FieldCapabilitiesNodeRequest(instance.shardIds(), instance.fields(), instance.originalIndices(),
-                    instance.indexFilter(), nowInMillis, instance.runtimeFields());
+                    instance.indexFilter(), nowInMillis, instance.runtimeFields(), instance.getMergeMode());
             case 5:
                 Map<String, Object> runtimeFields = instance.runtimeFields() == null
                     ? Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5))
                     : null;
                 return new FieldCapabilitiesNodeRequest(instance.shardIds(), instance.fields(), instance.originalIndices(),
-                    instance.indexFilter(), instance.nowInMillis(), runtimeFields);
+                    instance.indexFilter(), instance.nowInMillis(), runtimeFields, instance.getMergeMode());
             default:
                 throw new IllegalStateException("The test should only allow 5 parameters mutated");
         }

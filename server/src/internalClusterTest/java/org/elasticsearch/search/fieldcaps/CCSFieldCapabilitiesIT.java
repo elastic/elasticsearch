@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.fieldcaps;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
@@ -17,7 +16,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryBuilder;
 import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,21 +59,19 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:" + remoteErrorIndex));
 
         // adding an index filter so remote call should fail
-        response = client().prepareFieldCaps("*", "remote_cluster:*")
+        response  = client().prepareFieldCaps("*", "remote_cluster:*")
             .setFields("*")
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertThat(response.getIndices()[0], equalTo(localIndex));
-        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:*"));
+        assertThat(response.getFailedIndices()[0], equalTo("remote_cluster:remote_test_error"));
         FieldCapabilitiesFailure failure = response.getFailures()
             .stream()
-            .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:*"))
+            .filter(f -> Arrays.asList(f.getIndices()).contains("remote_cluster:remote_test_error"))
             .findFirst().get();
         Exception ex = failure.getException();
-        assertEquals(RemoteTransportException.class, ex.getClass());
-        Throwable cause = ExceptionsHelper.unwrapCause(ex);
-        assertEquals(IllegalArgumentException.class, cause.getClass());
-        assertEquals("I throw because I choose to.", cause.getMessage());
+        assertEquals(IllegalArgumentException.class, ex.getClass());
+        assertEquals("I throw because I choose to.", ex.getMessage());
 
         // if we only query the remote we should get back an exception only
         ex = expectThrows(

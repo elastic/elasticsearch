@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -23,8 +24,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -118,7 +117,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                     .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
-                    .put(DataTierAllocationDecider.TIER_PREFERENCE, allocatable ? "data_hot" : "data_content")
+                    .put(DataTier.TIER_PREFERENCE, allocatable ? "data_hot" : "data_content")
                     .build()
             ).setWaitForActiveShards(allocatable ? ActiveShardCount.DEFAULT : ActiveShardCount.NONE)
         );
@@ -131,9 +130,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             client().admin()
                 .indices()
                 .updateSettings(
-                    new UpdateSettingsRequest(indexName).settings(
-                        Settings.builder().put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_hot")
-                    )
+                    new UpdateSettingsRequest(indexName).settings(Settings.builder().put(DataTier.TIER_PREFERENCE, "data_warm,data_hot"))
                 )
                 .actionGet()
         );

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
@@ -21,7 +20,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.TIER_PREFERENCE_SETTING;
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 
@@ -56,28 +54,28 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
-        String preferredTierConfiguration = TIER_PREFERENCE_SETTING.get(idxMeta.getSettings());
+        List<String> preferredTierConfiguration = idxMeta.getTierPreference();
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(preferredTierConfiguration,
             clusterState.getNodes());
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            if (Strings.isEmpty(preferredTierConfiguration)) {
+            if (preferredTierConfiguration.isEmpty()) {
                 logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
                     getKey().getAction(), index.getName());
             } else {
                 if (availableDestinationTier.isPresent()) {
-                    logger.debug("[{}] migration of index [{}] to the [{}] tier preference cannot progress, as not all shards are active",
+                    logger.debug("[{}] migration of index [{}] to the {} tier preference cannot progress, as not all shards are active",
                         getKey().getAction(), index.getName(), preferredTierConfiguration);
                 } else {
                     logger.debug("[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the " +
-                            "configured preferred tiers [{}] and not all shards are active", getKey().getAction(), index.getName(),
+                            "configured preferred tiers {} and not all shards are active", getKey().getAction(), index.getName(),
                         preferredTierConfiguration);
                 }
             }
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
         }
 
-        if (Strings.isEmpty(preferredTierConfiguration)) {
+        if (preferredTierConfiguration.isEmpty()) {
             logger.debug("index [{}] has no data tier routing preference setting configured and all its shards are active. considering " +
                 "the [{}] step condition met and continuing to the next step", index.getName(), getKey().getName());
             // the user removed the tier routing setting and all the shards are active so we'll cary on
@@ -89,10 +87,10 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(
                 s -> String.format(Locale.ROOT, "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier " +
-                        "migration preference configuration is [%s])", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
+                        "migration preference configuration is %s)", index.getName(), getKey().getAction(), allocationPendingAllShards, s,
                     preferredTierConfiguration)
             ).orElseGet(
-                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers [%s], but no nodes for any of those tiers are " +
+                () -> String.format(Locale.ROOT, "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " +
                     "available in the cluster", index.getName(), preferredTierConfiguration));
             logger.debug(statusMessage);
             return new Result(false, new AllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards, true, statusMessage));

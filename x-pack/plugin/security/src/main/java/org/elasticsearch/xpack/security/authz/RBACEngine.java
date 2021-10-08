@@ -401,7 +401,7 @@ public class RBACEngine implements AuthorizationEngine {
                 return;
             }
             if (valueAlreadyInCache.get()) {
-//                logger.info("{} waiting for index authorization result", Thread.currentThread());
+                logger.trace("Thread [{}] listening for cacheable index authorization result", Thread.currentThread().getName());
                 listenableFuture.addListener(ActionListener.wrap(value -> {
                     ((IndicesRequest.Replaceable) requestInfo.getRequest()).indices(value.resolvedIndices.isNoIndicesPlaceholder() ?
                         NO_INDICES_OR_ALIASES_ARRAY :

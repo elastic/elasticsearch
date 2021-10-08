@@ -8,19 +8,21 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -38,24 +40,37 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
      */
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        @Nullable
-        private String name;
+        private final String[] names;
 
-        public Request() { }
-
-        public Request(@Nullable String name) {
-            this.name = name;
+        public Request(String... names) {
+            if (Arrays.stream(Objects.requireNonNull(names)).anyMatch(Objects::isNull)) {
+                throw new NullPointerException("names");
+            }
+            this.names = names;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            name = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                names = in.readStringArray();
+            } else {
+                final String optionalName = in.readOptionalString();
+                names = optionalName == null ? Strings.EMPTY_ARRAY : new String[]{optionalName};
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(name);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeStringArray(names);
+            } else if (names.length == 0) {
+                out.writeOptionalString(null);
+            } else if (names.length == 1) {
+                out.writeOptionalString(names[0]);
+            } else {
+                throw new IllegalArgumentException("action [" + NAME + "] does not support multiple names in version " + out.getVersion());
+            }
         }
 
         @Override
@@ -64,23 +79,15 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         }
 
         /**
-         * Sets the name of the index template.
-         */
-        public Request name(String name) {
-            this.name = name;
-            return this;
-        }
-
-        /**
          * The name of the index templates.
          */
-        public String name() {
-            return this.name;
+        public String[] names() {
+            return this.names;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Arrays.hashCode(names);
         }
 
         @Override
@@ -92,7 +99,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(name, other.name);
+            return Arrays.equals(names, other.names);
         }
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
@@ -47,26 +48,37 @@ public class TransportGetComposableIndexTemplateAction
     @Override
     protected void masterOperation(Task task, GetComposableIndexTemplateAction.Request request, ClusterState state,
                                    ActionListener<GetComposableIndexTemplateAction.Response> listener) {
-        Map<String, ComposableIndexTemplate> allTemplates = state.metadata().templatesV2();
+        final Map<String, ComposableIndexTemplate> allTemplates = state.metadata().templatesV2();
+        final String[] requestedNames = request.names();
 
         // If we did not ask for a specific name, then we return all templates
-        if (request.name() == null) {
+        if (requestedNames.length == 0) {
             listener.onResponse(new GetComposableIndexTemplateAction.Response(allTemplates));
             return;
         }
 
+        boolean hasWildcards = false;
         final Map<String, ComposableIndexTemplate> results = new HashMap<>();
-        String name = request.name();
-        if (Regex.isSimpleMatchPattern(name)) {
-            for (Map.Entry<String, ComposableIndexTemplate> entry : allTemplates.entrySet()) {
-                if (Regex.simpleMatch(name, entry.getKey())) {
-                    results.put(entry.getKey(), entry.getValue());
+        for (String requestedName : requestedNames) {
+            if (Regex.isMatchAllPattern(requestedName)) {
+                listener.onResponse(new GetComposableIndexTemplateAction.Response(allTemplates));
+                return;
+            } else if (Regex.isSimpleMatchPattern(requestedName)) {
+                hasWildcards = true;
+                for (Map.Entry<String, ComposableIndexTemplate> entry : allTemplates.entrySet()) {
+                    if (Regex.simpleMatch(requestedName, entry.getKey())) {
+                        results.put(entry.getKey(), entry.getValue());
+                    }
                 }
+            } else if (allTemplates.containsKey(requestedName)) {
+                results.put(requestedName, allTemplates.get(requestedName));
             }
-        } else if (allTemplates.containsKey(name)) {
-            results.put(name, allTemplates.get(name));
-        } else {
-            throw new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
+        }
+
+        if (hasWildcards == false && results.isEmpty()) {
+            throw new ResourceNotFoundException(
+                "index templates [" + Strings.arrayToCommaDelimitedString(requestedNames) + "] not found"
+            );
         }
 
         listener.onResponse(new GetComposableIndexTemplateAction.Response(results));

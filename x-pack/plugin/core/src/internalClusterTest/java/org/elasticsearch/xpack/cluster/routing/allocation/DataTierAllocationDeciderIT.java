@@ -19,7 +19,7 @@ import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
-public class DataTierIT extends ESIntegTestCase {
+public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
     @Override
@@ -51,7 +51,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_CONTENT));
 
         // index should be red
         assertThat(client().admin().cluster().prepareHealth(index).get().getIndices().get(index).getStatus(),
@@ -74,17 +74,14 @@ public class DataTierIT extends ESIntegTestCase {
         startColdOnlyNode();
         ensureGreen();
 
-        String setting = randomBoolean() ? DataTierAllocationDecider.INDEX_ROUTING_REQUIRE :
-            DataTierAllocationDecider.TIER_PREFERENCE;
-
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .put(setting, DataTier.DATA_WARM))
+                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_WARM))
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.get(setting), equalTo(DataTier.DATA_WARM));
+        assertThat(idxSettings.get(DataTier.TIER_PREFERENCE), equalTo(DataTier.DATA_WARM));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -99,13 +96,13 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
-                .putNull(DataTierAllocationDecider.TIER_PREFERENCE))
+                .putNull(DataTier.TIER_PREFERENCE))
             .get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
         // Even the key shouldn't exist if it has been nulled out
-        assertFalse(idxSettings.keySet().toString(), idxSettings.keySet().contains(DataTierAllocationDecider.TIER_PREFERENCE));
+        assertFalse(idxSettings.keySet().toString(), idxSettings.keySet().contains(DataTier.TIER_PREFERENCE));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -121,10 +118,10 @@ public class DataTierIT extends ESIntegTestCase {
             .get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
         // The key should not be put in place since it was overridden
-        assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.TIER_PREFERENCE));
-        assertThat(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
+        assertFalse(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE));
+        assertThat(idxSettings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box"), equalTo("cold"));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);
@@ -144,7 +141,7 @@ public class DataTierIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm"))
+                .put(DataTier.TIER_PREFERENCE, "data_warm"))
             .get();
 
         client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
@@ -160,7 +157,7 @@ public class DataTierIT extends ESIntegTestCase {
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index + "-shrunk")
             .get().getSettings().get(index + "-shrunk");
         // It should inherit the setting of its originator
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
 
         // Required or else the test cleanup fails because it can't delete the indices
         client().admin().indices().prepareUpdateSettings(index, index + "-shrunk")
@@ -184,7 +181,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.TIER_PREFERENCE), equalTo(false));
+        assertThat(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE), equalTo(false));
 
         // index should be yellow
         ensureYellow(index);
@@ -192,7 +189,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareDelete(index).get();
 
         t = new Template(Settings.builder()
-            .putNull(DataTierAllocationDecider.TIER_PREFERENCE)
+            .putNull(DataTier.TIER_PREFERENCE)
             .build(), null, null);
         ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
                  .template(t).build();
@@ -202,7 +199,7 @@ public class DataTierIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
 
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
-        assertThat(idxSettings.keySet().contains(DataTierAllocationDecider.TIER_PREFERENCE), equalTo(false));
+        assertThat(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE), equalTo(false));
 
         ensureYellow(index);
     }
@@ -214,7 +211,7 @@ public class DataTierIT extends ESIntegTestCase {
 
         client().admin().indices().prepareCreate(index)
             .setSettings(Settings.builder()
-                .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_hot")
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0))
             .setWaitForActiveShards(0)
@@ -280,7 +277,7 @@ public class DataTierIT extends ESIntegTestCase {
             () -> createIndex(index, Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
-                .put(DataTierAllocationDecider.TIER_PREFERENCE, DataTier.DATA_FROZEN)
+                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN)
                 .build()));
         assertThat(e.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
 
@@ -288,7 +285,7 @@ public class DataTierIT extends ESIntegTestCase {
         createIndex(index, Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
-            .put(DataTierAllocationDecider.TIER_PREFERENCE, initialTier)
+            .put(DataTier.TIER_PREFERENCE, initialTier)
             .build());
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> updatePreference(DataTier.DATA_FROZEN));
@@ -299,7 +296,7 @@ public class DataTierIT extends ESIntegTestCase {
 
     private void updatePreference(String tier) {
         client().admin().indices().updateSettings(new UpdateSettingsRequest(index)
-            .settings(Map.of(DataTierAllocationDecider.TIER_PREFERENCE, tier))).actionGet();
+            .settings(Map.of(DataTier.TIER_PREFERENCE, tier))).actionGet();
     }
 
     private DataTiersFeatureSetUsage getUsage() {

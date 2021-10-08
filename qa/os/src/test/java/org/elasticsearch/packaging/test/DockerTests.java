@@ -19,6 +19,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
+import org.elasticsearch.packaging.util.docker.MockServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -72,8 +73,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -216,7 +220,7 @@ public class DockerTests extends PackagingTestCase {
         final String filename = "elasticsearch-plugins.yml";
         append(tempDir.resolve(filename), pluginsDescriptor.toString());
 
-        // Restart the container. This will run the `sync` plugins subcommand automatically. Also
+        // Restart the container. This will sync the plugins automatically. Also
         // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
         // command should instead use the bundled plugin archive.
         runContainer(
@@ -236,6 +240,58 @@ public class DockerTests extends PackagingTestCase {
             .collect(Collectors.toList());
 
         assertThat("List of installed plugins is incorrect", actualPlugins, containsInAnyOrder(plugins));
+    }
+
+    public void test024InstallPluginsUsingConfigFileWithProxy() throws Exception {
+        MockServer mockServer = new MockServer();
+        try {
+            mockServer.start();
+
+            final StringJoiner config = new StringJoiner("\n", "", "\n");
+            config.add("plugins:");
+            // The repository plugins have to be present for Cloud images, because (1) they are preinstalled, and (2) they
+            // are owned by `root` and can't be removed.
+            if (distribution().packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS) {
+                for (String plugin : List.of("repository-s3", "repository-azure", "repository-gcs", "analysis-icu")) {
+                    config.add("  - id: " + plugin);
+                }
+            }
+            // This is the new plugin to install. We don't use an official plugin because then Elasticsearch
+            // will attempt an SSL connection and that just makes everything more complicated.
+            config.add("  - id: my-plugin");
+            config.add("    location: http://example.com/my-plugin.zip");
+            config.add("proxy: mockserver:" + mockServer.getPort());
+
+            final String filename = "elasticsearch-plugins.yml";
+            append(tempDir.resolve(filename), config.toString());
+
+            // Restart the container. This will sync plugins automatically, which will fail because
+            // ES will be unable to install the `analysis-icu` plugin
+            final Result result = runContainerExpectingFailure(
+                distribution(),
+                builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
+                    .envVar("ES_JAVA_OPTS", "-Des.plugins.staging=whatever")
+                    .extraArgs("--link " + mockServer.getContainerId() + ":mockserver")
+            );
+
+            final List<Map<String, String>> interactions = mockServer.getInteractions();
+
+            assertThat(result.stderr, containsString("FileNotFoundException: http://example.com/my-plugin.zip"));
+
+            assertThat(interactions, hasSize(1));
+
+            final Map<String, String> interaction = interactions.get(0);
+
+            assertThat(interaction, hasEntry("httpRequest.headers.Host[0]", "example.com"));
+            assertThat(interaction, hasEntry("httpRequest.headers.User-Agent[0]", "elasticsearch-plugin-installer"));
+            assertThat(interaction, hasEntry("httpRequest.method", "GET"));
+            assertThat(interaction, hasEntry("httpRequest.path", "/my-plugin.zip"));
+
+            mockServer.close();
+        } catch (Throwable e) {
+            mockServer.close();
+            throw e;
+        }
     }
 
     /**

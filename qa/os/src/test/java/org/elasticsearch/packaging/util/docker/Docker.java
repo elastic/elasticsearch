@@ -191,7 +191,7 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to exit out
-                Thread.sleep(1000);
+                Thread.sleep(2000);
 
                 if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
                     isElasticsearchRunning = false;

@@ -159,6 +159,6 @@ period of time:
 
 [source,console]
 --------------------------------------------------
-GET _ml/*/planned-outages/events?start=1635638400000&end=1635724800000
+GET _ml/calendars/planned-outages/events?start=1635638400000&end=1635724800000
 --------------------------------------------------
 // TEST[skip:setup:calendar_outages_addevent]

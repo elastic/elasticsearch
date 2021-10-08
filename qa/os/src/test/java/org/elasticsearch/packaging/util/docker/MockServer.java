@@ -20,16 +20,23 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.packaging.test.PackagingTestCase;
 import org.elasticsearch.packaging.util.Shell;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 public class MockServer {
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -37,6 +44,8 @@ public class MockServer {
     private static final int CONTAINER_PORT = 1080; // default for image
 
     private final Shell shell;
+    private final HttpClient client;
+    private ExecutorService executorService;
     private String containerId;
 
     public static void withMockServer(CheckedConsumer<MockServer, Exception> runnable) {
@@ -52,6 +61,8 @@ public class MockServer {
 
     private MockServer() {
         this.shell = new Shell();
+        this.executorService = Executors.newSingleThreadExecutor();
+        this.client = HttpClient.newBuilder().executor(executorService).build();
     }
 
     private void start() throws Exception {
@@ -60,16 +71,27 @@ public class MockServer {
 
         // It's a Java app, so give it a chance to wake up. I'd add a healthcheck to the above command,
         // but the image doesn't have any CLI utils at all.
-        PackagingTestCase.assertBusy(this::reset, 20, TimeUnit.SECONDS);
+        PackagingTestCase.assertBusy(() -> {
+            try {
+                this.reset();
+            } catch (Exception e) {
+                // Only assertions are retried.
+                throw new AssertionError(e);
+            }
+        }, 20, TimeUnit.SECONDS);
 
         this.setExpectation();
     }
 
-    public void reset() {
-        assertTrue(doRequest("PUT", "http://localhost:" + CONTAINER_PORT + "/mockserver/reset", null).isSuccess());
+    public void clearExpectations() throws Exception {
+        doRequest("http://localhost:" + CONTAINER_PORT + "/mockserver/clear?type=EXPECTATIONS", "{ \"path\": \"/*\" }");
     }
 
-    public void setExpectation() {
+    public void reset() throws Exception {
+        doRequest("http://localhost:" + CONTAINER_PORT + "/mockserver/reset", null);
+    }
+
+    public void setExpectation() throws Exception {
         // https://org.mock-server.com/mock_server/clearing_and_resetting.html
 
         final String url = "http://localhost:" + CONTAINER_PORT + "/mockserver/expectation";
@@ -83,17 +105,16 @@ public class MockServer {
             + "  }"
             + "}";
 
-        doRequest("PUT", url, payload);
+        doRequest(url, payload);
     }
 
     public List<Map<String, String>> getInteractions() throws Exception {
         final String url = "http://localhost:" + CONTAINER_PORT + "/mockserver/retrieve?type=REQUEST_RESPONSES";
 
-        final Shell.Result result = doRequest("PUT", url, null);
-        assertTrue(result.isSuccess());
+        final String result = doRequest(url, null);
 
         final ObjectMapper objectMapper = new ObjectMapper();
-        final JsonNode jsonNode = objectMapper.readTree(result.stdout);
+        final JsonNode jsonNode = objectMapper.readTree(result);
 
         assertThat("Response from mockserver is not a JSON array", jsonNode.isArray(), is(true));
 
@@ -109,7 +130,15 @@ public class MockServer {
     }
 
     private void close() {
-        shell.run("docker rm -f " + this.containerId);
+        if (this.containerId != null) {
+            this.shell.run("docker rm -f " + this.containerId);
+            this.containerId = null;
+        }
+
+        if (this.executorService != null) {
+            this.executorService.shutdown();
+            this.executorService = null;
+        }
     }
 
     public String getContainerId() {
@@ -120,6 +149,14 @@ public class MockServer {
         return CONTAINER_PORT;
     }
 
+    /**
+     * Recursively flattens a JsonNode into a map, to make it easier to pick out entries and make assertions.
+     * Keys are concatenated with periods.
+     *
+     * @param currentPath used recursively to construct the key
+     * @param jsonNode the current node to flatten
+     * @param map entries are added into this map
+     */
     private void addKeys(String currentPath, JsonNode jsonNode, Map<String, String> map) {
         if (jsonNode.isObject()) {
             ObjectNode objectNode = (ObjectNode) jsonNode;
@@ -141,24 +178,17 @@ public class MockServer {
         }
     }
 
-    private Shell.Result doRequest(String method, String urlString, String body) {
-        final List<String> command = new ArrayList<>();
-        command.add("curl");
-        command.add("-s");
-        command.add("-S");
-        command.add("-f");
-        command.add("-X");
-        command.add(method);
+    private String doRequest(String urlString, String body) throws Exception {
+        final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(urlString));
 
-        if (body != null) {
-            command.add("-H");
-            command.add("'Content-Type: application/json'");
-            command.add("--data");
-            command.add("'" + body + "'");
+        if (body == null) {
+            request.method("PUT", BodyPublishers.noBody());
+        } else {
+            request.method("PUT", BodyPublishers.ofString(body)).header("Content-Type", "application/json");
         }
 
-        command.add("'" + urlString + "'");
+        final HttpResponse<String> response = client.send(request.build(), BodyHandlers.ofString());
 
-        return this.shell.runIgnoreExitCode(String.join(" ", command));
+        return response.body();
     }
 }

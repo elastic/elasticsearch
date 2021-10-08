@@ -8,6 +8,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -47,6 +48,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.deleteIfExists;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
@@ -94,6 +96,7 @@ import static org.junit.Assume.assumeTrue;
  *     <li>Images for Cloud</li>
  * </ul>
  */
+@ThreadLeakFilters(defaultFilters = true, filters = { HttpClientThreadsFilter.class })
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
     private static final String USERNAME = "elastic";
@@ -241,47 +244,61 @@ public class DockerTests extends PackagingTestCase {
         assertThat("List of installed plugins is incorrect", actualPlugins, containsInAnyOrder(plugins));
     }
 
-    public void test024InstallPluginsUsingConfigFileWithProxy() {
+    /**
+     * Check that when using Elasticsearch's plugins sync capability, it will use a proxy when configured to do so.
+     * This could either be in the plugins config file, or via the standard Java system properties.
+     */
+    public void test024SyncPluginsUsingProxy() {
         MockServer.withMockServer(mockServer -> {
-            final StringJoiner config = new StringJoiner("\n", "", "\n");
-            config.add("plugins:");
-            // The repository plugins have to be present for Cloud images, because (1) they are preinstalled, and (2) they
-            // are owned by `root` and can't be removed.
-            if (distribution().packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS) {
-                for (String plugin : List.of("repository-s3", "repository-azure", "repository-gcs", "analysis-icu")) {
-                    config.add("  - id: " + plugin);
+            for (boolean useConfigFile : List.of(true, false)) {
+                mockServer.clearExpectations();
+
+                final StringJoiner config = new StringJoiner("\n", "", "\n");
+                config.add("plugins:");
+                // The repository plugins have to be present for Cloud images, because (1) they are preinstalled, and (2) they
+                // are owned by `root` and can't be removed.
+                if (distribution().packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS) {
+                    for (String plugin : List.of("repository-s3", "repository-azure", "repository-gcs", "analysis-icu")) {
+                        config.add("  - id: " + plugin);
+                    }
                 }
+                // This is the new plugin to install. We don't use an official plugin because then Elasticsearch
+                // will attempt an SSL connection and that just makes everything more complicated.
+                config.add("  - id: my-plugin");
+                config.add("    location: http://example.com/my-plugin.zip");
+
+                if (useConfigFile) {
+                    config.add("proxy: mockserver:" + mockServer.getPort());
+                }
+
+                final String filename = "elasticsearch-plugins.yml";
+                final Path pluginsConfigPath = tempDir.resolve(filename);
+                deleteIfExists(pluginsConfigPath);
+                append(pluginsConfigPath, config.toString());
+
+                final DockerRun builder = builder().volume(pluginsConfigPath, installation.config.resolve(filename))
+                    .extraArgs("--link " + mockServer.getContainerId() + ":mockserver");
+
+                if (useConfigFile == false) {
+                    builder.envVar("ES_JAVA_OPTS", "-Dhttp.proxyHost=mockserver -Dhttp.proxyPort=" + mockServer.getPort());
+                }
+
+                // Restart the container. This will sync plugins automatically, which will fail because
+                // ES will be unable to install `my-plugin`
+                final Result result = runContainerExpectingFailure(distribution(), builder);
+
+                final List<Map<String, String>> interactions = mockServer.getInteractions();
+
+                assertThat(result.stderr, containsString("FileNotFoundException: http://example.com/my-plugin.zip"));
+
+                // Now check that Elasticsearch did use the proxy server
+                assertThat(interactions, hasSize(1));
+                final Map<String, String> interaction = interactions.get(0);
+                assertThat(interaction, hasEntry("httpRequest.headers.Host[0]", "example.com"));
+                assertThat(interaction, hasEntry("httpRequest.headers.User-Agent[0]", "elasticsearch-plugin-installer"));
+                assertThat(interaction, hasEntry("httpRequest.method", "GET"));
+                assertThat(interaction, hasEntry("httpRequest.path", "/my-plugin.zip"));
             }
-            // This is the new plugin to install. We don't use an official plugin because then Elasticsearch
-            // will attempt an SSL connection and that just makes everything more complicated.
-            config.add("  - id: my-plugin");
-            config.add("    location: http://example.com/my-plugin.zip");
-            config.add("proxy: mockserver:" + mockServer.getPort());
-
-            final String filename = "elasticsearch-plugins.yml";
-            append(tempDir.resolve(filename), config.toString());
-
-            // Restart the container. This will sync plugins automatically, which will fail because
-            // ES will be unable to install the `analysis-icu` plugin
-            final Result result = runContainerExpectingFailure(
-                distribution(),
-                builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
-                    .envVar("ES_JAVA_OPTS", "-Des.plugins.staging=whatever")
-                    .extraArgs("--link " + mockServer.getContainerId() + ":mockserver")
-            );
-
-            final List<Map<String, String>> interactions = mockServer.getInteractions();
-
-            assertThat(result.stderr, containsString("FileNotFoundException: http://example.com/my-plugin.zip"));
-
-            assertThat(interactions, hasSize(1));
-
-            final Map<String, String> interaction = interactions.get(0);
-
-            assertThat(interaction, hasEntry("httpRequest.headers.Host[0]", "example.com"));
-            assertThat(interaction, hasEntry("httpRequest.headers.User-Agent[0]", "elasticsearch-plugin-installer"));
-            assertThat(interaction, hasEntry("httpRequest.method", "GET"));
-            assertThat(interaction, hasEntry("httpRequest.path", "/my-plugin.zip"));
         });
     }
 

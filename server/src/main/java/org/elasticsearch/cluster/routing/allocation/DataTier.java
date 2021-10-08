@@ -175,6 +175,7 @@ public class DataTier {
         }
     }
 
+    // visible for testing
     static final class DataTierSettingValidator implements Setting.Validator<String> {
 
         private static final Collection<Setting<?>> dependencies = List.of(

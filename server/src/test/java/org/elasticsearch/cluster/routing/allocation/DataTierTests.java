@@ -160,7 +160,7 @@ public class DataTierTests extends ESTestCase {
         // good values
         validator.validate(null);
         validator.validate("");
-        validator.validate(" ");
+        validator.validate(" "); // a little surprising
         validator.validate(DATA_WARM);
         validator.validate(DATA_WARM + "," + DATA_HOT);
         validator.validate(DATA_WARM + ","); // a little surprising

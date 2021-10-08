@@ -181,7 +181,7 @@ public class UserFunctionIT extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
+            bulk.append("{\"index\":{}}\n");
             bulk.append(doc + "\n");
         }
         request.setJsonEntity(bulk.toString());

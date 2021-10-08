@@ -335,7 +335,7 @@ public class BulkRequestTests extends ESTestCase {
             "{ \"create\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
             "{ \"field1\" : \"value3\" }\n" +
 
-            "{ \"index\" : {\"dynamic_templates\":{}}\n" +
+            "{ \"index\" : {\"dynamic_templates\":{}}}\n" +
             "{ \"field1\" : \"value3\" }\n"
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);

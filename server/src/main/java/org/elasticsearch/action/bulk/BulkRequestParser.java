@@ -8,25 +8,27 @@
 
 package org.elasticsearch.action.bulk;
 
+import com.fasterxml.jackson.core.io.JsonEOFException;
+
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -241,7 +243,16 @@ public final class BulkRequestParser {
                     throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
                             + XContentParser.Token.START_OBJECT + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
                 }
-
+                try {
+                    token = parser.nextToken();
+                    if (token != XContentParser.Token.END_OBJECT) {
+                        deprecationLogger.compatibleCritical("bulk_request_strict_action_parsing","A bulk action contained " +
+                            "follow-on fields after its declaration. Strict parsing of bulk actions will be enabled in a future version.");
+                    }
+                } catch (JsonEOFException ignore) {
+                    deprecationLogger.compatibleCritical("bulk_request_strict_action_parsing","A bulk action wasn't closed " +
+                        "properly with a curly brace. Strict parsing of bulk actions will be enabled in a future version.");
+                }
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
                         throw new IllegalArgumentException(

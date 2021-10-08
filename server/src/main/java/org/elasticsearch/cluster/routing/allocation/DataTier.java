@@ -177,7 +177,8 @@ public class DataTier {
         }
     }
 
-    private static final class DataTierSettingValidator implements Setting.Validator<String> {
+    // visible for testing
+    static final class DataTierSettingValidator implements Setting.Validator<String> {
 
         private static final Collection<Setting<?>> dependencies = org.elasticsearch.core.List.of(
             IndexModule.INDEX_STORE_TYPE_SETTING,

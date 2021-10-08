@@ -9,9 +9,13 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -22,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -43,16 +46,20 @@ public class LagDetector {
             TimeValue.timeValueMillis(90000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TimeValue clusterStateApplicationTimeout;
-    private final Consumer<DiscoveryNode> onLagDetected;
+    private final LagListener lagListener;
     private final Supplier<DiscoveryNode> localNodeSupplier;
     private final ThreadPool threadPool;
     private final Map<DiscoveryNode, NodeAppliedStateTracker> appliedStateTrackersByNode = newConcurrentMap();
 
-    public LagDetector(final Settings settings, final ThreadPool threadPool, final Consumer<DiscoveryNode> onLagDetected,
-                       final Supplier<DiscoveryNode> localNodeSupplier) {
+    public LagDetector(
+        final Settings settings,
+        final ThreadPool threadPool,
+        final LagListener lagListener,
+        final Supplier<DiscoveryNode> localNodeSupplier
+    ) {
         this.threadPool = threadPool;
         this.clusterStateApplicationTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(settings);
-        this.onLagDetected = onLagDetected;
+        this.lagListener = lagListener;
         this.localNodeSupplier = localNodeSupplier;
     }
 
@@ -114,6 +121,10 @@ public class LagDetector {
         return Collections.unmodifiableSet(appliedStateTrackersByNode.keySet());
     }
 
+    public static boolean isDebugEnabled() {
+        return logger.isDebugEnabled();
+    }
+
     private class NodeAppliedStateTracker {
         private final DiscoveryNode discoveryNode;
         private final AtomicLong appliedVersion = new AtomicLong();
@@ -154,7 +165,59 @@ public class LagDetector {
             logger.warn(
                 "node [{}] is lagging at cluster state version [{}], although publication of cluster state version [{}] completed [{}] ago",
                 discoveryNode, appliedVersion, version, clusterStateApplicationTimeout);
-            onLagDetected.accept(discoveryNode);
+            lagListener.onLagDetected(discoveryNode, getDebugListener(discoveryNode, appliedVersion, version));
         }
     }
+
+    public interface LagListener {
+        /**
+         * Called when a node is detected as lagging and should be removed from the cluster.
+         *
+         * @param discoveryNode the node that is lagging.
+         * @param debugListener if not {@code null}, a listener to be completed with information retrieved from the node that might help
+         *                      determine why it is lagging
+         */
+        void onLagDetected(DiscoveryNode discoveryNode, @Nullable ActionListener<NodesHotThreadsResponse> debugListener);
+    }
+
+    public static ActionListener<NodesHotThreadsResponse> getDebugListener(
+        DiscoveryNode discoveryNode,
+        long appliedVersion,
+        long expectedVersion
+    ) {
+        if (logger.isDebugEnabled()) {
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(NodesHotThreadsResponse nodesHotThreadsResponse) {
+
+                    if (nodesHotThreadsResponse.getNodes().size() == 0) {
+                        assert nodesHotThreadsResponse.failures().size() == 1;
+                        onFailure(nodesHotThreadsResponse.failures().get(0));
+                        return;
+                    }
+
+                    logger.debug(
+                        "hot threads from node [{}] lagging at version [{}] despite commit of cluster state version [{}]:\n{}",
+                        discoveryNode.descriptionWithoutAttributes(),
+                        appliedVersion,
+                        expectedVersion,
+                        nodesHotThreadsResponse.getNodes().get(0).getHotThreads()
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(new ParameterizedMessage(
+                        "failed to get hot threads from node [{}] lagging at version {} despite commit of cluster state version [{}]",
+                        discoveryNode.descriptionWithoutAttributes(),
+                        appliedVersion,
+                        expectedVersion
+                    ), e);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
 }

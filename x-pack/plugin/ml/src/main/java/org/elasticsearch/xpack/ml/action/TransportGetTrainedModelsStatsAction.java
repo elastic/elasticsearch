@@ -17,10 +17,10 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -153,13 +152,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     }
 
     static String[] ingestNodes(final ClusterState clusterState) {
-        String[] ingestNodes = new String[clusterState.nodes().getIngestNodes().size()];
-        Iterator<String> nodeIterator = clusterState.nodes().getIngestNodes().keysIt();
-        int i = 0;
-        while(nodeIterator.hasNext()) {
-            ingestNodes[i++] = nodeIterator.next();
-        }
-        return ingestNodes;
+        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
     }
 
     static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, IngestService ingestService, Set<String> modelIds) {

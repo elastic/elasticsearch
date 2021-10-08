@@ -17,6 +17,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     private static final String TOO_NEW_MESSAGE =
@@ -57,9 +58,9 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment env) throws IOException {
-        final Path nodePath = createNodePath(dataPath).path;
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
+        final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
         if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
@@ -77,7 +78,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             .replace("V_NEW", nodeMetadata.nodeVersion().toString())
             .replace("V_CUR", Version.CURRENT.toString()));
 
-        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPath);
+        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

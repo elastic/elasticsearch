@@ -29,8 +29,6 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -257,8 +255,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
 
         assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                DateTime.parse("2012-01-01T00:00:00.000+00").getMillis(),
-                DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1),
+                ZonedDateTime.parse("2012-01-01T00:00:00.000+00").toInstant().toEpochMilli(),
+                ZonedDateTime.parse("2030-01-01T00:00:00.000+00").toInstant().toEpochMilli() - 1),
                 parsedQuery);
 
         // Test Invalid format
@@ -288,8 +286,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                DateTime.parse("2014-11-01T00:00:00.000+00").getMillis(),
-                DateTime.parse("2014-12-08T23:59:59.999+00").getMillis()),
+                ZonedDateTime.parse("2014-11-01T00:00:00.000+00").toInstant().toEpochMilli(),
+                ZonedDateTime.parse("2014-12-08T23:59:59.999+00").toInstant().toEpochMilli()),
                 parsedQuery);
 
         query = "{\n" +
@@ -305,8 +303,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
-                DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1,
-                DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1),
+                ZonedDateTime.parse("2014-11-30T23:59:59.999+00").toInstant().toEpochMilli() + 1,
+                ZonedDateTime.parse("2014-12-08T00:00:00.000+00").toInstant().toEpochMilli() - 1),
                 parsedQuery);
     }
 
@@ -387,8 +385,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 return Relation.WITHIN;
             }
         };
-        DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         query.from(queryFromValue);
         query.to(queryToValue);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
@@ -422,8 +420,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 return Relation.WITHIN;
             }
         };
-        DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         query.from(queryFromValue);
         query.to(queryToValue);
         query.timeZone(randomZone().getId());
@@ -447,8 +445,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 return Relation.DISJOINT;
             }
         };
-        DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         query.from(queryFromValue);
         query.to(queryToValue);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
@@ -464,8 +462,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 return Relation.INTERSECTS;
             }
         };
-        DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         query.from(queryFromValue);
         query.to(queryToValue);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();

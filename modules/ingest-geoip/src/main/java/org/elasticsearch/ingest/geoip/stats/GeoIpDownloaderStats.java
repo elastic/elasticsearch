@@ -8,12 +8,11 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.geoip.GeoIpDownloader;
@@ -59,11 +58,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         totalDownloadTime = in.readVLong();
         databasesCount = in.readVInt();
         skippedDownloads = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            expiredDatabases = in.readVInt();
-        } else {
-            expiredDatabases = 0;
-        }
+        expiredDatabases = in.readVInt();
     }
 
     private GeoIpDownloaderStats(int successfulDownloads, int failedDownloads, long totalDownloadTime, int databasesCount,
@@ -149,9 +144,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         out.writeVLong(totalDownloadTime);
         out.writeVInt(databasesCount);
         out.writeVInt(skippedDownloads);
-        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-            out.writeVInt(expiredDatabases);
-        }
+        out.writeVInt(expiredDatabases);
     }
 
     @Override

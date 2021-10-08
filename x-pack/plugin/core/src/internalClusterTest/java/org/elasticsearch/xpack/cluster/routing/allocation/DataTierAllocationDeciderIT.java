@@ -120,8 +120,8 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(""));
         // The key should not be put in place since it was overridden
-        assertFalse(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE));
-        assertThat(idxSettings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box"), equalTo("cold"));
+        assertFalse(idxSettings.keySet().contains(DataTierAllocationDecider.TIER_PREFERENCE));
+        assertThat(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING.get(idxSettings), equalTo(DataTier.DATA_COLD));
 
         // index should be yellow
         logger.info("--> waiting for {} to be yellow", index);

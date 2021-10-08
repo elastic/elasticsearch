@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -288,7 +289,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             ) != Decision.NO;
             if (result
                 && nodes.isEmpty()
-                && Strings.hasText(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(indexMetadata(shard, allocation).getSettings()))) {
+                && Strings.hasText(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata(shard, allocation).getSettings()))) {
                 // The data tier decider allows a shard to remain on a lower preference tier when no nodes exists on higher preference
                 // tiers.
                 // Here we ensure that if our policy governs the highest preference tier, we assume the shard needs to move to that tier
@@ -391,10 +392,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return allocation.metadata().getIndexSafe(shard.index());
         }
 
-        private Optional<String> highestPreferenceTier(String tierPreference, DiscoveryNodes nodes) {
-            String[] preferredTiers = DataTierAllocationDecider.parseTierList(tierPreference);
-            assert preferredTiers.length > 0;
-            return Optional.of(preferredTiers[0]);
+        private Optional<String> highestPreferenceTier(List<String> preferredTiers, DiscoveryNodes nodes) {
+            assert preferredTiers.isEmpty() == false;
+            return Optional.of(preferredTiers.get(0));
         }
 
         public long maxShardSize() {

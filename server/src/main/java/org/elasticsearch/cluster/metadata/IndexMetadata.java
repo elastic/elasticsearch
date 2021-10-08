@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -400,6 +401,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean ignoreDiskWatermarks;
 
+    @Nullable // since we store null if DataTier.TIER_PREFERENCE_SETTING failed validation
+    private final List<String> tierPreference;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -429,7 +433,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IndexLongFieldRange timestampRange,
             final int priority,
             final long creationDate,
-            final boolean ignoreDiskWatermarks
+            final boolean ignoreDiskWatermarks,
+            @Nullable final List<String> tierPreference
     ) {
 
         this.index = index;
@@ -468,6 +473,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.priority = priority;
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
+        this.tierPreference = tierPreference;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -572,6 +578,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public ImmutableOpenMap<String, AliasMetadata> getAliases() {
         return this.aliases;
+    }
+
+    public List<String> getTierPreference() {
+        if (tierPreference == null) {
+            final List<String> parsed = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
+            assert false : "the setting parsing should always throw if we didn't store a tier preference when building this instance";
+            return parsed;
+        }
+        return tierPreference;
     }
 
     /**
@@ -1311,6 +1326,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
+            List<String> tierPreference;
+            try {
+                tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
+            } catch (Exception e) {
+                assert e instanceof IllegalArgumentException : e;
+                // BwC hack: the setting failed validation but it will be fixed in
+                // #IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} later so we just store a null
+                // to be able to build a temporary instance
+                tierPreference = null;
+            }
+
             return new IndexMetadata(
                     new Index(index, uuid),
                     version,
@@ -1340,7 +1366,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     timestampRange,
                     IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                     settings.getAsLong(SETTING_CREATION_DATE, -1L),
-                    DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings)
+                    DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
+                    tierPreference
             );
         }
 

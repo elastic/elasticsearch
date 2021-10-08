@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -388,4 +389,26 @@ public class IndexMetadataTests extends ESTestCase {
         assertTrue(indexMetadata.isHidden()); // preserved if settings unchanged
     }
 
+    public void testGetTierPreference() {
+        final Settings indexSettings = indexSettingsWithDataTier("data_warm,data_cold");
+        final IndexMetadata indexMetadata = IndexMetadata.builder("myindex").settings(indexSettings).build();
+        assertThat(indexMetadata.getTierPreference(), is(DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexSettings))));
+        assertThat(indexMetadata.getTierPreference(), is(List.of(DataTier.DATA_WARM, DataTier.DATA_COLD)));
+
+    }
+
+    public void testBuildsWithBrokenTierPreference() {
+        final Settings indexSettings = indexSettingsWithDataTier("broken_tier");
+        final IndexMetadata indexMetadata = IndexMetadata.builder("myindex").settings(indexSettings).build();
+        expectThrows(IllegalArgumentException.class, indexMetadata::getTierPreference);
+    }
+
+    private static Settings indexSettingsWithDataTier(String dataTier) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(DataTier.TIER_PREFERENCE, dataTier)
+            .build();
+    }
 }

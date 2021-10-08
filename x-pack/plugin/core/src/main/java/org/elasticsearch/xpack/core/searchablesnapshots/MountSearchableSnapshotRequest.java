@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 
 import java.io.IOException;
 import java.util.Arrays;

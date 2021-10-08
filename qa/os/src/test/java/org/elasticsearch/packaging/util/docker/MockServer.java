@@ -38,6 +38,19 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
+/**
+ * Providers an interface to <a href="https://org.mock-server.com/">Mockserver</a>, where a proxy
+ * server is needed for testing in Docker tests.
+ * <p>
+ * To use the server, link the container under test with the mockserver using the <code>--link</code>
+ * CLI option, using the {@link #getContainerId()} option. By aliasing the ID, you will know what
+ * hostname to use to connect to the proxy. For example:
+ *
+ * <pre>"--link " + mockserver.getContainerId() + ":mockserver"</pre>
+ *
+ * <p>All requests will result in a 404, but those requests are recorded and can be retried with
+ * {@link #getInteractions()}. These can can be reset with {@link #clearExpectations()}.
+ */
 public class MockServer {
     protected final Logger logger = LogManager.getLogger(getClass());
 
@@ -48,6 +61,11 @@ public class MockServer {
     private ExecutorService executorService;
     private String containerId;
 
+    /**
+     * Create a new mockserver, and execute the supplied {@code runnable}. The mockserver will
+     * be cleaned up afterwards.
+     * @param runnable the code to run e.g. the test case
+     */
     public static void withMockServer(CheckedConsumer<MockServer, Exception> runnable) {
         final MockServer mockServer = new MockServer();
         try {
@@ -79,8 +97,6 @@ public class MockServer {
                 throw new AssertionError(e);
             }
         }, 20, TimeUnit.SECONDS);
-
-        this.setExpectation();
     }
 
     public void clearExpectations() throws Exception {
@@ -91,23 +107,14 @@ public class MockServer {
         doRequest("http://localhost:" + CONTAINER_PORT + "/mockserver/reset", null);
     }
 
-    public void setExpectation() throws Exception {
-        // https://org.mock-server.com/mock_server/clearing_and_resetting.html
-
-        final String url = "http://localhost:" + CONTAINER_PORT + "/mockserver/expectation";
-
-        final String payload = "{"
-            + "  \"httpRequest\": {"
-            + "    \"path\": \"/*\""
-            + "  },"
-            + "  \"httpResponse\": {"
-            + "    \"statusCode\": 404"
-            + "  }"
-            + "}";
-
-        doRequest(url, payload);
-    }
-
+    /**
+     * Returns all interactions with the mockserver since startup, the last call to {@link #reset()} or the
+     * last call to {@link #clearExpectations()}. The JSON returned by the mockserver is flattened, so that
+     * the period-seperated keys in each map represent the structure of the JSON.
+     *
+     * @return a list of interactions
+     * @throws Exception if anything goes wrong
+     */
     public List<Map<String, String>> getInteractions() throws Exception {
         final String url = "http://localhost:" + CONTAINER_PORT + "/mockserver/retrieve?type=REQUEST_RESPONSES";
 

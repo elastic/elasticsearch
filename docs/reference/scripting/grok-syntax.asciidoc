@@ -11,7 +11,7 @@ fields.
 
 [[grok-syntax]]
 ==== Grok patterns
-The {stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/grok-patterns[predefined grok patterns] that simplify working with grok. The syntax for reusing grok patterns
+The {stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/ecs-v1/grok-patterns[predefined grok patterns] that simplify working with grok. The syntax for reusing grok patterns
 takes one of the following forms:
 
 [%autowidth]

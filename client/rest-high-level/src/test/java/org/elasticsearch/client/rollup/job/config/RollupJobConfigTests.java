@@ -9,7 +9,7 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

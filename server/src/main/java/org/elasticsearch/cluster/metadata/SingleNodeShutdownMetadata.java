@@ -256,6 +256,34 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         );
     }
 
+    @Override public String toString() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder
+            .append("{")
+            .append("nodeId=[")
+            .append(nodeId)
+            .append(']')
+            .append(", type=[")
+            .append(type)
+            .append("], reason=[")
+            .append(reason)
+            .append(']');
+        if (allocationDelay != null) {
+            stringBuilder
+                .append(", allocationDelay=[")
+                .append(allocationDelay)
+                .append("]");
+        }
+        if (targetNodeName != null) {
+            stringBuilder
+                .append(", targetNodeName=[")
+                .append(targetNodeName)
+                .append("]");
+        }
+        stringBuilder.append("}");
+        return stringBuilder.toString();
+    }
+
     public static Builder builder() {
         return new Builder();
     }

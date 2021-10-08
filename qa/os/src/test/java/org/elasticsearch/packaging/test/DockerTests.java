@@ -77,7 +77,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -242,11 +241,8 @@ public class DockerTests extends PackagingTestCase {
         assertThat("List of installed plugins is incorrect", actualPlugins, containsInAnyOrder(plugins));
     }
 
-    public void test024InstallPluginsUsingConfigFileWithProxy() throws Exception {
-        MockServer mockServer = new MockServer();
-        try {
-            mockServer.start();
-
+    public void test024InstallPluginsUsingConfigFileWithProxy() {
+        MockServer.withMockServer(mockServer -> {
             final StringJoiner config = new StringJoiner("\n", "", "\n");
             config.add("plugins:");
             // The repository plugins have to be present for Cloud images, because (1) they are preinstalled, and (2) they
@@ -286,12 +282,7 @@ public class DockerTests extends PackagingTestCase {
             assertThat(interaction, hasEntry("httpRequest.headers.User-Agent[0]", "elasticsearch-plugin-installer"));
             assertThat(interaction, hasEntry("httpRequest.method", "GET"));
             assertThat(interaction, hasEntry("httpRequest.path", "/my-plugin.zip"));
-
-            mockServer.close();
-        } catch (Throwable e) {
-            mockServer.close();
-            throw e;
-        }
+        });
     }
 
     /**

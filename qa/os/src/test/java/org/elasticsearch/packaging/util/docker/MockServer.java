@@ -16,10 +16,10 @@ import com.fasterxml.jackson.databind.node.ValueNode;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.packaging.test.PackagingTestCase;
 import org.elasticsearch.packaging.util.Shell;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class MockServer implements Closeable {
+public class MockServer {
     protected final Logger logger = LogManager.getLogger(getClass());
 
     private static final int CONTAINER_PORT = 1080; // default for image
@@ -39,11 +39,22 @@ public class MockServer implements Closeable {
     private final Shell shell;
     private String containerId;
 
-    public MockServer() {
+    public static void withMockServer(CheckedConsumer<MockServer, Exception> runnable) {
+        final MockServer mockServer = new MockServer();
+        try {
+            mockServer.start();
+            runnable.accept(mockServer);
+            mockServer.close();
+        } catch (Throwable e) {
+            mockServer.close();
+        }
+    }
+
+    private MockServer() {
         this.shell = new Shell();
     }
 
-    public void start() throws Exception {
+    private void start() throws Exception {
         final String command = "docker run -t --detach --rm -p " + CONTAINER_PORT + ":" + CONTAINER_PORT + " mockserver/mockserver:latest";
         this.containerId = this.shell.run(command).stdout.trim();
 
@@ -97,8 +108,7 @@ public class MockServer implements Closeable {
         return interactions;
     }
 
-    @Override
-    public void close() {
+    private void close() {
         shell.run("docker rm -f " + this.containerId);
     }
 

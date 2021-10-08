@@ -302,7 +302,7 @@ public class IngestServiceTests extends ESTestCase {
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
             "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
 
-        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         Exception e = expectThrows(
             IllegalStateException.class,
             () -> ingestService.validatePipeline(emptyMap(), putRequest.getId(), pipelineConfig)
@@ -618,7 +618,7 @@ public class IngestServiceTests extends ESTestCase {
             "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
                 "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
             XContentType.JSON);
-        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
@@ -636,7 +636,7 @@ public class IngestServiceTests extends ESTestCase {
         assertEquals("remove", e.getMetadata("es.processor_type").get(0));
         assertEquals("tag2", e.getMetadata("es.processor_tag").get(0));
 
-        var pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+        Map<String, Object> pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig2);
     }
@@ -1487,7 +1487,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testUpdatingRandomPipelineWithoutChangesIsNoOp() throws Exception {
-        var randomMap = randomMap(10, 50, IngestServiceTests::randomMapEntry);
+        Map<String, Object> randomMap = randomMap(10, 50, IngestServiceTests::randomMapEntry);
 
         XContentBuilder x = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
@@ -1500,18 +1500,18 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
-        var value = randomAlphaOfLength(5);
-        var pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
+        String value = randomAlphaOfLength(5);
+        String pipelineString = "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"" + value + "\"}}]}";
         testUpdatingPipeline(pipelineString);
     }
 
     private void testUpdatingPipeline(String pipelineString) throws Exception {
-        var pipelineId = randomAlphaOfLength(5);
-        var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        var clusterState = ClusterState.builder(new ClusterName("test"))
+        String pipelineId = randomAlphaOfLength(5);
+        PipelineConfiguration existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().putCustom(
                     IngestMetadata.TYPE,
-                    new IngestMetadata(Map.of(pipelineId, existingPipeline))
+                    new IngestMetadata(org.elasticsearch.core.Map.of(pipelineId, existingPipeline))
                 ).build()
             ).build();
 
@@ -1523,45 +1523,11 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
-        var listener = new ActionListener<AcknowledgedResponse>() {
-            final AtomicLong successCount = new AtomicLong(0);
-            final AtomicLong failureCount = new AtomicLong(0);
+        TestActionListener listener = new TestActionListener(latch);
 
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                successCount.incrementAndGet();
-                latch.countDown();
-            }
+        TestConsumer consumer = new TestConsumer();
 
-            @Override
-            public void onFailure(Exception e) {
-                failureCount.incrementAndGet();
-                latch.countDown();
-            }
-
-            public long getSuccessCount() {
-                return successCount.get();
-            }
-
-            public long getFailureCount() {
-                return failureCount.get();
-            }
-        };
-
-        var consumer = new Consumer<ActionListener<NodesInfoResponse>>() {
-            final AtomicLong executionCount = new AtomicLong(0);
-
-            @Override
-            public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
-                executionCount.incrementAndGet();
-            }
-
-            public long getExecutionCount() {
-                return executionCount.get();
-            }
-        };
-
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        PutPipelineRequest request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
         ingestService.putPipeline(request, listener, consumer);
         latch.await();
 
@@ -1676,4 +1642,48 @@ public class IngestServiceTests extends ESTestCase {
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
     }
+
+    private static class TestActionListener implements ActionListener<AcknowledgedResponse> {
+        final AtomicLong successCount = new AtomicLong(0);
+        final AtomicLong failureCount = new AtomicLong(0);
+        final CountDownLatch latch;
+
+        TestActionListener(CountDownLatch latch) {
+            this.latch = latch;
+        }
+
+        @Override
+        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            successCount.incrementAndGet();
+            latch.countDown();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            failureCount.incrementAndGet();
+            latch.countDown();
+        }
+
+        public long getSuccessCount() {
+            return successCount.get();
+        }
+
+        public long getFailureCount() {
+            return failureCount.get();
+        }
+    }
+
+    private static class TestConsumer implements Consumer<ActionListener<NodesInfoResponse>> {
+        final AtomicLong executionCount = new AtomicLong(0);
+
+        @Override
+        public void accept(ActionListener<NodesInfoResponse> nodesInfoResponseActionListener) {
+            executionCount.incrementAndGet();
+        }
+
+        public long getExecutionCount() {
+            return executionCount.get();
+        }
+    }
+
 }

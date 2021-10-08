@@ -64,7 +64,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     setting 'ingest.geoip.downloader.enabled', 'false'
-    systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
@@ -88,6 +87,9 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   extraConfigFile 'transport.p12', file("./transport.p12")
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-City.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-Country.mmdb")
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'

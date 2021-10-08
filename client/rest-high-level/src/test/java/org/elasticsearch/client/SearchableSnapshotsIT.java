@@ -27,7 +27,7 @@ import org.elasticsearch.client.searchable_snapshots.CachesStatsRequest;
 import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;

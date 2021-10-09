@@ -30,7 +30,6 @@ import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.VersionInfo;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.AccessController;
@@ -40,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+import javax.net.ssl.SSLContext;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally

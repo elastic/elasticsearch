@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -29,6 +29,8 @@ public interface InferenceResults extends NamedWriteable, ToXContentFragment {
             ingestDocument.setFieldValue(resultField, resultMap);
         }
     }
+
+    String getResultsField();
 
     Map<String, Object> asMap();
 

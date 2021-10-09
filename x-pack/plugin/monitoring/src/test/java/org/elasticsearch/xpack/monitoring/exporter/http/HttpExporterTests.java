@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -47,8 +48,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -388,7 +387,6 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testCreateResources() {
         final boolean clusterAlertManagement = randomBoolean();
-        final boolean createOldTemplates = randomBoolean();
         final TimeValue templateTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
 
         final Settings.Builder builder = Settings.builder()
@@ -396,10 +394,6 @@ public class HttpExporterTests extends ESTestCase {
 
         if (clusterAlertManagement == false) {
             builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
-        }
-
-        if (createOldTemplates == false) {
-            builder.put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", false);
         }
 
         if (templateTimeout != null) {
@@ -434,7 +428,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(multiResource.getResources().size(),
                    equalTo(version + templates.size() + watcherCheck.size()));
         assertThat(version, equalTo(1));
-        assertThat(templates, hasSize(createOldTemplates ? TEMPLATE_IDS.length + OLD_TEMPLATE_IDS.length : TEMPLATE_IDS.length));
+        assertThat(templates, hasSize(MonitoringTemplateRegistry.TEMPLATE_NAMES.length));
         assertThat(watcherCheck, hasSize(clusterAlertManagement ? 1 : 0));
         assertThat(watches, hasSize(clusterAlertManagement ? ClusterAlertsUtil.WATCH_IDS.length : 0));
 

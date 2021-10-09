@@ -488,6 +488,18 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(installation));
     }
 
+    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
+        throws Exception {
+        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password, null));
+    }
+
+    /**
+     * Waits for the Elasticsearch cluster status to turn green.
+     *
+     * @param installation the installation to check
+     * @param username the username to authenticate with
+     * @param password the password to authenticate with
+     */
     public static void waitForElasticsearch(Installation installation, String username, String password) {
         waitForElasticsearch(installation, username, password, null);
     }
@@ -546,6 +558,17 @@ public class Docker {
         return mapper.readTree(pluginsResponse);
     }
 
+    /**
+     * Fetches the resource from the specified {@code path} on {@code http://localhost:9200}, using
+     * the supplied authentication credentials.
+     *
+     * @param path the path to fetch
+     * @param user the user to authenticate with
+     * @param password the password to authenticate with
+     * @param caCert the CA cert to trust
+     * @return a parsed JSON response
+     * @throws Exception if something goes wrong
+     */
     public static JsonNode getJson(String path, String user, String password, @Nullable Path caCert) throws Exception {
         path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
@@ -620,7 +643,7 @@ public class Docker {
         sh.run("docker restart " + containerId);
     }
 
-    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+    static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
         final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
         if (result.isSuccess() == false) {
             throw new FileNotFoundException(path + " does not exist");

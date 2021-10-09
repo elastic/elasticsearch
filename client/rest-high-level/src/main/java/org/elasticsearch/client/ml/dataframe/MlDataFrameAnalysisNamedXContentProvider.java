@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
 import java.util.Arrays;

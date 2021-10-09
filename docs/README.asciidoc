@@ -13,9 +13,9 @@ docs:
 == Build the docs
 
 The Elasticsearch docs consist of `.asciidoc` files, written in the
-https://docs.asciidoctor.org/asciidoc/latest/[Asciidoctor] flavor. Source files
-are located in the `/docs` directory. You can build the docs locally using the
-steps in the https://github.com/elastic/docs#readme[elastic/docs README].
+https://docs.asciidoctor.org/asciidoc/latest/[Asciidoctor] flavor. You can build
+the docs locally using the steps in the
+https://github.com/elastic/docs#readme[elastic/docs README].
 
 === Preview links for PRs
 

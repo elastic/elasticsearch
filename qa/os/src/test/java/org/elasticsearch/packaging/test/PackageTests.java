@@ -224,12 +224,16 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        install();
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
+        try {
+            install();
+            assertInstalled(distribution());
+            verifyPackageInstallation(installation, distribution(), sh);
 
-        remove(distribution());
-        assertRemoved(distribution());
+            remove(distribution());
+            assertRemoved(distribution());
+        } finally {
+            cleanup();
+        }
     }
 
     public void test70RestartServer() throws Exception {
@@ -294,6 +298,11 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
         stopElasticsearch();
+        // Recreate file realm users that have been deleted in earlier tests
+        Result result = sh.run(
+            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
+        );
+        assumeTrue(result.isSuccess());
 
         withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");

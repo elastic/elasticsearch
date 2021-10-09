@@ -65,11 +65,13 @@ public class Cleanup {
             sh.runIgnoreExitCode("userdel elasticsearch");
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
-        Platforms.onWindows(() -> sh.runIgnoreExitCode(
-            "@(Get-ChildItem "
-                + getRootTempDir()
-                + "\\* -Include elasticsearch* -Recurse -Force) | sort pspath -Descending -unique | Remove-Item -Force -Recurse"
-        ));
+        Platforms.onWindows(
+            () -> sh.runIgnoreExitCode(
+                "@(Get-ChildItem "
+                    + getRootTempDir()
+                    + "\\* -Include elasticsearch* -Recurse -Force) | sort pspath -Descending -unique | Remove-Item -Force -Recurse"
+            )
+        );
         Platforms.onLinux(() -> {
             lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
             ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(FileUtils::rm);

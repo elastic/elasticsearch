@@ -49,14 +49,16 @@ public class Cleanup {
             sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
-        Platforms.onWindows(() -> {
-            // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-            sh.runIgnoreExitCode(
-                "Get-WmiObject Win32_Process | "
-                    + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
-                    + "ForEach-Object { $_.Terminate() }"
-            );
-        });
+        Platforms.onWindows(
+            () -> {
+                // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
+                sh.runIgnoreExitCode(
+                    "Get-WmiObject Win32_Process | "
+                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                        + "ForEach-Object { $_.Terminate() }"
+                );
+            }
+        );
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 
@@ -65,10 +67,11 @@ public class Cleanup {
             sh.runIgnoreExitCode("userdel elasticsearch");
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
-        Platforms.onWindows(() -> {
-            sh.runIgnoreExitCode("for /d %X in (" + getRootTempDir() + "elasticsearch*.*) do rd /s /q %X");
-            sh.runIgnoreExitCode("del /q /f " + getRootTempDir() + "elasticsearch*");
-        });
+        Platforms.onWindows(() -> sh.runIgnoreExitCode(
+            "@(Get-ChildItem "
+                + getRootTempDir()
+                + "\\* -Include elasticsearch* -Recurse -Force) | sort pspath -Descending -unique | Remove-Item -Force -Recurse"
+        ));
         Platforms.onLinux(() -> {
             lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
             ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(FileUtils::rm);

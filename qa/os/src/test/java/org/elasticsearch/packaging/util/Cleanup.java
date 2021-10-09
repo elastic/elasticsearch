@@ -12,12 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
@@ -42,9 +39,6 @@ public class Cleanup {
         "/usr/lib/tmpfiles.d/elasticsearch.conf",
         "/usr/lib/sysctl.d/elasticsearch.conf"
     );
-
-    // todo
-    private static final List<String> ELASTICSEARCH_FILES_WINDOWS = Collections.emptyList();
 
     public static void cleanEverything() throws Exception {
         final Shell sh = new Shell();
@@ -71,15 +65,14 @@ public class Cleanup {
             sh.runIgnoreExitCode("userdel elasticsearch");
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
-        // when we run es as a role user on windows, add the equivalent here
-        // delete files that may still exist
-        Platforms.onWindows(() -> sh.chown(getRootTempDir()));
-
-        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
-        final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
-        // windows needs leniency due to asinine releasing of file locking async from a process exiting
-        Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
-        filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);
+        Platforms.onWindows(() -> {
+            sh.runIgnoreExitCode("for /d %X in (elasticsearch*.*) do rd /s /q %X");
+            sh.runIgnoreExitCode("del /q /f elasticsearch*");
+        });
+        Platforms.onLinux(() -> {
+            lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
+            ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(FileUtils::rm);
+        });
     }
 
     private static void purgePackagesLinux() {

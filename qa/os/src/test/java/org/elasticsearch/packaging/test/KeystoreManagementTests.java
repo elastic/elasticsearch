@@ -251,9 +251,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path localConfigDir = getMountedLocalConfDirWithKeystore(KEYSTORE_PASSWORD, installation.config);
 
         // restart ES with password and mounted config dir containing password protected keystore
-        runContainer(distribution(), builder().envVar("KEYSTORE_PASSWORD",
-            KEYSTORE_PASSWORD).envVar("ELASTIC_PASSWORD",
-            PASSWORD).volume(localConfigDir.resolve("config"), installation.config));
+        runContainer(
+            distribution(),
+            builder().envVar("KEYSTORE_PASSWORD", KEYSTORE_PASSWORD)
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .volume(localConfigDir.resolve("config"), installation.config)
+        );
         waitForElasticsearch(installation, USERNAME, PASSWORD);
         ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
     }

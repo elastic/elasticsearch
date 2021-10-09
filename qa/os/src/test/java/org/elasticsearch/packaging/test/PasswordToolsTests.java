@@ -34,17 +34,13 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeFalse("no docker", distribution.isDocker());
+        assumeFalse("only archives", distribution.isDocker() || distribution().isPackage());
     }
 
     public void test010Install() throws Exception {
         install();
         // Disable auto-configuration for archives so that we can run setup-passwords
         ServerUtils.disableSecurityAutoConfiguration(installation);
-        // For packaged installations, auto-configuration happens on install time. Disable TLS to simulate it not happening
-        ServerUtils.removeSettingFromExistingConfiguration(installation, "http.host");
-        ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
-        ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.transport.ssl.enabled", "false");
     }
 
     public void test20GeneratePasswords() throws Exception {

@@ -66,8 +66,8 @@ public class Cleanup {
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
         Platforms.onWindows(() -> {
-            sh.runIgnoreExitCode("for /d %X in (elasticsearch*.*) do rd /s /q %X");
-            sh.runIgnoreExitCode("del /q /f elasticsearch*");
+            sh.runIgnoreExitCode("for /d %X in (" + getRootTempDir() + "elasticsearch*.*) do rd /s /q %X");
+            sh.runIgnoreExitCode("del /q /f " + getRootTempDir() + "elasticsearch*");
         });
         Platforms.onLinux(() -> {
             lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);

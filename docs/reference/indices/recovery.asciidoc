@@ -121,7 +121,7 @@ Reading index metadata and copying bytes from source to destination.
 `INIT`::
 Recovery has not started.
 
-`START`::
+`VERIFY_INDEX`::
 Starting the recovery process; opening the index for use.
 
 `TRANSLOG`::

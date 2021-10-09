@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.AbstractNXYSignificanceHeuristicTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;

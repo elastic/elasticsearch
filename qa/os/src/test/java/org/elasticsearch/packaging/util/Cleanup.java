@@ -70,11 +70,11 @@ public class Cleanup {
                 "@(Get-ChildItem -Path "
                     + getRootTempDir()
                     + "\\* -Filter elasticsearch* | "
-                    + "Get-ChildItem -Recurse -Force | "
-                    + "sort pspath -Descending -unique) "
+                    + "Get-ChildItem -Recurse -Force ) "
                     + "+ (Get-ChildItem -Path "
                     + getRootTempDir()
                     + "\\* -Filter elasticsearch* -Directory) | "
+                    + "sort pspath -Descending -unique | "
                     + "Remove-Item -Force -Recurse"
             )
         );

@@ -246,7 +246,7 @@ Array-based headers are sent `n` times where `n` is the size of the array.
 monitoring agent will override anything defined here.
 
 `index.name.time_format`::
-A mechanism for changing the default date suffix for the, by default, daily
+A mechanism for changing the default date suffix for the monitoring indices, by default, daily
 monitoring indices. The default value is `yyyy.MM.dd`, which is why the indices
 are created daily.
 

@@ -538,4 +538,20 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
+    public void testCCSSettingsUpdate() {
+        final Settings settings1 = Settings.builder().put("cluster.remote.test_cluster.seeds", "127.0.0.12345:9300").build();
+        final IllegalArgumentException e =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().cluster().prepareUpdateSettings()
+                    .setPersistentSettings(settings1).setTransientSettings(settings1).execute().actionGet());
+        assertEquals("unknown host [127.0.0.12345]", e.getMessage());
+
+        final Settings settings2 = Settings.builder().put("cluster.remote.test_cluster.seeds", "127.0.0.1:9300").build();
+        client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(settings2).setTransientSettings(settings2).execute().actionGet();
+        ClusterStateResponse state = client().admin().cluster().prepareState().execute().actionGet();
+        assertEquals("127.0.0.1:9300",
+            state.getState().getMetadata().persistentSettings().get("cluster.remote.test_cluster.seeds"));
+    }
 }

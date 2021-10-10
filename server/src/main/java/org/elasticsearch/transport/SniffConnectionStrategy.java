@@ -63,7 +63,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             Collections.emptyList(),
             s -> {
                 // validate seed address
-                parsePort(s);
+                parseConfiguredAddress(s);
                 return s;
             },
             new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),

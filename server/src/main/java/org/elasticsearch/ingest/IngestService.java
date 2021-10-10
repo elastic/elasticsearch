@@ -53,6 +53,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 
 /**
  * Holder class for several ingest related services.
@@ -869,12 +871,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processors;
     }
 
-    public <P extends Processor> List<String> getPipelineWithProcessorType(Class<P> clazz) {
+    public <P extends Processor> Collection<String> getPipelineWithProcessorType(Class<P> clazz, Predicate<P> predicate) {
         List<String> matchedPipelines = new LinkedList<>();
         for (PipelineHolder holder : pipelines.values()) {
             String pipelineId = holder.pipeline.getId();
             List<P> processors = getProcessorsInPipeline(pipelineId, clazz);
-            if (processors.isEmpty() == false) {
+            if (processors.isEmpty() == false && processors.stream().anyMatch(predicate)) {
                 matchedPipelines.add(pipelineId);
             }
         }
@@ -887,8 +889,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Pipeline updatedPipeline =
             Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
         synchronized (this) {
-            Map<String, PipelineHolder> existingPipelines = this.pipelines;
-            existingPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
+            Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
+            updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
+            this.pipelines = Map.copyOf(updatedPipelines);
         }
     }
 

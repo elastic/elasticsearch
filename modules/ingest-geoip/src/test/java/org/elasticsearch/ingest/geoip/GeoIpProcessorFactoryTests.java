@@ -48,6 +48,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -72,6 +73,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         copyDatabaseFiles(geoIpConfigDir, localDatabases);
         geoipTmpDir = createTempDir();
         databaseRegistry = new DatabaseRegistry(geoipTmpDir, client, cache, localDatabases, Runnable::run);
+        databaseRegistry.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
         clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
     }
@@ -420,6 +422,46 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             localDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
             Exception e = expectThrows(ResourceNotFoundException.class, () -> processor.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("database file [GeoLite2-City.mmdb] doesn't exist"));
+        }
+    }
+
+    public void testDatabaseNotReadyYet() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, clusterService);
+
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", "source_field");
+            config.put("database_file", "GeoLite2-City-Test.mmdb");
+
+            Map<String, Object> document = new HashMap<>();
+            document.put("source_field", "89.160.20.128");
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+            GeoIpProcessor.DatabaseUnavailableProcessor processor =
+                (GeoIpProcessor.DatabaseUnavailableProcessor) factory.create(null, null, null, config);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getSourceAndMetadata().get("geoip"), nullValue());
+            assertThat(ingestDocument.getSourceAndMetadata().get("tags"),
+                equalTo(List.of("_geoip_database_unavailable_GeoLite2-City-Test.mmdb")));
+        }
+
+        copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
+        databaseRegistry.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", "source_field");
+            config.put("database_file", "GeoLite2-City-Test.mmdb");
+
+            Map<String, Object> document = new HashMap<>();
+            document.put("source_field", "89.160.20.128");
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+
+            GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getSourceAndMetadata().get("tags"), nullValue());
+            Map<?, ?> geoData = (Map<?, ?>) ingestDocument.getSourceAndMetadata().get("geoip");
+            assertThat(geoData.get("city_name"), equalTo("Linköping"));
         }
     }
 

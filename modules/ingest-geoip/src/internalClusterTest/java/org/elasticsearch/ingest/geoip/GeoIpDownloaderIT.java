@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -67,6 +68,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
@@ -305,6 +307,37 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
             }
         });
+    }
+
+    public void testStartWithNoDatabases() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        putPipeline();
+
+        // Behaviour without any databases loaded:
+        {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument(), notNullValue());
+            Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
+            assertThat((Collection<?>) source.get("tags"), containsInAnyOrder("_geoip_database_unavailable_GeoLite2-City.mmdb",
+                "_geoip_database_unavailable_GeoLite2-Country.mmdb", "_geoip_database_unavailable_GeoLite2-ASN.mmdb"));
+        }
+
+        // Enable downloader:
+        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        {
+            assertBusy(() -> {
+                SimulateDocumentBaseResult result = simulatePipeline();
+                assertThat(result.getFailure(), nullValue());
+                assertThat(result.getIngestDocument(), notNullValue());
+                Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
+                assertThat(source.get("tags"), nullValue());
+                assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
+                assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
+                assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));
+            });
+        }
     }
 
     private void verifyUpdatedDatabase() throws Exception {

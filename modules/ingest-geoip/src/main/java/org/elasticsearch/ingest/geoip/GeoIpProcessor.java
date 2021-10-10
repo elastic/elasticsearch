@@ -551,5 +551,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
         public String getType() {
             return TYPE;
         }
+
+        public String getDatabaseName() {
+            return databaseName;
+        }
     }
 }

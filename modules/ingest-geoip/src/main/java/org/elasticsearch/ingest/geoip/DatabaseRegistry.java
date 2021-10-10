@@ -53,8 +53,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -91,7 +91,6 @@ public final class DatabaseRegistry implements Closeable {
     private IngestService ingestService;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
-    private final AtomicBoolean initialized = new AtomicBoolean(false);
 
     DatabaseRegistry(Environment environment, Client client, GeoIpCache cache, Consumer<Runnable> genericExecutor) {
         this(
@@ -317,17 +316,24 @@ public final class DatabaseRegistry implements Closeable {
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
-            }
-            LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
-            if (databases.size() == 3 && initialized.compareAndSet(false, true)) {
-                List<String> ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class);
+            } else {
+                // Loaded a database for the first time, so reload pipelines for which a database was not available:
+                Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
+                var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
                 if (ids.isEmpty() == false) {
-                    for (String id : ids) {
-                        ingestService.reloadPipeline(id);
+                    for (var id : ids) {
+                        try {
+                            ingestService.reloadPipeline(id);
+                            LOGGER.debug("successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
+                                id, databaseFileName);
+                        } catch (Exception e) {
+                            LOGGER.debug((Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to reload pipeline [{}] after downloading of database [{}]", id, databaseFileName), e);
+                        }
                     }
-                    LOGGER.info("reloaded {} pipelines after successful initial downloading of databases", ids.size());
                 }
             }
+            LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }

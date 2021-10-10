@@ -8,11 +8,10 @@
 
 package org.elasticsearch.script.field;
 
-public class VersionField extends Field<String> {
+import java.io.IOException;
 
-    /* ---- Version Field Members ---- */
+public interface DocValuesField<T> extends Field<T> {
 
-    public VersionField(String name, FieldValues<String> values) {
-        super(name, values);
-    }
+    /** Set the current document ID. */
+    void setNextDocId(int docId) throws IOException;
 }

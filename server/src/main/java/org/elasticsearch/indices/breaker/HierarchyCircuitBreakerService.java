@@ -78,6 +78,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.request.limit", "60%", Property.Dynamic, Property.NodeScope);
+    public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_REQUEST_SIZE_SETTING =
+        Setting.memorySizeSetting("indices.breaker.search.request_size_limit ", "60%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING =
         Setting.doubleSetting("indices.breaker.request.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =

@@ -69,6 +69,13 @@ request) from exceeding a certain amount of memory.
     Limit for request breaker, defaults to 60% of JVM heap.
 // end::request-breaker-limit-tag[]
 
+[[request-breaker-limit]]
+// tag::request-breaker-limit-tag[]
+`indices.breaker.search.request_size_limit` {ess-icon}::
+    (<<dynamic-cluster-setting,Dynamic>>)
+    Limit for request breaker, defaults to 60% of JVM heap, as the breaker request limit
+// end::request-breaker-limit-tag[]
+
 [[request-breaker-overhead]]
 // tag::request-breaker-overhead-tag[]
 `indices.breaker.request.overhead` {ess-icon}::

@@ -74,6 +74,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_REQUEST_SIZE_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
@@ -216,6 +217,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         // Make request breaker limited to a small amount
         Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
+                .build();
+        
+        Settings resetSettingsRequestSize = Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_REQUEST_SIZE_SETTING.getKey(), "10b")
                 .build();
         assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
 

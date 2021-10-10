@@ -241,7 +241,7 @@ expected_event_ids = [
 name = "sequenceWithMoreThan10Results-Runs"
 query = '''
 sequence by unique_pid
-  [any where true] [runs=2]
+  [any where true] with runs=2
   [any where serial_event_id < 72]
 '''
 expected_event_ids = [

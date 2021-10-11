@@ -74,8 +74,7 @@ public class Cleanup {
                     + "+ (Get-ChildItem -Path "
                     + getRootTempDir()
                     + "\\* -Filter elasticsearch* -Directory) | "
-                    + "sort pspath -Descending -unique | "
-                    + "Remove-Item -Force -Recurse"
+                    + "sort pspath -Descending -unique"
             )
         );
         Platforms.onLinux(() -> {

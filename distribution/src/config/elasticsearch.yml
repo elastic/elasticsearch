@@ -85,11 +85,12 @@
 #
 #                                 *** WARNING ***
 #
-# Elasticsearch security features are disabled by default.
+# Elasticsearch security features are not enabled by default.
+# These features are free, but require configuration changes to enable them.
 # This means that users don’t have to provide credentials and can get full access
 # to the cluster. Network connections are also not encrypted.
 #
-# You are strongly encouraged to turn on security features and protect your data
-# as described in the official docs.
+# To protect your data, we strongly encourage you to enable the Elasticsearch security features. 
+# Refer to the following documentation for instructions.
 #
 # https://www.elastic.co/guide/en/elasticsearch/reference/7.16/configuring-stack-security.html

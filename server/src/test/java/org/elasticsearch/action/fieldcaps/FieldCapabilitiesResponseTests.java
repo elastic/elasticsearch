@@ -11,10 +11,10 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
 

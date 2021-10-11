@@ -14,6 +14,7 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
@@ -391,8 +392,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        nodes.all(node -> node.extraJarFile(from));
+    public void extraJarFiles(FileCollection from) {
+        nodes.all(node -> node.extraJarFiles(from));
     }
 
     @Override

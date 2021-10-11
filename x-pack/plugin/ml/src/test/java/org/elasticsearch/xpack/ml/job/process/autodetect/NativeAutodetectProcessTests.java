@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;

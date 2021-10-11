@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 
@@ -51,7 +51,7 @@ public final class PhaseCacheManagement {
         final IndexMetadata idxMeta = state.metadata().index(index);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         refreshPhaseDefinition(metadataBuilder, idxMeta, updatedPolicy);
-        return ClusterState.builder(state).metadata(metadataBuilder).build();
+        return ClusterState.builder(state).metadata(metadataBuilder.build(false)).build();
     }
 
     /**
@@ -109,7 +109,7 @@ public final class PhaseCacheManagement {
                                                       final LifecyclePolicyMetadata newPolicy, XPackLicenseState licenseState) {
         Metadata.Builder mb = Metadata.builder(state.metadata());
         if (updateIndicesForPolicy(mb, state, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
-            return ClusterState.builder(state).metadata(mb).build();
+            return ClusterState.builder(state).metadata(mb.build(false)).build();
         }
         return state;
     }

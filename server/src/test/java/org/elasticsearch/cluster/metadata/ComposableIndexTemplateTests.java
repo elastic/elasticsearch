@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 

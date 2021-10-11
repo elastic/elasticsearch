@@ -32,6 +32,11 @@ final class MatchAllRoleBitSet extends BitSet {
     }
 
     @Override
+    public boolean getAndSet(int i) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void clear(int i) {
         throw new UnsupportedOperationException();
     }

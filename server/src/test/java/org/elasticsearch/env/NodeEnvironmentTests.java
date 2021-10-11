@@ -62,7 +62,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
         env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertThat(env.nodeDataPath(), equalTo(PathUtils.get(dataPath)));
+        assertThat(env.nodeDataPaths()[0], equalTo(PathUtils.get(dataPath)));
 
         env.close();
         assertThat(env.lockedShards(), empty());
@@ -212,7 +212,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             SetOnce<Path> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
             Path deletedPath = listener.get();
-            assertThat(deletedPath, equalTo(env.nodePath().resolve(index).resolve("1")));
+            assertThat(deletedPath, equalTo(env.nodePaths()[0].resolve(index).resolve("1")));
         }
 
         path = env.indexPath(index);

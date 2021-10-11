@@ -22,7 +22,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -77,7 +76,8 @@ public class SyncPluginsAction implements SyncPluginsProvider {
         final Path previousConfigPath = this.env.configFile().resolve(".elasticsearch-plugins.yml.cache");
 
         if (Files.exists(configPath) == false) {
-            return;
+            // The `PluginsManager` will have checked that this file exists before invoking the action.
+            throw new PluginSyncException("Plugins config does not exist: " + configPath.toAbsolutePath());
         }
 
         if (Files.exists(env.pluginsFile()) == false) {
@@ -106,8 +106,8 @@ public class SyncPluginsAction implements SyncPluginsProvider {
         PluginsConfig.writeConfig(pluginsConfig, previousConfigPath);
     }
 
-    private PluginChanges getPluginChanges(PluginsConfig pluginsConfig, Optional<PluginsConfig> cachedPluginsConfig)
-        throws PluginSyncException {
+    // @VisibleForTesting
+    PluginChanges getPluginChanges(PluginsConfig pluginsConfig, Optional<PluginsConfig> cachedPluginsConfig) throws PluginSyncException {
         final List<PluginInfo> existingPlugins = getExistingPlugins(this.env);
 
         final List<PluginDescriptor> pluginsThatShouldExist = pluginsConfig.getPlugins();
@@ -130,29 +130,35 @@ public class SyncPluginsAction implements SyncPluginsProvider {
     }
 
     private void performSync(PluginsConfig pluginsConfig, PluginChanges changes) throws Exception {
-        logRequiredChanges(changes);
-
         final Proxy proxy = ProxyUtils.buildProxy(pluginsConfig.getProxy());
 
         final RemovePluginAction removePluginAction = new RemovePluginAction(terminal, env, true);
         final InstallPluginAction installPluginAction = new InstallPluginAction(terminal, env, true);
         installPluginAction.setProxy(proxy);
 
+        performSync(installPluginAction, removePluginAction, changes);
+    }
+
+    // @VisibleForTesting
+    void performSync(InstallPluginAction installAction, RemovePluginAction removeAction, PluginChanges changes) throws Exception {
+        logRequiredChanges(changes);
+
         // Remove any plugins that are not in the config file
         if (changes.remove.isEmpty() == false) {
-            removePluginAction.execute(changes.remove);
+            removeAction.setPurge(true);
+            removeAction.execute(changes.remove);
         }
 
         // Add any plugins that are in the config file but missing from disk
         if (changes.install.isEmpty() == false) {
-            installPluginAction.execute(changes.install);
+            installAction.execute(changes.install);
         }
 
         // Upgrade plugins
         if (changes.upgrade.isEmpty() == false) {
-            removePluginAction.setPurge(false);
-            removePluginAction.execute(changes.upgrade);
-            installPluginAction.execute(changes.upgrade);
+            removeAction.setPurge(false);
+            removeAction.execute(changes.upgrade);
+            installAction.execute(changes.upgrade);
         }
     }
 
@@ -250,7 +256,6 @@ public class SyncPluginsAction implements SyncPluginsProvider {
             throw new PluginSyncException("Failed to list existing plugins", e);
         }
 
-        plugins.sort(Comparator.comparing(PluginInfo::getName));
         return plugins;
     }
 
@@ -283,12 +288,13 @@ public class SyncPluginsAction implements SyncPluginsProvider {
         printSummary.accept("upgraded", changes.upgrade);
     }
 
-    private static class PluginChanges {
+    // @VisibleForTesting
+    static class PluginChanges {
         final List<PluginDescriptor> remove;
         final List<PluginDescriptor> install;
         final List<PluginDescriptor> upgrade;
 
-        private PluginChanges(List<PluginDescriptor> remove, List<PluginDescriptor> install, List<PluginDescriptor> upgrade) {
+        PluginChanges(List<PluginDescriptor> remove, List<PluginDescriptor> install, List<PluginDescriptor> upgrade) {
             this.remove = Objects.requireNonNull(remove);
             this.install = Objects.requireNonNull(install);
             this.upgrade = Objects.requireNonNull(upgrade);

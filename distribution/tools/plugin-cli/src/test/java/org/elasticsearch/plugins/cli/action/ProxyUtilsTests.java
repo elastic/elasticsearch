@@ -29,13 +29,6 @@ public class ProxyUtilsTests extends ESTestCase {
     }
 
     /**
-     * Check that building a proxy with a hostname with domain and a port succeeds.
-     */
-    public void testBuildProxy_withHostDomainPort() throws Exception {
-        assertThat(buildProxy("host.localhost:1234"), matchesProxy(Type.HTTP, "host.localhost", 1234));
-    }
-
-    /**
      * Check that building a proxy with a null value succeeds, returning a pass-through (direct) proxy.
      */
     public void testBuildProxy_withNullValue() throws Exception {
@@ -43,20 +36,18 @@ public class ProxyUtilsTests extends ESTestCase {
     }
 
     /**
-     * Check that building a proxy with an invalid host is rejected.
+     * Check that building a proxy with a missing host is rejected.
      */
-    public void testBuildProxy_withInvalidHost() {
-        Stream.of("blah_blah:1234", "-host.domain:1234", "host.-domain:1234", "tést:1234", ":1234").forEach(testCase -> {
-            UserException e = expectThrows(UserException.class, () -> buildProxy(testCase));
-            assertThat(e.getMessage(), equalTo("Malformed [proxy], expected [host:port]"));
-        });
+    public void testBuildProxy_withMissingHost() {
+        UserException e = expectThrows(UserException.class, () -> buildProxy(":1234"));
+        assertThat(e.getMessage(), equalTo("Malformed [proxy], expected [host:port]"));
     }
 
     /**
-     * Check that building a proxy with an invalid port is rejected.
+     * Check that building a proxy with a missing or invalid port is rejected.
      */
     public void testBuildProxy_withInvalidPort() {
-        Stream.of("host.domain:-1", "host.domain:$PORT", "host.domain:{{port}}", "host.domain").forEach(testCase -> {
+        Stream.of("host:", "host.domain:-1", "host.domain:$PORT", "host.domain:{{port}}", "host.domain").forEach(testCase -> {
             UserException e = expectThrows(UserException.class, () -> buildProxy(testCase));
             assertThat(e.getMessage(), equalTo("Malformed [proxy], expected [host:port]"));
         });

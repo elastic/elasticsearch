@@ -11,11 +11,10 @@ package org.elasticsearch.plugins.cli.action;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 /**
  * Utilities for working with HTTP proxies.
@@ -46,12 +45,15 @@ class ProxyUtils {
         return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(parts[0], Integer.parseUnsignedInt(parts[1])));
     }
 
-    private static final Predicate<String> HOST_PATTERN = Pattern.compile(
-        "^ (?!-)[a-z0-9-]+ (?: \\. (?!-)[a-z0-9-]+ )* $",
-        Pattern.CASE_INSENSITIVE | Pattern.COMMENTS
-    ).asMatchPredicate();
-
+    /**
+     * Check that the hostname is not empty, and that the port is numeric.
+     *
+     * @param hostname the hostname to check. Besides ensuring it is not null or empty, no further validation is
+     *                 performed.
+     * @param port the port to check. Must be composed solely of digits.
+     * @return whether the arguments describe a potentially valid proxy.
+     */
     static boolean validateProxy(String hostname, String port) {
-        return hostname != null && port != null && HOST_PATTERN.test(hostname) && port.matches("^\\d+$") != false;
+        return Strings.isNullOrEmpty(hostname) == false && port != null && port.matches("^\\d+$") != false;
     }
 }

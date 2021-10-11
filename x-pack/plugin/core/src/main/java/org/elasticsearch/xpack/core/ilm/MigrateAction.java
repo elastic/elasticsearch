@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfigurationSettings;
 
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
@@ -115,9 +115,7 @@ public class MigrateAction implements LifecycleAction {
                     return false;
                 });
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
-                Settings.builder()
-                    .put(DataTier.TIER_PREFERENCE, getPreferredTiersConfiguration(targetTier))
-                    .build());
+                getPreferredTiersConfigurationSettings(targetTier));
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {

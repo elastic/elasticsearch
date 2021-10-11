@@ -262,17 +262,15 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 return hasShardCopyOnOtherNode == false;
             })
             .peek(pair -> {
-                if (logger.isTraceEnabled()) { // don't serialize the decision unless we have to
-                    logger.trace(
-                        "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
-                        nodeId,
-                        shutdownType,
-                        pair.v1().getId(),
-                        pair.v1().primary() ? "primary" : "replica",
-                        pair.v1().shardId().getIndexName(),
-                        Strings.toString(pair.v2())
-                    );
-                }
+                logger.debug(
+                    "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
+                    nodeId,
+                    shutdownType,
+                    pair.v1().getId(),
+                    pair.v1().primary() ? "primary" : "replica",
+                    pair.v1().shardId().getIndexName(),
+                    Strings.toString(pair.v2())
+                );
             })
             .findFirst();
 
@@ -287,6 +285,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         } else if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
             ShardRouting shardRouting = unmovableShard.get().v1();
+            ShardAllocationDecision decision = unmovableShard.get().v2();
 
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
@@ -296,7 +295,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",
                     shardRouting.index().getName()
-                ).getFormattedMessage()
+                ).getFormattedMessage(),
+                decision
             );
         } else {
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);

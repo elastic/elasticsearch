@@ -233,6 +233,31 @@ public class PackageTests extends PackagingTestCase {
         }
     }
 
+    public void test71JvmOptionsTotalMemoryOverride() throws Exception {
+        try {
+            install();
+            assertPathsExist(installation.envFile);
+            setHeap(null);
+
+            withCustomConfig(tempConf -> {
+                // Work as though total system memory is 850MB
+                append(installation.envFile, "ES_JAVA_OPTS=\"-Des.total_memory_bytes=891289600\"");
+
+                startElasticsearch();
+
+                final String nodesStatsResponse = makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+                assertThat(nodesStatsResponse, containsString("\"total_override_in_bytes\":891289600"));
+
+                // 40% of 850MB
+                assertThat(sh.run("ps auwwx").stdout, containsString("-Xmx340m -Xms340m"));
+
+                stopElasticsearch();
+            });
+        } finally {
+            cleanup();
+        }
+    }
+
     public void test72TestRuntimeDirectory() throws Exception {
         try {
             install();
@@ -291,32 +316,6 @@ public class PackageTests extends PackagingTestCase {
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
-
-            stopElasticsearch();
-        });
-
-        cleanup();
-    }
-
-    public void test82JvmOptionsTotalMemoryOverride() throws Exception {
-        assumeTrue(isSystemd());
-
-        install();
-
-        assertPathsExist(installation.envFile);
-        stopElasticsearch();
-
-        withCustomConfig(tempConf -> {
-            // Work as though total system memory is 850MB
-            append(installation.envFile, "ES_JAVA_OPTS=\"-Des.total_memory_bytes=891289600\"");
-
-            startElasticsearch();
-
-            final String nodesStatsResponse = makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
-            assertThat(nodesStatsResponse, containsString("\"total_override_in_bytes\":891289600"));
-
-            // 40% of 850MB
-            assertThat(sh.run("ps auwwx").stdout, containsString("-Xmx340m -Xms340m"));
 
             stopElasticsearch();
         });

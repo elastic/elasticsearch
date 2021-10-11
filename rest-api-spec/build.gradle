@@ -82,8 +82,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
 
-  task.skipTest("msearch/20_typed_keys/Multisearch test with typed_keys parameter", "Test contains a no longer valid work around for the float range bug")
-
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

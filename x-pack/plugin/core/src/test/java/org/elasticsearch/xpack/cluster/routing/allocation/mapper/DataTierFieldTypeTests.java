@@ -11,6 +11,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -20,7 +21,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -101,7 +101,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     // Tier can be an ordered list of preferences - starting with primary and followed by fallbacks.
-                    .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_hot")
+                    .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
             )
             .numberOfShards(1)
             .numberOfReplicas(0)

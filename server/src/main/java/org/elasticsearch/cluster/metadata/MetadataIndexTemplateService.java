@@ -38,11 +38,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -86,6 +86,16 @@ public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final String DEFAULT_TIMESTAMP_MAPPING = "{\n" +
+        "      \"properties\": {\n" +
+        "        \"@timestamp\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }";
+    public static final String DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING = "{\n" +
+        "\"_routing\" : {\n"
+        + "        \"required\" : true\n"
+        + "      },"+
         "      \"properties\": {\n" +
         "        \"@timestamp\": {\n" +
         "          \"type\": \"date\"\n" +
@@ -1024,7 +1034,11 @@ public class MetadataIndexTemplateService {
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
-            mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+            if (template.getDataStreamTemplate().isAllowCustomRouting()) {
+                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING, xContentRegistry)));
+            } else {
+                mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
+            }
         }
 
         // Only include _timestamp mapping snippet if creating backing index.
@@ -1424,7 +1438,7 @@ public class MetadataIndexTemplateService {
         int order;
         Integer version;
         List<String> indexPatterns;
-        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        Settings settings = Settings.EMPTY;
         String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 

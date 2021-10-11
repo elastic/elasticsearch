@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;

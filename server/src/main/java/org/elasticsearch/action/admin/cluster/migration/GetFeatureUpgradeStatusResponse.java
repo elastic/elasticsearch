@@ -8,12 +8,13 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,13 +28,13 @@ import java.util.Objects;
 public class GetFeatureUpgradeStatusResponse extends ActionResponse implements ToXContentObject {
 
     private final List<FeatureUpgradeStatus> featureUpgradeStatuses;
-    private final String upgradeStatus;
+    private final UpgradeStatus upgradeStatus;
 
     /**
      * @param statuses A list of feature statuses
      * @param upgradeStatus Whether system features need to be upgraded
      */
-    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, String upgradeStatus) {
+    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, UpgradeStatus upgradeStatus) {
         this.featureUpgradeStatuses = Objects.nonNull(statuses) ? statuses : Collections.emptyList();
         this.upgradeStatus = upgradeStatus;
     }
@@ -45,7 +46,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
         super(in);
         this.featureUpgradeStatuses = in.readList(FeatureUpgradeStatus::new);
-        this.upgradeStatus = in.readString();
+        this.upgradeStatus = in.readEnum(UpgradeStatus.class);
     }
 
     @Override
@@ -64,14 +65,14 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(this.featureUpgradeStatuses);
-        out.writeString(upgradeStatus);
+        out.writeEnum(upgradeStatus);
     }
 
     public List<FeatureUpgradeStatus> getFeatureUpgradeStatuses() {
         return featureUpgradeStatuses;
     }
 
-    public String getUpgradeStatus() {
+    public UpgradeStatus getUpgradeStatus() {
         return upgradeStatus;
     }
 
@@ -88,14 +89,28 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         return Objects.hash(featureUpgradeStatuses, upgradeStatus);
     }
 
+    @Override
+    public String toString() {
+        return "GetFeatureUpgradeStatusResponse{" +
+            "featureUpgradeStatuses=" + featureUpgradeStatuses +
+            ", upgradeStatus='" + upgradeStatus + '\'' +
+            '}';
+    }
+
+    public enum UpgradeStatus {
+        UPGRADE_NEEDED,
+        NO_UPGRADE_NEEDED,
+        IN_PROGRESS
+    }
+
     /**
      * A class for a particular feature, showing whether it needs to be upgraded and the earliest
      * Elasticsearch version used to create one of this feature's system indices.
      */
     public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {
         private final String featureName;
-        private final String minimumIndexVersion;
-        private final String upgradeStatus;
+        private final Version minimumIndexVersion;
+        private final UpgradeStatus upgradeStatus;
         private final List<IndexVersion> indexVersions;
 
         /**
@@ -104,8 +119,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          * @param upgradeStatus Whether the feature needs to be upgraded
          * @param indexVersions A list of this feature's concrete indices and the Elasticsearch version that created them
          */
-        public FeatureUpgradeStatus(String featureName, String minimumIndexVersion,
-                                    String upgradeStatus, List<IndexVersion> indexVersions) {
+        public FeatureUpgradeStatus(String featureName, Version minimumIndexVersion,
+                                    UpgradeStatus upgradeStatus, List<IndexVersion> indexVersions) {
             this.featureName = featureName;
             this.minimumIndexVersion = minimumIndexVersion;
             this.upgradeStatus = upgradeStatus;
@@ -118,8 +133,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public FeatureUpgradeStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
-            this.minimumIndexVersion = in.readString();
-            this.upgradeStatus = in.readString();
+            this.minimumIndexVersion = Version.readVersion(in);
+            this.upgradeStatus = in.readEnum(UpgradeStatus.class);
             this.indexVersions = in.readList(IndexVersion::new);
         }
 
@@ -127,11 +142,11 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             return this.featureName;
         }
 
-        public String getMinimumIndexVersion() {
+        public Version getMinimumIndexVersion() {
             return this.minimumIndexVersion;
         }
 
-        public String getUpgradeStatus() {
+        public UpgradeStatus getUpgradeStatus() {
             return this.upgradeStatus;
         }
 
@@ -142,8 +157,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
-            out.writeString(this.minimumIndexVersion);
-            out.writeString(this.upgradeStatus);
+            Version.writeVersion(this.minimumIndexVersion, out);
+            out.writeEnum(this.upgradeStatus);
             out.writeList(this.indexVersions);
         }
 
@@ -151,7 +166,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("feature_name", this.featureName);
-            builder.field("minimum_index_version", this.minimumIndexVersion);
+            builder.field("minimum_index_version", this.minimumIndexVersion.toString());
             builder.field("upgrade_status", this.upgradeStatus);
             builder.startArray("indices");
             for (IndexVersion version : this.indexVersions) {
@@ -177,6 +192,16 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public int hashCode() {
             return Objects.hash(featureName, minimumIndexVersion, upgradeStatus, indexVersions);
         }
+
+        @Override
+        public String toString() {
+            return "FeatureUpgradeStatus{" +
+                "featureName='" + featureName + '\'' +
+                ", minimumIndexVersion='" + minimumIndexVersion + '\'' +
+                ", upgradeStatus='" + upgradeStatus + '\'' +
+                ", indexVersions=" + indexVersions +
+                '}';
+        }
     }
 
     /**
@@ -184,13 +209,13 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      */
     public static class IndexVersion implements Writeable, ToXContentObject {
         private final String indexName;
-        private final String version;
+        private final Version version;
 
         /**
          * @param indexName Name of the index
          * @param version Version of Elasticsearch that created the index
          */
-        public IndexVersion(String indexName, String version) {
+        public IndexVersion(String indexName, Version version) {
             this.indexName = indexName;
             this.version = version;
         }
@@ -201,28 +226,28 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          */
         public IndexVersion(StreamInput in) throws IOException {
             this.indexName = in.readString();
-            this.version = in.readString();
+            this.version = Version.readVersion(in);
         }
 
         public String getIndexName() {
             return this.indexName;
         }
 
-        public String getVersion() {
+        public Version getVersion() {
             return this.version;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.indexName);
-            out.writeString(this.version);
+            Version.writeVersion(this.version, out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("index", this.indexName);
-            builder.field("version", this.version);
+            builder.field("version", this.version.toString());
             builder.endObject();
             return builder;
         }
@@ -238,6 +263,14 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         @Override
         public int hashCode() {
             return Objects.hash(indexName, version);
+        }
+
+        @Override
+        public String toString() {
+            return "IndexVersion{" +
+                "indexName='" + indexName + '\'' +
+                ", version='" + version + '\'' +
+                '}';
         }
     }
 }

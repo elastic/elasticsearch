@@ -19,8 +19,8 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;

@@ -153,10 +153,8 @@ class IndicesAndAliasesResolver {
                         authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
 
                 assert indices != null && indices.length != 0 : "null or empty indices should be handled by isAllIndices";
-                // Filtering is needed if the request needs filter out unavailable indices
-                // For efficiency, we avoid filtering if the requested indices is a single wildcard pattern
-                if (indicesOptions.ignoreUnavailable()
-                    && (false == (indices.length == 1 && Regex.isSimpleMatchPattern(indices[0])))) {
+                // Filtering is needed only if the request needs filter out unavailable indices
+                if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
                     final List<String> filtered = filterOutUnavailable(authorizedIndices, replaced);
@@ -177,12 +175,7 @@ class IndicesAndAliasesResolver {
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
-                    if (indices != null && indices.length == 1 && Regex.isMatchAllPattern(indices[0])) {
-                        // Special handling to keep error message the same as previously thrown in core's IndexAbstractionResolver
-                        throw new IndexNotFoundException(indices[0]);
-                    } else {
-                        throw new IndexNotFoundException(Arrays.toString(indices));
-                    }
+                    throw new IndexNotFoundException(Arrays.toString(indices));
                 }
             } else {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());

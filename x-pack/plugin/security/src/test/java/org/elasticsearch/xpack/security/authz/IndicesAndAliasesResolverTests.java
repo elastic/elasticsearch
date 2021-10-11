@@ -695,7 +695,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testResolveNoExpandIgnoreUnavailable() {
-        SearchRequest request = new SearchRequest("missing*");
+        SearchRequest request = new SearchRequest(randomFrom("missing*", "*"));
         request.indicesOptions(IndicesOptions.fromOptions(true, true, false, false));
         assertNoIndices(request, resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
     }

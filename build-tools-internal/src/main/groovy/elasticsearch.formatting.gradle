@@ -200,7 +200,6 @@ subprojects {
         providers.systemProperty("es.format.everything").forUseAtConfigurationTime().isPresent()) {
       project.apply plugin: "com.diffplug.spotless"
 
-
       spotless {
         java {
           if (project.path == ':server') {
@@ -223,21 +222,6 @@ subprojects {
           importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
           eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
           trimTrailingWhitespace()
-
-          // Sometimes Spotless will report a "misbehaving rule which can't make up its
-          // mind" and will recommend enabling the `paddedCell()` setting. If you
-          // enabled this setting and run the format check again,
-          // Spotless will write files to
-          // `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
-          // different copies of the formatted files, so that you can see how they
-          // differ and infer what is the problem.
-
-          // The `paddedCell()` option is disabled for normal operation so that any
-          // misbehaviour is detected, and not just suppressed. You can enabled the
-          // option from the command line by running Gradle with `-Dspotless.paddedcell`.
-          if (providers.systemProperty('spotless.paddedcell').forUseAtConfigurationTime().isPresent()) {
-            paddedCell()
-          }
         }
       }
 
@@ -245,3 +229,22 @@ subprojects {
     }
   }
 }
+
+rootProject.apply plugin: "com.diffplug.spotless"
+
+// The build projects have to be formatted from the root project, otherwise any
+// formatting errors make them unbuildable, and you then can't run any tasks.
+spotless {
+  java {
+    target 'build-tools/src/*/java/**/*.java', 'build-tools-internal/src/*/java/**/*.java'
+
+    toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
+    removeUnusedImports()
+    importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
+    eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
+    trimTrailingWhitespace()
+
+  }
+}
+
+rootProject.tasks.named("precommit").configure { dependsOn 'spotlessJavaCheck' }

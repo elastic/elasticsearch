@@ -320,7 +320,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static Set<SnapshotShard> listOfSnapshotShards(final ClusterState state) {
         final Set<SnapshotShard> snapshotShards = new HashSet<>();
-        for (ShardRouting shardRouting : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+        for (ShardRouting shardRouting : state.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                 final RecoverySource.SnapshotRecoverySource snapshotRecoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
                     .recoverySource();

@@ -29,13 +29,14 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
 /**
- * A log4j filter used for throttling deprecation logs. Should be used in pair with a log4j2 appender.
+ * A filter used for throttling deprecation logs.
  * A throttling is based on a combined key which consists of `key` from the logged ESMessage and `x-opaque-id`
  * passed by a user on a HTTP header.
  * This filter works by using a lruKeyCache - a set of keys which prevents a second message with the same key to be logged.
  * The lruKeyCache has a size limited to 128, which when breached will remove the oldest entries.
  *
  * It is possible to disable use of `x-opaque-id` as a key with {@link RateLimitingFilter#setUseXOpaqueId(boolean) }
+ * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
  */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {

@@ -97,13 +97,13 @@ public class Deprecation extends Plugin implements ActionPlugin {
         templateRegistry.initialize();
 
         final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
-        //default is true, enable on start.
+        // enable on start.
         rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.getDefault(environment.settings()));
 
         final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client,
             environment.settings(),
             rateLimitingFilterForIndexing,
-            WRITE_DEPRECATION_LOGS_TO_INDEX.getDefault(environment.settings())// default is true, enable on start.
+            WRITE_DEPRECATION_LOGS_TO_INDEX.getDefault(environment.settings()) //pass the default on startup
         );
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING,

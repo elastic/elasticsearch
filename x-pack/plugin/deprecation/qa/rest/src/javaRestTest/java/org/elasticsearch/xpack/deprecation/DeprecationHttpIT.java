@@ -105,6 +105,9 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
 
         }, 30, TimeUnit.SECONDS);
+
+        // switch logging setting to default
+        configureWriteDeprecationLogsToIndex(null);
     }
 
     /**

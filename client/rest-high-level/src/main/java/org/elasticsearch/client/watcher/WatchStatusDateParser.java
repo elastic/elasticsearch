@@ -11,7 +11,7 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;

@@ -46,14 +46,8 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
+  id 'elasticsearch.versions'
   id "com.diffplug.spotless" version "5.15.1" apply false
-}
-
-String licenseCommit
-if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-  licenseCommit = BuildParams.gitRevision ?: "master" // leniency for non git builds
-} else {
-  licenseCommit = "v${version}"
 }
 
 /**
@@ -168,20 +162,13 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 }
 
 subprojects {
-  // common maven publishing configuration
-  group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
-  description = "Elasticsearch subproject ${project.path}"
+  apply plugin: 'elasticsearch.base'
 }
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
-  plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    project.noticeFile = project.rootProject.file('NOTICE.txt')
-  }
 
   plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {

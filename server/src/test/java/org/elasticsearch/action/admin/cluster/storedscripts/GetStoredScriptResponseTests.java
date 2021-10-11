@@ -7,8 +7,8 @@ package org.elasticsearch.action.admin.cluster.storedscripts;/*
  */
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.test.AbstractSerializingTestCase;

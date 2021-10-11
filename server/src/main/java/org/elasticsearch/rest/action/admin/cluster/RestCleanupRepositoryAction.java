@@ -8,8 +8,12 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -40,6 +44,23 @@ public class RestCleanupRepositoryAction extends BaseRestHandler {
         CleanupRepositoryRequest cleanupRepositoryRequest = cleanupRepositoryRequest(request.param("repository"));
         cleanupRepositoryRequest.timeout(request.paramAsTime("timeout", cleanupRepositoryRequest.timeout()));
         cleanupRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cleanupRepositoryRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            final RestToXContentListener<ToXContentObject> restListener = new RestToXContentListener<>(channel);
+            client.admin().cluster().cleanupRepository(cleanupRepositoryRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(CleanupRepositoryResponse cleanupRepositoryResponse) {
+                    restListener.onResponse(cleanupRepositoryResponse);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (request.getRestApiVersion().equals(RestApiVersion.V_7)) {
+                        restListener.onFailure(new IllegalStateException(e.getMessage()));
+                    } else {
+                        restListener.onFailure(e);
+                    }
+                }
+            });
+        };
     }
 }

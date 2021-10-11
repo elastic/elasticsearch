@@ -8,8 +8,12 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -41,6 +45,23 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         request.applyContentParser(p -> restoreSnapshotRequest.source(p.mapOrdered()));
-        return channel -> client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            final RestToXContentListener<ToXContentObject> restListener = new RestToXContentListener<>(channel);
+            client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
+                    restListener.onResponse(restoreSnapshotResponse);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (request.getRestApiVersion().equals(RestApiVersion.V_7)) {
+                        restListener.onFailure(new IllegalStateException(e.getMessage()));
+                    } else {
+                        restListener.onFailure(e);
+                    }
+                }
+            });
+        };
     }
 }

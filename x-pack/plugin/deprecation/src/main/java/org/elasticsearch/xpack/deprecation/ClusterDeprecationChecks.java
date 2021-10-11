@@ -22,7 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -224,7 +224,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
@@ -253,7 +253,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                                 IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);

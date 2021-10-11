@@ -65,8 +65,11 @@ public class Cleanup {
             sh.runIgnoreExitCode("userdel elasticsearch");
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
-        Platforms.onWindows(
-            () -> sh.runIgnoreExitCode(
+        Platforms.onWindows(() -> {
+            sh.runIgnoreExitCode("Get-ChildItem -Path C:\\tmp -Filter elasticsearch* | " +
+                "Select-Object fullname, LastAccessTime, LastWriteTime, CreationTime, @{N='Owner';E={$_.GetAccessControl().Owner}} ");
+            sh.runIgnoreExitCode("whoami");
+            sh.runIgnoreExitCode(
                 "@(Get-ChildItem -Path "
                     + getRootTempDir()
                     + " -Filter elasticsearch* | "
@@ -76,8 +79,9 @@ public class Cleanup {
                     + " -Filter elasticsearch* -Directory) | "
                     + "sort pspath -Descending -unique | "
                     + "Remove-Item -Force -Recurse"
-            )
-        );
+            );
+
+        });
         Platforms.onLinux(() -> {
             lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
             ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(FileUtils::rm);

@@ -21,16 +21,15 @@ import java.util.List;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class UpdateDataFrameTransformResponseTests extends ESTestCase {
+public class UpdateTransformResponseTests extends ESTestCase {
 
     public void testXContentParser() throws IOException {
-        xContentTester(this::createParser,
-                UpdateDataFrameTransformResponseTests::createTestInstance,
-                UpdateDataFrameTransformResponseTests::toXContent,
-                UpdateTransformResponse::fromXContent)
-                .assertToXContentEquivalence(false)
-                .supportsUnknownFields(false)
-                .test();
+        xContentTester(
+            this::createParser,
+            UpdateTransformResponseTests::createTestInstance,
+            UpdateTransformResponseTests::toXContent,
+            UpdateTransformResponse::fromXContent
+        ).assertToXContentEquivalence(false).supportsUnknownFields(false).test();
     }
 
     private static UpdateTransformResponse createTestInstance() {

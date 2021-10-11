@@ -445,7 +445,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testDeleteDataFrameTransform() throws IOException, InterruptedException {
+    public void testDeleteTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         RestHighLevelClient client = highLevelClient();
@@ -670,7 +670,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testGetDataFrameTransform() throws IOException, InterruptedException {
+    public void testGetTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();

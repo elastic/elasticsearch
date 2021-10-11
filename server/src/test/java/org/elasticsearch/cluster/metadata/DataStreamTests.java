@@ -442,7 +442,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
             preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
             preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated() && randomBoolean());
+            preSnapshotDataStream.isReplicated() && randomBoolean(), preSnapshotDataStream.isAllowCustomRouting());
 
         DataStream reconciledDataStream =
             postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()));
@@ -480,7 +480,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.getGeneration(),
             preSnapshotDataStream.getMetadata(),
             preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated()
+            preSnapshotDataStream.isReplicated(),
+            preSnapshotDataStream.isAllowCustomRouting()
         );
 
         assertNull(postSnapshotDataStream.snapshot(

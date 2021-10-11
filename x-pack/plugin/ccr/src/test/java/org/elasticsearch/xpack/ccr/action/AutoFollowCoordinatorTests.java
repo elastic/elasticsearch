@@ -2350,7 +2350,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"),
-            Collections.singletonList(indexMetadata.getIndex()));
+            org.elasticsearch.core.List.of(indexMetadata.getIndex()), 1, null, false, false, false, false);
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder()
                 .put(indexMetadata, true)

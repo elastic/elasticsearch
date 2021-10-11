@@ -94,6 +94,18 @@ public class MetadataIndexTemplateService {
         "     }\n" +
         "   }\n" +
         " }";
+    public static final String DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING = "{\n" +
+        "     \"_routing\" : {\n" +
+        "        \"required\" : true\n" +
+        "      },"+
+        "   \"_doc\": {\n" +
+        "      \"properties\": {\n" +
+        "        \"@timestamp\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        }\n" +
+        "      }\n" +
+        "   }\n" +
+        "  }";
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -1006,7 +1018,11 @@ public class MetadataIndexTemplateService {
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
-            mappings.add(0, new CompressedXContent(DEFAULT_TIMESTAMP_MAPPING));
+            if (template.getDataStreamTemplate().isAllowCustomRouting()) {
+                mappings.add(0, new CompressedXContent(DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING));
+            } else {
+                mappings.add(0, new CompressedXContent(DEFAULT_TIMESTAMP_MAPPING));
+            }
         }
 
         // Only include _timestamp mapping snippet if creating backing index.

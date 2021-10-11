@@ -129,7 +129,7 @@ public final class DataStreamTestHelper {
             metadata.put("key", "value");
         }
         return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
-            randomBoolean(), randomBoolean(), false, timeProvider);
+            randomBoolean(), randomBoolean(), false, timeProvider, false);
     }
 
     public static DataStreamAlias randomAliasInstance() {

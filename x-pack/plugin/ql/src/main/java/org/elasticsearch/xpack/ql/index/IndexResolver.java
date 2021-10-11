@@ -299,6 +299,8 @@ public class IndexResolver {
                             for (String indexName : indices) {
                                 // TODO: perform two requests w/ & w/o frozen option to retrieve (by diff) the throttling status?
                                 Tuple<String, String> splitRef = splitQualifiedIndex(indexName);
+                                // Field caps on "remote:foo" should always return either empty or remote indices. But in case cluster's
+                                // detail is missing, it's going to be a local index. TODO: why would this happen?
                                 String cluster = splitRef.v1() == null ? clusterName : splitRef.v1();
                                 indexInfos.add(new IndexInfo(cluster, splitRef.v2(), IndexType.STANDARD_INDEX));
                             }

@@ -131,8 +131,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     protected boolean logEsResultSet() {
-        // return false;
-        return true;
+        return false;
     }
 
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {

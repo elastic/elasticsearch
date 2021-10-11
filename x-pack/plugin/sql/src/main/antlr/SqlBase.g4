@@ -70,7 +70,7 @@ statement
                   (columnPattern=likePattern)?                                                            #sysColumns
     | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     ;
-
+    
 query
     : (WITH namedQuery (',' namedQuery)*)? queryNoWith
     ;
@@ -83,10 +83,10 @@ queryNoWith
     ;
 
 limitClause
-    : LIMIT limit=(INTEGER_VALUE | ALL)
-    | LIMIT_ESC limit=(INTEGER_VALUE | ALL) ESC_END
+    : LIMIT limit=(INTEGER_VALUE | ALL)                                                                   
+    | LIMIT_ESC limit=(INTEGER_VALUE | ALL) ESC_END                                              
     ;
-
+    
 queryTerm
     : querySpecification                   #queryPrimaryDefault
     | '(' queryNoWith  ')'                 #subquery
@@ -134,7 +134,7 @@ setQuantifier
     | ALL
     ;
 
-selectItems
+selectItems                                       
     : selectItem (',' selectItem)*
     ;
 
@@ -174,13 +174,13 @@ pivotClause
     ;
 
 pivotArgs
-    : namedValueExpression (',' namedValueExpression)*
+    : namedValueExpression (',' namedValueExpression)* 
     ;
-
+    
 namedValueExpression
     : valueExpression  (AS? identifier)?
     ;
-
+    
 expression
     : booleanExpression
     ;
@@ -221,11 +221,11 @@ predicate
 likePattern
     : LIKE pattern
     ;
-
+    
 pattern
     : value=string patternEscape?
     ;
-
+    
 patternEscape
     : ESCAPE escape=string
     | ESCAPE_ESC escape=string ESC_END
@@ -278,7 +278,7 @@ extractExpression
     : extractTemplate
     | FUNCTION_ESC extractTemplate ESC_END
     ;
-
+    
 extractTemplate
     : EXTRACT '(' field=identifier FROM valueExpression ')'
     ;
@@ -287,16 +287,16 @@ functionExpression
     : functionTemplate
     | FUNCTION_ESC functionTemplate ESC_END
     ;
-
+    
 functionTemplate
     : functionName '(' (setQuantifier? expression (',' expression)*)? ')'
     ;
 functionName
-    : LEFT
-    | RIGHT
+    : LEFT 
+    | RIGHT 
     | identifier
     ;
-
+    
 constant
     : NULL                                                                                     #nullLiteral
     | interval                                                                                 #intervalLiteral
@@ -319,9 +319,9 @@ booleanValue
     ;
 
 interval
-    : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)?
+    : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
     ;
-
+    
 intervalField
     : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;
@@ -372,19 +372,19 @@ whenClause
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 // https://developer.mimer.com/wp-content/uploads/standard-sql-reserved-words-summary.pdf
 nonReserved
-    : ANALYZE | ANALYZED
+    : ANALYZE | ANALYZED 
     | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
-    | DAY | DEBUG
-    | EXECUTABLE | EXPLAIN
+    | DAY | DEBUG  
+    | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS
     | GRAPHVIZ
     | HOUR
     | INTERVAL
-    | LAST | LIMIT
+    | LAST | LIMIT 
     | MAPPED | MINUTE | MONTH
-    | OPTIMIZED
-    | PARSED | PHYSICAL | PIVOT | PLAN
-    | QUERY
+    | OPTIMIZED 
+    | PARSED | PHYSICAL | PIVOT | PLAN 
+    | QUERY 
     | RLIKE
     | SCHEMAS | SECOND | SHOW | SYS
     | TABLES | TEXT | TOP | TYPE | TYPES

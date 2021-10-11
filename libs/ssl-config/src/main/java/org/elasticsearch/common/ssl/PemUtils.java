@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlException;
+import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
@@ -365,15 +366,34 @@ public final class PemUtils {
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
 
-        EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
-        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
+        final EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
+        String algorithm = encryptedPrivateKeyInfo.getAlgName();
+        if (algorithm.equals("PBES2")) {
+            algorithm = getPBES2Algorithm(encryptedPrivateKeyInfo);
+        }
+        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(algorithm);
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
+        Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
         String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(keySpec);
+    }
+
+    /**
+     * This is horrible, but it's the only option other than to parse the encoded ASN.1 value ourselves
+     * @see AlgorithmParameters#toString() and com.sun.crypto.provider.PBES2Parameters#toString()
+     */
+    private static String getPBES2Algorithm(EncryptedPrivateKeyInfo encryptedPrivateKeyInfo) {
+        final AlgorithmParameters algParameters = encryptedPrivateKeyInfo.getAlgParameters();
+        if (algParameters != null) {
+            return algParameters.toString();
+        } else {
+            // AlgorithmParameters can be null when running on BCFIPS.
+            // However, since BCFIPS doesn't support any PBE specs, nothing we do here would work, so we just do enough to avoid an NPE
+            return encryptedPrivateKeyInfo.getAlgName();
+        }
     }
 
     /**

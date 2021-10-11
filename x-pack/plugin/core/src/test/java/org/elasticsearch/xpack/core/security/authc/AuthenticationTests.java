@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 import static org.hamcrest.Matchers.is;
 
 public class AuthenticationTests extends ESTestCase {
@@ -187,7 +186,7 @@ public class AuthenticationTests extends ESTestCase {
             null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
-            Map.of(API_KEY_ID_KEY, apiKeyId));
+            Map.of(ApiKeyServiceField.API_KEY_ID_KEY, apiKeyId));
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

@@ -24,7 +24,7 @@ import java.util.Objects;
  * </ol>
  */
 public final class AuthenticationResult {
-    private static final AuthenticationResult NOT_HANDLED = new AuthenticationResult(Status.CONTINUE, null, null, null, null);
+    private static final AuthenticationResult NOT_HANDLED = new AuthenticationResult(Status.CONTINUE, null, null, null, null, null);
 
     public static String THREAD_CONTEXT_KEY = "_xpack_security_auth_result";
 
@@ -39,14 +39,16 @@ public final class AuthenticationResult {
     private final String message;
     private final Exception exception;
     private final Map<String, Object> metadata;
+    private final Map<String, Object> apikeyinfo;
 
     private AuthenticationResult(Status status, @Nullable User user, @Nullable String message, @Nullable Exception exception,
-                                 @Nullable Map<String, Object> metadata) {
+                                 @Nullable Map<String, Object> metadata, @Nullable Map<String, Object> apikeyinfo) {
         this.status = status;
         this.user = user;
         this.message = message;
         this.exception = exception;
         this.metadata = metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+        this.apikeyinfo = apikeyinfo;
     }
 
     public Status getStatus() {
@@ -67,6 +69,10 @@ public final class AuthenticationResult {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public Map<String, Object> getApiKeyInfo() {
+        return apikeyinfo;
     }
 
     /**
@@ -90,7 +96,7 @@ public final class AuthenticationResult {
      * @see #success(User)
      */
     public static AuthenticationResult success(User user, @Nullable Map<String, Object> metadata) {
-        return new AuthenticationResult(Status.SUCCESS, user, null, null, metadata);
+        return new AuthenticationResult(Status.SUCCESS, user, null, null, metadata, null);
     }
 
     /**
@@ -117,7 +123,7 @@ public final class AuthenticationResult {
      */
     public static AuthenticationResult unsuccessful(String message, @Nullable Exception cause) {
         Objects.requireNonNull(message);
-        return new AuthenticationResult(Status.CONTINUE, null, message, cause, null);
+        return new AuthenticationResult(Status.CONTINUE, null, message, cause, null, null);
     }
 
     /**
@@ -131,7 +137,7 @@ public final class AuthenticationResult {
      * </p>
      */
     public static AuthenticationResult terminate(String message, @Nullable Exception cause) {
-        return new AuthenticationResult(Status.TERMINATE, null, message, cause, null);
+        return new AuthenticationResult(Status.TERMINATE, null, message, cause, null, null);
     }
 
     /**

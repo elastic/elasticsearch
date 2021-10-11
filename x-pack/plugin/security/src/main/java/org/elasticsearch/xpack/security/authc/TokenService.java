@@ -325,7 +325,8 @@ public final class TokenService {
                 new IllegalArgumentException("originating client authentication must be provided")));
         } else {
             final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(), tokenVersion, AuthenticationType.TOKEN, authentication.getMetadata());
+                authentication.getLookedUpBy(), tokenVersion, AuthenticationType.TOKEN,
+                authentication.getMetadata());
             final String storedAccessToken;
             final String storedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {

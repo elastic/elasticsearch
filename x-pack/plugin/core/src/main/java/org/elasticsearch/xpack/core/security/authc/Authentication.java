@@ -29,20 +29,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
-
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
 
-    private final User user;
+    private final User user; // user contains metadata
     private final RealmRef authenticatedBy;
     private final RealmRef lookedUpBy;
     private final Version version;
     private final AuthenticationType type;
-    private final Map<String, Object> metadata;
+    private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
@@ -111,6 +109,10 @@ public class Authentication implements ToXContentObject {
         return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
     }
 
+    public boolean isApiKey() {
+        return AuthenticationType.API_KEY.equals(getAuthenticationType());
+    }
+
     /**
      * Writes the authentication to the context. There must not be an existing authentication in the context and if there is an
      * {@link IllegalStateException} will be thrown
@@ -157,7 +159,8 @@ public class Authentication implements ToXContentObject {
      */
     public boolean canAccessResourcesOf(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
-            final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
+            final boolean sameKeyId = getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY)
+                .equals(other.getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY));
             if (sameKeyId) {
                 assert getUser().principal().equals(other.getUser().principal()) :
                     "The same API key ID cannot be attributed to two different usernames";
@@ -248,6 +251,14 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
+        if (isApiKey()) {
+            builder.field("api_key",
+                Map.of(
+                    "id", this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY),
+                    "name", this.metadata.get(ApiKeyServiceField.API_KEY_NAME_KEY)
+                )
+            ); // authentication.api_key={"id":"abc123", "name":"my-api-key"}
+        }
     }
 
     @Override

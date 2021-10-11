@@ -94,6 +94,6 @@ public class DelegatePkiAuthenticationResponseTests extends
             authentication.getLookedUpBy() == null?
                 authentication.getAuthenticatedBy().getType(): authentication.getLookedUpBy().getType());
         return new AuthenticateResponse(cUser, user.enabled(), authenticatedBy, lookedUpBy,
-            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT));
+            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT), null, null);
     }
 }

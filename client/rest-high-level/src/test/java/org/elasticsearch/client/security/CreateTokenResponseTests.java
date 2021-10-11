@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -30,9 +31,11 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String type = randomAlphaOfLength(6);
         final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
         final AuthenticateResponse authentication = new AuthenticateResponse(new User(randomAlphaOfLength(7),
-            Arrays.asList( randomAlphaOfLength(9) )),
-            true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7) ),
-            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5) ), "realm");
+            Arrays.asList(randomAlphaOfLength(9))),
+            true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7)),
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), "realm",
+            Map.of("servicetoken1", randomAlphaOfLengthBetween(3, 8)),
+            new AuthenticateResponse.ApiKeyInfo(randomAlphaOfLength(16), randomAlphaOfLength(20)));
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);

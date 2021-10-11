@@ -25,6 +25,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.hamcrest.core.Every;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -35,10 +37,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
@@ -103,6 +111,23 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
             roleJson,
             arrayContainingInAnyOrder(roles)
         );
+    }
+
+    protected void assertApiKeyInfo(Map<String, Object> authenticateResponse, AuthenticationType type) {
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}
+        // If authentication type is other,   authentication.api_key not present.
+        if (AuthenticationType.API_KEY.equals(type)) {
+            assertThat(authenticateResponse.get("api_key"), instanceOf(Map.class)); // implies hasKey()
+            final Map<?, ?> apiKey = (Map<?, ?>) authenticateResponse.get("api_key"); // assert Map<String,Object> below
+            assertThat(apiKey.keySet(), allOf(
+                everyItem(instanceOf(String.class)),      // assert apiKey Map<?,?>      is safe to cast to Map<String,?>
+                containsInAnyOrder("id", "name"))   // assert apiKey Map<String,?> exactly contains these keys (and no others)
+            );
+            assertThat(apiKey.get("id"), allOf(instanceOf(String.class), not(equalTo(""))));
+            assertThat(apiKey.get("name"), allOf(instanceOf(String.class), not(equalTo(""))));
+        } else {
+            assertThat(authenticateResponse, not(hasKey("api_key")));
+        }
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {

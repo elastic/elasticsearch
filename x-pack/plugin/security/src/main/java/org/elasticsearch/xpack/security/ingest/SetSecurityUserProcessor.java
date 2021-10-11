@@ -14,6 +14,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -122,14 +123,13 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
-                        @SuppressWarnings("unchecked")
-                        final Map<String, Object> apiKeyField =
+                        @SuppressWarnings("unchecked") final Map<String, Object> apiKeyField =
                             existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
-                        Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                        Object apiKeyName = authentication.getMetadata().get(ApiKeyServiceField.API_KEY_NAME_KEY);
                         if (apiKeyName != null) {
                             apiKeyField.put("name", apiKeyName);
                         }
-                        Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                        Object apiKeyId = authentication.getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY);
                         if (apiKeyId != null) {
                             apiKeyField.put("id", apiKeyId);
                         }

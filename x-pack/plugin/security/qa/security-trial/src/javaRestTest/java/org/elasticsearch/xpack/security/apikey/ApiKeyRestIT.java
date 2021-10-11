@@ -28,11 +28,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -61,6 +68,36 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteRole("system_role");
         deleteRole("user_role");
         invalidateApiKeysForUser(END_USER);
+    }
+
+    public void testAuthenticateResponseApiKey() throws IOException {
+        final Map<String, Object> createApiKeyRequestBody = Map.of("name", "my-api-key-name", "metadata", Map.of("a", "b"));
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
+
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        final Map<String, Object> createApiKeyResponseAsMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
+        final String encoded = (String) createApiKeyResponseAsMap.get("encoded"); // encoded=Base64(id:api_key)
+
+        final Request authenticateRequest = new Request("GET", "_security/_authenticate");
+        authenticateRequest.setOptions(authenticateRequest.getOptions().toBuilder().addHeader(
+            "Authorization", "ApiKey " + encoded));
+
+        final Response authenticateResponse = client().performRequest(authenticateRequest);
+        assertOK(authenticateResponse);
+        final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
+
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}
+        // If authentication type is other,   authentication.api_key not present.
+        assertThat(authenticate.get("api_key"), instanceOf(Map.class)); // implies hasKey()
+        final Map<?, ?> apiKey = (Map<?, ?>) authenticate.get("api_key"); // assert Map<String,Object> below
+        assertThat(apiKey.keySet(), allOf(
+            everyItem(instanceOf(String.class)),      // assert apiKey Map<?,?>      is safe to cast to Map<String,?>
+            containsInAnyOrder("id", "name"))   // assert apiKey Map<String,?> exactly contains these keys (and no others)
+        );
+        assertThat(apiKey.get("id"), allOf(instanceOf(String.class), not(equalTo(""))));
+        assertThat(apiKey.get("name"), allOf(instanceOf(String.class), not(equalTo(""))));
     }
 
     public void testGrantApiKeyForOtherUserWithPassword() throws IOException {

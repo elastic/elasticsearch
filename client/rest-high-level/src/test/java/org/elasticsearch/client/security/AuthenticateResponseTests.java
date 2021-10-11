@@ -61,11 +61,10 @@ public class AuthenticateResponseTests extends ESTestCase {
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final boolean enabled = randomBoolean();
-        final String authenticationRealmName = randomAlphaOfLength(5);
-        final String authenticationRealmType = randomFrom(
-            "service_account");
+
+        final String authenticationRealmType = randomFrom("service_account");
         final AuthenticateResponse.RealmInfo authenticationRealm =
-            new AuthenticateResponse.RealmInfo(authenticationRealmName, authenticationRealmType);
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), authenticationRealmType);
 
         final AuthenticateResponse.RealmInfo lookupRealm;
         final Map<String, Object> tokenInfo;
@@ -81,9 +80,16 @@ public class AuthenticateResponseTests extends ESTestCase {
 
         final String authenticationType = randomFrom("realm", "api_key", "token", "anonymous", "internal");
 
+        final AuthenticateResponse.ApiKeyInfo apiKeyInfo;
+        if ("api_key".equals(authenticationType)) {
+            apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(randomAlphaOfLength(16), randomAlphaOfLength(20));
+        } else {
+            apiKeyInfo = null;
+        }
+
         return new AuthenticateResponse(
             new User(username, roles, metadata, fullName, email), enabled, authenticationRealm,
-            lookupRealm, authenticationType, tokenInfo);
+            lookupRealm, authenticationType, tokenInfo, apiKeyInfo);
     }
 
     private void toXContent(AuthenticateResponse response, XContentBuilder builder) throws IOException {
@@ -95,57 +101,67 @@ public class AuthenticateResponseTests extends ESTestCase {
         final User copyUser = new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
             originalUser.getFullName(), originalUser.getEmail());
         return new AuthenticateResponse(copyUser, response.enabled(), response.getAuthenticationRealm(),
-            response.getLookupRealm(), response.getAuthenticationType(), Map.copyOf(response.getToken()));
+            response.getLookupRealm(), response.getAuthenticationType(), Map.copyOf(response.getToken()), response.getApiKeyInfo());
     }
 
     private AuthenticateResponse mutate(AuthenticateResponse response) {
         final User originalUser = response.getUser();
-        switch (randomIntBetween(1, 10)) {
+        int randomSwitchCase = randomIntBetween(1, 11); // range is inclusive
+        switch (randomSwitchCase) {
             case 1:
                 return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(),
                     originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 2:
                 final List<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), wrongRoles, originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
-                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken());
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 3:
                 final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.getMetadata());
                 wrongMetadata.put("wrong_string", randomAlphaOfLengthBetween(0, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), wrongMetadata,
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
-                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken());
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 4:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName() + "wrong", originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 5:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail() + "wrong"), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 6:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled() == false, response.getAuthenticationRealm(),
-                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken());
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 7:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
-                    response.getAuthenticationType(), response.getToken());
+                    response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 8:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), response.getLookupRealm(),
-                    response.getAuthenticationType(), response.getToken());
+                    response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 9:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     randomValueOtherThan(response.getAuthenticationType(),
-                                         () -> randomFrom("realm", "api_key", "token", "anonymous", "internal")), response.getToken());
-            default:
+                        () -> randomFrom("realm", "api_key", "token", "anonymous", "internal")), response.getToken(),
+                    response.getApiKeyInfo());
+            case 10:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     response.getLookupRealm(),
@@ -155,8 +171,18 @@ public class AuthenticateResponseTests extends ESTestCase {
                         randomFrom(Map.of(
                             "name", randomValueOtherThan(response.getToken().get("name"), () -> randomAlphaOfLengthBetween(3, 8)),
                             "type", randomValueOtherThan(response.getToken().get("type"), () -> randomAlphaOfLengthBetween(3, 8))
-                        ), null));
-
+                        ), null),
+                    response.getApiKeyInfo());
+            case 11:
+                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
+                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo() == null
+                        ? new AuthenticateResponse.ApiKeyInfo(randomAlphaOfLength(16), randomAlphaOfLength(20)) : null
+                );
+            default:
+                fail("Random number " + randomSwitchCase + " did not match any switch cases");
+                return null;
         }
     }
 }

@@ -18,12 +18,12 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor.Property;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -249,17 +249,18 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     public void testApiKeyPopulation() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
-            ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
+            ApiKeyServiceField.API_KEY_REALM_NAME, ApiKeyServiceField.API_KEY_REALM_TYPE, "_node_name");
 
         final Map<String, Object> authMetadata = new HashMap<>(Map.of(
-            ApiKeyService.API_KEY_ID_KEY, "api_key_id",
-            ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
-            ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
-            ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
+            ApiKeyServiceField.API_KEY_ID_KEY, "api_key_id",
+            ApiKeyServiceField.API_KEY_NAME_KEY, "api_key_name",
+            ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
+            ApiKeyServiceField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
         ));
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata != null) {
-            authMetadata.put(ApiKeyService.API_KEY_METADATA_KEY, XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON));
+            authMetadata.put(ApiKeyServiceField.API_KEY_METADATA_KEY,
+                XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON));
         }
 
         Authentication auth = new Authentication(user, realmRef, null, Version.CURRENT,
@@ -290,17 +291,18 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     public void testWillNotOverwriteExistingApiKeyAndRealm() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
-            ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
+            ApiKeyServiceField.API_KEY_REALM_NAME, ApiKeyServiceField.API_KEY_REALM_TYPE, "_node_name");
 
         final Map<String, Object> authMetadata = new HashMap<>(Map.of(
-            ApiKeyService.API_KEY_ID_KEY, "api_key_id",
-            ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
-            ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
-            ApiKeyService.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
+            ApiKeyServiceField.API_KEY_ID_KEY, "api_key_id",
+            ApiKeyServiceField.API_KEY_NAME_KEY, "api_key_name",
+            ApiKeyServiceField.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
+            ApiKeyServiceField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type"
         ));
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata != null) {
-            authMetadata.put(ApiKeyService.API_KEY_METADATA_KEY, XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON));
+            authMetadata.put(ApiKeyServiceField.API_KEY_METADATA_KEY,
+                XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON));
         }
 
         Authentication auth = new Authentication(user, realmRef, null, Version.CURRENT,

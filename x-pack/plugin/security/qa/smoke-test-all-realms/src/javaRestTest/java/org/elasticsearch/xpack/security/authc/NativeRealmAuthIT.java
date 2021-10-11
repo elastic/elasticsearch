@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
@@ -17,6 +18,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.is;
 
 /**
  * Integration Rest Test for testing authentication when all possible realms are configured
@@ -48,6 +51,7 @@ public class NativeRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "native", "native1");
         assertRoles(authenticate, ROLE_NAME);
+        assertApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

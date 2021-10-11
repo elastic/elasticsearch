@@ -26,7 +26,6 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update cluster settings action
@@ -44,8 +43,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), TRANSIENT);
     }
 
-    private Settings transientSettings = EMPTY_SETTINGS;
-    private Settings persistentSettings = EMPTY_SETTINGS;
+    private Settings transientSettings = Settings.EMPTY;
+    private Settings persistentSettings = Settings.EMPTY;
 
     public ClusterUpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);

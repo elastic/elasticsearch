@@ -824,11 +824,11 @@ public class RestoreService implements ClusterStateApplier {
         ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards
     ) {
         boolean hasFailed = false;
-        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
-            if (status.value.state().completed() == false) {
+        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
+            if (status.state().completed() == false) {
                 return nonCompletedState;
             }
-            if (status.value.state() == RestoreInProgress.State.FAILURE) {
+            if (status.state() == RestoreInProgress.State.FAILURE) {
                 hasFailed = true;
             }
         }
@@ -840,8 +840,8 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     public static boolean completed(ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
-        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
-            if (status.value.state().completed() == false) {
+        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
+            if (status.state().completed() == false) {
                 return false;
             }
         }
@@ -850,8 +850,8 @@ public class RestoreService implements ClusterStateApplier {
 
     public static int failedShards(ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards) {
         int failedShards = 0;
-        for (ObjectCursor<RestoreInProgress.ShardRestoreStatus> status : shards.values()) {
-            if (status.value.state() == RestoreInProgress.State.FAILURE) {
+        for (RestoreInProgress.ShardRestoreStatus status : shards.values()) {
+            if (status.state() == RestoreInProgress.State.FAILURE) {
                 failedShards++;
             }
         }
@@ -1254,8 +1254,8 @@ public class RestoreService implements ClusterStateApplier {
                             indexMdBuilder.removeAllAliases();
                         }
                         // Add existing aliases
-                        for (ObjectCursor<AliasMetadata> alias : currentIndexMetadata.getAliases().values()) {
-                            indexMdBuilder.putAlias(alias.value);
+                        for (AliasMetadata alias : currentIndexMetadata.getAliases().values()) {
+                            indexMdBuilder.putAlias(alias);
                         }
                     } else {
                         ensureNoAliasNameConflicts(snapshotIndexMetadata);
@@ -1385,8 +1385,8 @@ public class RestoreService implements ClusterStateApplier {
             }
             if (metadata.templates() != null) {
                 // TODO: Should all existing templates be deleted first?
-                for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
-                    mdBuilder.put(cursor.value);
+                for (IndexTemplateMetadata cursor : metadata.templates().values()) {
+                    mdBuilder.put(cursor);
                 }
             }
             if (metadata.customs() != null) {
@@ -1537,7 +1537,7 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private void ensureValidIndexName(ClusterState currentState, IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
-        final boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(snapshotIndexMetadata.getSettings());
+        final boolean isHidden = snapshotIndexMetadata.isHidden();
         createIndexService.validateIndexName(renamedIndexName, currentState);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);

@@ -57,9 +57,8 @@ public class TransformRequestConvertersTests extends ESTestCase {
         return new NamedXContentRegistry(namedXContents);
     }
 
-    public void testPutDataFrameTransform() throws IOException {
-        PutTransformRequest putRequest = new PutTransformRequest(
-                TransformConfigTests.randomTransformConfig());
+    public void testPutTransform() throws IOException {
+        PutTransformRequest putRequest = new PutTransformRequest(TransformConfigTests.randomTransformConfig());
         Request request = TransformRequestConverters.putTransform(putRequest);
         assertThat(request.getParameters(), not(hasKey("defer_validation")));
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
@@ -74,11 +73,12 @@ public class TransformRequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), hasEntry("defer_validation", Boolean.toString(putRequest.getDeferValidation())));
     }
 
-    public void testUpdateDataFrameTransform() throws IOException {
+    public void testUpdateTransform() throws IOException {
         String transformId = randomAlphaOfLength(10);
         UpdateTransformRequest updateDataFrameTransformRequest = new UpdateTransformRequest(
             TransformConfigUpdateTests.randomTransformConfigUpdate(),
-            transformId);
+            transformId
+        );
         Request request = TransformRequestConverters.updateTransform(updateDataFrameTransformRequest);
         assertThat(request.getParameters(), not(hasKey("defer_validation")));
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -90,11 +90,13 @@ public class TransformRequestConvertersTests extends ESTestCase {
         }
         updateDataFrameTransformRequest.setDeferValidation(true);
         request = TransformRequestConverters.updateTransform(updateDataFrameTransformRequest);
-        assertThat(request.getParameters(),
-            hasEntry("defer_validation", Boolean.toString(updateDataFrameTransformRequest.getDeferValidation())));
+        assertThat(
+            request.getParameters(),
+            hasEntry("defer_validation", Boolean.toString(updateDataFrameTransformRequest.getDeferValidation()))
+        );
     }
 
-    public void testDeleteDataFrameTransform() {
+    public void testDeleteTransform() {
         DeleteTransformRequest deleteRequest = new DeleteTransformRequest("foo");
         Request request = TransformRequestConverters.deleteTransform(deleteRequest);
 
@@ -109,7 +111,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), hasEntry("force", "true"));
     }
 
-    public void testStartDataFrameTransform() {
+    public void testStartTransform() {
         String id = randomAlphaOfLength(10);
         TimeValue timeValue = null;
         if (randomBoolean()) {
@@ -129,7 +131,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testStopDataFrameTransform() {
+    public void testStopTransform() {
         String id = randomAlphaOfLength(10);
         Boolean waitForCompletion = null;
         if (randomBoolean()) {
@@ -176,7 +178,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         assertEquals(stopRequest.getAllowNoMatch(), Boolean.parseBoolean(request.getParameters().get(ALLOW_NO_MATCH)));
     }
 
-    public void testPreviewDataFrameTransform() throws IOException {
+    public void testPreviewTransform() throws IOException {
         PreviewTransformRequest previewRequest = new PreviewTransformRequest(TransformConfigTests.randomTransformConfig());
         Request request = TransformRequestConverters.previewTransform(previewRequest);
 
@@ -189,7 +191,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testPreviewDataFrameTransformById() throws IOException {
+    public void testPreviewTransformById() throws IOException {
         String transformId = randomAlphaOfLengthBetween(1, 10);
         PreviewTransformRequest previewRequest = new PreviewTransformRequest(transformId);
         Request request = TransformRequestConverters.previewTransform(previewRequest);
@@ -199,7 +201,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
-    public void testGetDataFrameTransformStats() {
+    public void testGetTransformStats() {
         GetTransformStatsRequest getStatsRequest = new GetTransformStatsRequest("foo");
         Request request = TransformRequestConverters.getTransformStats(getStatsRequest);
 
@@ -229,7 +231,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), hasEntry("allow_no_match", "false"));
     }
 
-    public void testGetDataFrameTransform() {
+    public void testGetTransform() {
         GetTransformRequest getRequest = new GetTransformRequest("bar");
         Request request = TransformRequestConverters.getTransform(getRequest);
 
@@ -259,7 +261,7 @@ public class TransformRequestConvertersTests extends ESTestCase {
         assertThat(request.getParameters(), hasEntry("allow_no_match", "false"));
     }
 
-    public void testGetDataFrameTransform_givenMulitpleIds() {
+    public void testGetTransform_givenMulitpleIds() {
         GetTransformRequest getRequest = new GetTransformRequest("foo", "bar", "baz");
         Request request = TransformRequestConverters.getTransform(getRequest);
 

@@ -27,6 +27,12 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -88,11 +94,11 @@ public class EnrichCacheTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         );
 
-        EnrichCache enrichCache = new EnrichCache(3);
+        TestEnrichCache enrichCache = new TestEnrichCache(3);
         enrichCache.setMetadata(metadata);
-        enrichCache.put(searchRequest1, searchResponse);
-        enrichCache.put(searchRequest2, searchResponse);
-        enrichCache.put(searchRequest3, searchResponse);
+        enrichCache.warmCache(searchRequest1, searchResponse);
+        enrichCache.warmCache(searchRequest2, searchResponse);
+        enrichCache.warmCache(searchRequest3, searchResponse);
         EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(0L));
@@ -109,7 +115,7 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getMisses(), equalTo(1L));
         assertThat(cacheStats.getEvictions(), equalTo(0L));
 
-        enrichCache.put(searchRequest4, searchResponse);
+        enrichCache.warmCache(searchRequest4, searchResponse);
         cacheStats = enrichCache.getStats("_id");
         assertThat(cacheStats.getCount(), equalTo(3L));
         assertThat(cacheStats.getHits(), equalTo(3L));
@@ -142,9 +148,9 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(enrichCache.get(searchRequest4), nullValue());
 
         // Add new entries using new enrich index name as key
-        enrichCache.put(searchRequest1, searchResponse);
-        enrichCache.put(searchRequest2, searchResponse);
-        enrichCache.put(searchRequest3, searchResponse);
+        enrichCache.warmCache(searchRequest1, searchResponse);
+        enrichCache.warmCache(searchRequest2, searchResponse);
+        enrichCache.warmCache(searchRequest3, searchResponse);
 
         // Entries can now be served:
         assertThat(enrichCache.get(searchRequest1), notNullValue());
@@ -158,4 +164,49 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(cacheStats.getEvictions(), equalTo(4L));
     }
 
+    public void testNonblocking() throws ExecutionException {
+        EnrichCache enrichCache = new EnrichCache(3);
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(EnrichPolicy.getBaseName("policy1") + "-1")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName("policy1")).build())
+            )
+            .build();
+        enrichCache.setMetadata(metadata);
+
+        SearchRequest key = new SearchRequest(EnrichPolicy.getBaseName("policy1")).source(
+            new SearchSourceBuilder().query(new MatchQueryBuilder("match_field", "1"))
+        );
+
+        CompletableFuture<Boolean> check = new CompletableFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> {
+            enrichCache.resolveOrDispatchSearch(key, (req, handler) -> {/* take forever to compute */}, (value, exception) -> {});
+            check.complete(true);
+        });
+
+        try {
+            check.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            fail("interrupted");
+        } catch (TimeoutException e) {
+            fail("method blocked for a second");
+        }
+
+        executor.shutdownNow();
+    }
+
+    static class TestEnrichCache extends EnrichCache {
+
+        TestEnrichCache(long maxSize) {
+            super(maxSize);
+        }
+
+        void warmCache(SearchRequest searchRequest, SearchResponse entry) {
+            this.cache.put(toKey(searchRequest), CompletableFuture.completedFuture(entry));
+        }
+    }
 }

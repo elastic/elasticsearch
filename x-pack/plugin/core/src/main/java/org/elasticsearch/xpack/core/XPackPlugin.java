@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Binder;
@@ -434,7 +435,7 @@ public class XPackPlugin extends XPackClientPlugin
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
+        settings.add(DataTier.TIER_PREFERENCE_SETTING);
         return settings;
     }
 

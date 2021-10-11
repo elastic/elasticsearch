@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -16,6 +14,17 @@ restResources {
   }
 }
 
+def clusterCredentials = [
+        username: providers.systemProperty('tests.rest.cluster.username')
+                .orElse('test_admin')
+                .forUseAtConfigurationTime()
+                .get(),
+        password: providers.systemProperty('tests.rest.cluster.password')
+                .orElse('x-pack-test-password')
+                .forUseAtConfigurationTime()
+                .get()
+]
+
 tasks.named("integTest").configure {
     systemProperty 'tests.rest.blacklist',
       [
@@ -30,7 +39,4 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
 }

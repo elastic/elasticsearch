@@ -5,7 +5,7 @@ dependencies {
   api project(':test:framework')
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'false'

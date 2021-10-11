@@ -48,7 +48,7 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
-    private static Logger logger = LogManager.getLogger(SnapshotLifecycleTask.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotLifecycleTask.class);
 
     private final Client client;
     private final ClusterService clusterService;

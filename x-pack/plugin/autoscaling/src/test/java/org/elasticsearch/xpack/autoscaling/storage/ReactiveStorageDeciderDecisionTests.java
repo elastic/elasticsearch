@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
-import org.elasticsearch.xpack.core.DataTier;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -290,9 +290,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private Set<IndexMetadata> allIndices() {
-        return StreamSupport.stream(state.metadata().getIndices().values().spliterator(), false)
-            .map(cursor -> cursor.value)
-            .collect(Collectors.toSet());
+        return new HashSet<>(state.metadata().getIndices().values());
     }
 
     private ClusterState moveToCold(Set<IndexMetadata> candidates) {
@@ -310,7 +308,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         overrideSetting(
             imd,
             builder,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING,
+            DataTier.TIER_PREFERENCE_SETTING,
             randomFrom(DataTier.DATA_COLD, DataTier.DATA_COLD + "," + DataTier.DATA_HOT)
         );
         return IndexMetadata.builder(imd).settings(builder).build();
@@ -625,7 +623,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         String[] tierSettingNames = new String[] {
             DataTierAllocationDecider.INDEX_ROUTING_REQUIRE,
             DataTierAllocationDecider.INDEX_ROUTING_INCLUDE,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER };
+            DataTier.TIER_PREFERENCE };
         int shards = randomIntBetween(minShards, 20);
         Metadata.Builder builder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

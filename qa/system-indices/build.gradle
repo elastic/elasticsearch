@@ -22,7 +22,7 @@ tasks.named("javaRestTest").configure {
   dependsOn "buildZip"
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   user username: 'rest_user', password: 'rest-user-password', role: 'superuser'

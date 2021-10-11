@@ -49,34 +49,14 @@ public class XPackLicenseState {
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
 
-        WATCHER(OperationMode.STANDARD, true),
-        // TODO: should just check WATCHER directly?
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
         MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
 
-        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
-
         CCR(OperationMode.PLATINUM, true),
-
-        GRAPH(OperationMode.PLATINUM, true),
 
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
-        LOGSTASH(OperationMode.STANDARD, true),
-
-        JDBC(OperationMode.PLATINUM, true),
-
-        ODBC(OperationMode.PLATINUM, true),
-
-        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
-
-        AUTOSCALING(OperationMode.ENTERPRISE, true);
+        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
         // Embedding the feature instance here is a stopgap to allow smaller initial PR,

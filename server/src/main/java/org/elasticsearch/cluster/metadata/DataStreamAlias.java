@@ -279,7 +279,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+        builder.stringListField(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
         if (writeDataStream != null) {
             builder.field(WRITE_DATA_STREAM_FIELD.getPreferredName(), writeDataStream);
         }
@@ -332,7 +332,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
             "name='" + name + '\'' +
             ", dataStreams=" + dataStreams +
             ", writeDataStream='" + writeDataStream + '\'' +
-            ", filter=" + filter.string() +
+            ", filter=" + (filter != null ? filter.string() : "null") +
             '}';
     }
 }

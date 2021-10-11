@@ -18,8 +18,9 @@ import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
@@ -66,7 +67,7 @@ public class XPackUserTests extends ESTestCase {
     }
 
     private String getAuditLogName() {
-        final DateTime date = new DateTime().plusDays(randomIntBetween(1, 360));
+        final ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC).plusDays(randomIntBetween(1, 360));
         final IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
         return IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, date, rollover);
     }

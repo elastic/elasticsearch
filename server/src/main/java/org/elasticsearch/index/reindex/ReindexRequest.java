@@ -350,7 +350,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in reindex requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in reindex requests is deprecated.";
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexRequest.class);
 
     static {

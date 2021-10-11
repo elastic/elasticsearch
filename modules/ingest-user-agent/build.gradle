@@ -18,6 +18,6 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }

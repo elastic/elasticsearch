@@ -60,7 +60,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     };
 
     public static MockAllocationService createAllocationService() {
-        return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
+        return createAllocationService(Settings.EMPTY);
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
@@ -127,6 +127,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+    }
+
+    protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {

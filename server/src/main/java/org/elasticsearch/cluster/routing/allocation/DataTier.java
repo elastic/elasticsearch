@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.IndexSettingProvider;
@@ -57,8 +58,8 @@ public class DataTier {
         DataTierSettingValidator::getDefaultTierPreference,
         Function.identity(),
         new DataTierSettingValidator(),
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     static {

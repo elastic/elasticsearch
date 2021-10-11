@@ -67,6 +67,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Holder class for several ingest related services.
@@ -295,29 +296,35 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     static void validateNotInUse(String pipeline, ImmutableOpenMap<String, IndexMetadata> indices) {
+        List<String> defaultPipelineIndices = new ArrayList<>();
+        List<String> finalPipelineIndices = new ArrayList<>();
         for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
             IndexMetadata indexMetadata = cursor.value;
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
             if (pipeline.equals(defaultPipeline)) {
-                throw new IllegalArgumentException(
-                    "unable to remove pipeline ["
-                        + pipeline
-                        + "], as it is in use by index ["
-                        + indexMetadata.getIndex().getName()
-                        + "] default pipeline settings"
-                );
+                defaultPipelineIndices.add(indexMetadata.getIndex().getName());
             }
 
             if (pipeline.equals(finalPipeline)) {
-                throw new IllegalArgumentException(
-                    "unable to remove pipeline ["
-                        + pipeline
-                        + "], as it is in use by index ["
-                        + indexMetadata.getIndex().getName()
-                        + "] final pipeline settings"
-                );
+                finalPipelineIndices.add(indexMetadata.getIndex().getName());
             }
+        }
+
+        if (defaultPipelineIndices.size() > 0 || finalPipelineIndices.size() > 0) {
+            throw new IllegalArgumentException(
+                "pipeline ["
+                    + pipeline
+                    + "] cannot be deleted because it is the default pipeline for "
+                    + defaultPipelineIndices.size()
+                    + " indices including ["
+                    + defaultPipelineIndices.stream().limit(3).collect(Collectors.joining(","))
+                    + "] and the final pipeline for "
+                    + finalPipelineIndices.size()
+                    + " indices including ["
+                    + finalPipelineIndices.stream().limit(3).collect(Collectors.joining(","))
+                    + "]"
+            );
         }
     }
 

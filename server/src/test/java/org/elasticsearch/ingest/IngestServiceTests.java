@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -78,6 +79,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -281,6 +283,55 @@ public class IngestServiceTests extends ESTestCase {
             emptyMap(), emptySet(), Version.CURRENT);
         IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
         ingestService.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
+    }
+
+    public void testValidateNotInUse() {
+        String pipeline = "pipeline";
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
+        int defaultPipelineCount = 0;
+        int finalPipelineCount = 0;
+        int indicesCount = randomIntBetween(5, 10);
+        for (int i = 0; i < indicesCount; i++) {
+            IndexMetadata.Builder builder = IndexMetadata.builder("index" + i).numberOfShards(1).numberOfReplicas(1);
+            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            if (randomBoolean()) {
+                settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
+                defaultPipelineCount++;
+            }
+
+            if (randomBoolean()) {
+                settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
+                finalPipelineCount++;
+            }
+
+            builder.settings(settingsBuilder);
+            IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+        }
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IngestService.validateNotInUse(pipeline, indices.build())
+        );
+        assertThat(e.getMessage(), containsString("default pipeline for " + defaultPipelineCount + " indices including"));
+        assertThat(e.getMessage(), containsString("final pipeline for " + finalPipelineCount + " indices including"));
+        if (defaultPipelineCount >= 3) {
+            // assert index limit
+            String content = "default pipeline for " + defaultPipelineCount + " indices including [";
+            int start = e.getMessage().indexOf(content) + content.length();
+            int end = e.getMessage().indexOf("] and the final pipeline");
+            // indices content length, eg: index0,index1,index2
+            assertEquals(end - start, (6 + 1 + 6 + 1 + 6));
+        }
+
+        if (finalPipelineCount >= 3) {
+            // assert index limit
+            String content = "final pipeline for " + finalPipelineCount + " indices including [";
+            int start = e.getMessage().indexOf(content) + content.length();
+            int end = e.getMessage().lastIndexOf("]");
+            // indices content length, eg: index0,index1,index2
+            assertEquals(end - start, (6 + 1 + 6 + 1 + 6));
+        }
     }
 
     public void testGetProcessorsInPipeline() throws Exception {
@@ -579,7 +630,7 @@ public class IngestServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> IngestService.innerDelete(deleteRequest, finalClusterState)
             );
-            assertTrue(e.getMessage().contains("default pipeline settings"));
+            assertThat(e.getMessage(), containsString("default pipeline for 1 indices including [pipeline-index]"));
         }
 
         {
@@ -596,7 +647,7 @@ public class IngestServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> IngestService.innerDelete(deleteRequest, finalClusterState)
             );
-            assertTrue(e.getMessage().contains("final pipeline settings"));
+            assertThat(e.getMessage(), containsString("final pipeline for 1 indices including [pipeline-index]"));
         }
 
         // Delete pipeline:

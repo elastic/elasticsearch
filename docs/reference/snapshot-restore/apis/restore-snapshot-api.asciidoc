@@ -64,16 +64,20 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 [[restore-snapshot-api-prereqs]]
 ==== {api-prereq-title}
 
-// tag::restore-prereqs[]
-* If you use the {es} security features, you must have the `manage` or
-`cluster:admin/snapshot/*` cluster privilege to restore a snapshot.
+* If you use {es} security features, you must have the `manage` or
+`cluster:admin/snapshot/*` cluster privilege to use this API.
 
+// tag::restore-prereqs[]
 * You can only restore a snapshot to a running cluster with an elected
 <<master-node,master node>>. The snapshot's repository must be
 <<snapshots-register-repository,registered>> and available to the cluster.
 
 * The snapshot and cluster versions must be compatible. See
 <<snapshot-restore-version-compatibility>>.
+
+* To restore a snapshot, the cluster's global metadata must be writable. Ensure
+there aren't any <<cluster-read-only,cluster blocks>> that prevent writes. The
+restore operation ignores <<index-modules-blocks,index blocks>>.
 
 * If you restore a data stream, ensure the cluster contains a
 <<create-index-template,matching index template>> with data stream enabled.
@@ -141,12 +145,15 @@ If `true`, the current global state is included in the restore operation.
 
 The global state includes:
 
-* Persistent cluster settings
-* Index templates
-* Legacy index templates
-* Ingest pipelines
-* {ilm-init} lifecycle policies
-* For snapshots taken after 7.12.0, data stored in system indices, such as Watches and task records, replacing any existing configuration (configurable via `feature_states`)
+// tag::cluster-state-contents[]
+* <<cluster-setting-types,Persistent cluster settings>>
+* <<index-templates,Index templates>>
+* <<indices-templates-v1,Legacy index templates>>
+* <<ingest,Ingest pipelines>>
+* <<index-lifecycle-management,{ilm-init} policies>>
+* For snapshots taken after 7.12.0, data stored in system indices, such as
+  Watches and task records.
+// end::cluster-state-contents[]
 
 If `include_global_state` is `true` then the restore operation merges the
 legacy index templates in your cluster with the templates contained in the
@@ -154,6 +161,9 @@ snapshot, replacing any existing ones whose name matches one in the snapshot.
 It completely removes all persistent settings, non-legacy index templates,
 ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
 and replaces them with the corresponding items from the snapshot.
+
+You can use the `feature_states` parameter to configure how system indices
+are restored from the cluster state.
 --
 
 [[restore-snapshot-api-feature-states]]

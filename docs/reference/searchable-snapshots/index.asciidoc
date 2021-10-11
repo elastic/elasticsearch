@@ -279,7 +279,7 @@ multiple clusters and use <<modules-cross-cluster-search,{ccs}>> or
 [[back-up-restore-searchable-snapshots]]
 === Back up and restore {search-snaps}
 
-You can use <<snapshot-lifecycle-management,regular snapshots>> to back up a
+You can use <<snapshots-take-snapshot,regular snapshots>> to back up a
 cluster containing {search-snap} indices. When you restore a snapshot
 containing {search-snap} indices, these indices are restored as {search-snap}
 indices again.

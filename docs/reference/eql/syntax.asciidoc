@@ -695,8 +695,8 @@ until [ process where event.type == "stop" ]
 ====
 
 [discrete]
-[[eql-runs-keyword]]
-=== `with runs` keywords
+[[eql-with-runs-statement]]
+=== `with runs` statement
 
 Use a `with runs` statement to run the same event criteria successively within a
 sequence query. For example:

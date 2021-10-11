@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,12 +20,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,9 +38,9 @@ import java.util.Map;
 public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXContentFragment {
 
     /**
-     * Standard deprecation logger for used to deprecate allowance of empty templates.
+     * Standard logger used to warn about dropped scripts.
      */
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptMetadata.class);
+    private static final Logger logger = LogManager.getLogger(ScriptMetadata.class);
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -162,16 +162,10 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
      *     ...
      * }
      * }
-     *
-     * When loading from a source prior to 6.0, if multiple scripts
-     * using the old namespace id format of [lang#id] are found to have the
-     * same id but different languages an error will occur.
      */
     public static ScriptMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
         String id = null;
-        StoredScriptSource source;
-        StoredScriptSource exists;
 
         Token token = parser.currentToken();
 
@@ -190,83 +184,27 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
                 case FIELD_NAME:
                     id = parser.currentName();
                     break;
-                case VALUE_STRING:
-                    if (id == null) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "unexpected token [" + token + "], expected [<id>, <code>, {]");
-                    }
-
-                    int split = id.indexOf('#');
-                    String lang;
-
-                    if (split == -1) {
-                        throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
-                    } else {
-                        lang = id.substring(0, split);
-                        id = id.substring(split + 1);
-                        source = new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
-
-                        if (source.getSource().isEmpty()) {
-                            if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
-                                deprecationLogger.critical(
-                                    DeprecationCategory.TEMPLATES,
-                                    "empty_templates",
-                                    "empty templates should no longer be used"
-                                );
-                            } else {
-                                deprecationLogger.critical(
-                                    DeprecationCategory.TEMPLATES,
-                                    "empty_scripts",
-                                    "empty scripts should no longer be used"
-                                );
-                            }
-                        }
-                    }
-
-                    exists = scripts.get(id);
-
-                    if (exists == null) {
-                        scripts.put(id, source);
-                    } else if (exists.getLang().equals(lang) == false) {
-                        throw new IllegalArgumentException("illegal stored script, id [" + id + "] used for multiple scripts with " +
-                            "different languages [" + exists.getLang() + "] and [" + lang + "]; scripts using the old namespace " +
-                            "of [lang#id] as a stored script id will have to be updated to use only the new namespace of [id]");
-                    }
-
-                    id = null;
-
-                    break;
                 case START_OBJECT:
                     if (id == null) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "unexpected token [" + token + "], expected [<id>, <code>, {]");
                     }
 
-                    exists = scripts.get(id);
-                    source = StoredScriptSource.fromXContent(parser, true);
-
-                    if (exists == null) {
-                        // due to a bug (https://github.com/elastic/elasticsearch/issues/47593)
-                        // scripts may have been retained during upgrade that include the old-style
-                        // id of lang#id; these scripts are unreachable after 7.0, so they are dropped
-                        if (id.contains("#") == false) {
-                            scripts.put(id, source);
+                    StoredScriptSource source = StoredScriptSource.fromXContent(parser, true);
+                    // as of 8.0 we drop scripts/templates with an empty source
+                    // this check should be removed for the next upgradable version after 8.0
+                    // since there is a guarantee no more empty scripts will exist
+                    if (source.getSource().isEmpty()) {
+                        if (Script.DEFAULT_TEMPLATE_LANG.equals(source.getLang())) {
+                            logger.warn("empty template [" + id + "] found and dropped");
+                        } else {
+                            logger.warn("empty script [" + id + "] found and dropped");
                         }
-                    } else if (exists.getLang().equals(source.getLang()) == false) {
-                        throw new IllegalArgumentException(
-                            "illegal stored script, id ["
-                                + id
-                                + "] used for multiple scripts with different languages ["
-                                + exists.getLang()
-                                + "] and ["
-                                + source.getLang()
-                                + "]; scripts using the old namespace of [lang#id] as a stored script id will have to be updated "
-                                + "to use only the new namespace of [id]"
-                        );
+                    } else {
+                        scripts.put(id, source);
                     }
 
                     id = null;
-
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [<id>, <code>, {]");
@@ -317,8 +255,6 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
             entry.getValue().writeTo(out);
         }
     }
-
-
 
     /**
      * This will write XContent from {@link ScriptMetadata}.  The following format will be written:

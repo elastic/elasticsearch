@@ -39,15 +39,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
-
-    public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetadata.INDEX_SETTING_PREFIX);
 
     private static final Set<Setting<?>> ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS = Set.of(
             MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,

@@ -10,19 +10,20 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -42,8 +43,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
-    // Datastreams' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
-    public static Comparator<LeafReader> DATASTREAM_LEAF_READERS_SORTER =
+    // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
+    public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER =
         Comparator.comparingLong(
             (LeafReader r) -> {
                 try {
@@ -51,14 +52,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     if (points != null) {
                         byte[] sortValue = points.getMaxPackedValue();
                         return LongPoint.decodeDimension(sortValue, 0);
-                    } else if (r.numDocs() == 0) {
-                        // points can be null if the segment contains only deleted documents
+                    } else {
+                        // As we apply this segment sorter to any timeseries indices,
+                        // we don't have a guarantee that all docs contain @timestamp field.
+                        // Some segments may have all docs without @timestamp field, in this
+                        // case they will be sorted last.
                         return Long.MIN_VALUE;
                     }
                 } catch (IOException e) {
+                    throw new ElasticsearchException("Can't access [" +
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the index!", e);
                 }
-                throw new IllegalStateException("Can't access [" +
-                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the data stream!");
             })
         .reversed();
 
@@ -186,12 +190,19 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         int backingIndexPosition = indices.indexOf(index);
 
         if (backingIndexPosition == -1) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]",
-                index.getName(), name));
+            throw new IllegalArgumentException(String.format(
+                Locale.ROOT,
+                "index [%s] is not part of data stream [%s]",
+                index.getName(), name
+            ));
         }
         if (generation == (backingIndexPosition + 1)) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot remove backing index [%s] of data stream [%s] because " +
-                "it is the write index", index.getName(), name));
+            throw new IllegalArgumentException(String.format(
+                Locale.ROOT,
+                "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                index.getName(),
+                name
+            ));
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);
@@ -390,7 +401,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);

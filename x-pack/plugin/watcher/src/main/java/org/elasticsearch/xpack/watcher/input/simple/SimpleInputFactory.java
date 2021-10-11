@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.simple;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 
 import java.io.IOException;

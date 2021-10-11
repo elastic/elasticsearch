@@ -8,8 +8,8 @@
 package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.license.PostStartBasicResponse;
 
 import java.io.IOException;

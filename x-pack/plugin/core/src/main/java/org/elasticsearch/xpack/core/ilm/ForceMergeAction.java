@@ -12,14 +12,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -34,6 +34,11 @@ import java.util.Objects;
  */
 public class ForceMergeAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(ForceMergeAction.class);
+
+    private static final Settings READ_ONLY_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
+
+    private static final Settings BEST_COMPRESSION_SETTINGS =
+        Settings.builder().put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
 
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
@@ -113,10 +118,6 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        Settings bestCompressionSettings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
-
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
         StepKey preForceMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FORCE_MERGE_STEP);
@@ -146,11 +147,11 @@ public class ForceMergeAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         UpdateSettingsStep readOnlyStep =
-            new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, readOnlySettings);
+            new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, READ_ONLY_SETTINGS);
 
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
-            openKey, client, bestCompressionSettings);
+            openKey, client, BEST_COMPRESSION_SETTINGS);
         OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
         WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
             forceMergeKey, ClusterHealthStatus.GREEN);

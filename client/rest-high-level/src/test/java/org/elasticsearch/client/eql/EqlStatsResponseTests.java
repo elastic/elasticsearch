@@ -10,8 +10,8 @@ package org.elasticsearch.client.eql;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;

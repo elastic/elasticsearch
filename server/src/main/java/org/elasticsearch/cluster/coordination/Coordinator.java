@@ -48,7 +48,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -794,8 +794,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return new DiscoveryStats(
             new PendingClusterStateStats(0, 0, 0),
             publicationHandler.stats(),
-            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null
-        );
+            getLocalNode().isMasterNode() ? masterService.getClusterStateUpdateStats() : null,
+            clusterApplier.getStats());
     }
 
     public void startInitialJoin() {

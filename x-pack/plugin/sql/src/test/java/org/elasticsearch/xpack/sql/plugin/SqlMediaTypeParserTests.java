@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;

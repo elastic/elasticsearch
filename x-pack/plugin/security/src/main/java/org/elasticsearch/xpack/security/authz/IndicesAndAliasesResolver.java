@@ -151,8 +151,8 @@ class IndicesAndAliasesResolver {
                 }
                 List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
                         authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
-                assert indices != null && indices.length != 0 : "null or empty indices should be handled by isAllIndices";
 
+                assert indices != null && indices.length != 0 : "null or empty indices should be handled by isAllIndices";
                 // Filtering is needed if the request needs filter out unavailable indices
                 // For efficiency, we avoid filtering if the requested indices is a single wildcard pattern
                 if (indicesOptions.ignoreUnavailable()

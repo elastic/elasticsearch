@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -128,6 +129,8 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
 
+    private volatile boolean enforceDefaultTierPreference;
+
     public MetadataCreateIndexService(
         final Settings settings,
         final ClusterService clusterService,
@@ -153,6 +156,14 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+
+        enforceDefaultTierPreference = DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
+            this::setEnforceDefaultTierPreference);
+    }
+
+    public void setEnforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
+        this.enforceDefaultTierPreference = enforceDefaultTierPreference;
     }
 
     /**

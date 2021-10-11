@@ -45,6 +45,10 @@ public class DataTier {
 
     public static final Set<String> ALL_DATA_TIERS = Set.of(DATA_CONTENT, DATA_HOT, DATA_WARM, DATA_COLD, DATA_FROZEN);
 
+    public static final String ENFORCE_DEFAULT_TIER_PREFERENCE = "cluster.routing.allocation.enforce_default_tier_preference";
+    public static final Setting<Boolean> ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING =
+        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, false, Property.Dynamic, Property.NodeScope);
+
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 
     private static final Settings DATA_CONTENT_TIER_PREFERENCE_SETTINGS = Settings.builder().put(TIER_PREFERENCE, DATA_CONTENT).build();

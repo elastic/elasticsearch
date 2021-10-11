@@ -596,7 +596,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityIndex.get().addStateListener(authcService.get()::onSecurityIndexStateChange);
 
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new LicenseComplianceRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
             new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
             new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
@@ -604,7 +603,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                 new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                new BulkShardRequestInterceptor(threadPool, getLicenseState())
+                new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                new LicenseComplianceRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
             ));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);

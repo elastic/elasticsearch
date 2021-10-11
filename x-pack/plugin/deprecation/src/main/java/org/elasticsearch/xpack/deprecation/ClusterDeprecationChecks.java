@@ -224,7 +224,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
@@ -253,7 +253,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                                 IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);

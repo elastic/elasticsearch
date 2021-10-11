@@ -1331,7 +1331,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             Map<String, FieldCapabilities> caps = new HashMap<>();
             for (String type : types) {
                 caps.put(type, new FieldCapabilities(field, type,
-                    isMetadataField, true, isAggregatable, false, null, null, null, null, null, Collections.emptyMap()));
+                    isMetadataField, true, isAggregatable, null, null, null, Collections.emptyMap()));
             }
             fieldCaps.put(field, caps);
             return this;

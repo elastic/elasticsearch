@@ -189,6 +189,14 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             }
         }
 
+        String[] metricConflictsIndices = null;
+        if (randomBoolean()) {
+            metricConflictsIndices = new String[randomIntBetween(0, 5)];
+            for (int i = 0; i < metricConflictsIndices.length; i++) {
+                metricConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+        }
+
         Map<String, Set<String>> meta;
         switch (randomInt(2)) {
         case 0:
@@ -214,6 +222,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             nonSearchableIndices,
             nonAggregatableIndices,
             nonDimensionIndices,
+            metricConflictsIndices,
             meta
         );
     }
@@ -231,8 +240,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String[] nonSearchableIndices = instance.nonSearchableIndices();
         String[] nonAggregatableIndices = instance.nonAggregatableIndices();
         String[] nonDimensionIndices = instance.nonDimensionIndices();
+        String[] metricConflictsIndices = instance.metricConflictsIndices();
         Map<String, Set<String>> meta = instance.meta();
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
         case 0:
             name += randomAlphaOfLengthBetween(1, 10);
             break;
@@ -328,6 +338,21 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             }
             nonDimensionIndices = newTimeSeriesDimensionsConflictsIndices;
             break;
+        case 12:
+            String[] newMetricConflictsIndices;
+            int startMetricConflictsPos = 0;
+            if (metricConflictsIndices == null) {
+                newMetricConflictsIndices = new String[between(1, 10)];
+            } else {
+                newMetricConflictsIndices = Arrays.copyOf(metricConflictsIndices,
+                    metricConflictsIndices.length + between(1, 10));
+                startMetricConflictsPos = metricConflictsIndices.length;
+            }
+            for (int i = startMetricConflictsPos; i < newMetricConflictsIndices.length; i++) {
+                newMetricConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
+            }
+            metricConflictsIndices = newMetricConflictsIndices;
+            break;
         default:
             throw new AssertionError();
         }
@@ -343,6 +368,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             nonSearchableIndices,
             nonAggregatableIndices,
             nonDimensionIndices,
+            metricConflictsIndices,
             meta
         );
     }

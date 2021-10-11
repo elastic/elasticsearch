@@ -217,12 +217,9 @@ public class SchemaUtilTests extends ESTestCase {
             false,
             true,
             true,
-            false,
-            null,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
-            null,
             Collections.emptyMap()
         );
     }

@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 class IndicesAndAliasesResolver {
 
     //`*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
-    public static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
+    static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
     static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;

@@ -277,17 +277,20 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
         Map<String, IndexAbstraction> aliasOrIndexLookup,
-        ActionListener<IndexAuthorizationResult> listener) {
+        ActionListener<IndexAuthorizationResult> listener
+    ) {
+        assert false : "this method should no longer be used";
         throw new UnsupportedOperationException("This method is no longer supported. " +
             "Instead use authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Metadata, ActionListener) ");
     }
 
     @Override
-    public void authorizeIndexAction(RequestInfo requestInfo,
-                                     AuthorizationInfo authorizationInfo,
-                                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Metadata metadata,
-                                     ActionListener<IndexAuthorizationResult> listener
+    public void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        Metadata metadata,
+        ActionListener<IndexAuthorizationResult> listener
     ) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
@@ -387,7 +390,7 @@ public class RBACEngine implements AuthorizationEngine {
         Metadata metadata,
         ActionListener<IndexAuthorizationResult> listener
     ) {
-        var cacheKey = getIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata);
+        var cacheKey = tryGetIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata);
         if (cacheKey != null) {
             var valueAlreadyInCache = new AtomicBoolean(true);
             ListenableFuture<IndexAuthorizationCacheValue> listenableFuture;
@@ -403,13 +406,12 @@ public class RBACEngine implements AuthorizationEngine {
             if (valueAlreadyInCache.get()) {
                 logger.trace("Thread [{}] listening for cacheable index authorization result", Thread.currentThread().getName());
                 listenableFuture.addListener(ActionListener.wrap(value -> {
-                    ((IndicesRequest.Replaceable) requestInfo.getRequest()).indices(value.resolvedIndices.isNoIndicesPlaceholder() ?
-                        NO_INDICES_OR_ALIASES_ARRAY :
-                        value.resolvedIndices.toArray());
+                    ((IndicesRequest.Replaceable) requestInfo.getRequest()).indices(
+                        value.resolvedIndices.isNoIndicesPlaceholder() ? NO_INDICES_OR_ALIASES_ARRAY : value.resolvedIndices.toArray()
+                    );
                     listener.onResponse(value.indexAuthorizationResult);
                 }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
             } else {
-//                logger.info("{} actively computing for index authorization result", Thread.currentThread());
                 final ActionListener<IndexAuthorizationCacheValue> cachingListener = ActionListener.wrap(value -> {
                     indexAuthorizationCache.invalidate(cacheKey, listenableFuture);
                     listenableFuture.onResponse(value);
@@ -538,12 +540,6 @@ public class RBACEngine implements AuthorizationEngine {
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                       Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
-//            logger.info("{} loadAuthorizedIndices", Thread.currentThread());
-//            try {
-//                Thread.sleep(2000);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
         } else {
@@ -759,12 +755,6 @@ public class RBACEngine implements AuthorizationEngine {
                                                                Set<String> indices,
                                                                Map<String, IndexAbstraction> aliasAndIndexLookup) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-//        logger.info("{} buildIndicesAccessControl", Thread.currentThread());
-//        try {
-//            Thread.sleep(2000);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
     }
@@ -795,6 +785,11 @@ public class RBACEngine implements AuthorizationEngine {
         final AuthenticationType authType = authentication.getAuthenticationType();
         return (authType.equals(AuthenticationType.REALM)
             && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType)));
+    }
+
+    // Package private for testing
+    Cache<IndexAuthorizationCacheKey, ListenableFuture<IndexAuthorizationCacheValue>> getIndexAuthorizationCache() {
+        return indexAuthorizationCache;
     }
 
     static class RBACAuthorizationInfo implements AuthorizationInfo {
@@ -870,7 +865,8 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 
-    private IndexAuthorizationCacheKey getIndexAuthorizationCacheKey(
+    // Package private for testing
+    IndexAuthorizationCacheKey tryGetIndexAuthorizationCacheKey(
         RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata
     ) {
         // Cache is disabled
@@ -899,7 +895,7 @@ public class RBACEngine implements AuthorizationEngine {
             && (false == request instanceof PutMappingRequest || ((PutMappingRequest) request).getConcreteIndex() == null);
     }
 
-    private static class IndexAuthorizationCacheKey {
+    static class IndexAuthorizationCacheKey {
         private final String action;
         private final String[] requestedIndices;
         private final IndicesOptions indicesOptions;
@@ -907,7 +903,7 @@ public class RBACEngine implements AuthorizationEngine {
         // A pair of indicesPermission and limitedByIndicesPermission. The latter is nullable
         private final Tuple<IndicesPermission, IndicesPermission> indicesPermissions;
 
-        private IndexAuthorizationCacheKey(
+        IndexAuthorizationCacheKey(
             String action,
             String[] requestedIndices,
             IndicesOptions indicesOptions,

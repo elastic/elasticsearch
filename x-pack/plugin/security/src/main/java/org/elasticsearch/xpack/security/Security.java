@@ -231,6 +231,7 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
+import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
@@ -796,6 +797,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(RBACEngine.CACHE_MAX_SIZE_SETTING);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),

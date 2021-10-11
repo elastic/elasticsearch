@@ -7,29 +7,37 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.license.GetLicenseAction;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -53,12 +61,21 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
@@ -71,6 +88,7 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -82,6 +100,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -98,6 +119,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -108,10 +133,17 @@ import static org.mockito.Mockito.when;
 public class RBACEngineTests extends ESTestCase {
 
     private RBACEngine engine;
+    private ThreadPool threadPool;
 
     @Before
     public void createEngine() {
-        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class), mock(ThreadPool.class));
+        threadPool = new TestThreadPool("RBAC engine tests");
+        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class), threadPool);
+    }
+
+    @After
+    public void stopThreadPool() {
+        terminate(threadPool);
     }
 
     public void testSameUserPermission() {
@@ -1114,6 +1146,165 @@ public class RBACEngineTests extends ESTestCase {
         Set<String> authorizedIndices =
                 RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, PutMappingAction.NAME), lookup);
         assertThat(authorizedIndices.isEmpty(), is(true));
+    }
+
+    public void testTryGetIndexAuthorizationCacheKey() {
+        final String action = "indices:" + randomAlphaOfLength(16);
+        final Authentication authentication = mock(Authentication.class);
+        final Role role = mock(Role.class);
+        final RBACAuthorizationInfo authorizationInfo = new RBACAuthorizationInfo(role, null);
+        final Metadata metadata = mock(Metadata.class);
+
+        // No cache if request is not Replaceable
+        assertThat(
+            engine.tryGetIndexAuthorizationCacheKey(new AuthorizationEngine.RequestInfo(
+                authentication, mock(ShardSearchRequest.class), action, null),
+                authorizationInfo, metadata),
+            nullValue());
+
+        // No cache if request is PutMappingRequest and has a concrete index
+        final PutMappingRequest putMappingRequest = new PutMappingRequest();
+        putMappingRequest.setConcreteIndex(mock(Index.class));
+        assertThat(
+            engine.tryGetIndexAuthorizationCacheKey(new AuthorizationEngine.RequestInfo(
+                authentication, putMappingRequest, action, null),
+                authorizationInfo, metadata),
+            nullValue());
+
+        // Cache for a replaceable request
+        final AuthorizationEngine.RequestInfo requestInfo =
+            new AuthorizationEngine.RequestInfo(authentication, new SearchRequest(), action, null);
+        assertThat(
+            engine.tryGetIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata),
+            notNullValue()
+        );
+
+        // No cache if cache is disabled
+        final RBACEngine cacheDisabledEngine = new RBACEngine(
+            Settings.builder().put("xpack.security.authz.rbac.cache.max_size", 0).build(),
+            mock(CompositeRolesStore.class), threadPool
+        );
+        assertThat(
+            cacheDisabledEngine.tryGetIndexAuthorizationCacheKey(requestInfo, authorizationInfo, metadata),
+            nullValue()
+        );
+    }
+
+    public void testWillUseCacheForIndexAuthorizationInQuickSuccession() throws Exception {
+        final String[] requestedIndices = randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));
+        final IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+
+        // Random between allowRemoteIndices
+        final TransportRequest request1;
+        final TransportRequest request2;
+        if (randomBoolean()) {
+            final SearchRequest searchRequest1 = new SearchRequest(requestedIndices);
+            searchRequest1.indicesOptions(indicesOptions);
+            request1 = searchRequest1;
+            final SearchRequest searchRequest2 = new SearchRequest(requestedIndices);
+            searchRequest2.indicesOptions(indicesOptions);
+            request2 = searchRequest2;
+        } else {
+            final OpenIndexRequest openIndexRequest1 = new OpenIndexRequest(requestedIndices);
+            openIndexRequest1.indicesOptions(indicesOptions);
+            request1 = openIndexRequest1;
+            final OpenIndexRequest openIndexRequest2 = new OpenIndexRequest(requestedIndices);
+            openIndexRequest2.indicesOptions(indicesOptions);
+            request2 = openIndexRequest2;
+        }
+        final String action = "indices:" + randomAlphaOfLength(16);
+
+        // Setup mock Role
+        final Role role = mock(Role.class);
+        when(role.indices()).thenReturn(IndicesPermission.NONE);
+        when(role.checkIndicesAction(anyString())).thenReturn(true);
+        final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
+        when(indicesAccessControl.limitIndicesAccessControl(any())).thenReturn(indicesAccessControl);
+        when(role.authorize(eq(action), any(), any(), any())).thenReturn(indicesAccessControl);
+        final RBACAuthorizationInfo authorizationInfo = new RBACAuthorizationInfo(role, null);
+
+        // Setup indices and aliases resolving
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final AtomicInteger count = new AtomicInteger(0);
+        final ResolvedIndices resolvedIndices = new ResolvedIndices(
+            randomList(1, 10, () -> randomAlphaOfLengthBetween(3, 8)),
+            randomList(0, 5, () -> randomAlphaOfLengthBetween(3, 8)));
+        final AuthorizationEngine.AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = listener -> {
+            // Latch to sync the two requests
+            try {
+                countDownLatch.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            // Count to check how many times the supplier is invoked
+            count.incrementAndGet();
+            listener.onResponse(resolvedIndices);
+        };
+
+        final Metadata metadata = mock(Metadata.class);
+        final long metadataVersion = randomLongBetween(0, Long.MAX_VALUE);
+        when(metadata.version()).thenReturn(metadataVersion);
+
+        // Clear cache first
+        engine.getIndexAuthorizationCache().invalidateAll();
+
+        // Index authorization for request1
+        final PlainActionFuture<AuthorizationEngine.IndexAuthorizationResult> future1 = new PlainActionFuture<>();
+        new Thread(() -> {
+            engine.authorizeIndexAction(
+                new AuthorizationEngine.RequestInfo(mock(Authentication.class), request1, action, null),
+                authorizationInfo, indicesAsyncSupplier, metadata, future1);
+        }).start();
+
+        // Ensure request1 is being processed
+        assertBusy(() -> {
+            // Ensure both threads have attempted to authorized
+            assertThat(engine.getIndexAuthorizationCache().stats().getMisses(), equalTo(1L));
+            assertThat(engine.getIndexAuthorizationCache().stats().getHits(), equalTo(0L));
+            // Ensure only one thread is trying to compute the cache entry
+            assertThat(engine.getIndexAuthorizationCache().count(), equalTo(1));
+            // Ensure cacheKey is as expected
+            assertThat(engine.getIndexAuthorizationCache().keys().iterator().next(),
+                equalTo(new RBACEngine.IndexAuthorizationCacheKey(
+                    action, requestedIndices, indicesOptions, metadataVersion,
+                    new Tuple<>(IndicesPermission.NONE, null)
+                )));
+        });
+
+        // Index authorization for request2 which is equivalent to request1
+        final PlainActionFuture<AuthorizationEngine.IndexAuthorizationResult> future2 = new PlainActionFuture<>();
+        new Thread(() -> {
+            engine.authorizeIndexAction(
+                new AuthorizationEngine.RequestInfo(mock(Authentication.class), request2, action, null),
+                authorizationInfo, indicesAsyncSupplier, metadata, future2);
+        }).start();
+
+        // Ensure request2 is also being processed
+        assertBusy(() -> {
+            // Second thread uses the same cache entry from the first one
+            assertThat(engine.getIndexAuthorizationCache().stats().getHits(), equalTo(1L));
+        });
+
+        // Let request1 pass
+        countDownLatch.countDown();
+
+        // Both index authorization should get the same indicesAccessControl
+        assertThat(future1.actionGet().getIndicesAccessControl(), equalTo(indicesAccessControl));
+        assertThat(future2.actionGet().getIndicesAccessControl(), equalTo(indicesAccessControl));
+
+        // Supplier is only called once
+        assertThat(count.get(), equalTo(1));
+        // IndicesAccessControl is only built once
+        verify(role, times(1)).authorize(eq(action), eq(Set.copyOf(resolvedIndices.getLocal())),
+            any(), any(FieldPermissionsCache.class));
+
+        // Request2 has its indices replaced
+        assertThat(((IndicesRequest) request2).indices(), equalTo(resolvedIndices.toArray()));
+
+        // Cache is cleared once request is completed
+        assertThat(engine.getIndexAuthorizationCache().count(), equalTo(0));
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

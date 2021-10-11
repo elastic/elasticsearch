@@ -15,6 +15,9 @@ import org.elasticsearch.search.sort.MinAndMax;
 
 import java.io.IOException;
 
+/**
+ * Shard-level response for can-match requests
+ */
 public final class CanMatchShardResponse extends SearchPhaseResult {
     private final boolean canMatch;
     private final MinAndMax<?> estimatedMinAndMax;

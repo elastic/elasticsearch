@@ -49,6 +49,10 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
         values = ArrayUtil.grow(values, count);
     }
 
+    public long getValue() {
+        return get(0);
+    }
+
     @Override
     public Long get(int index) {
         throwIfEmpty();

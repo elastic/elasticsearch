@@ -9,7 +9,7 @@
 # The whitelist for the fields api
 
 # API
-class org.elasticsearch.script.field.Field {
+class org.elasticsearch.script.field.Field @dynamic_type {
   boolean isEmpty()
   int size()
   List getValues()

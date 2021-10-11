@@ -34,6 +34,10 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
         }
     }
 
+    public String getValue() {
+        return get(0);
+    }
+
     @Override
     public String get(int index) {
         if (count == 0) {

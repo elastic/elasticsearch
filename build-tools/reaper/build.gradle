@@ -1,6 +1,13 @@
 plugins {
   id 'java'
+  id 'elasticsearch.eclipse'
+  id 'elasticsearch.versions'
 }
+
+group = "org.elasticsearch.gradle"
+version = versions.getProperty("elasticsearch")
+targetCompatibility = versions.get("minimumJava")
+sourceCompatibility = versions.get("minimumJava")
 
 tasks.named("jar").configure {
   archiveFileName = "${project.name}.jar"

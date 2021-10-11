@@ -56,6 +56,12 @@ public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
 
+    private static final Settings READ_ONLY_ALLOW_DELETE_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build();
+
+    private static final Settings NOT_READ_ONLY_ALLOW_DELETE_SETTINGS =
+        Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
+
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -351,9 +357,7 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
-        Settings readOnlySettings = readOnly ? Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
-            Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
+        Settings readOnlySettings = readOnly ? READ_ONLY_ALLOW_DELETE_SETTINGS : NOT_READ_ONLY_ALLOW_DELETE_SETTINGS;
         client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
             .execute(wrappedListener.map(r -> null));

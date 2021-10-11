@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +51,9 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentParser.Token token = p.currentToken();
-            if(token == XContentParser.Token.VALUE_EMBEDDED_OBJECT){
+            if (token == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
+            } else if(token == XContentParser.Token.VALUE_EMBEDDED_OBJECT){
                 return new CompressedXContent(p.binaryValue());
             } else if (token == XContentParser.Token.START_OBJECT){
                 return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));

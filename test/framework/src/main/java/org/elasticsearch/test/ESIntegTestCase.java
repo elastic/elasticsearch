@@ -1063,6 +1063,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // when comparing XContent output, do not use binary format
             final Map<String, String> compareParams = new HashMap<>(2);
             compareParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+            compareParams.put("binary", "true");
             final ToXContent.Params compareFormatParams = new ToXContent.MapParams(compareParams);
 
             {

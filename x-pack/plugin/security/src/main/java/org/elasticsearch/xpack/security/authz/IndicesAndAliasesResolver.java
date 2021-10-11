@@ -159,24 +159,7 @@ class IndicesAndAliasesResolver {
                     && (false == (indices.length == 1 && Regex.isSimpleMatchPattern(indices[0])))) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
-                    // Avoid creating filtered list if all replaced indices are available.
-                    // Also avoid resizing the filtered list by creating the list with sufficient size in the beginning.
-                    List<String> filtered = null;
-                    for (ListIterator<String> itr = replaced.listIterator(); itr.hasNext();) {
-                        final String index = itr.next();
-                        if (authorizedIndices.contains(index) == false) {
-                            // Only creating the filtered list when there are unavailable indices
-                            if (filtered == null) {
-                                filtered = new ArrayList<>(replaced.size()-1);
-                                filtered.addAll( replaced.subList(0, itr.previousIndex()) );
-                            }
-                        } else {
-                            if (filtered != null) {
-                                filtered.add(index);
-                            }
-                            // If filtered is null that means all indices so far is available, so no need to filter
-                        }
-                    }
+                    final List<String> filtered = filterOutUnavailable(authorizedIndices, replaced);
                     if (filtered != null) {
                         replaced = filtered;
                     }
@@ -274,6 +257,28 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
+    }
+
+    private List<String> filterOutUnavailable(Set<String> authorizedIndices, List<String> replaced) {
+        // Avoid creating filtered list if all replaced indices are available.
+        // Also avoid resizing the filtered list by creating the list with sufficient size in the beginning.
+        List<String> filtered = null;
+        for (ListIterator<String> itr = replaced.listIterator(); itr.hasNext();) {
+            final String index = itr.next();
+            if (authorizedIndices.contains(index) == false) {
+                // Only creating the filtered list when there are unavailable indices
+                if (filtered == null) {
+                    filtered = new ArrayList<>(replaced.size() - 1);
+                    filtered.addAll(replaced.subList(0, itr.previousIndex()));
+                }
+            } else {
+                if (filtered != null) {
+                    filtered.add(index);
+                }
+                // If filtered is null that means all indices so far is available, so no need to filter
+            }
+        }
+        return filtered;
     }
 
     /**

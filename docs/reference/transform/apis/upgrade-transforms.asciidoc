@@ -43,7 +43,6 @@ This API upgrades all existing {transform}s.
 [source,console]
 --------------------------------------------------
 POST _transform/_upgrade
-{}
 --------------------------------------------------
 // TEST[setup:simple_kibana_continuous_pivot]
 

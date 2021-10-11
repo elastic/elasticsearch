@@ -24,11 +24,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
@@ -343,7 +343,7 @@ public abstract class MetadataStateFormat<T> {
      * @return maximum id of state file or -1 if no such files are found
      * @throws IOException if IOException occurs
      */
-    private long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
+     long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
@@ -362,7 +362,7 @@ public abstract class MetadataStateFormat<T> {
         return maxId;
     }
 
-    private List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
+    List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
         List<Path> files = new ArrayList<>();
         if (generation == -1) {
             return files;
@@ -430,6 +430,9 @@ public abstract class MetadataStateFormat<T> {
         long generation = findMaxGenerationId(prefix, dataLocations);
         T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
 
+        // It may not be possible to get into this state, if there's a bad state file the above
+        // call will throw ElasticsearchException. If there are no state files, we won't find a
+        // generation.
         if (generation > -1 && state == null) {
             throw new IllegalStateException("unable to find state files with generation id " + generation +
                     " returned by findMaxGenerationId function, in data folders [" +

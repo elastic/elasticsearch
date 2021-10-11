@@ -1,4 +1,8 @@
 setup:
+    - skip:
+        features:
+          - "allowed_warnings_regex"
+
     - do:
         indices.put_template:
           name: test-legacy-1
@@ -36,6 +40,8 @@ setup:
             version: 9
             composed_of:
               - test-component-template
+        allowed_warnings_regex:
+          - ".*index template .* has index patterns .* matching patterns from existing older templates.*"
 
     - do:
         indices.put_index_template:
@@ -47,7 +53,8 @@ setup:
             version: 1
             composed_of:
               - test-component-template
-
+        allowed_warnings_regex:
+          - ".*index template .* has index patterns .* matching patterns from existing older templates.*"
 ---
 "Matching all templates":
 

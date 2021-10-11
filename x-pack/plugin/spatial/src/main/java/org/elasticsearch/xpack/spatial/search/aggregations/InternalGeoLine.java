@@ -10,7 +10,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.spatial.search.aggregations.GeoShapeMetricAggregation;

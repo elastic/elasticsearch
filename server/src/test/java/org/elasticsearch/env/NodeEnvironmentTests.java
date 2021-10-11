@@ -212,7 +212,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             SetOnce<Path> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
             Path deletedPath = listener.get();
-            assertThat(deletedPath, equalTo(env.nodePath().resolve(index).resolve("1")));
+            assertThat(deletedPath, equalTo(env.nodePaths()[0].resolve(index).resolve("1")));
         }
 
         path = env.indexPath(index);

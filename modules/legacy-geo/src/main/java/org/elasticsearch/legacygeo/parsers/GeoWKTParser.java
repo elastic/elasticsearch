@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
@@ -24,6 +23,7 @@ import org.elasticsearch.legacygeo.builders.MultiPolygonBuilder;
 import org.elasticsearch.legacygeo.builders.PointBuilder;
 import org.elasticsearch.legacygeo.builders.PolygonBuilder;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;

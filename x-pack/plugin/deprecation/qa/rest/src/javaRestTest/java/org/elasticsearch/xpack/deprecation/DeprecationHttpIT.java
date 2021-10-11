@@ -176,7 +176,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 List<Map<String, Object>> documents = getIndexedDeprecations();
                 logger.warn(documents);
-                assertEquals(documents.size(), 2);
+                assertThat(documents, hasSize(2));
             });
 
         } finally {

@@ -32,12 +32,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -52,6 +46,12 @@ import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -805,11 +805,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     /**
-     * Expand all transform id's
+     * Expand all transform ids
      *
-     * @param filterForOutdated if true, only returns outdated id's (after de-duplication)
+     * @param filterForOutdated if true, only returns outdated ids (after de-duplication)
      * @param maxResultWindow the max result window size (exposed for testing)
-     * @param listener listener to call containing transform id's
+     * @param listener listener to call containing transform ids
      */
     void expandAllTransformIds(boolean filterForOutdated, int maxResultWindow, ActionListener<Tuple<Long, Set<String>>> listener) {
         PageParams startPage = new PageParams(0, maxResultWindow);

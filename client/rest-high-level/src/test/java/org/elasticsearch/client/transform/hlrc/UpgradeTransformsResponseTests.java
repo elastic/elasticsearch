@@ -19,12 +19,9 @@ import java.io.IOException;
 public class UpgradeTransformsResponseTests extends AbstractResponseTestCase<
     Response,
     org.elasticsearch.client.transform.UpgradeTransformsResponse> {
+
     public static Response randomUpgradeResponse() {
-        return new Response(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new Response(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override

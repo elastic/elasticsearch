@@ -110,19 +110,22 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
 
     @Override
     public void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener) {
-        List<TransformCheckpoint> checkpointsById = checkpoints.get(transformId);
-        int sizeBeforeDelete = checkpointsById.size();
-        if (checkpointsById != null) {
-            checkpointsById.removeIf(cp -> { return cp.getCheckpoint() < deleteCheckpointsBelow && cp.getTimestamp() < deleteOlderThan; });
-        }
-        long deletedDocs = sizeBeforeDelete - checkpointsById.size();
+        long deletedDocs = 0;
 
-        checkpointsById = oldCheckpoints.get(transformId);
-        sizeBeforeDelete = checkpointsById.size();
+        final List<TransformCheckpoint> checkpointsById = checkpoints.get(transformId);
         if (checkpointsById != null) {
+            final int sizeBeforeDelete = checkpointsById.size();
             checkpointsById.removeIf(cp -> { return cp.getCheckpoint() < deleteCheckpointsBelow && cp.getTimestamp() < deleteOlderThan; });
+            deletedDocs += sizeBeforeDelete - checkpointsById.size();
         }
-        deletedDocs += sizeBeforeDelete - checkpointsById.size();
+
+        // old checkpoints
+        final List<TransformCheckpoint> checkpointsByIdOld = oldCheckpoints.get(transformId);
+        if (checkpointsByIdOld != null) {
+            final int sizeBeforeDeleteOldCheckpoints = checkpointsByIdOld.size();
+            checkpointsByIdOld.removeIf(cp -> cp.getCheckpoint() < deleteCheckpointsBelow && cp.getTimestamp() < deleteOlderThan);
+            deletedDocs += sizeBeforeDeleteOldCheckpoints - checkpointsByIdOld.size();
+        }
 
         listener.onResponse(deletedDocs);
     }

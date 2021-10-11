@@ -35,6 +35,9 @@ public class SetPriorityAction implements LifecycleAction {
     private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new SetPriorityAction((Integer) a[0]));
 
+    private static final Settings NULL_PRIORITY_SETTINGS =
+        Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build();
+
     //package private for testing
     final Integer recoveryPriority;
 
@@ -90,7 +93,7 @@ public class SetPriorityAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey key = new StepKey(phase, NAME, NAME);
         Settings indexPriority = recoveryPriority == null ?
-            Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build()
+                NULL_PRIORITY_SETTINGS
             : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
         return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }

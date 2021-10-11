@@ -366,19 +366,8 @@ public class WildcardFieldMapper extends FieldMapper {
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
 
-//            // MatchAll is a special case meaning the regex is known to match everything .* and
-//            // there is no need for verification.
-//            if (approxNgramQuery instanceof MatchAllDocsQuery) {
-//                return existsQuery(context);
-//            }
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
             Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
-
-//            // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
-//            // clause which we can't accelerate at all and needs verification. Example would be ".."
-//            if (approxNgramQuery instanceof MatchAllButRequireVerificationQuery) {
-//                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), value, automaton);
-//            }
 
             // We can accelerate execution with the ngram query
             return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);

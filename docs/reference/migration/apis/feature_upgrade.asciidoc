@@ -44,18 +44,79 @@ Example response:
 {
   "features" : [
     {
+      "feature_name" : "async_search",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "enrich",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "fleet",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "geoip",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "kibana",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "logstash_management",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "machine_learning",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "searchable_snapshots",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
       "feature_name" : "security",
-      "minimum_index_version" : "7.1.1",
-      "upgrade_status" : "UPGRADE_NEEDED",
-      "indices" : [
-        {
-          "index" : ".security-7",
-          "version" : "7.1.1"
-        }
-      ]
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "tasks",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "transform",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
+    },
+    {
+      "feature_name" : "watcher",
+      "minimum_index_version" : "8.0.0",
+      "upgrade_status" : "NO_UPGRADE_NEEDED",
+      "indices" : [ ]
     }
   ],
-  "upgrade_status" : "UPGRADE_NEEDED"
+  "upgrade_status" : "NO_UPGRADE_NEEDED"
 }
 --------------------------------------------------
 

@@ -11,6 +11,9 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.function.Supplier;
 

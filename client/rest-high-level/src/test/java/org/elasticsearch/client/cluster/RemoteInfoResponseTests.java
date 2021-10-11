@@ -10,8 +10,8 @@ package org.elasticsearch.client.cluster;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.SniffConnectionStrategy;

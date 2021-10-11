@@ -264,10 +264,6 @@ tasks.named('splitPackagesAudit').configure {
     // Joda should own its own packages! This should be a simple move.
     'org.joda.time.format.StrictISODateTimeFormat',
 
-    // xcontent should not have common, all it's common packages should be renamed to xcontent
-    'org.elasticsearch.common.xcontent.*',
-    'org.elasticsearch.common.xcontent.support.XContentMapValues',
-
     // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
     'org.elasticsearch.cli.CommandLoggingConfigurator',
     'org.elasticsearch.cli.EnvironmentAwareCommand',

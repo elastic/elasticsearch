@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 public interface NlpConfig extends LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig {
 

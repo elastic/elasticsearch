@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 /*
  * Utility class to hold common fields and strings for transform.

@@ -56,7 +56,7 @@ joinTerm
    ;
 
 sequenceTerm
-   : subquery (by=joinKeys)? (LB key=IDENTIFIER ASGN value=number RB)?
+   : subquery (by=joinKeys)? (WITH key=IDENTIFIER ASGN value=number)?
    ;
 
 subquery

@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Path
+import java.time.temporal.ChronoUnit
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -81,10 +82,17 @@ dependencies {
 ext.expansions = { Architecture architecture, DockerBase base ->
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
 
+  // We tag our Docker images with various pieces of information, including a timestamp
+  // for when the image was built. However, this makes it impossible completely cache
+  // the image. When developing the Docker images, it's very tedious to completely rebuild
+  // an image for every single change. Therefore, outside of CI, we fix the
+  // build time to midnight so that the Docker build cache is usable.
+  def buildDate = BuildParams.isCi() ? BuildParams.buildDate : BuildParams.buildDate.truncatedTo(ChronoUnit.DAYS)
+
   return [
     'base_image'         : base.image,
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
-    'build_date'         : BuildParams.buildDate,
+    'build_date'         : buildDate,
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 1.0' : 'Elastic-License-2.0',
@@ -341,6 +349,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
+      noCache = BuildParams.isCi
       tags = generateTags(base)
 
       if (base == DockerBase.IRON_BANK) {
@@ -402,11 +411,11 @@ void addBuildEssDockerImageTask(Architecture architecture) {
     tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
 
       TaskProvider<DockerBuildTask> buildCloudTask = tasks.named(taskName("build", architecture, DockerBase.CLOUD, "DockerImage"))
-      dependsOn(buildCloudTask)
-      dependsOn(buildContextTask)
+      inputs.files(buildCloudTask)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
+      noCache = BuildParams.isCi
       baseImages = []
       tags = generateTags(base)
 

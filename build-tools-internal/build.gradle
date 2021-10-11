@@ -19,6 +19,7 @@ plugins {
   id 'groovy'
   id 'elasticsearch.build-tools'
   id 'elasticsearch.eclipse'
+  id 'elasticsearch.versions'
 }
 
 group = 'org.elasticsearch.gradle'
@@ -26,8 +27,7 @@ group = 'org.elasticsearch.gradle'
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'), project.getProviders())
-version = props.getProperty("elasticsearch")
+version = versions.getProperty("elasticsearch")
 
 gradlePlugin {
   // We already configure publication and we don't need or want the one that comes
@@ -169,7 +169,7 @@ gradlePlugin {
  *         Java version                                                      *
  *****************************************************************************/
 
-def minCompilerJava = JavaVersion.toVersion(file('src/main/resources/minimumCompilerVersion').text)
+def minCompilerJava = versions.get("minimumJava")
 targetCompatibility = minCompilerJava
 sourceCompatibility = minCompilerJava
 
@@ -226,22 +226,22 @@ dependencies {
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${props.getProperty('jackson')}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
   api 'org.ow2.asm:asm:9.0'
   api 'org.ow2.asm:asm-tree:9.0'
-  api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
-  api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
-  compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  api "org.apache.httpcomponents:httpclient:${versions.getProperty('httpclient')}"
+  api "org.apache.httpcomponents:httpcore:${versions.getProperty('httpcore')}"
+  compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
-  testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testImplementation "junit:junit:${props.getProperty('junit')}"
+  testImplementation "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
+  testImplementation "junit:junit:${versions.getProperty('junit')}"
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
-  testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"
+  testImplementation "org.hamcrest:hamcrest:${versions.getProperty('hamcrest')}"
 
   testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
-  integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+  integTestImplementation(platform("org.junit:junit-bom:${versions.getProperty('junit5')}"))
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }

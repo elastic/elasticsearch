@@ -104,7 +104,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "es.cluster_health.request_timeout_200";
     static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "The HTTP status code for a cluster health timeout " +
         "will be changed from 408 to 200 in a future version. Set the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] " +
-        "system property to `true` to suppress this message and opt in to the future behaviour now.";
+        "system property to [true] to suppress this message and opt in to the future behaviour now.";
 
     static {
         // ClusterStateHealth fields

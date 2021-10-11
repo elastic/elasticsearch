@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -85,16 +85,7 @@ public class TextClassificationConfig implements NlpConfig {
         }
         this.classificationLabels = classificationLabels;
         this.numTopClasses = Optional.ofNullable(numTopClasses).orElse(-1);
-        if (this.numTopClasses == 0) {
-            throw ExceptionsHelper.badRequestException(
-                    "[{}] requires at least 1 [{}]; provided [{}]",
-                    NAME,
-                    TextClassificationConfig.NUM_TOP_CLASSES,
-                    numTopClasses
-            );
-        }
         this.resultsField = resultsField;
-
     }
 
     public TextClassificationConfig(StreamInput in) throws IOException {

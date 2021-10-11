@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 
@@ -53,16 +53,6 @@ public class PyTorchStateStreamer {
      */
     public void cancel() {
         isCancelled = true;
-    }
-
-    /**
-     * The size of the streamed model in bytes.
-     * A return value of -1 means the model has not been streamed yet
-     * and the size is unknown.
-     * @return The model size in bytes or -1 if not known yet.
-     */
-    public int getModelSize() {
-        return modelSize;
     }
 
     /**

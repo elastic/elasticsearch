@@ -12,20 +12,22 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * This provides a base class for aggregations that are building percentiles or percentiles-like functionality (e.g. percentile ranks).
@@ -33,7 +35,7 @@ import java.util.function.Supplier;
  * as well as algorithm-specific settings via a {@link PercentilesConfig} object
  */
 public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPercentilesAggregationBuilder<T>> extends
-    ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
+    ValuesSourceAggregationBuilder.MetricsAggregationBuilder<ValuesSource, T> {
 
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
     private final ParseField valuesField;
@@ -363,5 +365,10 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), Arrays.hashCode(values), keyed, configOrDefault());
+    }
+
+    @Override
+    public Set<String> metricNames() {
+        return Arrays.stream(values).mapToObj(String::valueOf).collect(Collectors.toSet());
     }
 }

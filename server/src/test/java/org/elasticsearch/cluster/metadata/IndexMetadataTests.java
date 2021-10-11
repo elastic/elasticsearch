@@ -8,11 +8,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -24,10 +26,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -366,4 +369,46 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
+    public void testIsHidden() {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).build();
+        assertFalse(indexMetadata.isHidden());
+
+        settings.put(INDEX_HIDDEN_SETTING.getKey(), "false");
+        indexMetadata = IndexMetadata.builder(indexMetadata).settings(settings).build();
+        assertFalse(indexMetadata.isHidden());
+
+        settings.put(INDEX_HIDDEN_SETTING.getKey(), "true");
+        indexMetadata = IndexMetadata.builder(indexMetadata).settings(settings).build();
+        assertTrue(indexMetadata.isHidden());
+
+        indexMetadata = IndexMetadata.builder(indexMetadata).build();
+        assertTrue(indexMetadata.isHidden()); // preserved if settings unchanged
+    }
+
+    public void testGetTierPreference() {
+        final Settings indexSettings = indexSettingsWithDataTier("data_warm,data_cold");
+        final IndexMetadata indexMetadata = IndexMetadata.builder("myindex").settings(indexSettings).build();
+        assertThat(indexMetadata.getTierPreference(), is(DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexSettings))));
+        assertThat(indexMetadata.getTierPreference(), is(List.of(DataTier.DATA_WARM, DataTier.DATA_COLD)));
+
+    }
+
+    public void testBuildsWithBrokenTierPreference() {
+        final Settings indexSettings = indexSettingsWithDataTier("broken_tier");
+        final IndexMetadata indexMetadata = IndexMetadata.builder("myindex").settings(indexSettings).build();
+        expectThrows(IllegalArgumentException.class, indexMetadata::getTierPreference);
+    }
+
+    private static Settings indexSettingsWithDataTier(String dataTier) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(DataTier.TIER_PREFERENCE, dataTier)
+            .build();
+    }
 }

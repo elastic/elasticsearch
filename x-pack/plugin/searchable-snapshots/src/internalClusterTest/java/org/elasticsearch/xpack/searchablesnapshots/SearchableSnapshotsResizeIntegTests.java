@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.junit.After;
 import org.junit.Before;
 
@@ -120,7 +119,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
                     Settings.builder()
                         .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
                         .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .put(DataTierAllocationDecider.TIER_PREFERENCE, DataTier.DATA_HOT)
+                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                         .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                         .build()
                 )

@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.datastreams;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
@@ -60,7 +59,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .get()
             .getSettings()
             .get(DataStream.getDefaultBackingIndexName(index, 1));
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
@@ -74,7 +73,7 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
             .get()
             .getSettings()
             .get(DataStream.getDefaultBackingIndexName(index, 2));
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index }));
     }

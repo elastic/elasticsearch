@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
@@ -22,16 +19,15 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,7 +81,7 @@ class VectorTileRequest {
         public static final List<FieldAndFormat> FETCH = emptyList();
         public static final Map<String, Object> RUNTIME_MAPPINGS = emptyMap();
         public static final QueryBuilder QUERY = null;
-        public static final AggregatorFactories.Builder AGGS = null;
+        public static final List<MetricsAggregationBuilder<?, ?>> AGGS = emptyList();
         public static final int GRID_PRECISION = 8;
         public static final GRID_TYPE GRID_TYPE = VectorTileRequest.GRID_TYPE.GRID;
         public static final int EXTENT = 4096;
@@ -211,7 +207,7 @@ class VectorTileRequest {
     private GRID_TYPE gridType = Defaults.GRID_TYPE;
     private int size = Defaults.SIZE;
     private int extent = Defaults.EXTENT;
-    private AggregatorFactories.Builder aggBuilder = Defaults.AGGS;
+    private List<MetricsAggregationBuilder<?, ?>> aggs = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
@@ -328,23 +324,19 @@ class VectorTileRequest {
         this.size = size;
     }
 
-    public AggregatorFactories.Builder getAggBuilder() {
-        return aggBuilder;
+    public List<MetricsAggregationBuilder<?, ?>> getAggBuilder() {
+        return aggs;
     }
 
     private void setAggBuilder(AggregatorFactories.Builder aggBuilder) {
+        List<MetricsAggregationBuilder<?, ?>> aggs = new ArrayList<>(aggBuilder.count());
         for (AggregationBuilder aggregation : aggBuilder.getAggregatorFactories()) {
-            final String type = aggregation.getType();
-            switch (type) {
-                case MinAggregationBuilder.NAME:
-                case MaxAggregationBuilder.NAME:
-                case AvgAggregationBuilder.NAME:
-                case SumAggregationBuilder.NAME:
-                case CardinalityAggregationBuilder.NAME:
-                    break;
-                default:
-                    // top term and percentile should be supported
-                    throw new IllegalArgumentException("Unsupported aggregation of type [" + type + "]");
+            if (aggregation instanceof MetricsAggregationBuilder<?, ?>) {
+                aggs.add((MetricsAggregationBuilder<?, ?>) aggregation);
+            } else {
+                throw new IllegalArgumentException(
+                    "Unsupported aggregation of type [" + aggregation.getType() + "]." + "Only metric aggregations are supported."
+                );
             }
         }
         for (PipelineAggregationBuilder aggregation : aggBuilder.getPipelineAggregatorFactories()) {
@@ -352,7 +344,7 @@ class VectorTileRequest {
             final String type = aggregation.getType();
             throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + type + "]");
         }
-        this.aggBuilder = aggBuilder;
+        this.aggs = aggs;
     }
 
     public List<SortBuilder<?>> getSortBuilders() {

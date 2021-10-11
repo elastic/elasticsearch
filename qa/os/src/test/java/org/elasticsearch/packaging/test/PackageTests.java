@@ -249,7 +249,7 @@ public class PackageTests extends PackagingTestCase {
                 assertThat(nodesStatsResponse, containsString("\"total_override_in_bytes\":891289600"));
 
                 // 40% of 850MB
-                assertThat(sh.run("ps auwwx").stdout, containsString("-Xmx340m -Xms340m"));
+                assertThat(sh.run("ps auwwx").stdout, containsString("-Xms340m -Xmx340m"));
 
                 stopElasticsearch();
             });

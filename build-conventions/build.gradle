@@ -45,6 +45,10 @@ gradlePlugin {
             id = 'elasticsearch.build-tools'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
         }
+        versions {
+            id = 'elasticsearch.versions'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin'
+        }
     }
 }
 

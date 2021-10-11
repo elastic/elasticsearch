@@ -78,13 +78,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final long newTerm = randomNonNegativeLong();
 
-            assertThat(persistedClusterStateService.loadOnDiskState().currentTerm, equalTo(0L));
+            assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(0L));
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(newTerm, ClusterState.EMPTY_STATE);
-                assertThat(persistedClusterStateService.loadOnDiskState(false).currentTerm, equalTo(newTerm));
+                assertThat(persistedClusterStateService.loadBestOnDiskState(false).currentTerm, equalTo(newTerm));
             }
 
-            assertThat(persistedClusterStateService.loadOnDiskState().currentTerm, equalTo(newTerm));
+            assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
         }
     }
 
@@ -276,7 +276,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState);
             }
 
-            final Path brokenPath = nodeEnvironment.nodeDataPath();
+            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
@@ -286,7 +286,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadOnDiskState()).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
         }
     }
@@ -318,7 +318,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment1).loadOnDiskState()).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment1).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
         }
     }
@@ -364,7 +364,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment1).loadOnDiskState()).getMessage();
+                () -> newPersistedClusterStateService(nodeEnvironment1).loadBestOnDiskState()).getMessage();
             assertThat(message, allOf(
                 containsString("duplicate metadata found"),
                 containsString(brokenPath.toString()),
@@ -654,7 +654,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
             }
 
-            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(nodeEnvironment.nodeDataPath().resolve("_state"))) {
+            Path pathToCorrupt = randomFrom(nodeEnvironment.nodeDataPaths());
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(pathToCorrupt.resolve("_state"))) {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport
                     .stream(directoryStream.spliterator(), false)
                     .filter(p -> {
@@ -664,7 +665,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     .collect(Collectors.toList())));
             }
 
-            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadOnDiskState).getMessage(), allOf(
+            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
                     startsWith("the index containing the cluster metadata under the data path ["),
                     endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
         }
@@ -707,7 +708,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     private static ClusterState loadPersistedClusterState(PersistedClusterStateService persistedClusterStateService) throws IOException {
-        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadOnDiskState(false);
+        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState(false);
         return clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
     }
 

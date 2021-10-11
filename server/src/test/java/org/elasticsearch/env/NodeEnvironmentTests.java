@@ -62,7 +62,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
         env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertThat(env.nodeDataPath(), equalTo(PathUtils.get(dataPath)));
+        assertThat(env.nodeDataPaths()[0], equalTo(PathUtils.get(dataPath)));
 
         env.close();
         assertThat(env.lockedShards(), empty());
@@ -182,7 +182,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
         for (Map.Entry<String, List<Path>> actualIndexDataPathEntry : actualIndexDataPaths.entrySet()) {
             List<Path> actual = actualIndexDataPathEntry.getValue();
-            assertThat(actual.get(0), equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
+            Path[] actualPaths = actual.toArray(new Path[actual.size()]);
+            assertThat(actualPaths, equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
         }
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
@@ -199,8 +200,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         Files.createDirectories(path.resolve("1"));
 
         expectThrows(ShardLockObtainFailedException.class,
-            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPath -> {
-                assert false : "should not be called " + shardPath;
+            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
+                assert false : "should not be called " + shardPaths;
             }));
 
         path = env.indexPath(index);
@@ -208,10 +209,12 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertTrue(Files.exists(path.resolve("1")));
 
         {
-            SetOnce<Path> listener = new SetOnce<>();
+            SetOnce<Path[]> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
-            Path deletedPath = listener.get();
-            assertThat(deletedPath, equalTo(env.nodePath().resolve(index).resolve("1")));
+            Path[] deletedPaths = listener.get();
+            for (int i = 0; i < env.nodePaths().length; i++) {
+                assertThat(deletedPaths[i], equalTo(env.nodePaths()[i].resolve(index).resolve("1")));
+            }
         }
 
         path = env.indexPath(index);
@@ -260,9 +263,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         start.countDown();
         blockLatch.await();
 
-        final SetOnce<Path> listener = new SetOnce<>();
+        final SetOnce<Path[]> listener = new SetOnce<>();
         env.deleteIndexDirectorySafe(index, 5000, idxSettings, listener::set);
-        assertThat(listener.get(), equalTo(env.indexPath(index)));
+        assertThat(listener.get()[0], equalTo(env.indexPath(index)));
         assertNull(threadException.get());
 
         path = env.indexPath(index);

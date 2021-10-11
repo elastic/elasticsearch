@@ -18,10 +18,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayOutputStream;
@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * A utility class used for index lifecycle policies
@@ -92,8 +91,7 @@ public class LifecyclePolicyUtils {
      */
     public static ItemUsage calculateUsage(final IndexNameExpressionResolver indexNameExpressionResolver,
                                            final ClusterState state, final String policyName) {
-        final List<String> indices = StreamSupport.stream(state.metadata().indices().values().spliterator(), false)
-            .map(cursor -> cursor.value)
+        final List<String> indices = state.metadata().indices().values().stream()
             .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());

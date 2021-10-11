@@ -32,7 +32,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -307,6 +308,10 @@ public class NativeUsersStore {
                 client::index
             );
         });
+    }
+
+    void createElasticUser(char[] passwordHash, ActionListener<Void> listener) {
+        updateReservedUser(ElasticUser.NAME, passwordHash, DocWriteRequest.OpType.CREATE, RefreshPolicy.IMMEDIATE, listener);
     }
 
     /**
@@ -683,10 +688,6 @@ public class NativeUsersStore {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
             this.hasher = Hasher.resolveFromHash(this.passwordHash);
-        }
-
-        ReservedUserInfo deepClone() {
-            return new ReservedUserInfo(Arrays.copyOf(passwordHash, passwordHash.length), enabled);
         }
 
         boolean hasEmptyPassword() {

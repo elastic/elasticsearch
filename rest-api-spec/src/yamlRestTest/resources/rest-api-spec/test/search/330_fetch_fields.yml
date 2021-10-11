@@ -1007,3 +1007,58 @@ error for flattened includes whole path:
           fields:
             - field: flattened.bar
               format: "yyyy/MM/dd"
+
+---
+test fetching metadata fields:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'fetching metadata via fields introduced in 8.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              field:
+                type: keyword
+              idAlias:
+                type: alias
+                path: _id
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          field: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - length: { hits.hits.0.fields : 2 }
+  - match: { hits.hits.0.fields.field.0: "foo" }
+  - match: { hits.hits.0.fields.idAlias.0: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_*" ]
+
+  - is_false: hits.hits.0.fields
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_id" ]
+
+  - length: { hits.hits.0.fields : 1 }
+  - match: { hits.hits.0.fields._id.0: "1" }

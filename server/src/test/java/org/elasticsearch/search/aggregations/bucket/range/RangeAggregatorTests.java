@@ -13,14 +13,11 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -115,6 +112,70 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    /**
+     * Confirm that a non-representable decimal stored as a double correctly follows the half-open interval rule
+     */
+    public void testDoubleRangesExclusiveEndpoint() throws IOException {
+        final String fieldName = "double";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.DOUBLE);
+        testCase(
+            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(
+                org.elasticsearch.core.List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.04D)))); },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(0, ranges.get(0).getDocCount());
+                assertEquals(1, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    /**
+     * Confirm that a non-representable decimal stored as a float correctly follows the half-open interval rule
+     */
+    public void testFloatRangesExclusiveEndpoint() throws IOException {
+        final String fieldName = "float";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
+        testCase(
+            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false)); },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(0, ranges.get(0).getDocCount());
+                assertEquals(1, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    /**
+     * Confirm that a non-representable decimal stored as a half_float correctly follows the half-open interval rule
+     */
+    public void testHalfFloatRangesExclusiveEndpoint() throws IOException {
+        final String fieldName = "halfFloat";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.HALF_FLOAT);
+        testCase(
+            new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.0152D).addRange("r2", 0.0152D, 1.0D),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false)); },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(0, ranges.get(0).getDocCount());
+                assertEquals(1, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
     public void testUnboundedRanges() throws IOException {
         testCase(
             new RangeAggregationBuilder("name").field(NUMBER_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
@@ -202,7 +263,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     new LongPoint(DATE_FIELD_NAME, milli2)
                 )
             );
-        }, range -> {
+        }, (Consumer<InternalRange<?, ?>>) range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
             assertEquals(1, ranges.get(0).getDocCount());
@@ -233,7 +294,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli1))));
             iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli2))));
-        }, range -> {
+        }, (Consumer<InternalRange<?, ?>>) range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
             assertEquals(1, ranges.get(0).getDocCount());
@@ -267,7 +328,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, TimeUnit.MILLISECONDS.toNanos(milli2))));
             // Missing will apply to this document
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
-        }, range -> {
+        }, (Consumer<InternalRange<?, ?>>) range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
             assertEquals(2, ranges.get(0).getDocCount());
@@ -306,7 +367,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, range -> {
+        }, (Consumer<InternalRange<?, ?>>) range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(3));
             // If we had a native `double` range aggregator we'd get 50, 50, 50
@@ -338,7 +399,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-        }, range -> {
+        }, (Consumer<InternalRange<?, ?>>) range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(1, ranges.size());
             assertEquals(2, ranges.get(0).getDocCount());
@@ -589,32 +650,5 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
         }, verify, fieldType);
-    }
-
-    private void testCase(
-        RangeAggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify,
-        MappedFieldType fieldType
-    ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType
-                );
-                verify.accept(agg);
-
-            }
-        }
     }
 }

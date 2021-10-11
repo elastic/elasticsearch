@@ -23,8 +23,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
 
@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;

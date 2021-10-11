@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 public class CborXContentFilteringTests extends AbstractXContentFilteringTestCase {
 

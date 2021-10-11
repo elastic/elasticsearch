@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -74,11 +75,8 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsFeatureSet;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsAction;
@@ -290,7 +288,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING,
             SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
-            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING,
+            SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING,
             SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING,
@@ -600,7 +598,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-            .put(DataTierAllocationDecider.TIER_PREFERENCE, DATA_TIERS_CACHE_INDEX_PREFERENCE)
+            .put(DataTier.TIER_PREFERENCE, DATA_TIERS_CACHE_INDEX_PREFERENCE)
             .build();
     }
 

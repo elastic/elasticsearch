@@ -191,7 +191,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private final SortedMap<String, IndexAbstraction> indicesLookup;
+    private SortedMap<String, IndexAbstraction> indicesLookup;
 
     Metadata(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetadata coordinationMetadata,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
@@ -306,6 +306,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
+        if (indicesLookup != null) {
+            return indicesLookup;
+        }
+        DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE);
+        indicesLookup = Collections.unmodifiableSortedMap(Builder.buildIndicesLookup(dataStreamMetadata, indices));
         return indicesLookup;
     }
 
@@ -1557,7 +1562,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        /**
+         * @return a new <code>Metadata</code> instance
+         */
         public Metadata build() {
+            return build(true);
+        }
+
+        /**
+         * @param builtIndicesLookupEagerly Controls whether indices lookup should be build as part of the execution of this method
+         *                                  or after when needed. Almost all of the time indices lookup should be built eagerly, however
+         *                                  in certain cases when <code>Metdata</code> instances are build that are not published and
+         *                                  many indices have been defined then it makes sense to skip building indices lookup.
+         *
+         * @return a new <code>Metadata</code> instance
+         */
+        public Metadata build(boolean builtIndicesLookupEagerly) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
@@ -1641,9 +1661,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     "were found [" + Strings.collectionToCommaDelimitedString(duplicates) + "]");
             }
 
-            SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
+            ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
 
-            validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
+            SortedMap<String, IndexAbstraction> indicesLookup;
+            if (builtIndicesLookupEagerly) {
+                indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup(dataStreamMetadata, indices));
+            } else {
+                indicesLookup = null;
+            }
+
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1657,14 +1683,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
 
             return new Metadata(clusterUUID, clusterUUIDCommitted, version, coordinationMetadata, transientSettings, persistentSettings,
-                hashesOfConsistentSettings, indices.build(), templates.build(), customs.build(), allIndicesArray, visibleIndicesArray,
+                hashesOfConsistentSettings, indices, templates.build(), customs.build(), allIndicesArray, visibleIndicesArray,
                 allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, indicesLookup);
         }
 
-        private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+        static SortedMap<String, IndexAbstraction> buildIndicesLookup(DataStreamMetadata dataStreamMetadata,
+                                                                      ImmutableOpenMap<String, IndexMetadata> indices) {
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
-            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             // If there are no indices, then skip data streams. This happens only when metadata is read from disk
             if (dataStreamMetadata != null && indices.size() > 0) {
                 Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
@@ -1706,9 +1732,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
-            for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                IndexMetadata indexMetadata = cursor.value;
-
+            for (IndexMetadata indexMetadata : indices.values()) {
                 IndexAbstraction.Index index;
                 DataStream parent = indexToDataStreamLookup.get(indexMetadata.getIndex().getName());
                 if (parent != null) {
@@ -1727,13 +1751,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
                 for (ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
                     AliasMetadata aliasMetadata = aliasCursor.value;
-                    aliasToIndices.compute(aliasMetadata.getAlias(), (aliasName, indices) -> {
-                       if (indices == null) {
-                           indices = new ArrayList<>();
-                       }
-                       indices.add(indexMetadata);
-                       return indices;
-                    });
+                    List<IndexMetadata> aliasIndices = aliasToIndices.computeIfAbsent(aliasMetadata.getAlias(), k -> new ArrayList<>());
+                    aliasIndices.add(indexMetadata);
                 }
             }
 
@@ -1743,6 +1762,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 assert existing == null : "duplicate for " + entry.getKey();
             }
 
+            validateDataStreams(indicesLookup, dataStreamMetadata);
             return indicesLookup;
         }
 

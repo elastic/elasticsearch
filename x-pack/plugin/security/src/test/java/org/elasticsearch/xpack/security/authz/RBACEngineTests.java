@@ -27,7 +27,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -1067,7 +1067,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = new DataStream(dataStreamName, null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
-        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices);
+        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices, List.of());
         lookup.put(ds.getName(), iads);
         for (IndexMetadata im : backingIndices) {
             lookup.put(im.getIndex().getName(), new IndexAbstraction.Index(im, iads));
@@ -1100,7 +1100,7 @@ public class RBACEngineTests extends ESTestCase {
         }
         DataStream ds = new DataStream(dataStreamName, null,
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
-        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices);
+        IndexAbstraction.DataStream iads = new IndexAbstraction.DataStream(ds, backingIndices, List.of());
         lookup.put(ds.getName(), iads);
         for (IndexMetadata im : backingIndices) {
             lookup.put(im.getIndex().getName(), new IndexAbstraction.Index(im, iads));

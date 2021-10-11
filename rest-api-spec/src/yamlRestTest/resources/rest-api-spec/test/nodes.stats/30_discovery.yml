@@ -136,3 +136,25 @@
   - is_true: nodes.$master.discovery.cluster_state_update.failure.completion_time
   - is_true: nodes.$master.discovery.cluster_state_update.failure.master_apply_time
   - is_true: nodes.$master.discovery.cluster_state_update.failure.notification_time
+
+---
+"Master cluster applier stats":
+  - skip:
+      features: [arbitrary_key]
+      version: "- 7.99.99"
+      reason: "not yet backported to 7.x branch"
+
+  - do:
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
+
+  - do:
+      nodes.stats:
+        metric: [ discovery ]
+
+  - is_true: nodes.$master.discovery.cluster_applier_stats.recordings
+  - is_true: nodes.$master.discovery.cluster_applier_stats.recordings.0.name
+  - gte: { nodes.$master.discovery.cluster_applier_stats.recordings.0.cumulative_execution_count: 1 }
+  - gte: { nodes.$master.discovery.cluster_applier_stats.recordings.0.cumulative_execution_time_millis: 1 }

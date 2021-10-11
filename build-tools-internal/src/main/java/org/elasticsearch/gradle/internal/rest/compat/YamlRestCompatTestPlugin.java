@@ -27,14 +27,17 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.RelativePath;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
@@ -44,6 +47,8 @@ import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTest
  */
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
+    private static final String COMPATIBILITY_APIS_CONFIGURATION = "restCompatSpecs";
+    private static final String COMPATIBILITY_TESTS_CONFIGURATION = "restCompatTests";
     private static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
     private static final Path RELATIVE_TEST_PATH = Path.of("rest-api-spec/test");
@@ -138,10 +143,24 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.onlyIf(t -> isEnabled(project));
             });
 
-      
+        // copy both local source set apis and compat apis to a single location to be exported as an artifact
+        TaskProvider<Sync> bundleRestCompatApis = project.getTasks().register("bundleRestCompatApis", Sync.class, task -> {
+            task.setDestinationDir(project.getLayout().getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
+            task.setIncludeEmptyDirs(false);
+            task.from(copyCompatYamlSpecTask.flatMap(t -> t.getOutputResourceDir().map(d -> d.dir(RELATIVE_API_PATH.toString()))));
+            task.from(yamlCompatTestSourceSet.getResources(), s -> {
+                s.include(RELATIVE_API_PATH + "/*");
+                s.eachFile(
+                    details -> details.setRelativePath(
+                        new RelativePath(true, Arrays.stream(details.getRelativePath().getSegments()).skip(2).toArray(String[]::new))
+                    )
+                );
+            });
+        });
+
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
-            .register("yamlRestTestV"+ compatibleVersion + "CompatTransform", RestCompatTestTransformTask.class, task -> {
+            .register("yamlRestTestV" + compatibleVersion + "CompatTransform", RestCompatTestTransformTask.class, task -> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
@@ -151,6 +170,16 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         // Register compat rest resources with source set
         yamlCompatTestSourceSet.getOutput().dir(copyCompatYamlSpecTask.map(CopyRestApiTask::getOutputResourceDir));
         yamlCompatTestSourceSet.getOutput().dir(transformCompatTestTask.map(RestCompatTestTransformTask::getOutputDirectory));
+
+        // Register artifact for transformed compatibility apis and tests
+        Configuration compatRestSpecs = project.getConfigurations().create(COMPATIBILITY_APIS_CONFIGURATION);
+        Configuration compatRestTests = project.getConfigurations().create(COMPATIBILITY_TESTS_CONFIGURATION);
+        project.getArtifacts().add(compatRestSpecs.getName(), bundleRestCompatApis.map(Sync::getDestinationDir));
+        project.getArtifacts()
+            .add(
+                compatRestTests.getName(),
+                transformCompatTestTask.flatMap(t -> t.getOutputDirectory().dir(RELATIVE_TEST_PATH.toString()))
+            );
 
         // Grab the original rest resources locations so we can omit them from the compatibility testing classpath down below
         Provider<Directory> originalYamlSpecsDir = project.getTasks()
@@ -162,8 +191,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
-        String testTaskName = "yamlRestTestV"+ compatibleVersion + "CompatTest";
-  
+        String testTaskName = "yamlRestTestV" + compatibleVersion + "CompatTest";
+
         // setup the test task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet, testTaskName);
         project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {

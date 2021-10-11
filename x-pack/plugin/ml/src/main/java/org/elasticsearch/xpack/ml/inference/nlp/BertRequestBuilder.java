@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
@@ -37,7 +38,18 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
                 " token in its vocabulary");
         }
 
-        TokenizationResult tokenization = tokenizer.tokenize(inputs);
+        TokenizationResult tokenization = tokenizer.buildTokenizationResult(
+            inputs.stream().map(tokenizer::tokenize).collect(Collectors.toList())
+        );
+        return buildRequest(tokenization, requestId);
+    }
+
+    @Override
+    public NlpTask.Request buildRequest(TokenizationResult tokenization, String requestId) throws IOException {
+        if (tokenizer.getPadToken().isEmpty()) {
+            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN +
+                " token in its vocabulary");
+        }
         return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadToken().getAsInt(), requestId));
     }
 

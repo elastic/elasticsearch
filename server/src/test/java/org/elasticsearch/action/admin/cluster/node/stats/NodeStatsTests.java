@@ -11,9 +11,12 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -260,6 +263,9 @@ public class NodeStatsTests extends ESTestCase {
 
                         compilations += generatedStats.getCompilations();
                         assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+
+                        assertEquals(generatedStats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+                        assertEquals(generatedStats.getCompilationsHistory(), deserStats.getCompilationsHistory());
                     }
                     assertEquals(evictions, scriptStats.getCacheEvictions());
                     assertEquals(limited, scriptStats.getCompilationLimitTriggered());
@@ -555,15 +561,30 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
+                long compile = randomLongBetween(0, 1024);
+                long eviction = randomLongBetween(0, 1024);
+                String context = randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12));
+                contexts.add(context);
                 stats.add(new ScriptContextStats(
-                    randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12)),
+                    context,
+                    compile,
+                    eviction,
                     randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024),
-                    randomLongBetween(0, 1024))
+                    randomTimeSeries(),
+                    randomTimeSeries())
                 );
             }
             scriptStats = new ScriptStats(stats);
         }
+        ClusterApplierRecordingService.Stats timeTrackerStats;
+        if (randomBoolean()) {
+            timeTrackerStats = new ClusterApplierRecordingService.Stats(
+                randomMap(2, 32, () -> new Tuple<>(randomAlphaOfLength(4), new Recording(randomNonNegativeLong(), randomNonNegativeLong())))
+            );
+        } else {
+            timeTrackerStats = null;
+        }
+
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
             randomBoolean()
@@ -596,7 +617,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong())
-                : null)
+                : null,
+            timeTrackerStats)
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
@@ -661,6 +683,17 @@ public class NodeStatsTests extends ESTestCase {
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
                 ingestStats, adaptiveSelectionStats, null);
+    }
+
+    private static ScriptContextStats.TimeSeries randomTimeSeries() {
+        if (randomBoolean()) {
+            long day = randomLongBetween(0, 1024);
+            long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
+            long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
+            return new ScriptContextStats.TimeSeries(five, fifteen, day);
+        } else {
+            return new ScriptContextStats.TimeSeries();
+        }
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

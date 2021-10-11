@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -44,7 +44,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -264,6 +264,8 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationSt
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -826,7 +828,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
-            pyTorchProcessFactory = (jobId, executorService, onProcessCrash) -> null;
+            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
@@ -1220,6 +1222,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Arrays.asList(jobComms, utility, datafeed);
     }
 
+    @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return MapBuilder.<String, AnalysisProvider<CharFilterFactory>>newMapBuilder()
             .put(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new)
@@ -1246,6 +1249,18 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return Arrays.asList(
             new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
+        );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return Arrays.asList(
+            new AggregationSpec(
+                CategorizeTextAggregationBuilder.NAME,
+                CategorizeTextAggregationBuilder::new,
+                CategorizeTextAggregationBuilder.PARSER
+            ).addResultReader(InternalCategorizationAggregation::new)
+            .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
     }
 
@@ -1404,15 +1419,29 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             .build();
     }
 
-    @Override
-    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
-        return List.of(
+    /**
+     * These are the ML hidden indices. They are "associated" in the sense that if the ML system indices
+     * are backed up or deleted then these hidden indices should also be backed up or deleted.
+     */
+    private static Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS =
+        List.of(
             new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
             new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
             new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
             new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
-            new AssociatedIndexDescriptor(".ml-annotations*", "Ml annotations indices")
+            new AssociatedIndexDescriptor(".ml-annotations*", "ML annotations indices")
         );
+
+    @Override
+    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        return ASSOCIATED_INDEX_DESCRIPTORS;
+    }
+
+    public static String[] getMlHiddenIndexPatterns() {
+        return ASSOCIATED_INDEX_DESCRIPTORS
+            .stream()
+            .map(AssociatedIndexDescriptor::getIndexPattern)
+            .toArray(String[]::new);
     }
 
     @Override

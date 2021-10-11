@@ -11,13 +11,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
@@ -724,6 +724,28 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             )
         );
 
+        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_10_0);
+
+        // check _and_ clear warnings
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                List.of(
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
 
         // check _and_ clear warnings
@@ -738,7 +760,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                         Level.CRITICAL,
                         "Transform [" + id + "] is too old",
                         "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
-                        "The configuration uses an old format, you can use [_update] or [_upgrade] to update to configuration",
+                        "The configuration uses an old format, you can use [_update] or [_upgrade] to update",
                         false,
                         null
                     ),

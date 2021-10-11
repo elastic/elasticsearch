@@ -16,7 +16,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -200,7 +200,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                     .setInferenceConfig(
                         new PassThroughConfig(
                             null,
-                            new BertTokenization(null, false, null)
+                            new BertTokenization(null, false, null),
+                            null
                         )
                     )
                     .setModelId(TRAINED_MODEL_ID)

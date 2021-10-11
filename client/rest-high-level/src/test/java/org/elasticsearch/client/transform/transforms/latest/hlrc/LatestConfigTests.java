@@ -9,8 +9,8 @@
 package org.elasticsearch.client.transform.transforms.latest.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 
 import java.io.IOException;

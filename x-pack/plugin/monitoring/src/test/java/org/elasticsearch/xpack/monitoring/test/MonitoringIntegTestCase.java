@@ -14,15 +14,14 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.junit.After;
 import org.junit.Before;
@@ -76,7 +75,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return new HashSet<>(monitoringTemplateNames());
+        return new HashSet<>(Arrays.asList(MonitoringTemplateRegistry.TEMPLATE_NAMES));
     }
 
     @Before
@@ -121,37 +120,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void ensureMonitoringIndicesYellow() {
         ensureYellowAndNoInitializingShards(".monitoring-es-*");
-    }
-
-    protected List<Tuple<String, String>> monitoringTemplates() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                    .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
-                    .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringTemplateNames() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                    .map(MonitoringTemplateUtils::templateName)
-                    .collect(Collectors.toList());
-    }
-
-    private Tuple<String, String> monitoringPipeline(final String pipelineId) {
-        final XContentType json = XContentType.JSON;
-
-        return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
-                Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json)));
-    }
-
-    protected List<Tuple<String, String>> monitoringPipelines() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(this::monitoringPipeline)
-                .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringPipelineNames() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(MonitoringTemplateUtils::pipelineName)
-                .collect(Collectors.toList());
     }
 
     protected List<Tuple<String, String>> monitoringWatches() {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -212,8 +211,8 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
             String[] indexAsArray = {concreteIndex};
             ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
             List<String> finalAliases = new ArrayList<>();
-            for (ObjectCursor<List<AliasMetadata>> curAliases : aliasMetadata.values()) {
-                for (AliasMetadata aliasMeta: curAliases.value) {
+            for (List<AliasMetadata> aliases : aliasMetadata.values()) {
+                for (AliasMetadata aliasMeta : aliases) {
                     finalAliases.add(aliasMeta.alias());
                 }
             }

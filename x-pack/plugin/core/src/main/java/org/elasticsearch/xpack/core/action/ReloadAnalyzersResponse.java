@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response object that will be returned when reloading analyzers
@@ -66,8 +66,8 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
             builder.startObject();
             ReloadDetails value = indexDetails.getValue();
             builder.field(INDEX_FIELD.getPreferredName(), value.getIndexName());
-            builder.field(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
-            builder.field(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
+            builder.stringListField(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
+            builder.stringListField(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
             builder.endObject();
         }
         builder.endArray();

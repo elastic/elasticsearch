@@ -33,12 +33,12 @@ public class StringField extends Field<String> {
 
             @Override
             public long getLongValue() {
-                return getNonPrimitiveValue().longValue();
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                return getNonPrimitiveValue().doubleValue();
+                return DoubleField.toBigInteger(values.getDoubleValue()).doubleValue();
             }
         });
     }
@@ -48,23 +48,22 @@ public class StringField extends Field<String> {
         return new LongField(sourceField.getName(), new DelegatingFieldValues<Long, String>(fv) {
             @Override
             public List<Long> getValues() {
-                return values.getValues().stream().map(StringField::toLong).collect(Collectors.toList());
+                return values.getValues().stream().map(Long::parseLong).collect(Collectors.toList());
             }
 
             @Override
             public Long getNonPrimitiveValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return Long.parseLong(values.getNonPrimitiveValue());
             }
 
             @Override
             public long getLongValue() {
-                return toLong(values.getNonPrimitiveValue());
+                return values.getLongValue();
             }
 
             @Override
             public double getDoubleValue() {
-                // conversion is to LongField, doesn't make sense to parse a Double out of the String here.
-                return toLong(values.getNonPrimitiveValue());
+                return (long)values.getDoubleValue();
             }
         });
     }
@@ -74,17 +73,9 @@ public class StringField extends Field<String> {
     public static BigInteger toBigInteger(String str) {
         try {
             return new BigInteger(str);
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException nfe) {
             return new BigDecimal(str).toBigInteger();
         }
-    }
-
-    public static long toLong(String str) {
-        return Long.parseLong(str);
-    }
-
-    public static double toDouble(String str) {
-        return Double.parseDouble(str);
     }
 
     /* ---- String Field Members ---- */

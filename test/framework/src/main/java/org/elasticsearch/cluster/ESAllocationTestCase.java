@@ -59,7 +59,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     };
 
     public static MockAllocationService createAllocationService() {
-        return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
+        return createAllocationService(Settings.EMPTY);
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {

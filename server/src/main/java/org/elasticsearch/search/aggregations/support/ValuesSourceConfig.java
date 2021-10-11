@@ -21,8 +21,8 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
-import java.util.function.ToDoubleFunction;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -324,15 +324,14 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * If this is a numeric field backed values source type, return the type of the numeric field backing it.
-     * Otherwise return null.
-     * @return
+     * Returns a function from the mapper that adjusts a double value to the value it would have been had it been parsed by that mapper
+     * and then cast up to a double.  Used to correct precision errors.
      */
-    public ToDoubleFunction<Double> coerceToDoubleFunction() {
+    public DoubleUnaryOperator reduceToStoredPrecisionFunction() {
         if (fieldContext() != null && fieldType() instanceof NumberFieldMapper.NumberFieldType) {
-            return ((NumberFieldMapper.NumberFieldType) fieldType())::coerceToDouble;
+            return ((NumberFieldMapper.NumberFieldType) fieldType())::reduceToStoredPrecision;
         }
-        return null;
+        return (value) -> value;
     }
 
     /**

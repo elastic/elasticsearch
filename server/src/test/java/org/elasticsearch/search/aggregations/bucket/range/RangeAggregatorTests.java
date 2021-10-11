@@ -602,34 +602,4 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
         }, verify, fieldType);
     }
-
-    /*
-    private void testCase(
-        RangeAggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>> verify,
-        MappedFieldType fieldType
-    ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType
-                );
-                verify.accept(agg);
-
-            }
-        }
-    }
-
-     */
 }

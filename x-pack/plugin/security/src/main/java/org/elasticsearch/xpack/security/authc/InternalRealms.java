@@ -55,14 +55,14 @@ import java.util.stream.Collectors;
  */
 public final class InternalRealms {
 
-    public static final String NATIVE_TYPE =  NativeRealmSettings.TYPE;
-    public static final String FILE_TYPE =  FileRealmSettings.TYPE;
-    public static final String LDAP_TYPE =  LdapRealmSettings.LDAP_TYPE;
-    public static final String AD_TYPE =  LdapRealmSettings.AD_TYPE;
-    public static final String PKI_TYPE =  PkiRealmSettings.TYPE;
-    public static final String SAML_TYPE =  SamlRealmSettings.TYPE;
-    public static final String OIDC_TYPE =  OpenIdConnectRealmSettings.TYPE;
-    public static final String KERBEROS_TYPE =  KerberosRealmSettings.TYPE;
+    static final String NATIVE_TYPE = NativeRealmSettings.TYPE;
+    static final String FILE_TYPE = FileRealmSettings.TYPE;
+    static final String LDAP_TYPE = LdapRealmSettings.LDAP_TYPE;
+    static final String AD_TYPE = LdapRealmSettings.AD_TYPE;
+    static final String PKI_TYPE = PkiRealmSettings.TYPE;
+    static final String SAML_TYPE = SamlRealmSettings.TYPE;
+    static final String OIDC_TYPE = OpenIdConnectRealmSettings.TYPE;
+    static final String KERBEROS_TYPE = KerberosRealmSettings.TYPE;
 
     /**
      * The map of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}, to their licensed feature (if any)

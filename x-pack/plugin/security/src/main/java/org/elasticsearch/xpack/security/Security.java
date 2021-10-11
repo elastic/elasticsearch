@@ -355,24 +355,25 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
         LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
 
+    private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
     // Some realms (LDAP, AD, PKI) are Gold+
     public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_ldap_realm", License.OperationMode.GOLD);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent AD_REALM_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_active_directory_realm", License.OperationMode.GOLD);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active_directory", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_pki_realm", License.OperationMode.GOLD);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
     // SSO realms are Platinum+
     public static final LicensedFeature.Persistent SAML_REALM_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_saml_realm", License.OperationMode.PLATINUM);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
     public static final LicensedFeature.Persistent OIDC_REALM_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_oidc_realm", License.OperationMode.PLATINUM);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_kerberos_realm", License.OperationMode.PLATINUM);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
     // Custom realms are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_custom_realms", License.OperationMode.PLATINUM);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 

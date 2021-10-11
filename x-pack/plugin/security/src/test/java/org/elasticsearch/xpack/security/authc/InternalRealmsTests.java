@@ -94,11 +94,11 @@ public class InternalRealmsTests extends ESTestCase {
                 assertThat(feature, nullValue());
             } else if (InternalRealms.isStandardRealm(type)) {
                 assertThat(feature, notNullValue());
-                // In theory this could be "standard" too, but there aren't any realms on that license level
+                // In theory a "standard" realm could actually be OperationMode.STANDARD, but we don't have any of those at the moment
                 assertThat(feature.getMinimumOperationMode(), is(License.OperationMode.GOLD));
             } else {
                 assertThat(feature, notNullValue());
-                // In theory this could be "enterprise" too, but there aren't any realms on that license level
+                // In theory a (not-builtin & not-standard) realm could actually be OperationMode.ENTERPRISE, but we don't have any
                 assertThat(feature.getMinimumOperationMode(), is(License.OperationMode.PLATINUM));
             }
         }

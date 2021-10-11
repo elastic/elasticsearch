@@ -89,9 +89,10 @@ public class Realms implements Iterable<Realm> {
     protected void recomputeActiveRealms() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         final List<Realm> licensedRealms = calculateLicensedRealms(licenseStateSnapshot);
+        final String mode = licenseStateSnapshot.getOperationMode().description();
         logger.info(
             "license mode is [{}], currently licensed security realms are [{}]",
-            licenseStateSnapshot.getOperationMode().description(),
+            mode,
             Strings.collectionToCommaDelimitedString(licensedRealms)
         );
 
@@ -99,9 +100,8 @@ public class Realms implements Iterable<Realm> {
         if (activeRealms != null) {
             activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
                 final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
-                if (feature != null) {
-                    feature.stopTracking(licenseStateSnapshot, realm.name());
-                }
+                assert feature != null : "Realm [" + realm + "] with no licensed feature became inactive due to change to [" + mode + "]";
+                feature.stopTracking(licenseStateSnapshot, realm.name());
             });
         }
 

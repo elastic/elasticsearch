@@ -69,12 +69,13 @@ public class Cleanup {
             () -> sh.runIgnoreExitCode(
                 "@(Get-ChildItem -Path "
                     + getRootTempDir()
-                    + "\\* -Filter elasticsearch* | "
+                    + "-Filter elasticsearch* | "
                     + "Get-ChildItem -Recurse -Force ) "
                     + "+ (Get-ChildItem -Path "
                     + getRootTempDir()
-                    + "\\* -Filter elasticsearch* -Directory) | "
-                    + "sort pspath -Descending -unique"
+                    + "-Filter elasticsearch* -Directory) | "
+                    + "sort pspath -Descending -unique | "
+                    + "Remove-Item -Force -Recurse"
             )
         );
         Platforms.onLinux(() -> {

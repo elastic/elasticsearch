@@ -303,6 +303,9 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertNoIndices(response);
+        assertWarnings("The HTTP status code for a cluster health timeout will be changed from 408 to 200 in a " +
+            "future version. Set the [es.cluster_health.request_timeout_200] system property to [true] to suppress this message and " +
+            "opt in to the future behaviour now.");
     }
 
     public void testRemoteInfo() throws Exception {

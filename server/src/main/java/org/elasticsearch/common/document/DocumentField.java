@@ -99,17 +99,10 @@ public class DocumentField implements Writeable, Iterable<Object> {
     }    
 
     /**
-     * The field's ignored values as an immutable list.
+     * Set the field's ignored values.
      */
-    public void addIgnoredValues(List<Object> additions) {
-        if (ignoredValues.isEmpty()) {
-            return;
-        }
-        if (ignoredValues == Collections.emptyList()) {
-            ignoredValues = new ArrayList<>(additions);
-        } else {
-            ignoredValues.addAll(additions);
-        }
+    public void setIgnoredValues(List<Object> additions) {
+        ignoredValues = List.copyOf(additions);
     }    
     
     @Override

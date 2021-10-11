@@ -900,9 +900,13 @@ public final class NodeEnvironment  implements Closeable {
      * Returns an array of all of the nodes data locations.
      * @throws IllegalStateException if the node is not configured to store local locations
      */
-    public Path nodeDataPath() {
+    public Path[] nodeDataPaths() {
         assertEnvIsLocked();
-        return nodePaths[0].path;
+        Path[] paths = new Path[nodePaths.length];
+        for(int i=0;i<paths.length;i++) {
+            paths[i] = nodePaths[i].path;
+        }
+        return paths;
     }
 
     /**
@@ -1297,7 +1301,9 @@ public final class NodeEnvironment  implements Closeable {
      * This prevents disasters if nodes are started under the wrong username etc.
      */
     private void assertCanWrite() throws IOException {
-        tryWriteTempFile(nodeDataPath());
+        for (Path path : nodeDataPaths()) { // check node-paths are writable
+            tryWriteTempFile(path);
+        }
         for (String indexFolderName : this.availableIndexFolders()) {
             for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
                 Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
@@ -30,7 +31,9 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}/events")
-                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7).build(),
+            Route.builder(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}/events")
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7).build()
         );
     }
 

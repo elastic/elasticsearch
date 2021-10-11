@@ -14,7 +14,8 @@
         {
           "path":"/_ml/calendars/{calendar_id}/events",
           "methods":[
-            "GET"
+            "GET",
+            "POST"
           ],
           "parts":{
             "calendar_id":{
@@ -46,6 +47,9 @@
         "type":"int",
         "description":"Specifies a max number of events to get"
       }
+    },
+    "body":{
+      "description":"The job_id, start, end, from and size parameters optionally sent in the body"
     }
   }
 }

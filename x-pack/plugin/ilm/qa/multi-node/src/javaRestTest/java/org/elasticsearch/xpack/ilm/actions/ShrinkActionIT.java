@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.CheckTargetShardsCountStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -208,7 +208,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .putNull(DataTierAllocationDecider.TIER_PREFERENCE));
+            .putNull(DataTier.TIER_PREFERENCE));
 
         ensureGreen(index);
 

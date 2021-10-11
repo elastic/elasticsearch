@@ -405,9 +405,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
-            builder.field(ALIASES_FIELD.getPreferredName(), aliases);
-            builder.field(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+            builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
+            builder.xContentList(ALIASES_FIELD.getPreferredName(), aliases);
+            builder.xContentList(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
             builder.endObject();
             return builder;
         }

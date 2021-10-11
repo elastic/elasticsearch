@@ -289,7 +289,7 @@ public class Docker {
         args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
 
         // Use a lightweight musl libc based small image
-        args.add("alpine");
+        args.add("alpine:3.13");
 
         // And run inline commands via the POSIX shell
         args.add("/bin/sh -c \"" + shellCmd + "\"");
@@ -568,7 +568,7 @@ public class Docker {
         sh.run("docker restart " + containerId);
     }
 
-    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+    static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
         final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
         if (result.isSuccess() == false) {
             throw new FileNotFoundException(path + " does not exist");

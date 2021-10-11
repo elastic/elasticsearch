@@ -273,3 +273,5 @@ tasks.register("integTest", Test) {
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
 }
+
+tasks.named("check").configure { dependsOn("integTest") }

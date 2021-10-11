@@ -390,7 +390,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             if (indexTemplateMetadata.version() != null) {
                 builder.field("version", indexTemplateMetadata.version());
             }
-            builder.field("index_patterns", indexTemplateMetadata.patterns());
+            builder.stringListField("index_patterns", indexTemplateMetadata.patterns());
 
             builder.startObject("settings");
             indexTemplateMetadata.settings().toXContent(builder, params);

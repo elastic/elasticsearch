@@ -96,12 +96,12 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         {
             builder.startObject(type);
             {
-                builder.field(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
+                builder.stringListField(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
                 if (query != null) {
                     builder.field(NamedPolicy.QUERY_FIELD.getPreferredName(), asMap(query, XContentType.JSON));
                 }
                 builder.field(NamedPolicy.MATCH_FIELD_FIELD.getPreferredName(), matchField);
-                builder.field(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
+                builder.stringListField(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
             }
             builder.endObject();
         }

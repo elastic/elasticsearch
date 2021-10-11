@@ -11,12 +11,12 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -26,8 +26,11 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.NodeRoles;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -39,13 +42,21 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.env.NodeEnvironment.NODES_FOLDER;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -524,6 +535,48 @@ public class NodeEnvironmentTests extends ESTestCase {
         // assert that we fail on shard data even without the metadata dir.
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
         verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+    }
+
+    public void testDowngradeFrom8xErrorMessage() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        // noinspection EmptyTryBlock we're just creating the directory structure
+        try (NodeEnvironment ignored = new NodeEnvironment(settings, environment)) {
+        }
+        final Path nodesPath = randomFrom(environment.dataFiles()).resolve(NODES_FOLDER);
+        assertTrue(Files.isDirectory(nodesPath));
+        IOUtils.rm(nodesPath);
+
+        final BiConsumer<byte[], Matcher<String>> testCaseConsumer = (fileContent, causeMatcher) -> {
+            try {
+                Files.write(nodesPath, fileContent);
+                final IllegalStateException e = expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, environment));
+                assertThat(
+                    e.getMessage(),
+                    allOf(containsString("is not compatible"), containsString("perhaps it has already been upgraded to a later version")));
+                assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+                assertThat(
+                    e.getCause().getMessage().length(),
+                    lessThanOrEqualTo(nodesPath.toString().length() + "[] is a file which contains [...]".length() + 256));
+                assertThat(e.getCause().getMessage(), causeMatcher);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+
+        testCaseConsumer.accept(
+            "file content which should be reported in the error message".getBytes(StandardCharsets.UTF_8),
+            endsWith("is a file which contains [file content which should be reported in the error message]")
+        );
+
+        testCaseConsumer.accept(
+            Stream.iterate("x", x -> x).limit(10000).collect(Collectors.joining()).getBytes(StandardCharsets.UTF_8),
+            allOf(containsString("is a file which contains [xxxxxx"), endsWith("xxx...]"))
+        );
+
+        final byte[] content = randomByteArrayOfLength(1024);
+        content[between(0, 255)] = (byte) 0xff; // never valid in a UTF-8 string
+        testCaseConsumer.accept(content, endsWith("is a file which contains [<unreadable>]"));
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

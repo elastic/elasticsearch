@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.core;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.DataTier.DataTierSettingValidator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -26,10 +28,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
-import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
-import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
-import static org.elasticsearch.xpack.core.DataTier.getPreferredTiersConfiguration;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
@@ -178,5 +180,23 @@ public class DataTierTests extends ESTestCase {
             nodesList.add(node);
         }
         return nodesList;
+    }
+
+    public void testDataTierSettingValidator() {
+        DataTierSettingValidator validator = new DataTierSettingValidator();
+
+        // good values
+        validator.validate(null);
+        validator.validate("");
+        validator.validate(" "); // a little surprising
+        validator.validate(DATA_WARM);
+        validator.validate(DATA_WARM + "," + DATA_HOT);
+        validator.validate(DATA_WARM + ","); // a little surprising
+
+        // bad values
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(" " + DATA_WARM));
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + " "));
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", "));
+        expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", " + DATA_HOT));
     }
 }

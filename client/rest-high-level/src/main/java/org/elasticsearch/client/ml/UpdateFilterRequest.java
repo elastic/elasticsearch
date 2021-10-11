@@ -103,10 +103,10 @@ public class UpdateFilterRequest extends ActionRequest implements ToXContentObje
             builder.field(MlFilter.DESCRIPTION.getPreferredName(), description);
         }
         if (addItems != null) {
-            builder.field(ADD_ITEMS.getPreferredName(), addItems);
+            builder.stringListField(ADD_ITEMS.getPreferredName(), addItems);
         }
         if (removeItems != null) {
-            builder.field(REMOVE_ITEMS.getPreferredName(), removeItems);
+            builder.stringListField(REMOVE_ITEMS.getPreferredName(), removeItems);
         }
         builder.endObject();
         return builder;

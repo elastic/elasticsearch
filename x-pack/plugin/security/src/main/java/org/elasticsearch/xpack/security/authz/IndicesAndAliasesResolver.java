@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -124,12 +125,13 @@ class IndicesAndAliasesResolver {
                     : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
+            final String[] indices = indicesRequest.indices();
             final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 
             // check for all and return list of authorized indices
-            if (isAllIndices(indicesRequest.indices())) {
+            if (IndexNameExpressionResolver.isAllIndices(indicesList(indices))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
                         if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata, nameExpressionResolver,
@@ -143,16 +145,41 @@ class IndicesAndAliasesResolver {
             } else {
                 final ResolvedIndices split;
                 if (indicesRequest.allowsRemoteIndices()) {
-                    split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+                    split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
                 } else {
-                    split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
+                    split = new ResolvedIndices(Arrays.asList(indices), Collections.emptyList());
                 }
                 List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
                         authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
-                if (indicesOptions.ignoreUnavailable()) {
+                assert indices != null && indices.length != 0 : "null or empty indices should be handled by isAllIndices";
+
+                // Filtering is needed if the request needs filter out unavailable indices
+                // For efficiency, we avoid filtering if the requested indices is a single wildcard pattern
+                if (indicesOptions.ignoreUnavailable()
+                    && (false == (indices.length == 1 && Regex.isSimpleMatchPattern(indices[0])))) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
-                    replaced = replaced.stream().filter(authorizedIndices::contains).collect(Collectors.toList());
+                    // Avoid creating filtered list if all replaced indices are available.
+                    // Also avoid resizing the filtered list by creating the list with sufficient size in the beginning.
+                    List<String> filtered = null;
+                    for (ListIterator<String> itr = replaced.listIterator(); itr.hasNext();) {
+                        final String index = itr.next();
+                        if (authorizedIndices.contains(index) == false) {
+                            // Only creating the filtered list when there are unavailable indices
+                            if (filtered == null) {
+                                filtered = new ArrayList<>(replaced.size()-1);
+                                filtered.addAll( replaced.subList(0, itr.previousIndex()) );
+                            }
+                        } else {
+                            if (filtered != null) {
+                                filtered.add(index);
+                            }
+                            // If filtered is null that means all indices so far is available, so no need to filter
+                        }
+                    }
+                    if (filtered != null) {
+                        replaced = filtered;
+                    }
                 }
                 resolvedIndicesBuilder.addLocal(replaced);
                 resolvedIndicesBuilder.addRemote(split.getRemote());
@@ -167,12 +194,11 @@ class IndicesAndAliasesResolver {
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
-                    final String[] indices = indicesRequest.indices();
                     if (indices != null && indices.length == 1 && Regex.isMatchAllPattern(indices[0])) {
                         // Special handling to keep error message the same as previously thrown in core's IndexAbstractionResolver
                         throw new IndexNotFoundException(indices[0]);
                     } else {
-                        throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
+                        throw new IndexNotFoundException(Arrays.toString(indices));
                     }
                 }
             } else {
@@ -248,11 +274,6 @@ class IndicesAndAliasesResolver {
             }
         }
         return resolvedIndicesBuilder.build();
-    }
-
-    static boolean isAllIndices(String[] names) {
-        return names == null || names.length == 0
-            || (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0])));
     }
 
     /**

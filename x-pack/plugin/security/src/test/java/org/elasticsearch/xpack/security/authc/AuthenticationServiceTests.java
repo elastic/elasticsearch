@@ -425,6 +425,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(realms, atLeastOnce()).recomputeActiveRealms();
         verify(realms, atLeastOnce()).calculateLicensedRealms(any(XPackLicenseState.class));
         verify(realms, atLeastOnce()).getActiveRealms();
+        verify(realms, atLeastOnce()).stopTrackingInactiveRealms(any(XPackLicenseState.class), any());
         // ^^ We don't care how many times these methods are called, we just check it here so that we can verify no more interactions below.
         verifyNoMoreInteractions(realms);
     }
@@ -2170,6 +2171,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         // Make public for testing
         public void recomputeActiveRealms() {
             super.recomputeActiveRealms();
+        }
+
+        @Override
+        protected void stopTrackingInactiveRealms(XPackLicenseState licenseStateSnapshot, List<Realm> licensedRealms) {
+            // Ignore
         }
     }
 

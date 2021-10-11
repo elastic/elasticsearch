@@ -78,9 +78,10 @@ public class Realms implements Iterable<Realm> {
         assert factories.get(ReservedRealm.TYPE) == null;
 
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
-        this.allConfiguredRealms = initRealms(realmConfigs);
-        this.allConfiguredRealms.forEach(r -> r.initialize(allConfiguredRealms, licenseState));
-        assert allConfiguredRealms.get(0) == reservedRealm : "the first realm must be reserved realm";
+        final List<Realm> initialRealms = initRealms(realmConfigs);
+        this.allConfiguredRealms = initialRealms;
+        this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
+        assert this.allConfiguredRealms.get(0) == reservedRealm : "the first realm must be reserved realm";
 
         recomputeActiveRealms();
         licenseState.addListener(this::recomputeActiveRealms);
@@ -89,23 +90,31 @@ public class Realms implements Iterable<Realm> {
     protected void recomputeActiveRealms() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         final List<Realm> licensedRealms = calculateLicensedRealms(licenseStateSnapshot);
-        final String mode = licenseStateSnapshot.getOperationMode().description();
         logger.info(
             "license mode is [{}], currently licensed security realms are [{}]",
-            mode,
+            licenseStateSnapshot.getOperationMode().description(),
             Strings.collectionToCommaDelimitedString(licensedRealms)
         );
 
+        stopTrackingInactiveRealms(licenseStateSnapshot, licensedRealms);
+
+        activeRealms = licensedRealms;
+    }
+
+    // Can be overridden in testing
+    protected void stopTrackingInactiveRealms(XPackLicenseState licenseStateSnapshot, List<Realm> licensedRealms) {
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
             activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
                 final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
-                assert feature != null : "Realm [" + realm + "] with no licensed feature became inactive due to change to [" + mode + "]";
+                assert feature != null : "Realm ["
+                    + realm
+                    + "] with no licensed feature became inactive due to change to license mode ["
+                    + licenseStateSnapshot.getOperationMode()
+                    + "]";
                 feature.stopTracking(licenseStateSnapshot, realm.name());
             });
         }
-
-        activeRealms = licensedRealms;
     }
 
     @Override

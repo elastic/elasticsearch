@@ -115,21 +115,21 @@ public class RealmsTests extends ESTestCase {
     }
 
     private void allowOnlyStandardRealms() {
-        setRealmAvailability(InternalRealms::isStandardRealm);
+        setRealmAvailability(f -> f.getMinimumOperationMode() != License.OperationMode.PLATINUM);
     }
 
     private void allowOnlyNativeRealms() {
         setRealmAvailability(type -> false);
     }
 
-    private void setRealmAvailability(Function<String, Boolean> body) {
+    private void setRealmAvailability(Function<LicensedFeature.Persistent, Boolean> body) {
         InternalRealms.getConfigurableRealmsTypes().forEach(type -> {
             final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(type);
             if (feature != null) {
-                when(licenseState.isAllowed(feature)).thenReturn(body.apply(type));
+                when(licenseState.isAllowed(feature)).thenReturn(body.apply(feature));
             }
         });
-        when(licenseState.isAllowed(Security.CUSTOM_REALMS_FEATURE)).thenReturn(body.apply("custom"));
+        when(licenseState.isAllowed(Security.CUSTOM_REALMS_FEATURE)).thenReturn(body.apply(Security.CUSTOM_REALMS_FEATURE));
         licenseStateListeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 

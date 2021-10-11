@@ -19,12 +19,8 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -74,25 +70,12 @@ public class InternalRealmsTests extends ESTestCase {
         verify(securityIndex, times(2)).addStateListener(isA(BiConsumer.class));
     }
 
-    public void testIsStandardType() {
-        String type = randomFrom(
-            NativeRealmSettings.TYPE,
-            FileRealmSettings.TYPE,
-            LdapRealmSettings.AD_TYPE,
-            LdapRealmSettings.LDAP_TYPE,
-            PkiRealmSettings.TYPE
-        );
-        assertThat(InternalRealms.isStandardRealm(type), is(true));
-        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
-        assertThat(InternalRealms.isStandardRealm(type), is(false));
-    }
-
     public void testLicenseLevels() {
         for (String type : InternalRealms.getConfigurableRealmsTypes()) {
             final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(type);
             if (InternalRealms.isBuiltinRealm(type)) {
                 assertThat(feature, nullValue());
-            } else if (InternalRealms.isStandardRealm(type)) {
+            } else if (isStandardRealm(type)) {
                 assertThat(feature, notNullValue());
                 // In theory a "standard" realm could actually be OperationMode.STANDARD, but we don't have any of those at the moment
                 assertThat(feature.getMinimumOperationMode(), is(License.OperationMode.GOLD));
@@ -101,6 +84,17 @@ public class InternalRealmsTests extends ESTestCase {
                 // In theory a (not-builtin & not-standard) realm could actually be OperationMode.ENTERPRISE, but we don't have any
                 assertThat(feature.getMinimumOperationMode(), is(License.OperationMode.PLATINUM));
             }
+        }
+    }
+
+    private boolean isStandardRealm(String type) {
+        switch (type) {
+            case LdapRealmSettings.LDAP_TYPE:
+            case LdapRealmSettings.AD_TYPE:
+            case PkiRealmSettings.TYPE:
+                return true;
+            default:
+                return false;
         }
     }
 }

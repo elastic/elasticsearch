@@ -10,6 +10,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,7 +44,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
  */
 public final class InternalRealms {
 
+    static final String RESERVED_TYPE = ReservedRealm.TYPE;
     static final String NATIVE_TYPE = NativeRealmSettings.TYPE;
     static final String FILE_TYPE = FileRealmSettings.TYPE;
     static final String LDAP_TYPE = LdapRealmSettings.LDAP_TYPE;
@@ -64,63 +65,54 @@ public final class InternalRealms {
     static final String OIDC_TYPE = OpenIdConnectRealmSettings.TYPE;
     static final String KERBEROS_TYPE = KerberosRealmSettings.TYPE;
 
+    private static final Set<String> BUILTIN_TYPES = Set.of(NATIVE_TYPE, FILE_TYPE);
+
     /**
-     * The map of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}, to their licensed feature (if any)
+     * The map of all <em>licensed</em> internal realm types to their licensed feature
      */
-    private static final Map<String, Optional<LicensedFeature.Persistent>> XPACK_TYPES = Map.ofEntries(
-        Map.entry(NATIVE_TYPE, Optional.empty()),
-        Map.entry(FILE_TYPE, Optional.empty()),
-        Map.entry(AD_TYPE, Optional.of(Security.AD_REALM_FEATURE)),
-        Map.entry(LDAP_TYPE, Optional.of(Security.LDAP_REALM_FEATURE)),
-        Map.entry(PKI_TYPE, Optional.of(Security.PKI_REALM_FEATURE)),
-        Map.entry(SAML_TYPE, Optional.of(Security.SAML_REALM_FEATURE)),
-        Map.entry(KERBEROS_TYPE, Optional.of(Security.KERBEROS_REALM_FEATURE)),
-        Map.entry(OIDC_TYPE, Optional.of(Security.OIDC_REALM_FEATURE))
+    private static final Map<String, LicensedFeature.Persistent> LICENSED_REALMS = Map.ofEntries(
+        Map.entry(AD_TYPE, Security.AD_REALM_FEATURE),
+        Map.entry(LDAP_TYPE, Security.LDAP_REALM_FEATURE),
+        Map.entry(PKI_TYPE, Security.PKI_REALM_FEATURE),
+        Map.entry(SAML_TYPE, Security.SAML_REALM_FEATURE),
+        Map.entry(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE),
+        Map.entry(OIDC_TYPE, Security.OIDC_REALM_FEATURE)
     );
 
     /**
-     * The list of all standard realm types, which are those provided by x-pack and do not have extensive
-     * interaction with third party sources
+     * The set of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}
+     * @deprecated Use of this method (other than in tests) is discouraged.
      */
-    private static final Set<String> STANDARD_TYPES = Set.of(NATIVE_TYPE, FILE_TYPE, AD_TYPE, LDAP_TYPE, PKI_TYPE);
-
+    @Deprecated
     public static Collection<String> getConfigurableRealmsTypes() {
-        return XPACK_TYPES.keySet();
+        return Set.copyOf(Sets.union(BUILTIN_TYPES, LICENSED_REALMS.keySet()));
     }
 
     static boolean isInternalRealm(String type) {
-        return ReservedRealm.TYPE.equals(type) || XPACK_TYPES.containsKey(type);
+        return RESERVED_TYPE.equals(type) || BUILTIN_TYPES.contains(type) || LICENSED_REALMS.containsKey(type);
+    }
+
+    static boolean isBuiltinRealm(String type) {
+        return BUILTIN_TYPES.contains(type);
     }
 
     /**
      * @return The licensed feature for the given realm type, or {@code null} if the realm does not require a specific license type
      * @throws IllegalArgumentException if the provided type is not an {@link #isInternalRealm(String) internal realm}
      */
+    @Nullable
     static LicensedFeature.Persistent getLicensedFeature(String type) {
         if (Strings.isNullOrEmpty(type)) {
             throw new IllegalArgumentException("Empty realm type [" + type + "]");
         }
-        if (type.equals(ReservedRealm.TYPE)) {
+        if (type.equals(RESERVED_TYPE) || isBuiltinRealm(type)) {
             return null;
         }
-        final Optional<LicensedFeature.Persistent> opt = XPACK_TYPES.get(type);
-        if (opt == null) {
+        final LicensedFeature.Persistent feature = LICENSED_REALMS.get(type);
+        if (feature == null) {
             throw new IllegalArgumentException("Unsupported realm type [" + type + "]");
         }
-        return opt.orElse(null);
-    }
-
-    /**
-     * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
-     * excluding the {@link ReservedRealm} and realms that have extensive interaction with
-     * third party sources
-     */
-    static boolean isStandardRealm(String type) {
-        return STANDARD_TYPES.contains(type);
-    }
-
-    static boolean isBuiltinRealm(String type) {
-        return FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type);
+        return feature;
     }
 
     /**

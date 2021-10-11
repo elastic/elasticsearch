@@ -285,11 +285,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_SEARCHABLE_INDICES_FIELD); // 7
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_AGGREGATABLE_INDICES_FIELD); // 8
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), NON_DIMENSION_INDICES_FIELD); // 9
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), METRIC_CONFLICTS_INDICES_FIELD); // 10
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
             (parser, context) -> parser.map(HashMap::new, p -> Set.copyOf(p.list())),
             META_FIELD
-        ); // 10
+        ); // 11
     }
 
     /**
@@ -403,6 +404,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             Arrays.equals(nonSearchableIndices, that.nonSearchableIndices) &&
             Arrays.equals(nonAggregatableIndices, that.nonAggregatableIndices) &&
             Arrays.equals(nonDimensionIndices, that.nonDimensionIndices) &&
+            Arrays.equals(metricConflictsIndices, that.metricConflictsIndices) &&
             Objects.equals(meta, that.meta);
     }
 
@@ -413,6 +415,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         result = 31 * result + Arrays.hashCode(nonSearchableIndices);
         result = 31 * result + Arrays.hashCode(nonAggregatableIndices);
         result = 31 * result + Arrays.hashCode(nonDimensionIndices);
+        result = 31 * result + Arrays.hashCode(metricConflictsIndices);
         return result;
     }
 

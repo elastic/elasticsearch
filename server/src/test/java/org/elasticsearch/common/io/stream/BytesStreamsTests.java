@@ -19,11 +19,10 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -298,10 +297,10 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
+        out.writeZoneId(ZoneId.of("CET"));
+        out.writeOptionalZoneId(ZoneId.systemDefault());
         out.writeOptionalTimeZone(null);
-        out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        out.writeGenericValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(123456), ZoneId.of("America/Los_Angeles")));
         final OffsetTime offsetNow = OffsetTime.now(randomZone());
         out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
@@ -333,8 +332,8 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
-        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
-        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
+        assertEquals(ZoneId.of("CET"), in.readZoneId());
+        assertEquals(ZoneId.systemDefault(), in.readOptionalZoneId());
         assertNull(in.readOptionalTimeZone());
         Object dt = in.readGenericValue();
         assertThat(dt, instanceOf(ZonedDateTime.class));

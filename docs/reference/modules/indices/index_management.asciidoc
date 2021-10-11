@@ -34,7 +34,7 @@ Specifies the hosts that can be <<reindex-from-remote,reindexed from remotely>>.
 // end::reindex-remote-whitelist[]
 
 [[stack-templates-enabled]]
-`stack.templates.enabled` {ess-icon}::
+`stack.templates.enabled`::
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)

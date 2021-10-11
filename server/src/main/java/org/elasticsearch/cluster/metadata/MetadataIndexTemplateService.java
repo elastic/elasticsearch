@@ -1417,7 +1417,7 @@ public class MetadataIndexTemplateService {
         int order;
         Integer version;
         List<String> indexPatterns;
-        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        Settings settings = Settings.EMPTY;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
 

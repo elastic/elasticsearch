@@ -38,6 +38,6 @@ setup:
 "Test upgrade transform":
   - do:
       transform.upgrade_transforms:
-      body: {}
+        dry_run: false
   # upgrade does not do anything on a fresh install, so we can only test that nothing breaks
   - match: { no_action: 1 }

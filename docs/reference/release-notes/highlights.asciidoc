@@ -30,11 +30,12 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
-=== EQL: `runs` keyword for repeated events
+=== EQL: `with runs` statements for repeated events
 
-In 7.16, we added the `runs` keyword to EQL sequence queries. Sometimes you want
-to find a sequence that contains an event multiple times in succession. Rather
-than type the same event criteria multiple times, you can use a `runs` statement
-to declare the criteria once and run it successively. For more details, check
-out the {ref}/eql-syntax.html#eql-runs-keyword[EQL syntax documentation].
+In 7.16, we added the `with runs` statement syntax to EQL sequence queries.
+Sometimes you want to find a sequence that contains an event multiple times in
+succession. Rather than type the same event criteria multiple times, you can use
+a `with runs` statement to declare the criteria once and run it successively.
+For more details, check out the
+{ref}/eql-syntax.html#eql-with-runs-statement[EQL syntax documentation].
 // end::notable-highlights[]

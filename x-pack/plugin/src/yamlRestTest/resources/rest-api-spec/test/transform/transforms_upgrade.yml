@@ -41,3 +41,10 @@ setup:
         dry_run: false
   # upgrade does not do anything on a fresh install, so we can only test that nothing breaks
   - match: { no_action: 1 }
+---
+"Test upgrade transform dry run":
+  - do:
+      transform.upgrade_transforms:
+        dry_run: true
+  # upgrade does not do anything on a fresh install, so we can only test that nothing breaks
+  - match: { no_action: 1 }

@@ -182,7 +182,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
         for (Map.Entry<String, List<Path>> actualIndexDataPathEntry : actualIndexDataPaths.entrySet()) {
             List<Path> actual = actualIndexDataPathEntry.getValue();
-            assertThat(actual.get(0), equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
+            Path[] actualPaths = actual.toArray(new Path[actual.size()]);
+            assertThat(actualPaths, equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
         }
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
@@ -211,7 +212,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             SetOnce<Path> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
             Path deletedPath = listener.get();
-            assertThat(deletedPath, equalTo(env.nodePath().resolve(index).resolve("1")));
+            assertThat(deletedPath, equalTo(env.nodePaths()[0].resolve(index).resolve("1")));
         }
 
         path = env.indexPath(index);

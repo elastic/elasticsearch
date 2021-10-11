@@ -13,11 +13,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.DataTierMigrationRoutedStep;
@@ -190,7 +190,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
             assertReplicaIsUnassigned();
         }, 30, TimeUnit.SECONDS);
 
-        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTierAllocationDecider.TIER_PREFERENCE).build();
+        Settings removeTierRoutingSetting = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(managedIndex).settings(removeTierRoutingSetting);
         assertAcked(client().admin().indices().updateSettings(updateSettingsRequest).actionGet());
 

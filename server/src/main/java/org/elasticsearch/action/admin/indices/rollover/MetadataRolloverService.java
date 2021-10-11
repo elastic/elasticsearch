@@ -53,6 +53,8 @@ public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
 
+    public static final Settings HIDDEN_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
@@ -272,7 +274,7 @@ public class MetadataRolloverService {
                                                                                     final String targetIndexName,
                                                                                     CreateIndexRequest createIndexRequest,
                                                                                     final SystemDataStreamDescriptor descriptor) {
-        Settings settings = descriptor != null ? Settings.EMPTY : Settings.builder().put("index.hidden", true).build();
+        Settings settings = descriptor != null ? Settings.EMPTY : HIDDEN_INDEX_SETTINGS;
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
             .dataStreamName(dataStreamName)
             .systemDataStreamDescriptor(descriptor);

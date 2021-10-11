@@ -11,8 +11,8 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;

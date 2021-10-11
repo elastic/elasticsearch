@@ -393,7 +393,7 @@ PUT my-index-000001
 {
   "mappings": {
     "properties": {
-      "my-small" : { "type" : "keyword", "ignore_above": 1 }, <1>
+      "my-small" : { "type" : "keyword", "ignore_above": 2 }, <1>
       "my-large" : { "type" : "keyword" }
     }
   }
@@ -401,7 +401,7 @@ PUT my-index-000001
 
 PUT my-index-000001/_doc/1?refresh=true
 {
-  "my-small": "bad content", <2>
+  "my-small": ["ok", "bad"], <2>
   "my-large": "ok content"
 }
 
@@ -413,9 +413,9 @@ POST my-index-000001/_search
 ----
 
 <1> This field has a size restriction
-<2> This document field exceeds the size restriction so is ignored and not indexed
+<2> This document field has a value that exceeds the size restriction so is ignored and not indexed
 
-The response will contain ignored field results under the  `ignored_field_values` path.
+The response will contain ignored field values under the  `ignored_field_values` path.
 These values are retrieved from the document's original JSON source and are raw so will
 not be formatted or treated in any way, unlike the successfully indexed fields which are
 returned in the `fields` section.
@@ -446,11 +446,14 @@ returned in the `fields` section.
         "fields" : {
           "my-large": [
             "ok content"
+          ],
+          "my-small": [
+            "ok"
           ]
         },
         "ignored_field_values" : {
           "my-small": [
-            "bad content"
+            "bad"
           ]
         }
       }

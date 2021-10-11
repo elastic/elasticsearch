@@ -34,7 +34,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  * @see SearchHit
  * @see GetResult
  */
-//public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 public class DocumentField implements Writeable, Iterable<Object> {
 
     private final String name;

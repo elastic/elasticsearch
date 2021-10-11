@@ -190,7 +190,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals(100, ((Integer) fields.get("_doc_count").getValue()).intValue());
 
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
-        for (String fieldname : new String[] { "_id", "_index", "_seq_no", "_routing", "_ignored" }) {
+        for (String fieldname : new String[] { "_index", "_seq_no", "_routing", "_ignored" }) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }

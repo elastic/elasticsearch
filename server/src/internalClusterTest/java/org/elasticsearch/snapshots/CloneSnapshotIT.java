@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -20,7 +18,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -34,6 +31,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -684,8 +682,8 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
             for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
                 if (entry.shardsByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
-                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.shardsByRepoShardId().values()) {
-                        assertSame(value.value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
+                    for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
+                        assertSame(value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
                     }
                     return true;
                 }

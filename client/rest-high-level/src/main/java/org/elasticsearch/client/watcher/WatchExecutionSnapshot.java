@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.joda.time.DateTime;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -23,8 +23,8 @@ public class WatchExecutionSnapshot {
         new ConstructingObjectParser<>("watcher_stats_node", true, (args, c) -> new WatchExecutionSnapshot(
             (String) args[0],
             (String) args[1],
-            DateTime.parse((String)  args[2]),
-            DateTime.parse((String)  args[3]),
+            ZonedDateTime.parse((String)  args[2]),
+            ZonedDateTime.parse((String)  args[3]),
             ExecutionPhase.valueOf(((String) args[4]).toUpperCase(Locale.ROOT)),
             args[5] == null ? null : ((List<String>) args[5]).toArray(new String[0]),
             args[6] == null ? null : ((List<String>) args[6]).toArray(new String[0])
@@ -42,13 +42,13 @@ public class WatchExecutionSnapshot {
 
     private final String watchId;
     private final String watchRecordId;
-    private final DateTime triggeredTime;
-    private final DateTime executionTime;
+    private final ZonedDateTime triggeredTime;
+    private final ZonedDateTime executionTime;
     private final ExecutionPhase phase;
     private final String[] executedActions;
     private final String[] executionStackTrace;
 
-    public WatchExecutionSnapshot(String watchId, String watchRecordId, DateTime triggeredTime, DateTime executionTime,
+    public WatchExecutionSnapshot(String watchId, String watchRecordId, ZonedDateTime triggeredTime, ZonedDateTime executionTime,
                                   ExecutionPhase phase, String[] executedActions, String[] executionStackTrace) {
         this.watchId = watchId;
         this.watchRecordId = watchRecordId;
@@ -67,11 +67,11 @@ public class WatchExecutionSnapshot {
         return watchRecordId;
     }
 
-    public DateTime getTriggeredTime() {
+    public ZonedDateTime getTriggeredTime() {
         return triggeredTime;
     }
 
-    public DateTime getExecutionTime() {
+    public ZonedDateTime getExecutionTime() {
         return executionTime;
     }
 

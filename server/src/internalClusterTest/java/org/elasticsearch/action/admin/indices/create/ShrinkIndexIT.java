@@ -40,7 +40,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -86,7 +86,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         String mergeNode = discoveryNodes[0].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -159,7 +159,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final ImmutableOpenMap<String, DiscoveryNode> dataNodes =
                 client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
-        final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         final String mergeNode = discoveryNodes[0].getName();
         // This needs more than the default timeout if a large number of shards were created.
         ensureGreen(TimeValue.timeValueSeconds(120));
@@ -239,7 +239,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes =
                 client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.
@@ -340,7 +340,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         String spareNode = discoveryNodes[0].getName();
         String mergeNode = discoveryNodes[1].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
@@ -419,7 +419,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
             .getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         String mergeNode = discoveryNodes[0].getName();
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
@@ -481,7 +481,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush("source").get();
         ImmutableOpenMap<String, DiscoveryNode> dataNodes =
             client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode[]::new);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.

@@ -15,14 +15,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
@@ -497,7 +497,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         indexDocument(client(), dataStream, true);
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
-        assertThat(indexSettings.get(DataTierAllocationDecider.TIER_PREFERENCE), is("data_hot"));
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
 
         // rollover the data stream so searchable_snapshot can complete
         rolloverMaxOneDocCondition(client(), dataStream);
@@ -512,7 +512,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
-        assertThat(hotIndexSettings.get(DataTierAllocationDecider.TIER_PREFERENCE),
+        assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE),
             is("data_hot"));
     }
 }

@@ -29,9 +29,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -43,6 +43,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
@@ -130,11 +131,12 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
-            final NodeEnvironment.NodePath dataPath = lock.getNodePath();
-            if (dataPath == null) {
+            final Path[] dataPaths =
+                    Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, new Path[] { dataPath.path }, options, env);
+            processNodePaths(terminal, dataPaths, options, env);
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }

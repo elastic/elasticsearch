@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -56,6 +56,11 @@ public class WarningInferenceResults implements InferenceResults {
     @Override
     public int hashCode() {
         return Objects.hash(warning);
+    }
+
+    @Override
+    public String getResultsField() {
+        return NAME;
     }
 
     @Override

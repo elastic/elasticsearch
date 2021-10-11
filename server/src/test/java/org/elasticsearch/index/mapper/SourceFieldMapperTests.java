@@ -9,19 +9,26 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
@@ -120,5 +127,26 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertNotNull(exception.getRootCause());
         assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));
     }
+
+    public void testFetchSourceFieldValue() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword"))
+        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.lookup()).thenReturn(lookup);
+            SourceFieldMapper.SourceFieldType ft = (SourceFieldMapper.SourceFieldType) mapperService.fieldType("_source");
+            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            assertEquals(List.of("{\"field\":\"value\"}"), valueFetcher.fetchValues(lookup.source()));
+        });
+    }
+
 
 }

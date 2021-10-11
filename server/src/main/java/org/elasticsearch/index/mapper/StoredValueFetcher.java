@@ -19,7 +19,7 @@ import java.util.List;
 /**
  * Value fetcher that loads from stored values.
  */
-public final class StoredValueFetcher implements ValueFetcher {
+public class StoredValueFetcher implements ValueFetcher {
 
     private final SearchLookup lookup;
     private LeafSearchLookup leafSearchLookup;

@@ -1096,3 +1096,10 @@ test fetching metadata fields:
   - length: { hits.hits.0.fields : 1 }
   - match: { hits.hits.0.fields._routing.0: "abcd" }
   - is_false: hits.hits.1.fields
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_source" ]
+

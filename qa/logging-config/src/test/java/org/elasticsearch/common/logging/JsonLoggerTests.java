@@ -15,7 +15,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -230,7 +230,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("log.logger", "org.elasticsearch.deprecation.common.xcontent.ParseField"),
+                            hasEntry("log.logger", "org.elasticsearch.deprecation.xcontent.ParseField"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                             hasEntry("elasticsearch.node.name", "sample-name"),
@@ -247,7 +247,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("log.logger", "org.elasticsearch.deprecation.common.xcontent.ParseField"),
+                            hasEntry("log.logger", "org.elasticsearch.deprecation.xcontent.ParseField"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                             hasEntry("elasticsearch.node.name", "sample-name"),
@@ -264,7 +264,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("log.logger", "org.elasticsearch.deprecation.common.xcontent.ParseField"),
+                            hasEntry("log.logger", "org.elasticsearch.deprecation.xcontent.ParseField"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                             hasEntry("elasticsearch.node.name", "sample-name"),

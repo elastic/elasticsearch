@@ -8,8 +8,8 @@
 package org.elasticsearch.legacygeo.parsers;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;

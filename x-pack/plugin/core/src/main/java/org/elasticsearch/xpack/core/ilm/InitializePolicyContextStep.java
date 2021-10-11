@@ -68,7 +68,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
 
         newClusterStateBuilder.metadata(
-            Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder)
+            Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false)
         );
         return newClusterStateBuilder.build();
     }

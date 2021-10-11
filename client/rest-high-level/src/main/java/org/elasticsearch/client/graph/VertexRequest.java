@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.graph;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.client.graph.GraphExploreRequest.TermBoost;
 
 import java.io.IOException;

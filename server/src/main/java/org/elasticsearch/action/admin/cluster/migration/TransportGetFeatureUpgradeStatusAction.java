@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,8 +23,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 
 /**
  * Transport class for the get feature upgrade status action
@@ -60,16 +67,54 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     @Override
     protected void masterOperation(Task task, GetFeatureUpgradeStatusRequest request, ClusterState state,
                                    ActionListener<GetFeatureUpgradeStatusResponse> listener) throws Exception {
-        List<GetFeatureUpgradeStatusResponse.IndexVersion> indexVersions = new ArrayList<>();
-        indexVersions.add(new GetFeatureUpgradeStatusResponse.IndexVersion(".security-7", "7.1.1"));
-        List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = new ArrayList<>();
-        features.add(new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
-            "security",
-            "7.1.1",
-            "UPGRADE_NEEDED",
+
+        List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures().entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> getFeatureUpgradeStatus(state, entry))
+            .collect(Collectors.toList());
+
+        boolean isUpgradeNeeded = features.stream()
+                .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getMinimumIndexVersion)
+                .min(Version::compareTo)
+                .orElse(Version.CURRENT)
+                .before(Version.V_7_0_0);
+
+        listener.onResponse(new GetFeatureUpgradeStatusResponse(features, isUpgradeNeeded ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED));
+    }
+
+    // visible for testing
+    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
+        ClusterState state, Map.Entry<String, SystemIndices.Feature> entry) {
+
+        String featureName = entry.getKey();
+        SystemIndices.Feature feature = entry.getValue();
+
+        List<GetFeatureUpgradeStatusResponse.IndexVersion> indexVersions = getIndexVersions(state, feature);
+
+        Version minimumVersion = indexVersions.stream()
+            .map(GetFeatureUpgradeStatusResponse.IndexVersion::getVersion)
+            .min(Version::compareTo)
+            .orElse(Version.CURRENT);
+
+        return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
+            featureName,
+            minimumVersion,
+            minimumVersion.before(Version.V_7_0_0) ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED,
             indexVersions
-        ));
-        listener.onResponse(new GetFeatureUpgradeStatusResponse(features, "UPGRADE_NEEDED"));
+        );
+    }
+
+    // visible for testing
+    static List<GetFeatureUpgradeStatusResponse.IndexVersion> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
+        return Stream.of(feature.getIndexDescriptors(), feature.getAssociatedIndexDescriptors())
+            .flatMap(Collection::stream)
+            .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
+            .sorted(String::compareTo)
+            .map(index -> state.metadata().index(index))
+            .map(indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexVersion(
+                indexMetadata.getIndex().getName(),
+                indexMetadata.getCreationVersion()))
+            .collect(Collectors.toList());
     }
 
     @Override

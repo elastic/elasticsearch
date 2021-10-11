@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 
@@ -24,9 +23,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
     private static final String indexName = "test-index";
     private static final String snapshotName = "test-snapshot";
     private static final String mountedIndexName = "test-index-mounted";
-    private static final Settings frozenSettings = Settings.builder()
-        .put(DataTierAllocationDecider.TIER_PREFERENCE, DataTier.DATA_FROZEN)
-        .build();
+    private static final Settings frozenSettings = Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN).build();
 
     public void testPartialLegalOnFrozen() throws Exception {
         createRepository(repoName, "fs");
@@ -63,10 +60,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
         Settings mountSettings = randomFrom(
             Settings.EMPTY,
             Settings.builder()
-                .put(
-                    DataTierAllocationDecider.TIER_PREFERENCE,
-                    randomValueOtherThan(DataTier.DATA_FROZEN, () -> randomFrom(DataTier.ALL_DATA_TIERS))
-                )
+                .put(DataTier.TIER_PREFERENCE, randomValueOtherThan(DataTier.DATA_FROZEN, () -> randomFrom(DataTier.ALL_DATA_TIERS)))
                 .build()
         );
         mountSnapshot(repoName, snapshotName, indexName, mountedIndexName, mountSettings, MountSearchableSnapshotRequest.Storage.FULL_COPY);
@@ -77,7 +71,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
     private void updatePreference(String tier) {
         client().admin()
             .indices()
-            .updateSettings(new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.TIER_PREFERENCE, tier)))
+            .updateSettings(new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTier.TIER_PREFERENCE, tier)))
             .actionGet();
     }
 }

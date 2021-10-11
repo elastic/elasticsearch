@@ -10,7 +10,7 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.NodesResponseHeaderTestUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

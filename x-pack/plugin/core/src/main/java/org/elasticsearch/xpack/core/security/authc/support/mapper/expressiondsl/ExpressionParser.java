@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public final class ExpressionParser {
 
     /**
      * This function exists to be compatible with
-     * {@link org.elasticsearch.common.xcontent.ContextParser#parse(XContentParser, Object)}
+     * {@link ContextParser#parse(XContentParser, Object)}
      */
     public static RoleMapperExpression parseObject(XContentParser parser, String id) throws IOException {
         return new ExpressionParser().parse(id, parser);

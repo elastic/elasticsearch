@@ -1024,6 +1024,9 @@ test fetching metadata fields:
             properties:
               field:
                 type: keyword
+              short_field:
+                type: keyword
+                ignore_above: 5
               idAlias:
                 type: alias
                 path: _id
@@ -1035,6 +1038,7 @@ test fetching metadata fields:
         refresh: true
         body:
           field: foo
+          short_field: foo123
 
   - do:
       search:
@@ -1062,3 +1066,12 @@ test fetching metadata fields:
 
   - length: { hits.hits.0.fields : 1 }
   - match: { hits.hits.0.fields._id.0: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_ignored" ]
+
+  - length: { hits.hits.0.fields : 1 }
+  - match: { hits.hits.0.fields._ignored.0: "short_field" }

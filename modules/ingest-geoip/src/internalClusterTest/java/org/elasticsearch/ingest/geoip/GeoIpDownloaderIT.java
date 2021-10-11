@@ -64,8 +64,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -319,8 +321,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertThat(result.getFailure(), nullValue());
             assertThat(result.getIngestDocument(), notNullValue());
             Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
-            assertThat((Collection<?>) source.get("tags"), containsInAnyOrder("_geoip_database_unavailable_GeoLite2-City.mmdb",
-                "_geoip_database_unavailable_GeoLite2-Country.mmdb", "_geoip_database_unavailable_GeoLite2-ASN.mmdb"));
+            assertThat(source, hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City.mmdb",
+                "_geoip_database_unavailable_GeoLite2-Country.mmdb", "_geoip_database_unavailable_GeoLite2-ASN.mmdb")));
         }
 
         // Enable downloader:
@@ -331,8 +333,12 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 SimulateDocumentBaseResult result = simulatePipeline();
                 assertThat(result.getFailure(), nullValue());
                 assertThat(result.getIngestDocument(), notNullValue());
-                Map<String, Object> source = result.getIngestDocument().getSourceAndMetadata();
-                assertThat(source.get("tags"), nullValue());
+                Map<?, ?> source = result.getIngestDocument().getSourceAndMetadata();
+                assertThat(source, not(hasKey("tags")));
+                assertThat(source, hasKey("ip-city"));
+                assertThat(source, hasKey("ip-asn"));
+                assertThat(source, hasKey("ip-country"));
+
                 assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
                 assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
                 assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));

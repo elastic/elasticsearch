@@ -142,6 +142,17 @@ public class DateFieldMapperTests extends MapperTestCase {
         testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
     }
 
+    public void testResolutionLoss() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
+            .field("type", "date")));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2018-10-03T14:42:44.123456+0000")));
+
+        assertWarnings("You are attempting to store a date field with nanosecond resolution on a date field." +
+            " The nanosecond part was lost. Use date_nanos field type.");
+    }
+
+
     private void testIgnoreMalformedForValue(String value, String expectedCause, String dateFormat) throws IOException {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping((builder)-> dateFieldMapping(builder, dateFormat)));

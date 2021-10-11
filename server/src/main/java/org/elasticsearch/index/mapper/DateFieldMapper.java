@@ -78,6 +78,11 @@ public final class DateFieldMapper extends FieldMapper {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
             @Override
             public long convert(Instant instant) {
+                if (instant.getNano() % 1000000 != 0) {
+                    DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
+                        "You are attempting to store a date field with nanosecond resolution on a date field. " +
+                            "The nanosecond part was lost. Use date_nanos field type.");
+                }
                 return instant.toEpochMilli();
             }
 

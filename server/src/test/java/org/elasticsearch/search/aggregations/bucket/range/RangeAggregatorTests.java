@@ -121,8 +121,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(
-                org.elasticsearch.core.List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.04D)))); },
+            iw -> {
+                iw.addDocument(
+                    org.elasticsearch.core.List.of(new SortedNumericDocValuesField(fieldName, NumericUtils.doubleToSortableLong(0.04D)))
+                );
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();

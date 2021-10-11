@@ -133,7 +133,7 @@ not yet been retrieved into the local copy. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
 recovery.
 +
-Indices managed by ILM will be prefixed with `recovered-` when fully mounted.
+Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
 
 [[partially-mounted]]
 Partially mounted index::
@@ -153,7 +153,7 @@ large data sets, because the layout of data in the repository is heavily
 optimized for search. Many searches will need to retrieve only a small subset of
 the total shard data before returning results.
 +
-Indices managed by ILM will be prefixed with `partial-` when partially mounted.
+Indices managed by {ilm-init} are prefixed with `partial-` when partially mounted.
 
 To partially mount an index, you must have one or more nodes with a shared cache
 available. By default, dedicated frozen data tier nodes (nodes with the

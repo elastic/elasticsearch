@@ -8,7 +8,7 @@
 package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

@@ -9,8 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 
 import java.io.IOException;

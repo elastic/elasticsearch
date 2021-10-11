@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;

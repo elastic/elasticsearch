@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -32,6 +31,7 @@ import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.file.Path;
 import java.util.Arrays;

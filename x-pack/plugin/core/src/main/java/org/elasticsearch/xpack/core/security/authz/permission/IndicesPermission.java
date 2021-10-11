@@ -329,6 +329,10 @@ public final class IndicesPermission {
                 return concreteIndices;
             }
         }
+
+        public boolean canHaveBackingIndices() {
+            return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
+        }
     }
 
     /**
@@ -448,8 +452,13 @@ public final class IndicesPermission {
             }
 
             grantedBuilder.put(resource.name, granted);
-            for (String concreteIndex : concreteIndices) {
-                grantedBuilder.put(concreteIndex, granted);
+            if (resource.canHaveBackingIndices()) {
+                for (String concreteIndex : concreteIndices) {
+                    // If the name appear directly as part of the requested indices, it takes precedence over implicit access
+                    if (false == requestedIndicesOrAliases.contains(concreteIndex)) {
+                        grantedBuilder.put(concreteIndex, grantedBuilder.getOrDefault(concreteIndex, false) || granted);
+                    }
+                }
             }
         }
 

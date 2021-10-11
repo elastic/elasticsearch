@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -39,7 +38,9 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 
-public abstract class BaseRestSqlTestCase extends ESRestTestCase {
+public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestCase {
+
+    private static final String TEST_INDEX = "test";
 
     public static class RequestObjectBuilder {
         private StringBuilder request;
@@ -164,7 +165,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     }
 
     protected void index(String... docs) throws IOException {
-        indexWithIndexName("test", docs);
+        indexWithIndexName(TEST_INDEX, docs);
     }
 
     protected void indexWithIndexName(String indexName, String... docs) throws IOException {
@@ -176,7 +177,15 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
             bulk.append(doc + "\n");
         }
         request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
+        provisioningClient().performRequest(request);
+    }
+
+    protected void deleteTestIndex() throws IOException {
+        deleteIndex(TEST_INDEX);
+    }
+
+    protected static void deleteIndex(String name) throws IOException {
+        deleteIndex(provisioningClient(), name);
     }
 
     public static RequestObjectBuilder query(String query) {

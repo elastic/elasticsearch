@@ -6,25 +6,43 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+
 public class EsIndex {
 
+    @Nullable
+    private final String cluster;
     private final String name;
     private final Map<String, EsField> mapping;
 
     public EsIndex(String name, Map<String, EsField> mapping) {
+        this(null, name, mapping);
+    }
+
+    public EsIndex(@Nullable String cluster, String name, Map<String, EsField> mapping) {
         assert name != null;
         assert mapping != null;
+        this.cluster = cluster;
         this.name = name;
         this.mapping = mapping;
     }
 
+    public String cluster() {
+        return cluster;
+    }
+
     public String name() {
         return name;
+    }
+
+    public String qualifiedName() {
+        return buildRemoteIndexName(cluster, name);
     }
 
     public Map<String, EsField> mapping() {
@@ -38,7 +56,7 @@ public class EsIndex {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, mapping);
+        return Objects.hash(cluster, name, mapping);
     }
 
     @Override
@@ -52,6 +70,6 @@ public class EsIndex {
         }
 
         EsIndex other = (EsIndex) obj;
-        return Objects.equals(name, other.name) && mapping == other.mapping;
+        return Objects.equals(cluster, other.cluster) && Objects.equals(name, other.name) && mapping == other.mapping;
     }
 }

@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.elasticsearch.Version;
@@ -181,7 +182,7 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testSysColumnsWithCatalogWildcard() {
-        executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
+        executeCommand("SYS COLUMNS CATALOG '" + CLUSTER_NAME +  "' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
             assertEquals(FIELD_COUNT1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
@@ -276,10 +277,11 @@ public class SysColumnsTests extends ESTestCase {
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
+        when(resolver.remoteClusters()).thenReturn(Set.of(CLUSTER_NAME));
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any());
         doAnswer(invocation -> {
             ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;

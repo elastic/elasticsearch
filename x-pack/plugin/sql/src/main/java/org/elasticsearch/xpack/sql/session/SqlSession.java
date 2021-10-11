@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class SqlSession implements Session {
 
@@ -143,13 +144,12 @@ public class SqlSession implements Session {
 
             String cluster = table.cluster();
 
-            if (Strings.hasText(cluster) && indexResolver.clusterName().equals(cluster) == false) {
-                listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
-            }
+            String indexPattern = Strings.hasText(cluster) && cluster.equals(configuration.clusterName()) == false ?
+                buildRemoteIndexName(cluster, table.index()) : table.index();
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
-                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
+            indexResolver.resolveAsMergedMapping(indexPattern, includeFrozen,
+                configuration.runtimeMappings(), wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {
                 // occurs when dealing with local relations (SELECT 5+2)

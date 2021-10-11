@@ -71,11 +71,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        return createComponents(client, clusterService.getClusterName().value());
+        return createComponents(client, environment.settings(), clusterService);
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
+    private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), settings,
+            clusterService.getClusterSettings(), DefaultDataTypeRegistry.INSTANCE);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, circuitBreaker.get());
         return Collections.singletonList(planExecutor);
     }

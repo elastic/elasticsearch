@@ -91,14 +91,16 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
 
-        return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
+        return createComponents(client, environment.settings(), clusterService, namedWriteableRegistry);
     }
 
     /**
      * Create components used by the sql plugin.
      */
-    Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, SqlDataTypeRegistry.INSTANCE);
+    Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService,
+                                        NamedWriteableRegistry namedWriteableRegistry) {
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), settings,
+            clusterService.getClusterSettings(), SqlDataTypeRegistry.INSTANCE);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 

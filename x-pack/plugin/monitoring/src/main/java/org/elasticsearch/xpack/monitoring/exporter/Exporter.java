@@ -89,7 +89,7 @@ public abstract class Exporter implements AutoCloseable {
      */
     public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
-                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated), TYPE_DEPENDENCY);
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */

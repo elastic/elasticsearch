@@ -24,7 +24,9 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -389,8 +391,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
+    private final boolean isHidden;
 
     private final IndexLongFieldRange timestampRange;
+
+    private final int priority;
+
+    private final long creationDate;
+
+    private final boolean ignoreDiskWatermarks;
+
+    @Nullable // since we store null if DataTier.TIER_PREFERENCE_SETTING failed validation
+    private final List<String> tierPreference;
 
     private IndexMetadata(
             final Index index,
@@ -417,7 +429,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
-            final IndexLongFieldRange timestampRange) {
+            final boolean isHidden,
+            final IndexLongFieldRange timestampRange,
+            final int priority,
+            final long creationDate,
+            final boolean ignoreDiskWatermarks,
+            @Nullable final List<String> tierPreference
+    ) {
 
         this.index = index;
         this.version = version;
@@ -449,7 +467,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
+        assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
+        this.isHidden = isHidden;
         this.timestampRange = timestampRange;
+        this.priority = priority;
+        this.creationDate = creationDate;
+        this.ignoreDiskWatermarks = ignoreDiskWatermarks;
+        this.tierPreference = tierPreference;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -509,7 +533,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public long getCreationDate() {
-        return settings.getAsLong(SETTING_CREATION_DATE, -1L);
+        return creationDate;
     }
 
     public State getState() {
@@ -544,12 +568,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return waitForActiveShards;
     }
 
+    public boolean ignoreDiskWatermarks() {
+        return ignoreDiskWatermarks;
+    }
+
     public Settings getSettings() {
         return settings;
     }
 
     public ImmutableOpenMap<String, AliasMetadata> getAliases() {
         return this.aliases;
+    }
+
+    public List<String> getTierPreference() {
+        if (tierPreference == null) {
+            final List<String> parsed = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
+            assert false : "the setting parsing should always throw if we didn't store a tier preference when building this instance";
+            return parsed;
+        }
+        return tierPreference;
     }
 
     /**
@@ -612,9 +649,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     public MappingMetadata mappingOrDefault() {
         MappingMetadata mapping = null;
-        for (ObjectCursor<MappingMetadata> m : mappings.values()) {
+        for (MappingMetadata m : mappings.values()) {
             if (mapping == null || mapping.type().equals(MapperService.DEFAULT_MAPPING)) {
-                mapping = m.value;
+                mapping = m;
             }
         }
 
@@ -970,12 +1007,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
         out.writeVInt(mappings.size());
-        for (ObjectCursor<MappingMetadata> cursor : mappings.values()) {
-            cursor.value.writeTo(out);
+        for (MappingMetadata mappingMetadata : mappings.values()) {
+            mappingMetadata.writeTo(out);
         }
         out.writeVInt(aliases.size());
-        for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {
-            cursor.value.writeTo(out);
+        for (AliasMetadata aliasMetadata : aliases.values()) {
+            aliasMetadata.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeVInt(customData.size());
@@ -993,8 +1030,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeVInt(rolloverInfos.size());
-            for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
-                cursor.value.writeTo(out);
+            for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
+                rolloverInfo.writeTo(out);
             }
         }
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
@@ -1005,6 +1042,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isSystem() {
         return isSystem;
+    }
+
+    public boolean isHidden() {
+        return isHidden;
+    }
+
+    public int priority() {
+        return priority;
     }
 
     public static Builder builder(String index) {
@@ -1279,9 +1324,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public IndexMetadata build() {
-            ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
-            Settings tmpSettings = settings;
-
             // update default mapping on the MappingMetadata
             if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                 MappingMetadata defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);
@@ -1365,6 +1407,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
+            List<String> tierPreference;
+            try {
+                tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
+            } catch (Exception e) {
+                assert e instanceof IllegalArgumentException : e;
+                // BwC hack: the setting failed validation but it will be fixed in
+                // #IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} later so we just store a null
+                // to be able to build a temporary instance
+                tierPreference = null;
+            }
+
             return new IndexMetadata(
                     new Index(index, uuid),
                     version,
@@ -1375,9 +1428,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     state,
                     numberOfShards,
                     numberOfReplicas,
-                    tmpSettings,
+                    settings,
                     mappings.build(),
-                    tmpAliases.build(),
+                    aliases.build(),
                     customMetadata.build(),
                     filledInSyncAllocationIds.build(),
                     requireFilters,
@@ -1390,7 +1443,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
-                timestampRange);
+                    INDEX_HIDDEN_SETTING.get(settings),
+                    timestampRange,
+                    IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
+                    settings.getAsLong(SETTING_CREATION_DATE, -1L),
+                    DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
+                    tierPreference
+            );
         }
 
         @SuppressWarnings("unchecked")
@@ -1444,14 +1503,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetadata.customData) {
-                builder.field(cursor.key);
-                builder.map(cursor.value);
+                builder.stringStringMap(cursor.key, cursor.value);
             }
 
             if (context != Metadata.XContentContext.API) {
                 builder.startObject(KEY_ALIASES);
-                for (ObjectCursor<AliasMetadata> cursor : indexMetadata.getAliases().values()) {
-                    AliasMetadata.Builder.toXContent(cursor.value, builder, params);
+                for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
+                    AliasMetadata.Builder.toXContent(aliasMetadata, builder, params);
                 }
                 builder.endObject();
 
@@ -1486,8 +1544,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
 
             builder.startObject(KEY_ROLLOVER_INFOS);
-            for (ObjectCursor<RolloverInfo> cursor : indexMetadata.getRolloverInfos().values()) {
-                cursor.value.toXContent(builder, params);
+            for (RolloverInfo rolloverInfo : indexMetadata.getRolloverInfos().values()) {
+                rolloverInfo.toXContent(builder, params);
             }
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);

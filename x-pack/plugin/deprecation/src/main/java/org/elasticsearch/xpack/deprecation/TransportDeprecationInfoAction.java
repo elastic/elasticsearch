@@ -38,15 +38,16 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
-        DeprecationInfoAction.Response> {
+    DeprecationInfoAction.Response> {
     private static final List<DeprecationChecker> PLUGIN_CHECKERS =
-        Arrays.asList(new MlDeprecationChecker(), new CcrAutoFollowedSystemIndicesChecker());
+        Arrays.asList(new MlDeprecationChecker(), new CcrAutoFollowedSystemIndicesChecker(), new TransformDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
+    private volatile List<String> skipTheseDeprecations;
 
     @Inject
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -59,6 +60,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        // Safe to register this here because it happens synchronously before the cluster service is started:
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
+            this::setSkipDeprecations);
+    }
+
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     @Override
@@ -100,7 +109,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                             response,
                             INDEX_SETTINGS_CHECKS,
                             CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues
+                            deprecationIssues,
+                            skipTheseDeprecations
                         )
                     );
                 },

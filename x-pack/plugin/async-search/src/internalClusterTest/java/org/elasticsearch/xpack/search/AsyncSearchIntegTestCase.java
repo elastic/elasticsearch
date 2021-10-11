@@ -24,7 +24,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;

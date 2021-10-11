@@ -681,12 +681,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public long getLongValue() {
-            return StringField.toLong(get(0));
+            return Long.parseLong(get(0));
         }
 
         @Override
         public double getDoubleValue() {
-            return StringField.toDouble(get(0));
+            return Double.parseDouble(get(0));
         }
 
         @Override

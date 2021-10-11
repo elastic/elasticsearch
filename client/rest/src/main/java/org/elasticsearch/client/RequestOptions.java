@@ -71,6 +71,13 @@ public final class RequestOptions {
         return headers;
     }
 
+    /**
+     * Return true if the options contain the given header
+     */
+    public boolean containsHeader(String name) {
+        return headers.stream().anyMatch(h -> name.equalsIgnoreCase(h.getName()));
+    }
+
     public Map<String, String> getParameters() {
         return parameters;
     }
@@ -200,6 +207,22 @@ public final class RequestOptions {
             Objects.requireNonNull(value, "header value cannot be null");
             this.headers.add(new ReqHeader(name, value));
             return this;
+        }
+
+        /**
+         * Remove all headers with the given name.
+         */
+        public Builder removeHeader(String name) {
+            Objects.requireNonNull(name, "header name cannot be null");
+            this.headers.removeIf(h -> name.equalsIgnoreCase(h.getName()));
+            return this;
+        }
+
+        /**
+         * Return all headers for the request
+         */
+        public List<Header> getHeaders() {
+            return this.headers;
         }
 
         /**

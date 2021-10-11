@@ -365,6 +365,10 @@ public class Decorations {
         }
     }
 
+    public interface DynamicInvocation extends Condition {
+
+    }
+
     public static class GetterPainlessMethod implements Decoration {
 
         private final PainlessMethod getterPainlessMethod;

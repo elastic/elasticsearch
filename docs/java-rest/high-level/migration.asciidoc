@@ -61,8 +61,9 @@ TransportClient transportClient = new PreBuiltTransportClient(settings)
 --------------------------------------------------
 
 The initialization of a `RestHighLevelClient` is different. It requires to provide
-a <<java-rest-low-usage-initialization,low-level client builder>> as a constructor
-argument:
+a 
+{java-api-client}/java-rest-low-usage-initialization.html[low-level client builder] 
+as a constructor argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

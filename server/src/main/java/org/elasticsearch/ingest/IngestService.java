@@ -883,16 +883,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return matchedPipelines;
     }
 
-    public void reloadPipeline(String id) throws Exception {
+    public synchronized void reloadPipeline(String id) throws Exception {
         PipelineHolder holder = pipelines.get(id);
-
         Pipeline updatedPipeline =
             Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
-        synchronized (this) {
-            Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
-            updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
-            this.pipelines = Map.copyOf(updatedPipelines);
-        }
+        Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
+        updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
+        this.pipelines = Map.copyOf(updatedPipelines);
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {

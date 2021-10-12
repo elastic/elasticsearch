@@ -107,6 +107,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(1);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/78862")
     public void testDeleteIndices() throws Exception {
         CleanerService.Listener listener = getListener();
 

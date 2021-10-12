@@ -21,18 +21,25 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
     private BuildLayout buildLayout;
 
     @Inject
-    VersionPropertiesPlugin(BuildLayout buildLayout) {
+    public VersionPropertiesPlugin(BuildLayout buildLayout) {
         this.buildLayout = buildLayout;
     }
 
     @Override
     public void apply(Project project) {
         // Register the service if not done yet
-        File infoPath = new File(buildLayout.getRootDirectory(), "build-tools-internal");
+        File infoPath = new File(buildLayout.getRootDirectory(), relativeInfoPath(project));
         Provider<VersionPropertiesBuildService> serviceProvider = project.getGradle().getSharedServices()
                 .registerIfAbsent("versions", VersionPropertiesBuildService.class, spec -> {
             spec.getParameters().getInfoPath().set(infoPath);
         });
         project.getExtensions().add("versions", serviceProvider.forUseAtConfigurationTime().get().getProperties());
+    }
+
+
+    private String relativeInfoPath(Project project) {
+        return project.getGradle().getParent() == null ?
+                "build-tools-internal" :
+                "../build-tools-internal";
     }
 }

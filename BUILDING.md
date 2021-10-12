@@ -140,7 +140,7 @@ dependencies {
 
 ### How to test a development version of a third party dependency
 
-To test an unreleased third party dependencies you have several options.
+To test an unreleased development version of a third party dependency you have several options.
 
 #### How to use a maven based third party dependency via mavenlocal?
 
@@ -184,13 +184,13 @@ As version you could also use a certain short commit hash or `master-SNAPSHOT`.
 In addition to snapshot builds JitPack supports building Pull Requests. Simply use PR<NR>-SNAPSHOT as the version.
 
 3. Run the gradle build as needed. Keep in mind the initial resolution might take a bit longer as this needs to be built 
-by jitpack in the background before we can resolve the adhoc built dependency. 
+by JitPack in the background before we can resolve the adhoc built dependency. 
 
 ---
 
 **NOTE**
 
-You should only use that locally or on a developer branchfor for production dependencies as we do
+You should only use that approach locally or on a developer branchfor for production dependencies as we do
 not want to ship unreleased libraries into our releases.
 ---
 

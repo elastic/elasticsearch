@@ -252,7 +252,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             waitForCheckpoint = in.readLong();
             waitForCheckpointsTimeout = in.readTimeValue();
         } else {
-            waitForCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             waitForCheckpointsTimeout = SearchService.NO_TIMEOUT;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);

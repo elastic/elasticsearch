@@ -854,14 +854,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
             int checkpointsProvided = waitForCheckpointIndex.getValue().length;
-            Integer shardsSearched = searchedIndices.get(waitForCheckpointIndex.getKey());
-            if (searchedIndices.containsKey(waitForCheckpointIndex.getKey()) == false) {
+            String index = waitForCheckpointIndex.getKey();
+            Integer shardsSearched = searchedIndices.get(index);
+            if (searchedIndices.containsKey(index) == false) {
                 throw new IllegalArgumentException("Index configured with wait_for_checkpoints must be a concrete index resolved in " +
-                    "this search. Index [" + waitForCheckpointIndex + "] is not a concrete index resolved in this search.");
+                    "this search. Index [" + index + "] is not a concrete index resolved in this search.");
             } else if (shardsSearched != checkpointsProvided) {
                 throw new IllegalArgumentException("Index configured with wait_for_checkpoints must search the same number of shards as " +
                     "checkpoints provided. [" + checkpointsProvided + "] checkpoints provided. [" + shardsSearched + "] shards " +
-                    "to be searched for index ["  + waitForCheckpointIndex + "]");
+                    "to be searched for index ["  + index + "]");
             }
         }
     }

@@ -732,7 +732,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
         long waitForCheckpoint;
         if (waitForCheckpoints.length == 0) {
-            waitForCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         } else {
             assert waitForCheckpoints.length > shardIndex;
             waitForCheckpoint = waitForCheckpoints[shardIndex];

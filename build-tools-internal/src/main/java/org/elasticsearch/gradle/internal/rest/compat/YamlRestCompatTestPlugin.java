@@ -213,26 +213,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     .minus(project.files(originalYamlTestsDir))
             );
 
-            // Ensure no duplicates YAML tests on classpath since tests are sourced from the prior major and the local source set
-            testTask.doFirst(new Action<>() {
-                @Override
-                public void execute(Task task) {
-                    FileTree yamlTests = project.getTasks().withType(RestIntegTestTask.class)
-                        .getByName(testTaskName).getClasspath().getAsFileTree().matching(f -> f.include("**/*.yml"));
-                    Set<Path> found = new HashSet<>();
-                    Set<Path> duplicates = yamlTests.getFiles().stream().map(file -> {
-                        Path p = file.toPath();
-                        int partCount = p.getNameCount();
-                        return p.subpath(partCount - 2, partCount);
-                    }).filter(p -> found.add(p) == false).collect(Collectors.toSet());
-                    if (duplicates.isEmpty() == false) {
-                        throw new IllegalStateException("Found duplicated test(s) ["
-                            + duplicates.stream().map(Path::toString).collect(Collectors.joining(", "))
-                            + "] please ensure there not any duplicate YAML test files between the [" + compatibleVersion
-                            + ".x] branch and the [" + sourceSetName + "] tests. ");
-                    }
-                }
-            });
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.onlyIf(t -> isEnabled(project));

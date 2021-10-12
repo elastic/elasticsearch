@@ -116,8 +116,8 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(5));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             int num = 0;
             for (ShardRouting routing : clusterState.routingTable().index("test").shard(i).shards()) {
@@ -133,8 +133,8 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we now only relocate 3, since 2 remain where they are!
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(7));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(7));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             for (ShardRouting routing : clusterState.routingTable().index("test").shard(i).shards()) {
                 if (routing.state() == RELOCATING || routing.state() == INITIALIZING) {
@@ -148,7 +148,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(10));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(10));
         // make sure we have an even relocation
         for (RoutingNode routingNode : routingNodes) {
             assertThat(routingNode.size(), equalTo(1));

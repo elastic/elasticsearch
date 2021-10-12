@@ -11,13 +11,13 @@ package org.elasticsearch.legacygeo.builders;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.XShapeCollection;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
 

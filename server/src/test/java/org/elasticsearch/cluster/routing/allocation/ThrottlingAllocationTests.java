@@ -79,37 +79,37 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(17));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(17));
 
         logger.info("start initializing, another 3 should initialize");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(14));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(14));
 
         logger.info("start initializing, another 3 should initialize");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(6));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(11));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(6));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(11));
 
         logger.info("start initializing, another 1 should initialize");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(9));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(10));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(9));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(10));
 
         logger.info("start initializing, all primaries should be started");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(10));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(10));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(10));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(10));
     }
 
     public void testReplicaAndPrimaryRecoveryThrottling() {
@@ -134,46 +134,46 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         logger.info("with one node, do reroute, only 3 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(7));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(7));
 
         logger.info("start initializing, another 2 should initialize");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(2));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(5));
 
         logger.info("start initializing, all primaries should be started");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(5));
 
         logger.info("start another node, replicas should start being allocated");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(3));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(3));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(2));
 
         logger.info("start initializing replicas");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(8));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(2));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(8));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
 
         logger.info("start initializing replicas, all should be started");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(10));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(10));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
     }
 
     public void testThrottleIncomingAndOutgoing() {
@@ -195,17 +195,17 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("with one node, do reroute, only 5 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(4));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(4));
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 5);
 
         logger.info("start initializing, all primaries should be started");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(4));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
@@ -214,10 +214,10 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2")).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(4));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node2"), 3);
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node3"), 2);
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 0);
@@ -226,10 +226,10 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("start the relocating shards, one more shard should relocate away from node1");
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(8));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(8));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node2"), 0);
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node3"), 1);
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 0);
@@ -254,32 +254,32 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         logger.info("with one node, do reroute, only 1 should initialize");
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(2));
 
         logger.info("start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(2));
 
         logger.info("start one more node, first non-primary should start being allocated");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 1);
 
         logger.info("start initializing non-primary");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 0);
 
         logger.info("start one more node, initializing second non-primary");
@@ -287,9 +287,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(2));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 1);
 
         logger.info("start one more node");
@@ -319,10 +319,10 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         // even though it is throttled, move command still forces allocation
 
         clusterState = commandsResult.getClusterState();
-        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(RELOCATING).size(), equalTo(1));
-        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(2));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node1"), 2);
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node2"), 0);
     }

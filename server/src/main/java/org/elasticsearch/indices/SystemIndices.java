@@ -566,8 +566,8 @@ public class SystemIndices {
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
         private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
-        private final TriConsumer<ClusterService, Client, ActionListener<Boolean>> preUpgradeFunction;
-        private final TriConsumer<ClusterService, Client, ActionListener<Boolean>> postUpgradeFunction;
+        private final MigrationPreparationHandler preUpgradeFunction;
+        private final MigrationCompletionHandler postUpgradeFunction;
 
         /**
          * Construct a Feature with a custom cleanup function
@@ -585,8 +585,9 @@ public class SystemIndices {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction,
-            TriConsumer<ClusterService, Client, ActionListener<Boolean>> preUpgradeFunction,
-            TriConsumer<ClusterService, Client, ActionListener<Boolean>> postUpgradeFunction) {
+            MigrationPreparationHandler preUpgradeFunction,
+            MigrationCompletionHandler postUpgradeFunction
+        ) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
@@ -603,13 +604,24 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
-                (clusterService, client, listener) ->
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener),
-                Feature::noopPrePostUpgradeFunction,
-                Feature::noopPrePostUpgradeFunction
+            this(
+                description,
+                indexDescriptors,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                (clusterService, client, listener) -> cleanUpFeature(
+                    indexDescriptors,
+                    Collections.emptyList(),
+                    name,
+                    clusterService,
+                    client,
+                    listener
+                ),
+                Feature::noopPreMigrationFunction,
+                Feature::noopPostMigrationFunction
             );
         }
+
         /**
          * Construct a Feature using the default clean-up function
          * @param name Name of the feature, used in logging
@@ -617,13 +629,27 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          */
-        public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors,
-                       Collection<SystemDataStreamDescriptor> dataStreamDescriptors) {
-            this(description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
-                (clusterService, client, listener) ->
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener),
-                Feature::noopPrePostUpgradeFunction,
-                Feature::noopPrePostUpgradeFunction
+        public Feature(
+            String name,
+            String description,
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<SystemDataStreamDescriptor> dataStreamDescriptors
+        ) {
+            this(
+                description,
+                indexDescriptors,
+                dataStreamDescriptors,
+                Collections.emptyList(),
+                (clusterService, client, listener) -> cleanUpFeature(
+                    indexDescriptors,
+                    Collections.emptyList(),
+                    name,
+                    clusterService,
+                    client,
+                    listener
+                ),
+                Feature::noopPreMigrationFunction,
+                Feature::noopPostMigrationFunction
             );
         }
 
@@ -634,13 +660,15 @@ public class SystemIndices {
          * @return A {@link Feature} which represents the feature added by the given plugin.
          */
         public static Feature fromSystemIndexPlugin(SystemIndexPlugin plugin, Settings settings) {
-            return new Feature(plugin.getFeatureDescription(),
+            return new Feature(
+                plugin.getFeatureDescription(),
                 plugin.getSystemIndexDescriptors(settings),
                 plugin.getSystemDataStreamDescriptors(),
                 plugin.getAssociatedIndexDescriptors(),
                 plugin::cleanUpFeature,
-                plugin::prepareForIndicesUpgrade,
-                plugin::indicesUpgradeComplete);
+                plugin::prepareForIndicesMigration,
+                plugin::indicesMigrationComplete
+            );
         }
 
         public String getDescription() {
@@ -663,11 +691,11 @@ public class SystemIndices {
             return cleanUpFunction;
         }
 
-        public TriConsumer<ClusterService, Client, ActionListener<Boolean>> getPreUpgradeFunction() {
+        public MigrationPreparationHandler getPreUpgradeFunction() {
             return preUpgradeFunction;
         }
 
-        public TriConsumer<ClusterService, Client, ActionListener<Boolean>> getPostUpgradeFunction() {
+        public MigrationCompletionHandler getPostUpgradeFunction() {
             return postUpgradeFunction;
         }
 
@@ -686,7 +714,8 @@ public class SystemIndices {
             String name,
             ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener) {
+            ActionListener<ResetFeatureStateStatus> listener
+        ) {
             Metadata metadata = clusterService.state().getMetadata();
 
             List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
@@ -715,10 +744,38 @@ public class SystemIndices {
             });
         }
 
-        // A no-op upgrade function to be used as the default in case none are provided.
-        // We can use a single method for the default of both the pre-upgrade and post-upgrade callbacks, as they have the same signature.
-        private static void noopPrePostUpgradeFunction(ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        // No-op pre-migration function to be used as the default in case none are provided.
+        private static void noopPreMigrationFunction(
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Map<String, Object>> listener
+        ) {
+            listener.onResponse(Collections.emptyMap());
+        }
+
+        // No-op pre-migration function to be used as the default in case none are provided.
+        private static void noopPostMigrationFunction(
+            Map<String, Object> preUpgradeMetadata,
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Boolean> listener
+        ) {
             listener.onResponse(true);
+        }
+
+        @FunctionalInterface
+        interface MigrationPreparationHandler {
+            void prepareForIndicesUpgrade(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
+        }
+
+        @FunctionalInterface
+        interface MigrationCompletionHandler {
+            void indicesUpgradeComplete(
+                Map<String, Object> preUpgradeMetadata,
+                ClusterService clusterService,
+                Client client,
+                ActionListener<Boolean> listener
+            );
         }
     }
 

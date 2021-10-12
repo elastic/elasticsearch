@@ -110,7 +110,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
             // we do this by default in core, but for monitoring this isn't needed and only adds noise.
             .put("indices.lifecycle.history_index_enabled", false)
-            .put("index.store.mock.check_index_on_close", false);
+            .put("index.store.mock.check_index_on_close", false)
+            .put("cluster.deprecation_indexing.enabled", false);
         return builder.build();
     }
 

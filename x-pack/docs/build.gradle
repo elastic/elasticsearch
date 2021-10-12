@@ -39,6 +39,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
   setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'cluster.deprecation_indexing.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.authc.realms.file.file.order', '0'
   setting 'xpack.security.authc.realms.native.native.order', '1'

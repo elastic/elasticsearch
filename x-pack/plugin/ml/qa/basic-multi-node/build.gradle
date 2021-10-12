@@ -11,6 +11,7 @@ testClusters.configureEach {
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'cluster.deprecation_indexing.enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
 }
 

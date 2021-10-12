@@ -67,11 +67,13 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -301,49 +303,65 @@ public class IngestServiceTests extends ESTestCase {
     public void testValidateNotInUse() {
         String pipeline = "pipeline";
         ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
-        int defaultPipelineCount = 0;
-        int finalPipelineCount = 0;
-        int indicesCount = randomIntBetween(5, 10);
-        for (int i = 0; i < indicesCount; i++) {
-            IndexMetadata.Builder builder = IndexMetadata.builder("index" + i).numberOfShards(1).numberOfReplicas(1);
+        int defaultIndicesCount = randomIntBetween(0, 4);
+        List<String> defaultIndices = new ArrayList<>();
+        for (int i = 0; i < defaultIndicesCount; i++) {
+            String indexName = "index" + i;
+            defaultIndices.add(indexName);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
             Settings.Builder settingsBuilder = settings(Version.CURRENT);
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
-                defaultPipelineCount++;
-            }
-
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
-                finalPipelineCount++;
-            }
-
+            settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
             builder.settings(settingsBuilder);
             IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
-            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            indices.put(indexName, indexMetadata);
+        }
+
+        int finalIndicesCount = randomIntBetween(0, 4);
+        List<String> finalIndices = new ArrayList<>();
+        for (int i = defaultIndicesCount; i < (finalIndicesCount + defaultIndicesCount); i++) {
+            String indexName = "index" + i;
+            finalIndices.add(indexName);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
+            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
+            builder.settings(settingsBuilder);
+            IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+            indices.put(indexName, indexMetadata);
         }
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> IngestService.validateNotInUse(pipeline, indices.build())
         );
-        assertThat(e.getMessage(), containsString("default pipeline for " + defaultPipelineCount + " indices including"));
-        assertThat(e.getMessage(), containsString("final pipeline for " + finalPipelineCount + " indices including"));
-        if (defaultPipelineCount >= 3) {
-            // assert index limit
-            String content = "default pipeline for " + defaultPipelineCount + " indices including [";
-            int start = e.getMessage().indexOf(content) + content.length();
-            int end = e.getMessage().indexOf("] and the final pipeline");
-            // indices content length, eg: index0,index1,index2
-            assertEquals(end - start, (6 + 1 + 6 + 1 + 6));
+
+        if (defaultIndices.size() > 0) {
+            assertThat(
+                e.getMessage(),
+                containsString(String.format(
+                        Locale.ROOT,
+                        "default pipeline for %s index(es) including [%s]",
+                        defaultIndices.size(),
+                        defaultIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                    )
+                )
+            );
         }
 
-        if (finalPipelineCount >= 3) {
-            // assert index limit
-            String content = "final pipeline for " + finalPipelineCount + " indices including [";
-            int start = e.getMessage().indexOf(content) + content.length();
-            int end = e.getMessage().lastIndexOf("]");
-            // indices content length, eg: index0,index1,index2
-            assertEquals(end - start, (6 + 1 + 6 + 1 + 6));
+        if (defaultIndices.size() > 0 && finalIndices.size() > 0) {
+            assertThat(e.getMessage(), containsString(" and "));
+        }
+
+        if (finalIndices.size() > 0) {
+            assertThat(
+                e.getMessage(),
+                containsString(String.format(
+                        Locale.ROOT,
+                        "final pipeline for %s index(es) including [%s]",
+                        finalIndices.size(),
+                        finalIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                    )
+                )
+            );
         }
     }
 
@@ -643,7 +661,7 @@ public class IngestServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> IngestService.innerDelete(deleteRequest, finalClusterState)
             );
-            assertThat(e.getMessage(), containsString("default pipeline for 1 indices including [pipeline-index]"));
+            assertThat(e.getMessage(), containsString("default pipeline for 1 index(es) including [pipeline-index]"));
         }
 
         {
@@ -660,7 +678,7 @@ public class IngestServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> IngestService.innerDelete(deleteRequest, finalClusterState)
             );
-            assertThat(e.getMessage(), containsString("final pipeline for 1 indices including [pipeline-index]"));
+            assertThat(e.getMessage(), containsString("final pipeline for 1 index(es) including [pipeline-index]"));
         }
 
         // Delete pipeline:

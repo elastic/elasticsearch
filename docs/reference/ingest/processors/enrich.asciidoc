@@ -57,9 +57,8 @@ The enrich policy executor supports the following node settings:
     a new system enrich index. Defaults to `10000`.
 
 `enrich.max_force_merge_attempts`::
-
-    The maximum number of attempts in order to force merge a new
-    system enrich index shard into a single segment. Defaults to `3`.
+Maximum number of <<indices-forcemerge,force merge>> attempts allowed on an
+enrich index. Defaults to `3`.
 
 `enrich.cleanup_period`::
 How often {es} checks whether unused enrich indices can be deleted. Defaults to

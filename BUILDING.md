@@ -169,7 +169,7 @@ and is compliant with our CI builds.
 ```
    allprojects {
      repositories {
-         mavenLocal()
+        maven { url "https://jitpack.io" }
      }
    }
 ```

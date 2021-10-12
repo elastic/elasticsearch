@@ -61,7 +61,7 @@ nodes on the command-line that is used to start Elasticsearch:
 
 [source,bash]
 --------------------------------------------------
-$ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
+$ bin/elasticsearch -E cluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
 
 [NOTE]

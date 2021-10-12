@@ -19,7 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -58,8 +58,8 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         assertTrue(submitResponse.getStartTime() > 0);
         assertTrue(submitResponse.getExpirationTime() > 0);
         assertNotNull(submitResponse.getSearchResponse());
-        assertThat(submitResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(2));
-        StringTerms terms = submitResponse.getSearchResponse().getAggregations().get("1");
+        assertThat(submitResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(2L));
+        ParsedStringTerms terms = submitResponse.getSearchResponse().getAggregations().get("1");
         assertThat(terms.getBuckets().size(), equalTo(2));
         assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("bar"));
         assertThat(terms.getBuckets().get(0).getDocCount(), equalTo(1L));
@@ -72,7 +72,13 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         assertFalse(getResponse.isPartial());
         assertTrue(getResponse.getStartTime() > 0);
         assertTrue(getResponse.getExpirationTime() > 0);
-        assertEquals(getResponse.getSearchResponse(), submitResponse.getSearchResponse());
+        assertThat(getResponse.getSearchResponse().getHits().getTotalHits().value, equalTo(2L));
+        terms = getResponse.getSearchResponse().getAggregations().get("1");
+        assertThat(terms.getBuckets().size(), equalTo(2));
+        assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("bar"));
+        assertThat(terms.getBuckets().get(0).getDocCount(), equalTo(1L));
+        assertThat(terms.getBuckets().get(1).getKeyAsString(), equalTo("bar2"));
+        assertThat(terms.getBuckets().get(1).getDocCount(), equalTo(1L));
 
         DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.getId());
         AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest,

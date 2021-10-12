@@ -52,7 +52,8 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
     public static final String CALENDAR_INTERVAL = "calendar_interval";
     public static final String TIME_ZONE = "time_zone";
 
-    public static final String DEFAULT_TIMEZONE = "UTC";
+    // this should really be ZoneOffset.UTC, but the literal UTC timezone is used because it came from Joda
+    public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
     private static final String FIELD = "field";
 
     private static final ConstructingObjectParser<RollupActionDateHistogramGroupConfig, Void> PARSER;

@@ -51,13 +51,13 @@ public class DocumentField implements Writeable, Iterable<Object> {
     }
 
     public DocumentField(String name, List<Object> values) {
-        this(name, values, null);
+        this(name, values, Collections.emptyList());
     }
 
     public DocumentField(String name, List<Object> values, List<Object> ignoredValues) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
-        this.ignoredValues = ignoredValues == null ? Collections.emptyList(): ignoredValues;
+        this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
     }
 
     
@@ -98,13 +98,6 @@ public class DocumentField implements Writeable, Iterable<Object> {
         return ignoredValues == Collections.emptyList() ? ignoredValues : Collections.unmodifiableList(ignoredValues);
     }    
 
-    /**
-     * Set the field's ignored values.
-     */
-    public void setIgnoredValues(List<Object> additions) {
-        ignoredValues = List.copyOf(additions);
-    }    
-    
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);

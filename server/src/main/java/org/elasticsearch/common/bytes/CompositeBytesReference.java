@@ -32,35 +32,54 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     private final int length;
     private final long ramBytesUsed;
 
+    /**
+     * @param references The references to concatenate, none of which may be {@code null}. This array may be mutated, reordering its
+     *                   contents, if any of its elements have zero length.
+     * @return a {@link BytesReference} representing the concatenation of the given objects.
+     */
     public static BytesReference of(BytesReference... references) {
         if (references.length == 0) {
             return BytesArray.EMPTY;
         } else if (references.length == 1) {
             return references[0];
         }
-        return ofMultiple(references);
-    }
-
-    private static BytesReference ofMultiple(BytesReference[] references) {
-        assert references.length > 1 : "use #of() instead";
         final int[] offsets = new int[references.length];
         long ramBytesUsed = 0;
         int offset = 0;
+        int emptyRefsCount = 0;
         for (int i = 0; i < references.length; i++) {
             final BytesReference reference = references[i];
             if (reference == null) {
                 throw new IllegalArgumentException("references must not be null");
             }
             if (reference.length() == 0) {
-                return dropEmptyReferences(references);
+                emptyRefsCount += 1;
+                ramBytesUsed += BytesArray.EMPTY.ramBytesUsed();
+                continue;
             }
-            offsets[i] = offset;
+            if (emptyRefsCount > 0) {
+                // shuffle nonempty refs downwards
+                references[i - emptyRefsCount] = references[i];
+            }
+            offsets[i - emptyRefsCount] = offset;
             offset += reference.length();
             if (offset <= 0) {
                 throw new IllegalArgumentException("CompositeBytesReference cannot hold more than 2GB");
             }
             ramBytesUsed += reference.ramBytesUsed();
         }
+        if (emptyRefsCount == references.length) {
+            return BytesArray.EMPTY;
+        } else if (emptyRefsCount == references.length - 1) {
+            return references[0];
+        }
+        for (int i = references.length - emptyRefsCount; i < references.length; i++) {
+            // fill in the empty refs at the end
+            references[i] = BytesArray.EMPTY;
+            offsets[i] = offset;
+        }
+
+        //noinspection IntegerMultiplicationImplicitCastToLong
         return new CompositeBytesReference(
             references,
             offsets,
@@ -70,28 +89,14 @@ public final class CompositeBytesReference extends AbstractBytesReference {
                 + (references.length * RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) // references
                 + Integer.BYTES // length
                 + Long.BYTES// ramBytesUsed
-        );
-    }
-
-    private static BytesReference dropEmptyReferences(BytesReference[] references) {
-        final BytesReference[] tempArray = new BytesReference[references.length];
-        int targetIndex = 0;
-        for (final BytesReference reference : references) {
-            if (reference.length() != 0) {
-                tempArray[targetIndex++] = reference;
-            }
-        }
-        assert targetIndex < references.length : "no empty references found";
-        final BytesReference[] filteredReferences = new BytesReference[targetIndex];
-        System.arraycopy(tempArray, 0, filteredReferences, 0, targetIndex);
-        return of(filteredReferences);
-    }
+        );    }
 
     private CompositeBytesReference(BytesReference[] references, int[] offsets, int length, long ramBytesUsed) {
         assert references != null && offsets != null;
         assert references.length > 1
                 : "Should not build composite reference from less than two references but received [" + references.length + "]";
-        assert Arrays.stream(references).allMatch(r -> r != null && r.length() > 0);
+        assert Arrays.stream(references).allMatch(Objects::nonNull);
+        assert IntStream.range(1, references.length).allMatch(i -> references[i].length() == 0 || references[i - 1].length() != 0);
         assert offsets[0] == 0;
         assert IntStream.range(1, references.length).allMatch(i -> offsets[i] - offsets[i - 1] == references[i - 1].length());
         assert length == Arrays.stream(references).mapToLong(BytesReference::length).sum();
@@ -158,9 +163,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         final int limit = getOffsetIndex(to - 1);
         final int start = getOffsetIndex(from);
         final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
-        for (int i = 0, j = start; i < inSlice.length; i++) {
-            inSlice[i] = references[j++];
-        }
+        System.arraycopy(references, start, inSlice, 0, inSlice.length);
         int inSliceOffset = from - offsets[start];
         if (inSlice.length == 1) {
             return inSlice[0].slice(inSliceOffset, length);
@@ -168,7 +171,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
         inSlice[inSlice.length-1] = inSlice[inSlice.length-1].slice(0, to - offsets[limit]);
-        return CompositeBytesReference.ofMultiple(inSlice);
+        return CompositeBytesReference.of(inSlice);
     }
 
     private int getOffsetIndex(int offset) {
@@ -187,7 +190,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
                 builder.append(spare);
             }
         } catch (IOException ex) {
-            throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our BytesReferences
         }
         return builder.toBytesRef();
     }
@@ -210,6 +213,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
                         }
                     }
                 }
+                assert next == null || next.length > 0;
                 return next;
             }
         };

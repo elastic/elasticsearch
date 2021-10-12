@@ -98,7 +98,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
         clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
         ClusterState newState = clusterState;
-        List<ShardRouting> unassignedShards = newState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
+        List<ShardRouting> unassignedShards = newState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED);
         if (nodeAvailableForAllocation) {
             assertThat(unassignedShards.size(), equalTo(0));
         } else {

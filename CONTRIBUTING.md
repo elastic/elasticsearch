@@ -279,13 +279,17 @@ form.
 Java files in the Elasticsearch codebase are automatically formatted using
 the [Spotless Gradle] plugin. All new projects are automatically formatted,
 while existing projects are gradually being opted-in. The formatting check
-can be run explicitly with:
+is run automatically via the `precommit` task, but it can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
-The code can be formatted with:
+It is usually more useful, and just as fast, to just reformat the project. You
+can do this with:
 
     ./gradlew spotlessApply
+
+    # This is also aliased:
+    ./gradlew reformat
 
 These tasks can also be run for specific subprojects, e.g.
 
@@ -304,10 +308,9 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
   the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
-  with the `// tag::NAME` and `// end::NAME` directives, but note that
-  these are intended for use in documentation, so please make it clear what
-  you have done, and only do this where the benefit clearly outweighs the
-  decrease in consistency.
+  with the `// @formatter:off` and `// @formatter:on` directives, but
+  only do this where the benefit clearly outweighs the decrease in formatting
+  consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
 * Negative boolean expressions must use the form `foo == false` instead of

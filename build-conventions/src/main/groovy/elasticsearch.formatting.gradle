@@ -290,13 +290,20 @@ if (projectPathsToExclude.contains(project.path) == false ||
         target 'src/**/*.java'
       }
 
-      toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
+      // Use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
+      toggleOffOn('@formatter:off', '@formatter:on')
+
       removeUnusedImports()
 
+      // We enforce a standard order for imports
       importOrderFile rootProject.file(importOrderPath)
+
+      // Most formatting is done through the Eclipse formatter
       eclipse().configFile rootProject.file(formatterConfigPath)
 
-      // Since formatters are applied in order, apply this one last
+      // Ensure blank lines are actually empty. Since formatters are applied in
+      // order, apply this one last, otherwise non-empty blank lines can creep
+      // in.
       trimTrailingWhitespace()
     }
   }

@@ -15,6 +15,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -55,19 +58,44 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
         assertThat(response.getFeatureUpgradeStatuses(), equalTo(Collections.emptyList()));
     }
 
+    public void testUpgradeStatusCominations() {
+        assertEquals(NO_UPGRADE_NEEDED, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(NO_UPGRADE_NEEDED, NO_UPGRADE_NEEDED));
+
+        assertEquals(UPGRADE_NEEDED, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(NO_UPGRADE_NEEDED, UPGRADE_NEEDED));
+        assertEquals(UPGRADE_NEEDED, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(UPGRADE_NEEDED, NO_UPGRADE_NEEDED));
+        assertEquals(UPGRADE_NEEDED, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(UPGRADE_NEEDED, UPGRADE_NEEDED));
+
+
+        assertEquals(IN_PROGRESS, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(IN_PROGRESS, NO_UPGRADE_NEEDED));
+        assertEquals(IN_PROGRESS, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(NO_UPGRADE_NEEDED, IN_PROGRESS));
+        assertEquals(IN_PROGRESS, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(UPGRADE_NEEDED, IN_PROGRESS));
+        assertEquals(IN_PROGRESS, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(IN_PROGRESS, UPGRADE_NEEDED));
+        assertEquals(IN_PROGRESS, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(IN_PROGRESS, IN_PROGRESS));
+
+
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(ERROR, NO_UPGRADE_NEEDED));
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(NO_UPGRADE_NEEDED, ERROR));
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(UPGRADE_NEEDED, ERROR));
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(ERROR, UPGRADE_NEEDED));
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(IN_PROGRESS, ERROR));
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(ERROR, IN_PROGRESS));
+        assertEquals(ERROR, GetFeatureUpgradeStatusResponse.UpgradeStatus.combine(ERROR, ERROR));
+    }
+
     private static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus createFeatureStatus() {
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
             randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
-            randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexVersion)
+            randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexInfo)
         );
     }
 
-    private static GetFeatureUpgradeStatusResponse.IndexVersion getIndexVersion() {
-        return new GetFeatureUpgradeStatusResponse.IndexVersion(
+    private static GetFeatureUpgradeStatusResponse.IndexInfo getIndexInfo() {
+        return new GetFeatureUpgradeStatusResponse.IndexInfo(
             randomAlphaOfLengthBetween(3, 20),
-            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())
+            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            null
         );
     }
 }

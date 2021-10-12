@@ -593,6 +593,7 @@ public class SystemIndices {
      * Class holding a description of a stateful feature.
      */
     public static class Feature {
+        private final String name;
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
@@ -601,6 +602,7 @@ public class SystemIndices {
 
         /**
          * Construct a Feature with a custom cleanup function
+         * @param name The name of the feature
          * @param description Description of the feature
          * @param indexDescriptors Collection of objects describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
@@ -608,11 +610,13 @@ public class SystemIndices {
          * @param cleanUpFunction A function that will clean up the feature's state
          */
         public Feature(
+            String name,
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
+            this.name = name;
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
@@ -627,7 +631,7 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
+            this(name, description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
                 (clusterService, client, listener) ->
                     cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
             );
@@ -641,7 +645,7 @@ public class SystemIndices {
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors,
                        Collection<SystemDataStreamDescriptor> dataStreamDescriptors) {
-            this(description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
+            this(name, description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
                 (clusterService, client, listener) ->
                     cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
             );
@@ -665,6 +669,10 @@ public class SystemIndices {
 
         public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> getCleanUpFunction() {
             return cleanUpFunction;
+        }
+
+        public String getName() {
+            return name;
         }
 
         /**
@@ -713,11 +721,14 @@ public class SystemIndices {
     }
 
     public static Feature pluginToFeature(SystemIndexPlugin plugin, Settings settings) {
-        return new Feature(plugin.getFeatureDescription(),
+        return new Feature(
+            plugin.getFeatureName(),
+            plugin.getFeatureDescription(),
             plugin.getSystemIndexDescriptors(settings),
             plugin.getSystemDataStreamDescriptors(),
             plugin.getAssociatedIndexDescriptors(),
-            plugin::cleanUpFeature);
+            plugin::cleanUpFeature
+        );
     }
 
     public ExecutorSelector getExecutorSelector() {

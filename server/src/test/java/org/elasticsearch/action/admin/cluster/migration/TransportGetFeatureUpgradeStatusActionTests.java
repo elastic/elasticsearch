@@ -44,18 +44,18 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
     }
 
     public void testGetIndexVersion() {
-        List<GetFeatureUpgradeStatusResponse.IndexVersion> versions =
+        List<GetFeatureUpgradeStatusResponse.IndexInfo> versions =
             TransportGetFeatureUpgradeStatusAction.getIndexVersions(CLUSTER_STATE, FEATURE);
 
         assertThat(versions.size(), equalTo(2));
 
         {
-            GetFeatureUpgradeStatusResponse.IndexVersion version = versions.get(0);
+            GetFeatureUpgradeStatusResponse.IndexInfo version = versions.get(0);
             assertThat(version.getVersion(), equalTo(Version.CURRENT));
             assertThat(version.getIndexName(), equalTo(".test-index-1"));
         }
         {
-            GetFeatureUpgradeStatusResponse.IndexVersion version = versions.get(1);
+            GetFeatureUpgradeStatusResponse.IndexInfo version = versions.get(1);
             assertThat(version.getVersion(), equalTo(Version.V_7_0_0));
             assertThat(version.getIndexName(), equalTo(".test-index-2"));
         }

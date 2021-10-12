@@ -1,8 +1,6 @@
 setup:
   - skip:
       features: headers
-      version: " - 7.3.99"
-      reason: "vector functions check on empty values was added from 7.4"
 
   - do:
       indices.create:

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.core.Nullable;
@@ -258,28 +259,37 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField HIDDEN = new ParseField("hidden");
+        private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
+            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], a[1] != null && (boolean) a[1]));
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         }
 
         private final boolean hidden;
+        private final boolean allowCustomRouting;
 
         public DataStreamTemplate() {
-            this(false);
+            this(false, false);
         }
 
-        public DataStreamTemplate(boolean hidden) {
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
             this.hidden = hidden;
+            this.allowCustomRouting = allowCustomRouting;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                allowCustomRouting = in.readBoolean();
+            } else {
+                allowCustomRouting = false;
+            }
         }
 
         public String getTimestampField() {
@@ -298,15 +308,23 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return hidden;
         }
 
+        public boolean isAllowCustomRouting() {
+            return allowCustomRouting;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(allowCustomRouting);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hidden", hidden);
+            builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
             builder.endObject();
             return builder;
         }
@@ -316,12 +334,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden);
+            return Objects.hash(hidden, allowCustomRouting);
         }
     }
 

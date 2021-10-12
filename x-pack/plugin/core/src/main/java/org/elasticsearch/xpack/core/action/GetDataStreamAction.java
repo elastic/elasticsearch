@@ -120,6 +120,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
+            public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
@@ -183,6 +184,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 builder.field(HIDDEN_FIELD.getPreferredName(), dataStream.isHidden());
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
+                builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.endObject();
                 return builder;
             }

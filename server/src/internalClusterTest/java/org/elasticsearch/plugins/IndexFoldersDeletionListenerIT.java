@@ -325,12 +325,12 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
             return List.of(new IndexFoldersDeletionListener() {
                 @Override
-                public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath) {
+                public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
                     deletedIndices.add(index);
                 }
 
                 @Override
-                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath) {
+                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
                     deletedShards.computeIfAbsent(shardId.getIndex(), i -> new ArrayList<>()).add(shardId);
                 }
             });

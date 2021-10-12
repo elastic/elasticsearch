@@ -566,8 +566,8 @@ public class SystemIndices {
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
         private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
-        private final MigrationPreparationHandler preUpgradeFunction;
-        private final MigrationCompletionHandler postUpgradeFunction;
+        private final MigrationPreparationHandler preMigrationFunction;
+        private final MigrationCompletionHandler postMigrationFunction;
 
         /**
          * Construct a Feature with a custom cleanup function
@@ -576,8 +576,8 @@ public class SystemIndices {
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          * @param associatedIndexDescriptors Collection of objects describing associated indices for this feature
          * @param cleanUpFunction A function that will clean up the feature's state
-         * @param preUpgradeFunction A function that will be called prior to upgrading any of this plugin's system indices
-         * @param postUpgradeFunction A function that will be called after upgrading all of this plugin's system indices
+         * @param preMigrationFunction A function that will be called prior to upgrading any of this plugin's system indices
+         * @param postMigrationFunction A function that will be called after upgrading all of this plugin's system indices
          */
         public Feature(
             String description,
@@ -585,16 +585,16 @@ public class SystemIndices {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction,
-            MigrationPreparationHandler preUpgradeFunction,
-            MigrationCompletionHandler postUpgradeFunction
+            MigrationPreparationHandler preMigrationFunction,
+            MigrationCompletionHandler postMigrationFunction
         ) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
             this.associatedIndexDescriptors = associatedIndexDescriptors;
             this.cleanUpFunction = cleanUpFunction;
-            this.preUpgradeFunction = preUpgradeFunction;
-            this.postUpgradeFunction = postUpgradeFunction;
+            this.preMigrationFunction = preMigrationFunction;
+            this.postMigrationFunction = postMigrationFunction;
         }
 
         /**
@@ -691,12 +691,12 @@ public class SystemIndices {
             return cleanUpFunction;
         }
 
-        public MigrationPreparationHandler getPreUpgradeFunction() {
-            return preUpgradeFunction;
+        public MigrationPreparationHandler getPreMigrationFunction() {
+            return preMigrationFunction;
         }
 
-        public MigrationCompletionHandler getPostUpgradeFunction() {
-            return postUpgradeFunction;
+        public MigrationCompletionHandler getPostMigrationFunction() {
+            return postMigrationFunction;
         }
 
         /**
@@ -765,12 +765,12 @@ public class SystemIndices {
 
         @FunctionalInterface
         interface MigrationPreparationHandler {
-            void prepareForIndicesUpgrade(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
+            void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
         }
 
         @FunctionalInterface
         interface MigrationCompletionHandler {
-            void indicesUpgradeComplete(
+            void indicesMigrationComplete(
                 Map<String, Object> preUpgradeMetadata,
                 ClusterService clusterService,
                 Client client,

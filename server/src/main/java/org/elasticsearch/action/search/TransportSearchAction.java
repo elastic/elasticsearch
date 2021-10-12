@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -157,19 +156,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             DataStream parentDataStream = getParentDataStreamOrNull(clusterState, index);
             String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index.getName(), aliasMetadata -> true,
                 dataStreamAlias -> true, true, indicesAndAliases);
-
             List<String> finalIndices = new ArrayList<>();
-            if (parentDataStream != null
-                    && indicesAndAliases.contains(parentDataStream.getName())) {
-                finalIndices.add(parentDataStream.getName());
-            }
-            if (indicesAndAliases.contains(index.getName())) {
+            if (aliases == null
+                    || aliases.length == 0
+                    || indicesAndAliases.contains(index.getName())
+                    || (parentDataStream != null
+                            && indicesAndAliases.contains(parentDataStream.getName()))) {
                 finalIndices.add(index.getName());
             }
             if (aliases != null) {
                 finalIndices.addAll(Arrays.asList(aliases));
             }
-            assert finalIndices.isEmpty() == false : "unable to resolve original indices";
             res.put(index.getUUID(), new OriginalIndices(finalIndices.toArray(String[]::new), indicesOptions));
         }
         return Collections.unmodifiableMap(res);

@@ -1083,7 +1083,7 @@ public class IndicesService extends AbstractLifecycleComponent
         } else {
             // lets see if it's path is available (return false if the shard doesn't exist)
             // we don't need to delete anything that is not there
-            return Files.exists(nodeEnv.availableShardPath(shardId)) ?
+            return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
                 ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
                 ShardDeletionCheckResult.NO_FOLDER_FOUND;
         }

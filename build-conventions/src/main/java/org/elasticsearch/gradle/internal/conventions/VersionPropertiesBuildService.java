@@ -33,24 +33,12 @@ abstract class VersionPropertiesBuildService implements BuildService<VersionProp
         try {
             File propertiesInputFile = new File(infoPath, "version.properties");
             properties = VersionPropertiesLoader.loadBuildSrcVersion(propertiesInputFile, providerFactory);
-            properties.computeIfAbsent("minimumJava", s -> resolveMinimumJavaVersion(infoPath));
+            properties.put("minimumJava", 11);
         } catch (IOException e) {
             throw new GradleException("Cannot load VersionPropertiesBuildService", e);
         }
     }
-
-    private JavaVersion resolveMinimumJavaVersion(File infoPath) {
-        final JavaVersion minimumJavaVersion;
-        File minimumJavaInfoSource = new File(infoPath, "src/main/resources/minimumRuntimeVersion");
-        try {
-            String versionString = FileUtils.readFileToString(minimumJavaInfoSource);
-            minimumJavaVersion = JavaVersion.toVersion(versionString);
-        } catch (IOException e) {
-            throw new GradleException("Cannot resolve minimum compiler version via VersionPropertiesBuildService", e);
-        }
-        return minimumJavaVersion;
-    }
-
+    
     public Properties getProperties() {
         return properties;
     }

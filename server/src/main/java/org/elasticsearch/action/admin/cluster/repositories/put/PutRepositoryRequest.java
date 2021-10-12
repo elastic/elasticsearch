@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
@@ -39,7 +38,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private boolean verify = true;
 
-    private Settings settings = EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     public PutRepositoryRequest(StreamInput in) throws IOException {
         super(in);

@@ -1419,15 +1419,29 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             .build();
     }
 
-    @Override
-    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
-        return List.of(
+    /**
+     * These are the ML hidden indices. They are "associated" in the sense that if the ML system indices
+     * are backed up or deleted then these hidden indices should also be backed up or deleted.
+     */
+    private static Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS =
+        List.of(
             new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
             new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
             new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
             new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
-            new AssociatedIndexDescriptor(".ml-annotations*", "Ml annotations indices")
+            new AssociatedIndexDescriptor(".ml-annotations*", "ML annotations indices")
         );
+
+    @Override
+    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        return ASSOCIATED_INDEX_DESCRIPTORS;
+    }
+
+    public static String[] getMlHiddenIndexPatterns() {
+        return ASSOCIATED_INDEX_DESCRIPTORS
+            .stream()
+            .map(AssociatedIndexDescriptor::getIndexPattern)
+            .toArray(String[]::new);
     }
 
     @Override

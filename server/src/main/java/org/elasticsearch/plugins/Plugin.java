@@ -93,7 +93,7 @@ public abstract class Plugin implements Closeable {
      * overwritten with the additional settings. These settings added if they don't exist.
      */
     public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
+        return Settings.EMPTY;
     }
 
     /**

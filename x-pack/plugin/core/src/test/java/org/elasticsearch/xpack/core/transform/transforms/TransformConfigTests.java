@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -84,6 +85,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
@@ -128,6 +130,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             version == null ? null : version.toString()
@@ -157,6 +160,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 latestConfig,
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
                 null,
+                randomBoolean() ? null : randomMetadata(),
                 randomBoolean() ? null : randomRetentionPolicyConfig(),
                 null,
                 null
@@ -173,6 +177,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
@@ -185,6 +190,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static RetentionPolicyConfig randomRetentionPolicyConfig() {
         return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
+    }
+
+    public static Map<String, Object> randomMetadata() {
+        return randomMap(0, 10, () -> {
+            String key = randomAlphaOfLengthBetween(1, 10);
+            Object value;
+            switch (randomIntBetween(0, 3)) {
+                case 0:
+                    value = null;
+                    break;
+                case 1:
+                    value = randomLong();
+                    break;
+                case 2:
+                    value = randomAlphaOfLengthBetween(1, 10);
+                    break;
+                case 3:
+                    value = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                    break;
+                default:
+                    throw new AssertionError();
+            }
+            return Tuple.tuple(key, value);
+        });
     }
 
     @Before
@@ -390,6 +419,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -405,6 +435,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             PivotConfigTests.randomPivotConfig(),
             null,
             description,
+            null,
             null,
             null,
             null,

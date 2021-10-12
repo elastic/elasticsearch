@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ShardPathTests extends ESTestCase {
@@ -88,15 +87,27 @@ public class ShardPathTests extends ESTestCase {
             ShardStateMetadata.FORMAT.writeAndCleanup(
                     new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), path);
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, customDataPath);
-            assertThat("root state paths must be a node path but wasn't: " + shardPath.getRootStatePath(),
-                env.nodeDataPath(), equalTo(shardPath.getRootStatePath()));
+            boolean found = false;
+            for (Path p : env.nodeDataPaths()) {
+                if (p.equals(shardPath.getRootStatePath())) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("root state paths must be a node path but wasn't: " + shardPath.getRootStatePath(), found);
+            found = false;
             if (useCustomDataPath) {
                 assertNotEquals(shardPath.getRootDataPath(), shardPath.getRootStatePath());
                 assertEquals(customPath, shardPath.getRootDataPath());
             } else {
                 assertNull(customPath);
-                assertThat("root state paths must be a node path but wasn't: " + shardPath.getRootDataPath(),
-                    env.nodeDataPath(), equalTo(shardPath.getRootDataPath()));
+                for (Path p : env.nodeDataPaths()) {
+                    if (p.equals(shardPath.getRootDataPath())) {
+                        found = true;
+                        break;
+                    }
+                }
+                assertTrue("root state paths must be a node path but wasn't: " + shardPath.getRootDataPath(), found);
             }
         }
     }

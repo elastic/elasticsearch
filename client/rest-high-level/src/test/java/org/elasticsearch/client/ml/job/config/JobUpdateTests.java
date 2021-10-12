@@ -8,7 +8,7 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.ArrayList;

@@ -10,7 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.Features;
 

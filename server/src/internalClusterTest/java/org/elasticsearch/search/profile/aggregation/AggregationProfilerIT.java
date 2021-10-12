@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
 import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;

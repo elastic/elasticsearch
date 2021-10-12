@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;

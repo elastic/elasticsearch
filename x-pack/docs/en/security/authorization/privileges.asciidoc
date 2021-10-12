@@ -61,7 +61,7 @@ All {Ilm} operations related to managing policies.
 All operations on index templates.
 
 `manage_ingest_pipelines`::
-All operations on ingest node pipelines.
+All operations on ingest pipelines.
 
 `manage_logstash_pipelines`::
 All operations on logstash pipelines.

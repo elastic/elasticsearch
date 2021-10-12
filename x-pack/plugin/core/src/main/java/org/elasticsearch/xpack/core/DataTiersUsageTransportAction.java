@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -32,7 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -83,7 +83,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
         indices.forEach(entry -> {
-            String tierPref = entry.value.getSettings().get(DataTierAllocationDecider.TIER_PREFERENCE);
+            String tierPref = entry.value.getSettings().get(DataTier.TIER_PREFERENCE);
             if (Strings.hasText(tierPref)) {
                 String[] tiers = tierPref.split(",");
                 if (tiers.length > 0) {

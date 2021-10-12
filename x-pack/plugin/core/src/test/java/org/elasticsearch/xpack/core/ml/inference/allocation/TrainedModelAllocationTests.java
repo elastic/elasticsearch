@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 
@@ -32,7 +32,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
 
     public static TrainedModelAllocation randomInstance() {
         TrainedModelAllocation.Builder builder = TrainedModelAllocation.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong())
+            new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong(), 1, 1)
         );
         List<String> nodes = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(5)).collect(Collectors.toList());
         for (String node : nodes) {
@@ -249,7 +249,7 @@ public class TrainedModelAllocationTests extends AbstractSerializingTestCase<Tra
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomParams() {
-        return new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(randomAlphaOfLength(10), randomNonNegativeLong(), 1, 1);
     }
 
     private static void assertUnchanged(

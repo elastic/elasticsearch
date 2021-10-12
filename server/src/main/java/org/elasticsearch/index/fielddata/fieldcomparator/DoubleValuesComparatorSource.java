@@ -74,7 +74,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new DoubleComparator(numHits, null, null, reversed, sortPos) {
+        DoubleComparator comparator = new DoubleComparator(numHits, null, null, reversed, sortPos) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new DoubleLeafComparator(context) {
@@ -90,6 +90,9 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 };
             }
         };
+        // TODO: when LUCENE-10154 is available, instead of disableSkipping this comparator should implement `getPointValue`
+        comparator.disableSkipping();
+        return comparator;
     }
 
     @Override

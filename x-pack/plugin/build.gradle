@@ -30,23 +30,6 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-tasks.named("testJar").configure {
-  /*
-   * Stick the license and notice file in the jar. This isn't strictly
-   * needed because we don't publish it but it makes our super-paranoid
-   * tests happy.
-   */
-  metaInf {
-    from(project.licenseFile.parent) {
-      include project.licenseFile.name
-      rename { 'LICENSE.txt' }
-    }
-    from(project.noticeFile.parent) {
-      include project.noticeFile.name
-    }
-  }
-}
-
 // location for keys and certificates
 File extraResourceDir = file("$buildDir/extra_resource")
 File nodeKey = file("$extraResourceDir/testnode.pem")
@@ -218,6 +201,10 @@ testClusters.configureEach {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile serviceTokens.name, serviceTokens
+
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -22,12 +20,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<
+public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
     ValuesSource.Numeric,
     ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
@@ -73,6 +74,11 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     public ExtendedStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         sigma = in.readDouble();
+    }
+
+    @Override
+    public Set<String> metricNames() {
+        return InternalExtendedStats.METRIC_NAMES;
     }
 
     @Override

@@ -28,8 +28,8 @@ group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client-sniffer'
 
 // rest client sniffer is licenses under Apache 2.0
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
+licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
 
 dependencies {
   api project(":client:rest")

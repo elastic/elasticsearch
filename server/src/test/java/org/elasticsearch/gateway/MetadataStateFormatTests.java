@@ -16,12 +16,13 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -34,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
@@ -344,6 +346,121 @@ public class MetadataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, paths);
     }
 
+    public void testInconsistentMultiPathState() throws IOException {
+        Path paths[] = new Path[3];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+        Format format = new Format("foo-");
+
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        // Call write without clean-up to simulate multi-write transaction.
+        long genId = format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
+
+        for (Path path : paths) {
+            assertEquals(genId, format.findMaxGenerationId("foo-", path));
+        }
+        assertEquals(0, format.findStateFilesByGeneration(-1, paths).size());
+        assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
+
+        Path badPath = paths[paths.length-1];
+
+        format.failOnPaths(badPath.resolve(MetadataStateFormat.STATE_DIR_NAME));
+        format.failOnMethods(Format.FAIL_RENAME_TMP_FILE);
+
+        DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+
+        expectThrows(WriteStateException.class, () -> format.write(newState, paths));
+        long firstPathId = format.findMaxGenerationId("foo-", paths[0]);
+        assertEquals(firstPathId, format.findMaxGenerationId("foo-", paths[1]));
+        assertEquals(genId, format.findMaxGenerationId("foo-", badPath));
+        assertEquals(genId, firstPathId-1);
+
+        // Since at least one path has the latest generation, we should find the latest
+        // generation when we supply all paths.
+        long allPathsId = format.findMaxGenerationId("foo-", paths);
+        assertEquals(firstPathId, allPathsId);
+
+        // Assert that we can find the new state since one path successfully wrote it.
+        assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+    }
+
+    public void testDeleteMetaState() throws IOException {
+        Path paths[] = new Path[3];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+        Format format = new Format("foo-");
+
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        long genId = format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
+
+        for (Path path : paths) {
+            assertEquals(genId, format.findMaxGenerationId("foo-", path));
+        }
+        assertEquals(0, format.findStateFilesByGeneration(-1, paths).size());
+        assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
+
+        Format.deleteMetaState(paths);
+
+        assertEquals(0, format.findStateFilesByGeneration(genId, paths).size());
+
+        for (Path path : paths) {
+            assertEquals(false, Files.exists(path.resolve(MetadataStateFormat.STATE_DIR_NAME)));
+        }
+
+        // We shouldn't find any state or state generations anymore
+        assertEquals(-1, format.findMaxGenerationId("foo-", paths));
+        assertNull(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+    }
+
+    public void testCleanupOldFilesWithErrorPath() throws IOException {
+        Path paths[] = new Path[3];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+        Format format = new Format("foo-");
+
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
+        long genId = format.write(state, paths);
+        assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+        ensureOnlyOneStateFile(paths);
+
+        for (Path path : paths) {
+            assertEquals(genId, format.findMaxGenerationId("foo-", path));
+        }
+        assertEquals(0, format.findStateFilesByGeneration(-1, paths).size());
+        assertEquals(paths.length, format.findStateFilesByGeneration(genId, paths).size());
+
+        List<Path> stateFiles = format.findStateFilesByGeneration(genId, paths);
+
+        final int badDirIndex = 1;
+
+        format.failOnPaths(paths[badDirIndex].resolve(MetadataStateFormat.STATE_DIR_NAME));
+        format.failOnMethods(Format.FAIL_DELETE_TMP_FILE);
+
+        // Ensure clean-up old files doesn't fail with one bad dir. We pretend we want to
+        // keep a newer generation that doesn't exist (genId + 1).
+        format.cleanupOldFiles(genId + 1, paths);
+
+        // We simulated failure on deleting one stale state file, there should be one that's remaining from the old state.
+        // We'll corrupt this remaining file and check to see if loading the state throws an exception.
+        // All other state files, including the first directory uncorrupted state files should be cleaned up.
+        corruptFile(stateFiles.get(badDirIndex), logger);
+
+        assertThat(expectThrows(ElasticsearchException.class,
+            () -> format.loadLatestStateWithGeneration(logger, xContentRegistry(), paths)).getMessage(),
+            equalTo("java.io.IOException: failed to read " + stateFiles.get(badDirIndex)));
+    }
+
     private static class Format extends MetadataStateFormat<DummyState> {
         private enum FailureMode {
             NO_FAILURES,
@@ -353,6 +470,7 @@ public class MetadataStateFormatTests extends ESTestCase {
 
         private FailureMode failureMode;
         private String[] failureMethods;
+        private Path[] failurePaths;
 
         static final String FAIL_CREATE_OUTPUT_FILE = "createOutput";
         static final String FAIL_WRITE_TO_OUTPUT_FILE = "writeBytes";
@@ -361,6 +479,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         static final String FAIL_FSYNC_STATE_DIRECTORY = "syncMetaData";
         static final String FAIL_DELETE_TMP_FILE = "deleteFile";
         static final String FAIL_OPEN_STATE_FILE_WHEN_COPYING = "openInput";
+        static final String FAIL_LIST_ALL = "listAll";
 
         /**
          * Constructs a MetadataStateFormat object for storing/retrieving DummyState.
@@ -392,8 +511,24 @@ public class MetadataStateFormatTests extends ESTestCase {
             this.failureMethods = failureMethods;
         }
 
+        public void failOnPaths(Path... paths) {
+            this.failurePaths = paths;
+        }
+
         public void failRandomly() {
             this.failureMode = FailureMode.FAIL_RANDOMLY;
+        }
+
+        private void throwDirectoryExceptionCheckPaths(Path dir) throws MockDirectoryWrapper.FakeIOException {
+            if (failurePaths != null) {
+                for (Path p : failurePaths) {
+                    if (p.equals(dir)) {
+                        throw new MockDirectoryWrapper.FakeIOException();
+                    }
+                }
+            } else {
+                throw new MockDirectoryWrapper.FakeIOException();
+            }
         }
 
         @Override
@@ -403,10 +538,10 @@ public class MetadataStateFormatTests extends ESTestCase {
                 final String failMethod = randomFrom(failureMethods);
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override
-                    public void eval(MockDirectoryWrapper dir) throws IOException {
+                    public void eval(MockDirectoryWrapper directory) throws IOException {
                         for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
                             if (failMethod.equals(e.getMethodName())) {
-                                throw new MockDirectoryWrapper.FakeIOException();
+                                throwDirectoryExceptionCheckPaths(dir);
                             }
                         }
                     }
@@ -415,9 +550,9 @@ public class MetadataStateFormatTests extends ESTestCase {
             } else if (failureMode == FailureMode.FAIL_RANDOMLY) {
                 MockDirectoryWrapper.Failure fail = new MockDirectoryWrapper.Failure() {
                     @Override
-                    public void eval(MockDirectoryWrapper dir) throws IOException {
+                    public void eval(MockDirectoryWrapper directory) throws IOException {
                         if (randomIntBetween(0, 20) == 0) {
-                            throw new MockDirectoryWrapper.FakeIOException();
+                            throwDirectoryExceptionCheckPaths(dir);
                         }
                     }
                 };

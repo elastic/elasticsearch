@@ -380,7 +380,7 @@ public final class DateFieldMapper extends FieldMapper {
         public long parse(String value) {
             final Instant instant = DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant();
             if (resolution == Resolution.MILLISECONDS && instant.getNano() % 1000000 != 0) {
-                DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
+                DEPRECATION_LOGGER.warn(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
                     "You are attempting to store a date field with nanosecond resolution on a date field. " +
                         "The nanosecond part was lost. Use date_nanos field type.");
             }

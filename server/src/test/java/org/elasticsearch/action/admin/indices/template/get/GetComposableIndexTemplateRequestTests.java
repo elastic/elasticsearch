@@ -21,7 +21,7 @@ public class GetComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     @Override
     protected GetComposableIndexTemplateAction.Request createTestInstance() {
-        return new GetComposableIndexTemplateAction.Request(randomArray(0, 10, String[]::new, () -> randomAlphaOfLength(4)));
+        return new GetComposableIndexTemplateAction.Request(randomBoolean() ? null : randomAlphaOfLength(4));
     }
 
     @Override

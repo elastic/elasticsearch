@@ -416,6 +416,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     public void testNoAutoReleaseOfIndicesOnReplacementNodes() {
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
+        AtomicReference<ClusterState> currentClusterState = new AtomicReference<>();
         AllocationService allocation = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
         Metadata metadata = Metadata.builder()
@@ -443,12 +444,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), reservedSpaceNode2).build());
         ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpaces = reservedSpacesBuilder.build();
 
-        DiskThresholdMonitor monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterState,
+        currentClusterState.set(clusterState);
+
+        final DiskThresholdMonitor monitor = new DiskThresholdMonitor(Settings.EMPTY, currentClusterState::get,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, () -> 0L,
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterState);
+                listener.onResponse(currentClusterState.get());
             }) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
@@ -495,7 +498,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             targetNode = "my-node1";
         }
 
-        ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState)
+        final ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata())
                 .put(indexMetadata, true)
                 .putCustom(NodesShutdownMetadata.TYPE,
@@ -512,23 +515,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .build();
 
         assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
-        monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterStateWithBlocks,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, () -> 0L,
-            (reason, priority, listener) -> {
-                assertNotNull(listener);
-                assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterStateWithBlocks);
-            }) {
-            @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
-                if (readOnly) {
-                    assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
-                } else {
-                    assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
-                }
-                listener.onResponse(null);
-            }
-        };
+
+        currentClusterState.set(clusterStateWithBlocks);
 
         // When free disk on any of node1 or node2 goes below 5% flood watermark, then apply index block on indices not having the block
         indicesToMarkReadOnly.set(null);
@@ -550,7 +538,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToMarkReadOnly.get());
         assertNull(indicesToRelease.get());
 
-        ClusterState clusterStateNoShutdown = ClusterState.builder(clusterState)
+        final ClusterState clusterStateNoShutdown = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata())
                 .put(indexMetadata, true)
                 .removeCustom(NodesShutdownMetadata.TYPE)
@@ -559,23 +547,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .build();
 
         assertTrue(clusterStateNoShutdown.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
-        monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterStateNoShutdown,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, () -> 0L,
-            (reason, priority, listener) -> {
-                assertNotNull(listener);
-                assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterStateNoShutdown);
-            }) {
-            @Override
-            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
-                if (readOnly) {
-                    assertTrue(indicesToMarkReadOnly.compareAndSet(null, indicesToUpdate));
-                } else {
-                    assertTrue(indicesToRelease.compareAndSet(null, indicesToUpdate));
-                }
-                listener.onResponse(null);
-            }
-        };
+
+        currentClusterState.set(clusterStateNoShutdown);
 
         // Now that the REPLACE is gone, auto-releasing can occur for the index
         indicesToMarkReadOnly.set(null);

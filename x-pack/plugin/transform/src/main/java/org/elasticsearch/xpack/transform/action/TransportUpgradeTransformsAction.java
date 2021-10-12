@@ -129,15 +129,9 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
-            final long updated = updatesByStatus.containsKey(UpdateResult.Status.UPDATED)
-                ? updatesByStatus.get(UpdateResult.Status.UPDATED)
-                : 0;
-
-            final long noAction = updatesByStatus.containsKey(UpdateResult.Status.NONE) ? updatesByStatus.get(UpdateResult.Status.NONE) : 0;
-
-            final long needsUpdate = updatesByStatus.containsKey(UpdateResult.Status.NEEDS_UPDATE)
-                ? updatesByStatus.get(UpdateResult.Status.NEEDS_UPDATE)
-                : 0;
+            final long updated = updatesByStatus.computeIfAbsent(UpdateResult.Status.UPDATED, k -> 0L);
+            final long noAction = updatesByStatus.computeIfAbsent(UpdateResult.Status.NONE, k -> 0L);
+            final long needsUpdate = updatesByStatus.computeIfAbsent(UpdateResult.Status.NEEDS_UPDATE, k -> 0L);
 
             if (request.isDryRun() == false) {
                 transformConfigManager.deleteOldIndices(ActionListener.wrap(aBool -> {
@@ -203,7 +197,14 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         boolean dryRun,
         ActionListener<Void> listener
     ) {
-        String next = transformsToUpgrade.pop();
+        String next = transformsToUpgrade.pollFirst();
+
+        // extra paranoia: return if next is null
+        if (next == null) {
+            listener.onResponse(null);
+            return;
+        }
+
         updateOneTransform(next, dryRun, ActionListener.wrap(updateResponse -> {
             TransformConfig updatedConfig = updateResponse.getConfig();
             auditor.info(updatedConfig.getId(), "Updated transform.");

@@ -90,6 +90,10 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         }
 
         public Response(long updated, long noAction, long needsUpdate) {
+            if (updated < 0 || noAction < 0 || needsUpdate < 0) {
+                throw new IllegalArgumentException("response counters must be > 0");
+            }
+
             this.updated = updated;
             this.noAction = noAction;
             this.needsUpdate = needsUpdate;

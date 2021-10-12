@@ -44,8 +44,16 @@ public class PyTorchResultProcessor {
         return pendingResults.computeIfAbsent(requestId, k -> new PendingResult());
     }
 
-    public void requestAccepted(String requestId) {
-        pendingResults.remove(requestId);
+    /**
+     * Call this method when the caller is no longer waiting on the request response.
+     *
+     * @param requestId The request ID that is no longer being waited on
+     */
+    public void requestIgnored(String requestId) {
+        PendingResult pendingResult = pendingResults.remove(requestId);
+        if (pendingResult != null) {
+            pendingResult.latch.countDown();
+        }
     }
 
     public void process(NativePyTorchProcess process) {
@@ -55,9 +63,9 @@ public class PyTorchResultProcessor {
                 PyTorchResult result = iterator.next();
                 logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
                 processResult(result);
-                PendingResult pendingResult = pendingResults.get(result.getRequestId());
+                PendingResult pendingResult = pendingResults.remove(result.getRequestId());
                 if (pendingResult == null) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));
+                    logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));
                 } else {
                     pendingResult.result.set(result);
                     pendingResult.latch.countDown();

@@ -67,6 +67,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78913")
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation

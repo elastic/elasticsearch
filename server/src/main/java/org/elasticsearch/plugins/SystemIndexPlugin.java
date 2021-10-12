@@ -95,7 +95,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
      *               {@link org.elasticsearch.client.OriginSettingClient}.
      * @param listener A listener that should have {@link ActionListener#onResponse(Object)} called once all necessary preparations for the
      *                 upgrade of indices owned by this plugin have been completed. The {@link Map} passed to the listener will be stored
-     *                 and passed to {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}. Note that the contents of
+     *                 and passed to {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}. Note the contents of
      *                 the map *must* be writeable using {@link org.elasticsearch.common.io.stream.StreamOutput#writeGenericValue(Object)}.
      */
     default void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {

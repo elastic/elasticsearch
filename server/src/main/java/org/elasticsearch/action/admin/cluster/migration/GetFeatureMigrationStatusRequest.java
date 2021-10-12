@@ -15,15 +15,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Request for whether system features need to be upgraded
+ * Request for whether system features need to be migrated
  */
-public class GetFeatureUpgradeStatusRequest extends MasterNodeRequest<GetFeatureUpgradeStatusRequest> {
+public class GetFeatureMigrationStatusRequest extends MasterNodeRequest<GetFeatureMigrationStatusRequest> {
 
-    public GetFeatureUpgradeStatusRequest() {
+    public GetFeatureMigrationStatusRequest() {
         super();
     }
 
-    public GetFeatureUpgradeStatusRequest(StreamInput in) throws IOException {
+    public GetFeatureMigrationStatusRequest(StreamInput in) throws IOException {
         super(in);
     }
 

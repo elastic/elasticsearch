@@ -11,7 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
-import org.elasticsearch.client.migration.GetFeatureUpgradeStatusRequest;
+import org.elasticsearch.client.migration.GetFeatureMigrationStatusRequest;
 import org.elasticsearch.client.migration.PostFeatureUpgradeRequest;
 
 final class MigrationRequestConverters {
@@ -29,11 +29,11 @@ final class MigrationRequestConverters {
     }
 
     /**
-     * Convert a {@link GetFeatureUpgradeStatusRequest} to a {@link Request}
-     * @param getFeatureUpgradeStatusRequest a request for feature upgrade status
+     * Convert a {@link GetFeatureMigrationStatusRequest} to a {@link Request}
+     * @param getFeatureMigrationStatusRequest a request for feature migration status
      * @return a {@link Request} with the correct path and HTTP request type
      */
-    static Request getFeatureUpgradeStatus(GetFeatureUpgradeStatusRequest getFeatureUpgradeStatusRequest) {
+    static Request getFeatureMigrationStatus(GetFeatureMigrationStatusRequest getFeatureMigrationStatusRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_migration", "system_features")
             .build();

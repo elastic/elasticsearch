@@ -11,14 +11,14 @@ package org.elasticsearch.action.admin.cluster.migration;
 import org.elasticsearch.action.ActionType;
 
 /**
- * Action for getting a feature upgrade status.
+ * Action for getting a feature migration status.
  */
-public class GetFeatureUpgradeStatusAction extends ActionType<GetFeatureUpgradeStatusResponse> {
+public class GetFeatureMigrationStatusAction extends ActionType<GetFeatureMigrationStatusResponse> {
 
-    public static final GetFeatureUpgradeStatusAction INSTANCE = new GetFeatureUpgradeStatusAction();
+    public static final GetFeatureMigrationStatusAction INSTANCE = new GetFeatureMigrationStatusAction();
     public static final String NAME = "cluster:admin/migration/get_system_feature";
 
-    private GetFeatureUpgradeStatusAction() {
-        super(NAME, GetFeatureUpgradeStatusResponse::new);
+    private GetFeatureMigrationStatusAction() {
+        super(NAME, GetFeatureMigrationStatusResponse::new);
     }
 }

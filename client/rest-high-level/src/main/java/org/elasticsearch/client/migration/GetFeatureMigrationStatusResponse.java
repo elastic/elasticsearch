@@ -19,69 +19,69 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Information about which system features need to be upgraded before the next
+ * Information about which system features need to be migrated before the next
  * major version.
  */
-public class GetFeatureUpgradeStatusResponse {
+public class GetFeatureMigrationStatusResponse {
 
-    private static final ParseField FEATURE_UPGRADE_STATUSES = new ParseField("features");
-    private static final ParseField UPGRADE_STATUS = new ParseField("upgrade_status");
+    private static final ParseField FEATURE_MIGRATION_STATUSES = new ParseField("features");
+    private static final ParseField MIGRATION_STATUS = new ParseField("migration_status");
 
-    private final List<FeatureUpgradeStatus> featureUpgradeStatuses;
-    private final String upgradeStatus;
+    private final List<FeatureMigrationStatus> featureMigrationStatuses;
+    private final String migrationStatus;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GetFeatureUpgradeStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_feature_upgrade_response", true, (a, ctx) -> new GetFeatureUpgradeStatusResponse(
-        (List<FeatureUpgradeStatus>) a[0], (String) a[1])
+    private static final ConstructingObjectParser<GetFeatureMigrationStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_feature_migration_response", true, (a, ctx) -> new GetFeatureMigrationStatusResponse(
+        (List<FeatureMigrationStatus>) a[0], (String) a[1])
     );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-            FeatureUpgradeStatus::parse, FEATURE_UPGRADE_STATUSES);
+            FeatureMigrationStatus::parse, FEATURE_MIGRATION_STATUSES);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> p.text(), UPGRADE_STATUS, ObjectParser.ValueType.STRING);
+            (p, c) -> p.text(), MIGRATION_STATUS, ObjectParser.ValueType.STRING);
     }
 
     /**
      * Constructor for the response object
-     * @param featureUpgradeStatuses A list of feature, their upgrade statuses, and other relevant information for upgrading
-     * @param upgradeStatus Does this feature need to be upgraded or not?
+     * @param featureMigrationStatuses A list of feature, their migration statuses, and other relevant information for upgrading
+     * @param migrationStatus Does this feature need to be migrated or not?
      */
-    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> featureUpgradeStatuses, String upgradeStatus) {
-        this.featureUpgradeStatuses = Objects.nonNull(featureUpgradeStatuses) ? featureUpgradeStatuses : Collections.emptyList();
-        this.upgradeStatus = upgradeStatus;
+    public GetFeatureMigrationStatusResponse(List<FeatureMigrationStatus> featureMigrationStatuses, String migrationStatus) {
+        this.featureMigrationStatuses = Objects.nonNull(featureMigrationStatuses) ? featureMigrationStatuses : Collections.emptyList();
+        this.migrationStatus = migrationStatus;
     }
 
-    public static GetFeatureUpgradeStatusResponse parse(XContentParser parser) throws IOException {
+    public static GetFeatureMigrationStatusResponse parse(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 
-    public List<FeatureUpgradeStatus> getFeatureUpgradeStatuses() {
-        return featureUpgradeStatuses;
+    public List<FeatureMigrationStatus> getFeatureMigrationStatuses() {
+        return featureMigrationStatuses;
     }
 
-    public String getUpgradeStatus() {
-        return upgradeStatus;
+    public String getMigrationStatus() {
+        return migrationStatus;
     }
 
     /**
-     * This class represents a particular feature and whether it needs to be upgraded.
+     * This class represents a particular feature and whether it needs to be migrated.
      */
-    public static class FeatureUpgradeStatus {
+    public static class FeatureMigrationStatus {
         private final String featureName;
         private final String minimumIndexVersion;
-        private final String upgradeStatus;
+        private final String migrationStatus;
         private final List<IndexVersion> indexVersions;
 
         private static final ParseField FEATURE_NAME = new ParseField("feature_name");
         private static final ParseField MINIMUM_INDEX_VERSION = new ParseField("minimum_index_version");
-        private static final ParseField UPGRADE_STATUS = new ParseField("upgrade_status");
+        private static final ParseField MIGRATION_STATUS = new ParseField("migration_status");
         private static final ParseField INDEX_VERSIONS = new ParseField("indices");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<FeatureUpgradeStatus, Void> PARSER = new ConstructingObjectParser<>(
-            "feature_upgrade_status", true, (a, ctx) -> new FeatureUpgradeStatus(
+        private static final ConstructingObjectParser<FeatureMigrationStatus, Void> PARSER = new ConstructingObjectParser<>(
+            "feature_migration_status", true, (a, ctx) -> new FeatureMigrationStatus(
             (String) a[0], (String) a[1], (String) a[2], (List<IndexVersion>) a[3]));
 
         static {
@@ -90,30 +90,30 @@ public class GetFeatureUpgradeStatusResponse {
             PARSER.declareField(ConstructingObjectParser.constructorArg(),
                 (p, c) -> p.text(), MINIMUM_INDEX_VERSION, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), UPGRADE_STATUS, ObjectParser.ValueType.STRING);
+                (p, c) -> p.text(), MIGRATION_STATUS, ObjectParser.ValueType.STRING);
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), IndexVersion::parse, INDEX_VERSIONS);
         }
 
         /**
-         * A feature upgrade status object
+         * A feature migration status object
          * @param featureName Name of the feature
          * @param minimumIndexVersion The earliest version of Elasticsearch used to create one of this feature's system indices
-         * @param upgradeStatus Whether this feature needs to be upgraded
+         * @param migrationStatus Whether this feature needs to be migrated
          * @param indexVersions A list of individual indices and which version of Elasticsearch created them
          */
-        public FeatureUpgradeStatus(
+        public FeatureMigrationStatus(
             String featureName,
             String minimumIndexVersion,
-            String upgradeStatus,
+            String migrationStatus,
             List<IndexVersion> indexVersions
         ) {
             this.featureName = featureName;
             this.minimumIndexVersion = minimumIndexVersion;
-            this.upgradeStatus = upgradeStatus;
+            this.migrationStatus = migrationStatus;
             this.indexVersions = indexVersions;
         }
 
-        public static FeatureUpgradeStatus parse(XContentParser parser, Void ctx) {
+        public static FeatureMigrationStatus parse(XContentParser parser, Void ctx) {
             return PARSER.apply(parser, null);
         }
 
@@ -125,8 +125,8 @@ public class GetFeatureUpgradeStatusResponse {
             return minimumIndexVersion;
         }
 
-        public String getUpgradeStatus() {
-            return upgradeStatus;
+        public String getMigrationStatus() {
+            return migrationStatus;
         }
 
         public List<IndexVersion> getIndexVersions() {
@@ -137,16 +137,16 @@ public class GetFeatureUpgradeStatusResponse {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            FeatureUpgradeStatus that = (FeatureUpgradeStatus) o;
+            FeatureMigrationStatus that = (FeatureMigrationStatus) o;
             return Objects.equals(featureName, that.featureName)
                 && Objects.equals(minimumIndexVersion, that.minimumIndexVersion)
-                && Objects.equals(upgradeStatus, that.upgradeStatus)
+                && Objects.equals(migrationStatus, that.migrationStatus)
                 && Objects.equals(indexVersions, that.indexVersions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(featureName, minimumIndexVersion, upgradeStatus, indexVersions);
+            return Objects.hash(featureName, minimumIndexVersion, migrationStatus, indexVersions);
         }
     }
 

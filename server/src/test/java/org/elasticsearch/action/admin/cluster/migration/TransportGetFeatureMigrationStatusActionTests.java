@@ -22,40 +22,40 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureMigrationStatusResponse.MigrationStatus.NO_MIGRATION_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
+public class TransportGetFeatureMigrationStatusActionTests extends ESTestCase {
 
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
 
     public void testGetFeatureStatus() {
-        GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status =
-            TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
+        GetFeatureMigrationStatusResponse.FeatureMigrationStatus status =
+            TransportGetFeatureMigrationStatusAction.getFeatureMigrationStatus(
                 CLUSTER_STATE,
                 Map.entry("test-feature", FEATURE));
 
-        assertThat(status.getUpgradeStatus(), equalTo(NO_UPGRADE_NEEDED));
+        assertThat(status.getMigrationStatus(), equalTo(NO_MIGRATION_NEEDED));
         assertThat(status.getFeatureName(), equalTo("test-feature"));
         assertThat(status.getMinimumIndexVersion(), equalTo(Version.V_7_0_0));
         assertThat(status.getIndexVersions().size(), equalTo(2)); // additional testing below
     }
 
     public void testGetIndexVersion() {
-        List<GetFeatureUpgradeStatusResponse.IndexVersion> versions =
-            TransportGetFeatureUpgradeStatusAction.getIndexVersions(CLUSTER_STATE, FEATURE);
+        List<GetFeatureMigrationStatusResponse.IndexVersion> versions =
+            TransportGetFeatureMigrationStatusAction.getIndexVersions(CLUSTER_STATE, FEATURE);
 
         assertThat(versions.size(), equalTo(2));
 
         {
-            GetFeatureUpgradeStatusResponse.IndexVersion version = versions.get(0);
+            GetFeatureMigrationStatusResponse.IndexVersion version = versions.get(0);
             assertThat(version.getVersion(), equalTo(Version.CURRENT));
             assertThat(version.getIndexName(), equalTo(".test-index-1"));
         }
         {
-            GetFeatureUpgradeStatusResponse.IndexVersion version = versions.get(1);
+            GetFeatureMigrationStatusResponse.IndexVersion version = versions.get(1);
             assertThat(version.getVersion(), equalTo(Version.V_7_0_0));
             assertThat(version.getIndexName(), equalTo(".test-index-2"));
         }

@@ -29,20 +29,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureMigrationStatusResponse.MigrationStatus.NO_MIGRATION_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureMigrationStatusResponse.MigrationStatus.MIGRATION_NEEDED;
 
 /**
- * Transport class for the get feature upgrade status action
+ * Transport class for the get feature migration status action
  */
-public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeAction<
-        GetFeatureUpgradeStatusRequest,
-        GetFeatureUpgradeStatusResponse> {
+public class TransportGetFeatureMigrationStatusAction extends TransportMasterNodeAction<
+    GetFeatureMigrationStatusRequest,
+    GetFeatureMigrationStatusResponse> {
 
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportGetFeatureUpgradeStatusAction(
+    public TransportGetFeatureMigrationStatusAction(
         TransportService transportService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
@@ -51,74 +51,74 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         SystemIndices systemIndices
     ) {
         super(
-            GetFeatureUpgradeStatusAction.NAME,
+            GetFeatureMigrationStatusAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            GetFeatureUpgradeStatusRequest::new,
+            GetFeatureMigrationStatusRequest::new,
             indexNameExpressionResolver,
-            GetFeatureUpgradeStatusResponse::new,
+            GetFeatureMigrationStatusResponse::new,
             ThreadPool.Names.SAME
         );
         this.systemIndices = systemIndices;
     }
 
     @Override
-    protected void masterOperation(Task task, GetFeatureUpgradeStatusRequest request, ClusterState state,
-                                   ActionListener<GetFeatureUpgradeStatusResponse> listener) throws Exception {
+    protected void masterOperation(Task task, GetFeatureMigrationStatusRequest request, ClusterState state,
+                                   ActionListener<GetFeatureMigrationStatusResponse> listener) throws Exception {
 
-        List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures().entrySet().stream()
+        List<GetFeatureMigrationStatusResponse.FeatureMigrationStatus> features = systemIndices.getFeatures().entrySet().stream()
             .sorted(Map.Entry.comparingByKey())
-            .map(entry -> getFeatureUpgradeStatus(state, entry))
+            .map(entry -> getFeatureMigrationStatus(state, entry))
             .collect(Collectors.toList());
 
-        boolean isUpgradeNeeded = features.stream()
-                .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getMinimumIndexVersion)
+        boolean isMigrationNeeded = features.stream()
+                .map(GetFeatureMigrationStatusResponse.FeatureMigrationStatus::getMinimumIndexVersion)
                 .min(Version::compareTo)
                 .orElse(Version.CURRENT)
                 .before(Version.V_7_0_0);
 
-        listener.onResponse(new GetFeatureUpgradeStatusResponse(features, isUpgradeNeeded ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED));
+        listener.onResponse(new GetFeatureMigrationStatusResponse(features, isMigrationNeeded ? MIGRATION_NEEDED : NO_MIGRATION_NEEDED));
     }
 
     // visible for testing
-    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
+    static GetFeatureMigrationStatusResponse.FeatureMigrationStatus getFeatureMigrationStatus(
         ClusterState state, Map.Entry<String, SystemIndices.Feature> entry) {
 
         String featureName = entry.getKey();
         SystemIndices.Feature feature = entry.getValue();
 
-        List<GetFeatureUpgradeStatusResponse.IndexVersion> indexVersions = getIndexVersions(state, feature);
+        List<GetFeatureMigrationStatusResponse.IndexVersion> indexVersions = getIndexVersions(state, feature);
 
         Version minimumVersion = indexVersions.stream()
-            .map(GetFeatureUpgradeStatusResponse.IndexVersion::getVersion)
+            .map(GetFeatureMigrationStatusResponse.IndexVersion::getVersion)
             .min(Version::compareTo)
             .orElse(Version.CURRENT);
 
-        return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
+        return new GetFeatureMigrationStatusResponse.FeatureMigrationStatus(
             featureName,
             minimumVersion,
-            minimumVersion.before(Version.V_7_0_0) ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED,
+            minimumVersion.before(Version.V_7_0_0) ? MIGRATION_NEEDED : NO_MIGRATION_NEEDED,
             indexVersions
         );
     }
 
     // visible for testing
-    static List<GetFeatureUpgradeStatusResponse.IndexVersion> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
+    static List<GetFeatureMigrationStatusResponse.IndexVersion> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
         return Stream.of(feature.getIndexDescriptors(), feature.getAssociatedIndexDescriptors())
             .flatMap(Collection::stream)
             .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
             .sorted(String::compareTo)
             .map(index -> state.metadata().index(index))
-            .map(indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexVersion(
+            .map(indexMetadata -> new GetFeatureMigrationStatusResponse.IndexVersion(
                 indexMetadata.getIndex().getName(),
                 indexMetadata.getCreationVersion()))
             .collect(Collectors.toList());
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetFeatureUpgradeStatusRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetFeatureMigrationStatusRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

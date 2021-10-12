@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
-import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureMigrationStatusAction;
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureMigrationStatusRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -19,12 +19,12 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Endpoint for getting the system feature upgrade status
+ * Endpoint for getting the system feature migration status
  */
-public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
+public class RestGetFeatureMigrationStatusAction extends BaseRestHandler {
     @Override
     public String getName() {
-        return "get_feature_upgrade_status";
+        return "get_feature_migration_status";
     }
 
     @Override
@@ -40,11 +40,11 @@ public class RestGetFeatureUpgradeStatusAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
-        final GetFeatureUpgradeStatusRequest req = new GetFeatureUpgradeStatusRequest();
+        final GetFeatureMigrationStatusRequest req = new GetFeatureMigrationStatusRequest();
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 
         return restChannel -> {
-            client.execute(GetFeatureUpgradeStatusAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
+            client.execute(GetFeatureMigrationStatusAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
         };
     }
 }

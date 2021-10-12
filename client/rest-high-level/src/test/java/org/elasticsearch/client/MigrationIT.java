@@ -11,8 +11,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
-import org.elasticsearch.client.migration.GetFeatureUpgradeStatusRequest;
-import org.elasticsearch.client.migration.GetFeatureUpgradeStatusResponse;
+import org.elasticsearch.client.migration.GetFeatureMigrationStatusRequest;
+import org.elasticsearch.client.migration.GetFeatureMigrationStatusResponse;
 import org.elasticsearch.client.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.client.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -39,20 +39,22 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getMlSettingsIssues().size(), equalTo(0));
     }
 
-    public void testGetFeatureUpgradeStatus() throws IOException {
-        GetFeatureUpgradeStatusRequest request = new GetFeatureUpgradeStatusRequest();
-        GetFeatureUpgradeStatusResponse response = highLevelClient().migration().getFeatureUpgradeStatus(request, RequestOptions.DEFAULT);
-        assertThat(response.getUpgradeStatus(), equalTo("NO_UPGRADE_NEEDED"));
-        assertThat(response.getFeatureUpgradeStatuses().size(), greaterThanOrEqualTo(1));
-        Optional<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> optionalTasksStatus = response.getFeatureUpgradeStatuses().stream()
+    public void testGetFeatureMigrationStatus() throws IOException {
+        GetFeatureMigrationStatusRequest request = new GetFeatureMigrationStatusRequest();
+        GetFeatureMigrationStatusResponse response = highLevelClient().migration()
+            .getFeatureMigrationStatus(request, RequestOptions.DEFAULT);
+        assertThat(response.getMigrationStatus(), equalTo("NO_MIGRATION_NEEDED"));
+        assertThat(response.getFeatureMigrationStatuses().size(), greaterThanOrEqualTo(1));
+        Optional<GetFeatureMigrationStatusResponse.FeatureMigrationStatus> optionalTasksStatus = response.getFeatureMigrationStatuses()
+            .stream()
             .filter(status -> "tasks".equals(status.getFeatureName()))
             .findFirst();
 
         assertThat(optionalTasksStatus.isPresent(), is(true));
 
-        GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus tasksStatus = optionalTasksStatus.get();
+        GetFeatureMigrationStatusResponse.FeatureMigrationStatus tasksStatus = optionalTasksStatus.get();
 
-        assertThat(tasksStatus.getUpgradeStatus(), equalTo("NO_UPGRADE_NEEDED"));
+        assertThat(tasksStatus.getMigrationStatus(), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(tasksStatus.getMinimumIndexVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(tasksStatus.getFeatureName(), equalTo("tasks"));
     }

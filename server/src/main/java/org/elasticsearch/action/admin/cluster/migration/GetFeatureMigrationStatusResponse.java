@@ -22,108 +22,109 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A response showing whether system features need to be upgraded and, feature by feature, which
- * indices need to be upgraded.
+ * A response showing whether system features need to be migrated and, feature by feature, which
+ * indices need to be migrated.
  */
-public class GetFeatureUpgradeStatusResponse extends ActionResponse implements ToXContentObject {
+public class GetFeatureMigrationStatusResponse extends ActionResponse implements ToXContentObject {
 
-    private final List<FeatureUpgradeStatus> featureUpgradeStatuses;
-    private final UpgradeStatus upgradeStatus;
+    private final List<FeatureMigrationStatus> featureMigrationStatuses;
+    private final MigrationStatus migrationStatus;
 
     /**
      * @param statuses A list of feature statuses
-     * @param upgradeStatus Whether system features need to be upgraded
+     * @param migrationStatus Whether system features need to be migrated
      */
-    public GetFeatureUpgradeStatusResponse(List<FeatureUpgradeStatus> statuses, UpgradeStatus upgradeStatus) {
-        this.featureUpgradeStatuses = Objects.nonNull(statuses) ? statuses : Collections.emptyList();
-        this.upgradeStatus = upgradeStatus;
+    public GetFeatureMigrationStatusResponse(List<FeatureMigrationStatus> statuses, MigrationStatus migrationStatus) {
+        this.featureMigrationStatuses = Objects.nonNull(statuses) ? statuses : Collections.emptyList();
+        this.migrationStatus = migrationStatus;
     }
 
     /**
      * @param in A stream input for a serialized response object
      * @throws IOException if we can't deserialize the object
      */
-    public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
+    public GetFeatureMigrationStatusResponse(StreamInput in) throws IOException {
         super(in);
-        this.featureUpgradeStatuses = in.readList(FeatureUpgradeStatus::new);
-        this.upgradeStatus = in.readEnum(UpgradeStatus.class);
+        this.featureMigrationStatuses = in.readList(FeatureMigrationStatus::new);
+        this.migrationStatus = in.readEnum(MigrationStatus.class);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("features");
-        for (FeatureUpgradeStatus featureUpgradeStatus : featureUpgradeStatuses) {
-            builder.value(featureUpgradeStatus);
+        for (FeatureMigrationStatus featureMigrationStatus : featureMigrationStatuses) {
+            builder.value(featureMigrationStatus);
         }
         builder.endArray();
-        builder.field("upgrade_status", upgradeStatus);
+        builder.field("migration_status", migrationStatus);
         builder.endObject();
         return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(this.featureUpgradeStatuses);
-        out.writeEnum(upgradeStatus);
+        out.writeList(this.featureMigrationStatuses);
+        out.writeEnum(migrationStatus);
     }
 
-    public List<FeatureUpgradeStatus> getFeatureUpgradeStatuses() {
-        return featureUpgradeStatuses;
+    public List<FeatureMigrationStatus> getFeatureMigrationStatuses() {
+        return featureMigrationStatuses;
     }
 
-    public UpgradeStatus getUpgradeStatus() {
-        return upgradeStatus;
+    public MigrationStatus getMigrationStatus() {
+        return migrationStatus;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        GetFeatureUpgradeStatusResponse that = (GetFeatureUpgradeStatusResponse) o;
-        return Objects.equals(featureUpgradeStatuses, that.featureUpgradeStatuses) && Objects.equals(upgradeStatus, that.upgradeStatus);
+        GetFeatureMigrationStatusResponse that = (GetFeatureMigrationStatusResponse) o;
+        return Objects.equals(featureMigrationStatuses, that.featureMigrationStatuses)
+            && Objects.equals(migrationStatus, that.migrationStatus);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureUpgradeStatuses, upgradeStatus);
+        return Objects.hash(featureMigrationStatuses, migrationStatus);
     }
 
     @Override
     public String toString() {
-        return "GetFeatureUpgradeStatusResponse{" +
-            "featureUpgradeStatuses=" + featureUpgradeStatuses +
-            ", upgradeStatus='" + upgradeStatus + '\'' +
+        return "GetFeatureMigrationStatusResponse{" +
+            "featureMigrationStatuses=" + featureMigrationStatuses +
+            ", migrationStatus='" + migrationStatus + '\'' +
             '}';
     }
 
-    public enum UpgradeStatus {
-        UPGRADE_NEEDED,
-        NO_UPGRADE_NEEDED,
+    public enum MigrationStatus {
+        MIGRATION_NEEDED,
+        NO_MIGRATION_NEEDED,
         IN_PROGRESS
     }
 
     /**
-     * A class for a particular feature, showing whether it needs to be upgraded and the earliest
+     * A class for a particular feature, showing whether it needs to be migrated and the earliest
      * Elasticsearch version used to create one of this feature's system indices.
      */
-    public static class FeatureUpgradeStatus implements Writeable, ToXContentObject {
+    public static class FeatureMigrationStatus implements Writeable, ToXContentObject {
         private final String featureName;
         private final Version minimumIndexVersion;
-        private final UpgradeStatus upgradeStatus;
+        private final MigrationStatus migrationStatus;
         private final List<IndexVersion> indexVersions;
 
         /**
          * @param featureName Name of the feature
          * @param minimumIndexVersion Earliest Elasticsearch version used to create a system index for this feature
-         * @param upgradeStatus Whether the feature needs to be upgraded
+         * @param migrationStatus Whether the feature needs to be migrated
          * @param indexVersions A list of this feature's concrete indices and the Elasticsearch version that created them
          */
-        public FeatureUpgradeStatus(String featureName, Version minimumIndexVersion,
-                                    UpgradeStatus upgradeStatus, List<IndexVersion> indexVersions) {
+        public FeatureMigrationStatus(String featureName, Version minimumIndexVersion,
+                                      MigrationStatus migrationStatus, List<IndexVersion> indexVersions) {
             this.featureName = featureName;
             this.minimumIndexVersion = minimumIndexVersion;
-            this.upgradeStatus = upgradeStatus;
+            this.migrationStatus = migrationStatus;
             this.indexVersions = indexVersions;
         }
 
@@ -131,10 +132,10 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
          * @param in A stream input for a serialized feature status object
          * @throws IOException if we can't deserialize the object
          */
-        public FeatureUpgradeStatus(StreamInput in) throws IOException {
+        public FeatureMigrationStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
             this.minimumIndexVersion = Version.readVersion(in);
-            this.upgradeStatus = in.readEnum(UpgradeStatus.class);
+            this.migrationStatus = in.readEnum(MigrationStatus.class);
             this.indexVersions = in.readList(IndexVersion::new);
         }
 
@@ -146,8 +147,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             return this.minimumIndexVersion;
         }
 
-        public UpgradeStatus getUpgradeStatus() {
-            return this.upgradeStatus;
+        public MigrationStatus getMigrationStatus() {
+            return this.migrationStatus;
         }
 
         public List<IndexVersion> getIndexVersions() {
@@ -158,7 +159,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
             Version.writeVersion(this.minimumIndexVersion, out);
-            out.writeEnum(this.upgradeStatus);
+            out.writeEnum(this.migrationStatus);
             out.writeList(this.indexVersions);
         }
 
@@ -167,7 +168,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             builder.startObject();
             builder.field("feature_name", this.featureName);
             builder.field("minimum_index_version", this.minimumIndexVersion.toString());
-            builder.field("upgrade_status", this.upgradeStatus);
+            builder.field("migration_status", this.migrationStatus);
             builder.startArray("indices");
             for (IndexVersion version : this.indexVersions) {
                 builder.value(version);
@@ -181,24 +182,24 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            FeatureUpgradeStatus that = (FeatureUpgradeStatus) o;
+            FeatureMigrationStatus that = (FeatureMigrationStatus) o;
             return Objects.equals(featureName, that.featureName)
                 && Objects.equals(minimumIndexVersion, that.minimumIndexVersion)
-                && Objects.equals(upgradeStatus, that.upgradeStatus)
+                && Objects.equals(migrationStatus, that.migrationStatus)
                 && Objects.equals(indexVersions, that.indexVersions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(featureName, minimumIndexVersion, upgradeStatus, indexVersions);
+            return Objects.hash(featureName, minimumIndexVersion, migrationStatus, indexVersions);
         }
 
         @Override
         public String toString() {
-            return "FeatureUpgradeStatus{" +
+            return "FeatureMigrationStatus{" +
                 "featureName='" + featureName + '\'' +
                 ", minimumIndexVersion='" + minimumIndexVersion + '\'' +
-                ", upgradeStatus='" + upgradeStatus + '\'' +
+                ", migrationStatus='" + migrationStatus + '\'' +
                 ", indexVersions=" + indexVersions +
                 '}';
         }

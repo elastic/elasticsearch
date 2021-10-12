@@ -50,8 +50,6 @@ public class PageCacheRecycler {
     public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
 
     private final Recycler<byte[]> bytePage;
-    private final Recycler<int[]> intPage;
-    private final Recycler<long[]> longPage;
     private final Recycler<Object[]> objectPage;
 
     public static final PageCacheRecycler NON_RECYCLING_INSTANCE;
@@ -98,30 +96,6 @@ public class PageCacheRecycler {
             }
         });
 
-        final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
-        intPage = build(type, maxIntPageCount, allocatedProcessors, new AbstractRecyclerC<int[]>() {
-            @Override
-            public int[] newInstance() {
-                return new int[INT_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(int[] value) {
-                // nothing to do
-            }
-        });
-
-        final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
-        longPage = build(type, maxLongPageCount, allocatedProcessors, new AbstractRecyclerC<long[]>() {
-            @Override
-            public long[] newInstance() {
-                return new long[LONG_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(long[] value) {
-                // nothing to do
-            }
-        });
-
         final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
         objectPage = build(type, maxObjectPageCount, allocatedProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
@@ -141,22 +115,6 @@ public class PageCacheRecycler {
         final Recycler.V<byte[]> v = bytePage.obtain();
         if (v.isRecycled() && clear) {
             Arrays.fill(v.v(), (byte) 0);
-        }
-        return v;
-    }
-
-    public Recycler.V<int[]> intPage(boolean clear) {
-        final Recycler.V<int[]> v = intPage.obtain();
-        if (v.isRecycled() && clear) {
-            Arrays.fill(v.v(), 0);
-        }
-        return v;
-    }
-
-    public Recycler.V<long[]> longPage(boolean clear) {
-        final Recycler.V<long[]> v = longPage.obtain();
-        if (v.isRecycled() && clear) {
-            Arrays.fill(v.v(), 0L);
         }
         return v;
     }

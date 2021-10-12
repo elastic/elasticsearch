@@ -20,6 +20,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -140,6 +142,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.executorSelector = executorSelector;
     }
 
+    private DataStream getParentDataStreamOrNull(ClusterState clusterState, Index index) {
+        IndexAbstraction ret = clusterState.getMetadata().getIndicesLookup().get(index.getName());
+        return ret != null ? ret.getParentDataStream() : null;
+    }
+
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(ClusterState clusterState,
                                                                       Set<String> indicesAndAliases,
                                                                       Index[] concreteIndices,
@@ -147,16 +154,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, OriginalIndices> res = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
+            DataStream parentDataStream = getParentDataStreamOrNull(clusterState, index);
             String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index.getName(), aliasMetadata -> true,
                 dataStreamAlias -> true, true, indicesAndAliases);
+
             List<String> finalIndices = new ArrayList<>();
-            if (indicesAndAliases.contains(index.getName())
-                    || aliases == null || aliases.length == 0) {
+            if (parentDataStream != null
+                    && indicesAndAliases.contains(parentDataStream.getName())) {
+                finalIndices.add(parentDataStream.getName());
+            }
+            if (indicesAndAliases.contains(index.getName())) {
                 finalIndices.add(index.getName());
             }
             if (aliases != null) {
                 finalIndices.addAll(Arrays.asList(aliases));
             }
+            assert finalIndices.isEmpty() == false : "unable to resolve original indices";
             res.put(index.getUUID(), new OriginalIndices(finalIndices.toArray(String[]::new), indicesOptions));
         }
         return Collections.unmodifiableMap(res);

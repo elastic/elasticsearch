@@ -25,6 +25,7 @@ dependencies {
   testImplementation project(path: xpackModule('sql:sql-action'))
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: xpackModule('data-streams'))
   testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))

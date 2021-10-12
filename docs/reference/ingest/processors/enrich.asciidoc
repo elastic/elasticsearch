@@ -40,9 +40,8 @@ The enrich coordinator supports the following node settings:
     all `enrich` processors, i.e. there is one cache for all defined `enrich` processors.
 
 `enrich.coordinator_proxy.max_concurrent_requests`::
-
-    The maximum number of concurrent msearch requests that coordinator executes
-    to enrich documents across multiple bulk requests. Defaults to `8`.
+Maximum number of concurrent <<search-multi-search,multi-search requests>> to
+run when enriching documents. Defaults to `8`.
 
 `enrich.coordinator_proxy.max_lookups_per_request`::
 Maximum number of searches to include in a <<search-multi-search,multi-search

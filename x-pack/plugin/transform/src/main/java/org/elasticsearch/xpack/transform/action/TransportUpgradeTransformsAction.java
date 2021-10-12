@@ -129,9 +129,9 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         recursiveExpandTransformIdsAndUpgrade(request.isDryRun(), ActionListener.wrap(updatesByStatus -> {
-            final long updated = updatesByStatus.computeIfAbsent(UpdateResult.Status.UPDATED, k -> 0L);
-            final long noAction = updatesByStatus.computeIfAbsent(UpdateResult.Status.NONE, k -> 0L);
-            final long needsUpdate = updatesByStatus.computeIfAbsent(UpdateResult.Status.NEEDS_UPDATE, k -> 0L);
+            final long updated = updatesByStatus.getOrDefault(UpdateResult.Status.UPDATED, 0L);
+            final long noAction = updatesByStatus.getOrDefault(UpdateResult.Status.NONE, 0L);
+            final long needsUpdate = updatesByStatus.getOrDefault(UpdateResult.Status.NEEDS_UPDATE, 0L);
 
             if (request.isDryRun() == false) {
                 transformConfigManager.deleteOldIndices(ActionListener.wrap(aBool -> {

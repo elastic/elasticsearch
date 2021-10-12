@@ -114,7 +114,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         assignedShardsAdd(shard);
                         if (shard.active()) {
                             activeShardCount++;
-                        } else if (shard.relocating()) {
+                        }
+                        if (shard.relocating()) {
                             relocatingShards++;
                             // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which

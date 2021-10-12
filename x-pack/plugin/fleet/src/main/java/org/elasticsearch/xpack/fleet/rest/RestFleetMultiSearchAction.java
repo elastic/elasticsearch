@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.fleet.rest;
 
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -66,18 +68,7 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                     for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
                         waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
                     }
-                    String[] indices = searchRequest.indices();
-                    if (indices.length == 0) {
-                        throw new IllegalArgumentException(
-                            "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. "
-                                + "No index specified."
-                        );
-                    } else if (indices.length > 1) {
-                        throw new IllegalArgumentException(
-                            "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
-                        );
-                    }
-                    searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
+                    searchRequest.setWaitForCheckpoints(Collections.singletonMap("*", waitForCheckpoints));
                     return true;
                 } else if ("wait_for_checkpoints_timeout".equals(key)) {
                     final TimeValue waitForCheckpointsTimeout = nodeTimeValue(value, TimeValue.timeValueSeconds(30));
@@ -88,6 +79,25 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                 }
             }
         );
+
+        for (SearchRequest searchRequest : multiSearchRequest.requests()) {
+            String[] indices = searchRequest.indices();
+            Map<String, long[]> waitForCheckpoints = searchRequest.getWaitForCheckpoints();
+            if (waitForCheckpoints.isEmpty() == false) {
+                if (indices.length == 0) {
+                    throw new IllegalArgumentException(
+                        "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. "
+                            + "No index specified."
+                    );
+                } else if (indices.length > 1) {
+                    throw new IllegalArgumentException(
+                        "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
+                    );
+                }
+            }
+            long[] checkpoints = searchRequest.getWaitForCheckpoints().get("*");
+            searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], checkpoints));
+        }
 
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

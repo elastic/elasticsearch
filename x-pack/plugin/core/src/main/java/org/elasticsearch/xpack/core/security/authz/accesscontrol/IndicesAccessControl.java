@@ -79,7 +79,7 @@ public class IndicesAccessControl {
             .filter(entry -> entry.getValue().fieldPermissions.hasFieldLevelSecurity()
                 || entry.getValue().documentPermissions.hasDocumentLevelPermissions())
             .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableList());
+            .collect(Collectors.toList());
     }
 
     /**

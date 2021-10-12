@@ -69,6 +69,9 @@ public final class PemUtils {
     private static final String OPENSSL_EC_PARAMS_FOOTER = "-----END EC PARAMETERS-----";
     private static final String HEADER = "-----BEGIN";
 
+    private static final String PBES2_OID = "1.2.840.113549.1.5.13";
+    private static final String AES_OID = "2.16.840.1.101.3.4.1";
+
     private PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
@@ -366,9 +369,9 @@ public final class PemUtils {
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
 
-        final EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
+        final EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = getEncryptedPrivateKeyInfo(keyBytes);
         String algorithm = encryptedPrivateKeyInfo.getAlgName();
-        if (algorithm.equals("PBES2")) {
+        if (algorithm.equals("PBES2") || algorithm.equals("1.2.840.113549.1.5.13")) {
             algorithm = getPBES2Algorithm(encryptedPrivateKeyInfo);
         }
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(algorithm);
@@ -379,6 +382,40 @@ public final class PemUtils {
         String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(keySpec);
+    }
+
+    private static EncryptedPrivateKeyInfo getEncryptedPrivateKeyInfo(byte[] keyBytes) throws IOException, GeneralSecurityException {
+        try {
+            return new EncryptedPrivateKeyInfo(keyBytes);
+        } catch (IOException e) {
+            // The Sun JCE provider can't handle non-AES PBES2 data (but it can handle PBES1 DES data - go figure)
+            // It's not worth our effort to try and decrypt it ourselves, but we can detect it and give a good error message
+            DerParser parser = new DerParser(keyBytes);
+            final DerParser.Asn1Object rootSeq = parser.readAsn1Object(DerParser.Type.SEQUENCE);
+            parser = rootSeq.getParser();
+            final DerParser.Asn1Object algSeq = parser.readAsn1Object(DerParser.Type.SEQUENCE);
+            parser = algSeq.getParser();
+            final String algId = parser.readAsn1Object(DerParser.Type.OBJECT_OID).getOid();
+            if (PBES2_OID.equals(algId)) {
+                final DerParser.Asn1Object algData = parser.readAsn1Object(DerParser.Type.SEQUENCE);
+                parser = algData.getParser();
+                final DerParser.Asn1Object ignoreKdf = parser.readAsn1Object(DerParser.Type.SEQUENCE);
+                final DerParser.Asn1Object cryptSeq = parser.readAsn1Object(DerParser.Type.SEQUENCE);
+                parser = cryptSeq.getParser();
+                final String encryptionId = parser.readAsn1Object(DerParser.Type.OBJECT_OID).getOid();
+                if (encryptionId.startsWith(AES_OID) == false) {
+                    final String name = getAlgorithmNameFromOid(encryptionId);
+                    throw new GeneralSecurityException(
+                        "PKCS#8 Private Key is encrypted with unsupported PBES2 algorithm ["
+                            + encryptionId
+                            + "]"
+                            + (name == null ? "" : " (" + name + ")"),
+                        e
+                    );
+                }
+            }
+            throw e;
+        }
     }
 
     /**
@@ -624,7 +661,7 @@ public final class PemUtils {
                 return "EC";
         }
         throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID [" + oidString +
-            "] is not żsupported");
+            "] is not supported");
     }
 
     public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
@@ -640,6 +677,56 @@ public final class PemUtils {
             }
         }
         return certificates;
+    }
+
+    private static String getAlgorithmNameFromOid(String oidString) throws GeneralSecurityException {
+        switch (oidString) {
+            case "1.2.840.10040.4.1":
+                return "DSA";
+            case "1.2.840.113549.1.1.1":
+                return "RSA";
+            case "1.2.840.10045.2.1":
+                return "EC";
+            case "1.3.14.3.2.7":
+                return "DES-CBC";
+            case "2.16.840.1.101.3.4.1.1":
+                return "AES-128_ECB";
+            case "2.16.840.1.101.3.4.1.2":
+                return "AES-128_CBC";
+            case "2.16.840.1.101.3.4.1.3":
+                return "AES-128_OFB";
+            case "2.16.840.1.101.3.4.1.4":
+                return "AES-128_CFB";
+            case "2.16.840.1.101.3.4.1.6":
+                return "AES-128_GCM";
+            case "2.16.840.1.101.3.4.1.21":
+                return "AES-192_ECB";
+            case "2.16.840.1.101.3.4.1.22":
+                return "AES-192_CBC";
+            case "2.16.840.1.101.3.4.1.23":
+                return "AES-192_OFB";
+            case "2.16.840.1.101.3.4.1.24":
+                return "AES-192_CFB";
+            case "2.16.840.1.101.3.4.1.26":
+                return "AES-192_GCM";
+            case "2.16.840.1.101.3.4.1.41":
+                return "AES-256_ECB";
+            case "2.16.840.1.101.3.4.1.42":
+                return "AES-256_CBC";
+            case "2.16.840.1.101.3.4.1.43":
+                return "AES-256_OFB";
+            case "2.16.840.1.101.3.4.1.44":
+                return "AES-256_CFB";
+            case "2.16.840.1.101.3.4.1.46":
+                return "AES-256_GCM";
+            case "2.16.840.1.101.3.4.1.5":
+                return "AESWrap-128";
+            case "2.16.840.1.101.3.4.1.25":
+                return "AESWrap-192";
+            case "2.16.840.1.101.3.4.1.45":
+                return "AESWrap-256";
+        }
+        return null;
     }
 
     private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {

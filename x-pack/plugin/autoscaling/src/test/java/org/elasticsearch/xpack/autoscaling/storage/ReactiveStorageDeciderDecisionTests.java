@@ -311,7 +311,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // the remain check only assumes the smallest shard need to move off. More detailed testing of AllocationState.unmovableSize in
         // {@link ReactiveStorageDeciderServiceTests#testUnmovableSize}
-        long nodes = state.routingTable()
+        long nodes = state.getRoutingNodes()
             .shardsWithState(ShardRoutingState.STARTED)
             .stream()
             .filter(s -> subjectShards.contains(s.shardId()))

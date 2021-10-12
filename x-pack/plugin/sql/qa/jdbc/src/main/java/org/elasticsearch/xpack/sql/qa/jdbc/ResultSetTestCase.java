@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.junit.Before;
 
@@ -112,7 +112,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     @Before
     public void chooseRandomTimeZone() {
-        this.timeZoneId = randomKnownTimeZone();
+        this.timeZoneId = randomZone().getId();
+    }
+
+    static String randomTimeZoneId() {
+        return randomZone().getId();
     }
 
     public void testMultiValueFieldWithMultiValueLeniencyEnabled() throws IOException, SQLException {
@@ -1209,7 +1213,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
 
-        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        String anotherTZId = randomValueOtherThan(timeZoneId, ResultSetTestCase::randomTimeZoneId);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1241,7 +1245,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
-        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        String anotherTZId = randomValueOtherThan(timeZoneId, ResultSetTestCase::randomTimeZoneId);
         Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1316,7 +1320,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
 
-        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        String anotherTZId = randomValueOtherThan(timeZoneId, ResultSetTestCase::randomTimeZoneId);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1347,7 +1351,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
-        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        String anotherTZId = randomValueOtherThan(timeZoneId, ResultSetTestCase::randomTimeZoneId);
         Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1435,7 +1439,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
-        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        String anotherTZId = randomValueOtherThan(timeZoneId, ResultSetTestCase::randomTimeZoneId);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1458,7 +1462,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
-        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        String anotherTZId = randomValueOtherThan(timeZoneId, ResultSetTestCase::randomTimeZoneId);
         Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {

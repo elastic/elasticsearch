@@ -32,7 +32,7 @@ public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStr
     }
 
     public static DataStreamTemplate randomInstance() {
-        return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean());
+        return new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean());
     }
 
 }

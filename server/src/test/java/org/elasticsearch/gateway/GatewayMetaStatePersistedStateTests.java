@@ -308,21 +308,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         nodeEnvironment.close();
 
         // verify that the freshest state was rewritten to each data path
-        Path path = nodeEnvironment.nodeDataPath();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            final PersistedClusterStateService newPersistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
-            assertFalse(onDiskState.empty());
-            assertThat(onDiskState.currentTerm, equalTo(42L));
-            assertClusterStateEqual(state,
-                ClusterState.builder(ClusterName.DEFAULT)
-                    .version(onDiskState.lastAcceptedVersion)
-                    .metadata(onDiskState.metadata).build());
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(42L));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata).build());
+            }
         }
     }
 
@@ -505,21 +506,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         nodeEnvironment.close();
 
         // verify that the freshest state was rewritten to each data path
-        Path path = nodeEnvironment.nodeDataPath();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            final PersistedClusterStateService newPersistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
-            assertFalse(onDiskState.empty());
-            assertThat(onDiskState.currentTerm, equalTo(currentTerm));
-            assertClusterStateEqual(state,
-                ClusterState.builder(ClusterName.DEFAULT)
-                    .version(onDiskState.lastAcceptedVersion)
-                    .metadata(onDiskState.metadata).build());
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata).build());
+            }
         }
     }
 
@@ -577,21 +579,22 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
         nodeEnvironment.close();
 
-        Path path = nodeEnvironment.nodeDataPath();
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
-        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            final PersistedClusterStateService newPersistedClusterStateService =
-                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
-            assertFalse(onDiskState.empty());
-            assertThat(onDiskState.currentTerm, equalTo(currentTerm));
-            assertClusterStateEqual(state,
-                ClusterState.builder(ClusterName.DEFAULT)
-                    .version(onDiskState.lastAcceptedVersion)
-                    .metadata(onDiskState.metadata).build());
+        for (Path path : nodeEnvironment.nodeDataPaths()) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService =
+                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse(onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+                assertClusterStateEqual(state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata).build());
+            }
         }
     }
 

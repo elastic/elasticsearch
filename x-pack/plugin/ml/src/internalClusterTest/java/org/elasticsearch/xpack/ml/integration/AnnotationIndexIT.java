@@ -123,7 +123,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private boolean annotationsIndexExists() {
-        return ESIntegTestCase.indexExists(AnnotationIndex.INDEX_NAME, client());
+        return ESIntegTestCase.indexExists(AnnotationIndex.LATEST_INDEX_NAME, client());
     }
 
     private int numberOfAnnotationsAliases() {

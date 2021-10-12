@@ -98,14 +98,6 @@ import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestDeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestGetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestPreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestPutTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestStartTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestStopTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 
 import java.io.IOException;
@@ -176,7 +168,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestGetTransformStatsAction(),
             new RestPreviewTransformAction(),
             new RestUpdateTransformAction(),
-            new RestCatTransformAction(),
+            new RestCatTransformAction()
             new RestUpgradeTransformsAction(),
         );
     }

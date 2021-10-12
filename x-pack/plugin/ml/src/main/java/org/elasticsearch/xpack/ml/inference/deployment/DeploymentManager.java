@@ -84,7 +84,7 @@ public class DeploymentManager {
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
-        this.threadPool = threadPool;
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.executorServiceForDeployment = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.executorServiceForProcess = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
     }

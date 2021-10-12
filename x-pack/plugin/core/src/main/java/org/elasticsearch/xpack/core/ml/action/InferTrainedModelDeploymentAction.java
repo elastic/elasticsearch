@@ -75,18 +75,18 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             );
         }
 
-        public static Request parseRequest(String deploymentId, XContentParser parser) {
+        public static Request.Builder parseRequest(String deploymentId, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
             if (deploymentId != null) {
                 builder.setDeploymentId(deploymentId);
             }
-            return builder.build();
+            return builder;
         }
 
         private final String deploymentId;
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
-        private TimeValue inferenceTimeout;
+        private final TimeValue inferenceTimeout;
 
         public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
@@ -117,11 +117,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout == null ? DEFAULT_TIMEOUT : inferenceTimeout;
-        }
-
-        public Request setInferenceTimeout(TimeValue inferenceTimeout) {
-            this.inferenceTimeout = inferenceTimeout;
-            return this;
         }
 
         /**

@@ -492,7 +492,8 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, resolveSettings(templates),
-                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders,
+                this.enforceDefaultTierPreference);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -527,7 +528,8 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 resolveSettings(currentState.metadata(), templateName),
-                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
+                null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders,
+                this.enforceDefaultTierPreference);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -581,7 +583,8 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            this.enforceDefaultTierPreference
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
@@ -645,7 +648,7 @@ public class MetadataCreateIndexService {
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
-            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
+            sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders, this.enforceDefaultTierPreference);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
@@ -707,7 +710,9 @@ public class MetadataCreateIndexService {
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
                                            Settings combinedTemplateSettings, @Nullable IndexMetadata sourceMetadata, Settings settings,
                                            IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator,
-                                           Set<IndexSettingProvider> indexSettingProviders) {
+                                           Set<IndexSettingProvider> indexSettingProviders, boolean enforceDefaultTierPreference) {
+        final boolean isDataStreamIndex = request.dataStreamName() != null;
+
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
         // index (see more comments below)
@@ -722,7 +727,6 @@ public class MetadataCreateIndexService {
                 .put(request.settings())
                 .build();
 
-            final boolean isDataStreamIndex = request.dataStreamName() != null;
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
@@ -764,6 +768,20 @@ public class MetadataCreateIndexService {
 
         // now, put the request settings, so they override templates
         indexSettingsBuilder.put(requestSettings.build());
+
+        if (sourceMetadata == null) { // not for shrink/split/clone
+            if (enforceDefaultTierPreference) {
+                // regardless of any previous logic, we're going to force there
+                // to be an appropriate non-empty value for the tier preference
+                String currentTierPreference = indexSettingsBuilder.get(DataTier.TIER_PREFERENCE);
+                if (DataTier.parseTierList(currentTierPreference).isEmpty()) {
+                    String newTierPreference = isDataStreamIndex ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+                    logger.debug("enforcing default [{}] setting for [{}] creation, replacing [{}] with [{}]",
+                        DataTier.TIER_PREFERENCE, request.index(), currentTierPreference, newTierPreference);
+                    indexSettingsBuilder.put(DataTier.TIER_PREFERENCE, newTierPreference);
+                }
+            }
+        }
 
         if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             final DiscoveryNodes nodes = currentState.nodes();

@@ -138,7 +138,7 @@ dependencies {
 
 ## FAQ
 
-### How to test a development version of a third party dependency
+### How do I test a development version of a third party dependency?
 
 To test an unreleased development version of a third party dependency you have several options.
 

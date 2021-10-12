@@ -35,6 +35,11 @@ import java.util.Objects;
 public class ForceMergeAction implements LifecycleAction {
     private static final Logger logger = LogManager.getLogger(ForceMergeAction.class);
 
+    private static final Settings READ_ONLY_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
+
+    private static final Settings BEST_COMPRESSION_SETTINGS =
+        Settings.builder().put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
+
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
     public static final ParseField CODEC = new ParseField("index_codec");
@@ -113,10 +118,6 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        Settings bestCompressionSettings = Settings.builder()
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
-
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
         StepKey preForceMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FORCE_MERGE_STEP);
@@ -146,11 +147,11 @@ public class ForceMergeAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         UpdateSettingsStep readOnlyStep =
-            new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, readOnlySettings);
+            new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, READ_ONLY_SETTINGS);
 
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(updateCompressionKey,
-            openKey, client, bestCompressionSettings);
+            openKey, client, BEST_COMPRESSION_SETTINGS);
         OpenIndexStep openIndexStep = new OpenIndexStep(openKey, waitForGreenIndexKey, client);
         WaitForIndexColorStep waitForIndexGreenStep = new WaitForIndexColorStep(waitForGreenIndexKey,
             forceMergeKey, ClusterHealthStatus.GREEN);

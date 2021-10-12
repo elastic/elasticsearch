@@ -47,7 +47,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         } else {
             clusterStateUpdateStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             applierRecordingStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
         } else {
             applierRecordingStats = null;
@@ -61,7 +61,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalWriteable(clusterStateUpdateStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalWriteable(applierRecordingStats);
         }
     }

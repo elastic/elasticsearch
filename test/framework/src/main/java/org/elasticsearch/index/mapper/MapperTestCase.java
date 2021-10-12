@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -44,10 +43,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
@@ -735,12 +732,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // compare index and search time stored fields
             assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
         });
-    }
-
-    private BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft
-            .fielddataBuilder("test", lookupSource)
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     public final void testNullInput() throws Exception {

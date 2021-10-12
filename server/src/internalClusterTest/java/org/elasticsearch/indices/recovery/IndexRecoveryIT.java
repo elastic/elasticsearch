@@ -410,7 +410,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         // make sure nodeA has primary and nodeB has replica
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(2));
         for (ShardRouting shardRouting : startedShards) {
             if (shardRouting.primary()) {

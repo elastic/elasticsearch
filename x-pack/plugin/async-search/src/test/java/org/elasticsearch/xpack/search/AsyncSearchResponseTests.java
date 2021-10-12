@@ -151,9 +151,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 "  \"id\" : \"id\",\n" +
                 "  \"is_partial\" : true,\n" +
                 "  \"is_running\" : true,\n" +
-                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
                 "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
-                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
                 "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
                 "}", Strings.toString(builder));
         }

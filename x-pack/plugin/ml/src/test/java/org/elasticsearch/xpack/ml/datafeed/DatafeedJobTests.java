@@ -288,7 +288,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             10,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
+            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(2000)));
 
         long annotationCreateTime = currentTime;
         {  // What we expect the created annotation to be indexed as
@@ -335,7 +335,7 @@ public class DatafeedJobTests extends ESTestCase {
 
         msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             15,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(6000));
+            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(6000)));
 
         long annotationUpdateTime = currentTime;
         {  // What we expect the updated annotation to be indexed as

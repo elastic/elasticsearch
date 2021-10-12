@@ -53,6 +53,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.dockerShell;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class ServerUtils {
 
@@ -197,11 +198,10 @@ public class ServerUtils {
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
-            Path autoConfigTlsDir = Files.list(configPath)
-                .filter(p -> p.getFileName().toString().startsWith("tls_auto_config_initial_node_"))
-                .findFirst()
-                .get();
-            caCert = autoConfigTlsDir.resolve("http_ca.crt");
+            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "tls_auto_config_initial_node_*");
+            assertThat(allAutoconfTLS.size(), is(1));
+            Path autoconfTLSDir = allAutoconfTLS.get(0);
+            caCert = autoconfTLSDir.resolve("http_ca.crt");
             logger.info("Node has TLS auto-configured [" + caCert + "]");
             assert Files.exists(caCert);
         } else if (Files.exists(caCert) == false) {

@@ -69,8 +69,8 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
                     String[] indices = searchRequest.indices();
                     if (indices.length == 0) {
                         throw new IllegalArgumentException(
-                            "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. " +
-                                "No index specified."
+                            "Fleet search API param wait_for_checkpoints is only supported with an index to search specified. "
+                                + "No index specified."
                         );
                     } else if (indices.length > 1) {
                         throw new IllegalArgumentException(

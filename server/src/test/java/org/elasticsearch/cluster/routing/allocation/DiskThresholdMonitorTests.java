@@ -429,7 +429,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata).routingTable(routingTable)
-                .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2"))).build(), allocation);
+                .nodes(DiscoveryNodes.builder().add(newNormalNode("node1", "my-node1"))
+                    .add(newNormalNode("node2", "my-node2"))).build(), allocation);
         assertThat(clusterState.getRoutingTable().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
 
         final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpacesBuilder
@@ -488,10 +489,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final String targetNode;
         if (randomBoolean()) {
             sourceNode = "node1";
-            targetNode = "node2";
+            targetNode = "my-node2";
         } else {
             sourceNode = "node2";
-            targetNode = "node1";
+            targetNode = "my-node1";
         }
 
         ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState)
@@ -832,12 +833,16 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         return newNode(nodeId, Sets.union(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), irrelevantRoles));
     }
 
-    private static DiscoveryNode newNormalNode(String nodeId) {
+    private static DiscoveryNode newNormalNode(String nodeId, String nodeName) {
         Set<DiscoveryNodeRole> randomRoles =
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Set<DiscoveryNodeRole> roles = Sets.union(randomRoles, Set.of(randomFrom(DiscoveryNodeRole.DATA_ROLE,
             DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE)));
-        return newNode(nodeId, nodeId, roles);
+        return newNode(nodeName, nodeId, roles);
+    }
+
+    private static DiscoveryNode newNormalNode(String nodeId) {
+        return newNormalNode(nodeId, "");
     }
 }

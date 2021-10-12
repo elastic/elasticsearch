@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -210,7 +211,9 @@ public class ShardPathTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
                 IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
 
+                assertTrue(Files.exists(path));
                 ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> assertEquals(path, shardPaths[0]));
+                assertFalse(Files.exists(path));
             } finally {
                 IOUtils.closeWhileHandlingException(lock);
             }

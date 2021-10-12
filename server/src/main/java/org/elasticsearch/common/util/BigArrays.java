@@ -170,14 +170,14 @@ public class BigArrays {
         @Override
         public int get(long index) {
             assert indexIsInt(index);
-            return (int) intPlatformNative.get(array, (int) index);
+            return (int) intPlatformNative.get(array, (int) index << 2);
         }
 
         @Override
         public int set(long index, int value) {
             assert indexIsInt(index);
-            final int ret = (int) intPlatformNative.get(array, (int) index);
-            intPlatformNative.set(array, (int) index, value);
+            final int ret = (int) intPlatformNative.get(array, (int) index << 2);
+            intPlatformNative.set(array, (int) index << 2, value);
             return ret;
         }
 
@@ -185,7 +185,7 @@ public class BigArrays {
         public int increment(long index, int inc) {
             assert indexIsInt(index);
             final int ret = (int) intPlatformNative.get(array, (int) index);
-            intPlatformNative.set(array, (int) index, ret + inc);
+            intPlatformNative.set(array, (int) index << 2, ret + inc);
             return ret;
         }
 
@@ -259,22 +259,22 @@ public class BigArrays {
         @Override
         public long get(long index) {
             assert indexIsInt(index);
-            return (long) longPlatformNative.get(array, (int) index);
+            return (long) longPlatformNative.get(array, (int) index << 3);
         }
 
         @Override
         public long set(long index, long value) {
             assert indexIsInt(index);
-            final long ret = (long) longPlatformNative.get(array, (int) index);
-            longPlatformNative.set(array, (int) index, value);
+            final long ret = (long) longPlatformNative.get(array, (int) index << 3);
+            longPlatformNative.set(array, (int) index << 3, value);
             return ret;
         }
 
         @Override
         public long increment(long index, long inc) {
             assert indexIsInt(index);
-            final long ret = (long) longPlatformNative.get(array, (int) index);
-            longPlatformNative.set(array, (int) index, ret + inc);
+            final long ret = (long) longPlatformNative.get(array, (int) index << 3);
+            longPlatformNative.set(array, (int) index << 3, ret + inc);
             return ret;
         }
 
@@ -347,22 +347,22 @@ public class BigArrays {
         @Override
         public double get(long index) {
             assert indexIsInt(index);
-            return (double) doublePlatformNative.get(array, (int) index);
+            return (double) doublePlatformNative.get(array, (int) index << 3);
         }
 
         @Override
         public double set(long index, double value) {
             assert indexIsInt(index);
-            final double ret = (double) doublePlatformNative.get(array, (int) index);
-            doublePlatformNative.set(array, (int) index, value);
+            final double ret = (double) doublePlatformNative.get(array, (int) index << 3);
+            doublePlatformNative.set(array, (int) index << 3, value);
             return ret;
         }
 
         @Override
         public double increment(long index, double inc) {
             assert indexIsInt(index);
-            final double ret = (double) doublePlatformNative.get(array, (int) index);
-            doublePlatformNative.set(array, (int) index, ret + inc);
+            final double ret = (double) doublePlatformNative.get(array, (int) index << 3);
+            doublePlatformNative.set(array, (int) index << 3, ret + inc);
             return ret;
         }
 
@@ -437,22 +437,22 @@ public class BigArrays {
         @Override
         public float get(long index) {
             assert indexIsInt(index);
-            return (float) floatPlatformNative.get(array, (int) index);
+            return (float) floatPlatformNative.get(array, (int) index << 2);
         }
 
         @Override
         public float set(long index, float value) {
             assert indexIsInt(index);
-            final float ret = (float) floatPlatformNative.get(array, (int) index);
-            floatPlatformNative.set(array, (int) index, value);
+            final float ret = (float) floatPlatformNative.get(array, (int) index << 2);
+            floatPlatformNative.set(array, (int) index << 2, value);
             return ret;
         }
 
         @Override
         public float increment(long index, float inc) {
             assert indexIsInt(index);
-            final float ret = (float) floatPlatformNative.get(array, (int) index);
-            floatPlatformNative.set(array, (int) index, ret + inc);
+            final float ret = (float) floatPlatformNative.get(array, (int) index << 2);
+            floatPlatformNative.set(array, (int) index << 2, ret + inc);
             return ret;
         }
 

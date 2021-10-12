@@ -46,8 +46,8 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final float ret = (float) floatPlatformNative.get(page, indexInPage);
-        floatPlatformNative.set(page, indexInPage, value);
+        final float ret = (float) floatPlatformNative.get(page, indexInPage << 2);
+        floatPlatformNative.set(page, indexInPage << 2, value);
         return ret;
     }
 
@@ -56,8 +56,8 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final float newVal = (float) floatPlatformNative.get(page, indexInPage) + inc;
-        floatPlatformNative.set(page, newVal);
+        final float newVal = (float) floatPlatformNative.get(page, indexInPage << 2) + inc;
+        floatPlatformNative.set(page, indexInPage << 2, newVal);
         return newVal;
     }
 
@@ -65,7 +65,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     public float get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (float) floatPlatformNative.get(pages[pageIndex], indexInPage);
+        return (float) floatPlatformNative.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
@@ -110,7 +110,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     public static void fill(byte[] page, int from, int to, float value) {
         for (int i = from; i < to; i++) {
-            floatPlatformNative.set(page, i, value);
+            floatPlatformNative.set(page, i << 2, value);
         }
     }
 

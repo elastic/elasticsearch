@@ -45,7 +45,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (double) doublePlatformNative.get(pages[pageIndex], indexInPage);
+        return (double) doublePlatformNative.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
@@ -53,8 +53,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final double ret = (double) doublePlatformNative.get(page, indexInPage);
-        doublePlatformNative.set(page, indexInPage, value);
+        final double ret = (double) doublePlatformNative.get(page, indexInPage << 3);
+        doublePlatformNative.set(page, indexInPage << 3, value);
         return ret;
     }
 
@@ -63,8 +63,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final double newVal = (double) doublePlatformNative.get(page, indexInPage) + inc;
-        doublePlatformNative.set(page, newVal);
+        final double newVal = (double) doublePlatformNative.get(page, indexInPage << 3) + inc;
+        doublePlatformNative.set(page, indexInPage << 3, newVal);
         return newVal;
     }
 
@@ -110,7 +110,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     public static void fill(byte[] page, int from, int to, double value) {
         for (int i = from; i < to; i++) {
-            doublePlatformNative.set(page, i, value);
+            doublePlatformNative.set(page, i << 3, value);
         }
     }
 

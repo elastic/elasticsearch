@@ -45,7 +45,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     public int get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (int) intPlatformNative.get(pages[pageIndex], indexInPage);
+        return (int) intPlatformNative.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
@@ -53,8 +53,8 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final int ret = (int) intPlatformNative.get(page, indexInPage);
-        intPlatformNative.set(page, indexInPage, value);
+        final int ret = (int) intPlatformNative.get(page, indexInPage << 2);
+        intPlatformNative.set(page, indexInPage << 2, value);
         return ret;
     }
 
@@ -63,8 +63,8 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final int newVal = (int) intPlatformNative.get(page, indexInPage) + inc;
-        intPlatformNative.set(page, newVal);
+        final int newVal = (int) intPlatformNative.get(page, indexInPage << 2) + inc;
+        intPlatformNative.set(page, indexInPage << 2, newVal);
         return newVal;
     }
 
@@ -86,9 +86,9 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         }
     }
 
-    public static void fill(byte[] page, int from, int to, long value) {
+    public static void fill(byte[] page, int from, int to, int value) {
         for (int i = from; i < to; i++) {
-            intPlatformNative.set(page, i, value);
+            intPlatformNative.set(page, i << 2, value);
         }
     }
 

@@ -45,7 +45,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     public long get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (long) longPlatformNative.get(pages[pageIndex], indexInPage);
+        return (long) longPlatformNative.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
@@ -53,8 +53,8 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final long ret = (long) longPlatformNative.get(page, indexInPage);
-        longPlatformNative.set(page, indexInPage, value);
+        final long ret = (long) longPlatformNative.get(page, indexInPage << 3);
+        longPlatformNative.set(page, indexInPage << 3, value);
         return ret;
     }
 
@@ -63,7 +63,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final long newVal = (long) longPlatformNative.get(page, indexInPage) + inc;
+        final long newVal = (long) longPlatformNative.get(page, indexInPage << 3) + inc;
         longPlatformNative.set(page, newVal);
         return newVal;
     }
@@ -113,7 +113,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     public static void fill(byte[] page, int from, int to, long value) {
         for (int i = from; i < to; i++) {
-            longPlatformNative.set(page, i, value);
+            longPlatformNative.set(page, i << 3, value);
         }
     }
 

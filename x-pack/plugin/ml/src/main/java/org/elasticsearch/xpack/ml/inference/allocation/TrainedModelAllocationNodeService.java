@@ -194,10 +194,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 }
             }
         }
-        TrainedModelDeploymentTask taskToRetry;
-        while ((taskToRetry = loadingToRetry.poll()) != null) {
-            loadingModels.add(taskToRetry);
-        }
+        loadingModels.addAll(loadingToRetry);
     }
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason) {

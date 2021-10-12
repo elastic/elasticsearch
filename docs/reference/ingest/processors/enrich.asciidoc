@@ -34,10 +34,9 @@ enrich policy executor.
 The enrich coordinator supports the following node settings:
 
 `enrich.cache_size`::
-
-    The maximum number of searches for enriching documents that should be cached.
-    Defaults to `1000`. Note that these settings are node settings and apply to
-    all `enrich` processors, i.e. there is one cache for all defined `enrich` processors.
+Maximum number of searches to cache for enriching documents. Defaults to `1000`.
+There is a single cache for all enrich processors in the cluster. This setting
+determines the size of that cache.
 
 `enrich.coordinator_proxy.max_concurrent_requests`::
 Maximum number of concurrent <<search-multi-search,multi-search requests>> to

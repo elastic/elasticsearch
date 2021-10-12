@@ -91,9 +91,6 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
                 listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
             })
         );
-        listener.onResponse(new PostFeatureUpgradeResponse(
-            // TODO: implement operation for this action
-            true, features, null, null));
     }
 
     @Override

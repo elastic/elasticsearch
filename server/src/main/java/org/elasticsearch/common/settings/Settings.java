@@ -731,8 +731,6 @@ public final class Settings implements ToXContentFragment {
      */
     public static class Builder {
 
-        public static final Settings EMPTY_SETTINGS = new Builder().build();
-
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, Object> map = new TreeMap<>();
 

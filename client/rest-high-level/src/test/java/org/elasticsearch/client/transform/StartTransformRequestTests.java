@@ -15,7 +15,7 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class StartDataFrameTransformRequestTests extends ESTestCase {
+public class StartTransformRequestTests extends ESTestCase {
     public void testValidate_givenNullId() {
         StartTransformRequest request = new StartTransformRequest(null, null);
         Optional<ValidationException> validate = request.validate();

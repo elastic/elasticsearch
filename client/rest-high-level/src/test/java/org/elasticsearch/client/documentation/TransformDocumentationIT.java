@@ -50,10 +50,10 @@ import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
 
 import java.io.IOException;
@@ -445,7 +445,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testDeleteDataFrameTransform() throws IOException, InterruptedException {
+    public void testDeleteTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         RestHighLevelClient client = highLevelClient();
@@ -670,7 +670,7 @@ public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testGetDataFrameTransform() throws IOException, InterruptedException {
+    public void testGetTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();

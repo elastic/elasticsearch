@@ -62,7 +62,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
         assertEquals(1, clusterState.getRoutingNodes().node("node1")
             .numberOfShardsWithState(ShardRoutingState.INITIALIZING));
-        assertEquals(byteSize, clusterState.getRoutingTable()
+        assertEquals(byteSize, clusterState.getRoutingNodes()
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
         logger.info("Start the primary shard");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -77,7 +77,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
         assertEquals(1, clusterState.getRoutingNodes()
             .node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING));
-        assertEquals(byteSize, clusterState.getRoutingTable()
+        assertEquals(byteSize, clusterState.getRoutingNodes()
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
     }
 

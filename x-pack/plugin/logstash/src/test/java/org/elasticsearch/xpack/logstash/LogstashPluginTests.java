@@ -23,7 +23,7 @@ public class LogstashPluginTests extends ESTestCase {
                 .stream()
                 .map(SystemIndexDescriptor::getIndexPattern)
                 .collect(Collectors.toUnmodifiableList()),
-            contains(".logstash")
+            contains(".logstash*")
         );
     }
 }

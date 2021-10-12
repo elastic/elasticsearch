@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -156,7 +156,12 @@ public class TransportStartTrainedModelDeploymentAction
 
                 getModelBytes(trainedModelConfig, ActionListener.wrap(
                     modelBytes -> {
-                        TaskParams taskParams = new TaskParams(trainedModelConfig.getModelId(), modelBytes);
+                        TaskParams taskParams = new TaskParams(
+                            trainedModelConfig.getModelId(),
+                            modelBytes,
+                            request.getInferenceThreads(),
+                            request.getModelThreads()
+                        );
                         PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
                             PersistentTasksCustomMetadata.TYPE);
                         memoryTracker.refresh(persistentTasks, ActionListener.wrap(

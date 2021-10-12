@@ -222,9 +222,9 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     }
 
     public void testSequenceWithIncorrectOption() throws Exception {
-        EqlClientException e = expectThrows(EqlClientException.class, () -> plan("sequence [any where true] [repeat=123]"));
+        EqlClientException e = expectThrows(EqlClientException.class, () -> plan("sequence [any where true] with repeat=123"));
         String msg = e.getMessage();
-        assertEquals("line 1:29: Unrecognized option [repeat], expecting [runs]", msg);
+        assertEquals("line 1:33: Unrecognized option [repeat], expecting [runs]", msg);
     }
 
 }

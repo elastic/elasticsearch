@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,7 +53,7 @@ public class MergePolicySettingsTests extends ESTestCase {
     }
 
     public void testUpdateSettings() throws IOException {
-        IndexSettings indexSettings = indexSettings(EMPTY_SETTINGS);
+        IndexSettings indexSettings = indexSettings(Settings.EMPTY);
         assertThat(indexSettings.getMergePolicy().getNoCFSRatio(), equalTo(0.1));
         indexSettings = indexSettings(build(0.9));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.9));
@@ -123,7 +122,7 @@ public class MergePolicySettingsTests extends ESTestCase {
                 Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING.getKey(), 53).build())));
         final Throwable cause = exc.getCause();
         assertThat(cause.getMessage(), containsString("must be <= 50.0"));
-        indexSettings.updateIndexMetadata(newIndexMeta("index", EMPTY_SETTINGS)); // see if defaults are restored
+        indexSettings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY)); // see if defaults are restored
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(),
             MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(),

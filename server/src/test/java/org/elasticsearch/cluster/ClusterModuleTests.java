@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
@@ -195,6 +196,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             SnapshotInProgressAllocationDecider.class,
             RestoreInProgressAllocationDecider.class,
             NodeShutdownAllocationDecider.class,
+            NodeReplacementAllocationDecider.class,
             FilterAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,

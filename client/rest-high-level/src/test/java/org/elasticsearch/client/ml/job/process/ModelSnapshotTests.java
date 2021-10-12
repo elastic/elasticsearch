@@ -9,7 +9,7 @@ package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.Date;

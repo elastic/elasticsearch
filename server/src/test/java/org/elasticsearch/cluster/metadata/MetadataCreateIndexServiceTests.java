@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -68,6 +69,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -939,6 +941,65 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, sourceIndexMetadata);
         assertThat(targetRoutingNumberOfShards, is(6));
+    }
+
+    private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream,
+                                                      boolean enforceDefaultTierPreference) {
+        Settings templateSettings = Settings.EMPTY;
+
+        if (randomBoolean()) {
+            templateSettings = settings;
+        } else {
+            request.settings(settings);
+        }
+
+        if (isDataStream) {
+            request.dataStreamName(randomAlphaOfLength(10));
+        } else {
+            request.dataStreamName(null);
+        }
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateSettings,
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Set.of(new DataTier.DefaultHotAllocationSettingProvider()), enforceDefaultTierPreference);
+
+        if (aggregatedIndexSettings.keySet().contains(DataTier.TIER_PREFERENCE)) {
+            return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    public void testEnforceDefaultTierPreference() {
+        Settings settings;
+        Optional<String> tier;
+
+        // empty settings gets the appropriate tier
+        settings = Settings.EMPTY;
+        tier = aggregatedTierPreference(settings, false, randomBoolean());
+        assertEquals(DataTier.DATA_CONTENT, tier.get());
+
+        settings = Settings.EMPTY;
+        tier = aggregatedTierPreference(settings, true, randomBoolean());
+        assertEquals(DataTier.DATA_HOT, tier.get());
+
+        // an explicit tier is respected
+        settings = Settings.builder().put(DataTier.TIER_PREFERENCE, DataTier.DATA_COLD).build();
+        tier = aggregatedTierPreference(settings, randomBoolean(), randomBoolean());
+        assertEquals(DataTier.DATA_COLD, tier.get());
+
+        // an explicit null gets an empty tier if we're not enforcing
+        settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
+        tier = aggregatedTierPreference(settings, randomBoolean(), false);
+        assertTrue(tier.isEmpty());
+
+        // an explicit null gets the appropriate tier if we are enforcing
+        settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
+        tier = aggregatedTierPreference(settings, false, true);
+        assertEquals(DataTier.DATA_CONTENT, tier.get());
+
+        settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
+        tier = aggregatedTierPreference(settings, true, true);
+        assertEquals(DataTier.DATA_HOT, tier.get());
     }
 
     public void testRejectWithSoftDeletesDisabled() {

@@ -249,8 +249,8 @@ class IndicesAndAliasesResolver {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());
             }
         } else {
-            // Non-replaceable requests should be directly handled by resolveIndicesAndAliasesWithoutWildcards
-            // instead of being delegated here for performance.
+            // For performance reasons, non-replaceable requests should be directly handled by
+            // resolveIndicesAndAliasesWithoutWildcards instead of being delegated here.
             // That's why an assertion error is triggered here so that we can catch the erroneous usage in testing.
             // But we still delegate in production to avoid our (potential) programing error becoming an end-user problem.
             assert false : "Request [" + indicesRequest + "] is not a replaceable request, but should be.";

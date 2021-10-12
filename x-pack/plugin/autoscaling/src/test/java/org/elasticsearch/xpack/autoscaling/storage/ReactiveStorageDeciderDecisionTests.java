@@ -453,8 +453,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private void startRandomShards() {
         withRoutingAllocation(allocation -> {
-            List<ShardRouting> initializingShards =
-                RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING);
+            List<ShardRouting> initializingShards = RoutingNodesHelper.shardsWithState(
+                allocation.routingNodes(),
+                ShardRoutingState.INITIALIZING
+            );
             initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
             List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
 

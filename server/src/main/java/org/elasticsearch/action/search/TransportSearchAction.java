@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -142,11 +143,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.executorSelector = executorSelector;
     }
 
-    private DataStream getParentDataStreamOrNull(ClusterState clusterState, Index index) {
-        IndexAbstraction ret = clusterState.getMetadata().getIndicesLookup().get(index.getName());
-        return ret != null ? ret.getParentDataStream() : null;
-    }
-
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(ClusterState clusterState,
                                                                       Set<String> indicesAndAliases,
                                                                       Index[] concreteIndices,
@@ -154,15 +150,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, OriginalIndices> res = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            DataStream parentDataStream = getParentDataStreamOrNull(clusterState, index);
+
             String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index.getName(), aliasMetadata -> true,
                 dataStreamAlias -> true, true, indicesAndAliases);
+            BooleanSupplier hasDataStreamRef = () -> {
+                IndexAbstraction ret = clusterState.getMetadata().getIndicesLookup().get(index.getName());
+                if (ret == null || ret.getParentDataStream() == null) {
+                    return false;
+                }
+                return indicesAndAliases.contains(ret.getParentDataStream().getName());
+            };
             List<String> finalIndices = new ArrayList<>();
             if (aliases == null
                     || aliases.length == 0
                     || indicesAndAliases.contains(index.getName())
-                    || (parentDataStream != null
-                            && indicesAndAliases.contains(parentDataStream.getName()))) {
+                    || hasDataStreamRef.getAsBoolean()) {
                 finalIndices.add(index.getName());
             }
             if (aliases != null) {

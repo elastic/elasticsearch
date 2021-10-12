@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -39,8 +40,13 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\", \"_type\": \"_doc\"}}\n" +
-                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
+                bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\", \"_type\" : \"_doc\"}}\n" +
+                    "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            } else {
+                bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}\n" +
+                    "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            }
             client().performRequest(bulk);
 
             // start a async reindex job
@@ -65,13 +71,15 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
             // make sure .tasks index exists
             Request getTasksIndex = new Request("GET", "/.tasks");
+            getTasksIndex.addParameter("allow_no_indices", "false");
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_0_0)) {
+                getTasksIndex.addParameter("include_type_name", "false");
+            }
+
             getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
             }));
-            getTasksIndex.addParameter("allow_no_indices", "false");
-            getTasksIndex.addParameter("include_type_name", "false");
-
             assertBusy(() -> {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));

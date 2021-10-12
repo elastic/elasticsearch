@@ -276,7 +276,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test61EsJavaHomeOverride() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
@@ -295,7 +294,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test62JavaHomeIgnored() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -324,7 +322,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test63BundledJdkRemoved() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -351,7 +348,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test64JavaHomeWithSpecialCharacters() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onWindows(() -> {
             String javaPath = "C:\\Program Files (x86)\\java";
             try {
@@ -400,7 +396,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test65ForceBundledJdkEmptyJavaHome() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         assumeThat(distribution().hasJdk, is(true));
 
         sh.getEnv().put("ES_JAVA_HOME", "");
@@ -416,7 +411,6 @@ public class ArchiveTests extends PackagingTestCase {
      * This test purposefully ignores the existence of the Windows POSIX sub-system.
      */
     public void test66InstallUnderPosix() throws Exception {
-        assumeTrue("Only run this test on Unix-like systems", Platforms.WINDOWS == false);
         sh.getEnv().put("POSIXLY_CORRECT", "1");
         startElasticsearch();
         ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
@@ -424,7 +418,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         withCustomConfig(tempConf -> {
             setHeap("512m", tempConf);
             final List<String> jvmOptions = List.of("-Dlog4j2.disable.jmx=true");
@@ -447,7 +440,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test71CustomJvmOptionsDirectoryFile() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
         try {
             setHeap(null); // delete default options
@@ -470,7 +462,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test72CustomJvmOptionsDirectoryFilesAreProcessedInSortedOrder() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
         final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
         try {
@@ -501,7 +492,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
         try {
             append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
@@ -515,7 +505,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test80RelativePathConf() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         withCustomConfig(tempConf -> {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
             startElasticsearch();
@@ -533,7 +522,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test90SecurityCliPackaging() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
 
         assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
@@ -551,7 +539,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test91ElasticsearchShardCliPackaging() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
@@ -564,7 +551,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test92ElasticsearchNodeCliPackaging() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
@@ -577,7 +563,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
@@ -596,7 +581,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
         // Run the cli tools from the tmp dir
         sh.setWorkingDirectory(getRootTempDir());

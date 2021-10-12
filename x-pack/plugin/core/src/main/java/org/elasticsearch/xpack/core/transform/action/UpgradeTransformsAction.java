@@ -144,9 +144,9 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(this.updated, other.updated)
-                && Objects.equals(this.noAction, other.noAction)
-                && Objects.equals(this.needsUpdate, other.needsUpdate);
+            return this.updated == other.updated
+                && this.noAction == other.noAction
+                && this.needsUpdate == other.needsUpdate;
         }
 
         @Override

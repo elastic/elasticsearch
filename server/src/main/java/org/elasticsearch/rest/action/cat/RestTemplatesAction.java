@@ -52,7 +52,10 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
-        final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(matchPattern);
+        final GetIndexTemplatesRequest getIndexTemplatesRequest
+            = matchPattern == null
+            ? new GetIndexTemplatesRequest()
+            : new GetIndexTemplatesRequest(matchPattern);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 

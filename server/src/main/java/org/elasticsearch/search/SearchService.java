@@ -435,12 +435,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private <T> void ensureAfterSeqNoRefreshed(IndexShard shard, ShardSearchRequest request, CheckedSupplier<T, Exception> executable,
                                                ActionListener<T> listener) {
-        final Executor executor = getExecutor(shard);
-        // We must dispatch as it is possible that adding a refresh listener can force a synchronous refresh
-        executor.execute(new ActionRunnable<>(listener) {
+        final ActionRunnable<T> runnable = new ActionRunnable<>(listener) {
+            final Executor executor = getExecutor(shard);
             @Override
             protected void doRun() {
-                Thread thread = Thread.currentThread();
                 final TimeValue timeout = request.getWaitForCheckpointsTimeout();
                 final long waitForCheckpoint = request.waitForCheckpoint();
                 if (waitForCheckpoint > SequenceNumbers.NO_OPS_PERFORMED) {
@@ -505,12 +503,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 if (localTimeoutTask != null) {
                                     localTimeoutTask.cancel();
                                 }
-                                // If the listener was completed immediately, we do not need to dispatch.
-                                if (Thread.currentThread() != thread) {
-                                    runAsync(executor, executable, listener);
-                                } else {
-                                    ActionRunnable.supply(listener, executable).run();
-                                }
+                                runAsync(executor, executable, listener);
                             }
                         }
                     };
@@ -526,10 +519,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     shard.addRefreshListener(waitForCheckpoint, readyListener);
                 } else {
-                    ActionRunnable.supply(listener, executable).run();
+                    runAsync(executor, executable, listener);
                 }
             }
-        });
+        };
+        runnable.run();
     }
 
     private IndexShard getShard(ShardSearchRequest request) {

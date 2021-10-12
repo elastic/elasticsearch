@@ -55,6 +55,16 @@ setup:
         body: { query: { match_all: {} } }
 
 ---
+"Must provide correct number of checkpoints":
+  - do:
+      catch: bad_request
+      fleet.search:
+        index: "test-after-refresh"
+        allow_partial_search_results: false
+        wait_for_checkpoints: [1, 1]
+        body: { query: { match_all: {} } }
+
+---
 "Cannot wait_for_checkpoints with refresh disabled":
   - do:
       catch: bad_request
@@ -75,6 +85,18 @@ setup:
 
 ---
 "Test msearch":
+  - do:
+      fleet.msearch:
+        index: "test-after-refresh"
+        body:
+          - { "allow_partial_search_results": false, wait_for_checkpoints: [ 1 ] }
+          - { query: { match_all: { } } }
+          - { "allow_partial_search_results": false, wait_for_checkpoints: [ 2 ] }
+          - { query: { match_all: { } } }
+
+  - match: { responses.0._shards.successful: 1 }
+  - match: { responses.0.hits.total.value: 2 }
+  - match: { responses.1.error.caused_by.type: "illegal_argument_exception" }
   - do:
       fleet.msearch:
         body:

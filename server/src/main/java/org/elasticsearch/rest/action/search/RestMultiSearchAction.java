@@ -97,7 +97,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                   boolean allowExplicitIndex) throws IOException {
-        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, (s, o, r) -> false);
+        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, (k, v, r) -> false);
     }
 
     /**
@@ -163,7 +163,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
                                              CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
-        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (s, o, r) -> false);
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false);
     }
 
     /**

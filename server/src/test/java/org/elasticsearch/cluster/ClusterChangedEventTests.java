@@ -354,7 +354,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     private static ClusterState nextState(final ClusterState previousState, List<TestCustomMetadata> customMetadataList) {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
-        Metadata.Builder metadataBuilder = new Metadata.Builder(previousState.metadata());
+        Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
         for (ObjectObjectCursor<String, Metadata.Custom> customMetadata : previousState.metadata().customs()) {
             if (customMetadata.value instanceof TestCustomMetadata) {
                 metadataBuilder.removeCustom(customMetadata.key);

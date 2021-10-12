@@ -1020,7 +1020,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static Builder builder(Metadata metadata) {
-        return new Builder(metadata);
+        return builder(metadata, false);
+    }
+
+    public static Builder builder(Metadata metadata, boolean reuseIndicesLookup) {
+        return new Builder(metadata, reuseIndicesLookup);
     }
 
     public static class Builder {
@@ -1037,6 +1041,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final SortedMap<String, IndexAbstraction> previousIndicesLookup;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
@@ -1044,9 +1049,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+            previousIndicesLookup = null;
         }
 
-        public Builder(Metadata metadata) {
+        Builder(Metadata metadata, boolean reuseIndicesLookup) {
             this.clusterUUID = metadata.clusterUUID;
             this.clusterUUIDCommitted = metadata.clusterUUIDCommitted;
             this.coordinationMetadata = metadata.coordinationMetadata;
@@ -1057,6 +1063,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.indices = ImmutableOpenMap.builder(metadata.indices);
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
+            if (reuseIndicesLookup) {
+                previousIndicesLookup = metadata.getIndicesLookup();
+            } else {
+                previousIndicesLookup = null;
+            }
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1539,8 +1550,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             SortedMap<String, IndexAbstraction> indicesLookup;
             if (builtIndicesLookupEagerly) {
-                indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup(dataStreamMetadata, indices));
+                if (previousIndicesLookup != null) {
+                    assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indices));
+                    indicesLookup = previousIndicesLookup;
+                } else {
+                    indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup(dataStreamMetadata, indices));
+                }
             } else {
+                assert previousIndicesLookup != null : "previous indicesLookup provided, but builtIndicesLookupEagerly=false";
                 indicesLookup = null;
             }
 

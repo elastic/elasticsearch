@@ -114,7 +114,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
 
             if (indexMetadataBuilder != null) {
                 if (metadataBuilder == null) {
-                    metadataBuilder = Metadata.builder(oldMetadata);
+                    metadataBuilder = Metadata.builder(oldMetadata, true);
                 }
                 metadataBuilder.put(indexMetadataBuilder);
             }

@@ -55,7 +55,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             MlMetaIndex.indexName(),
             MlConfigIndex.indexName()).size());
 
-        metadata = new Metadata.Builder(cs.metadata());
+        metadata = Metadata.builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
         String indexToRemove = randomFrom(resolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
             ".ml-anomalies-shared",

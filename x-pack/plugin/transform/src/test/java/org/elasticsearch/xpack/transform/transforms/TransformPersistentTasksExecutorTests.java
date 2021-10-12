@@ -194,7 +194,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, TestIndexNameExpressionResolver.newInstance()).size()
         );
 
-        metadata = new Metadata.Builder(cs.metadata());
+        metadata = Metadata.builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
         String indexToRemove = TransformInternalIndexConstants.LATEST_INDEX_NAME;
         if (randomBoolean()) {

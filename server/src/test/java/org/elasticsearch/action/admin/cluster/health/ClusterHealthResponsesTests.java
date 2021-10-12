@@ -42,21 +42,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<ClusterHealthResponse> {
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
-    public void testIsTimeout() {
+    public void testTimeoutReturns200() {
         ClusterHealthResponse res = new ClusterHealthResponse();
-        for (int i = 0; i < 5; i++) {
-            res.setTimedOut(randomBoolean());
-            if (res.isTimedOut()) {
-                assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
-                assertWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
-            } else {
-                assertEquals(RestStatus.OK, res.status());
-            }
-        }
-    }
-
-    public void testTimeoutReturns200IfOptedIn() {
-        ClusterHealthResponse res = new ClusterHealthResponse(true);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status());

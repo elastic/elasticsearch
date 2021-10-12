@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,7 +55,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String INITIALIZING_SHARDS = "initializing_shards";
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String INDICES = "indices";
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
 
     private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER =
             new ConstructingObjectParser<>("cluster_health_response", true,
@@ -137,14 +134,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
-    private boolean esClusterHealthRequestTimeout200 = readEsClusterHealthRequestTimeout200FromProperty();
 
     public ClusterHealthResponse() {
-    }
-
-    /** For the testing of opting in for the 200 status code without setting a system property */
-    ClusterHealthResponse(boolean esClusterHealthRequestTimeout200) {
-        this.esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200;
     }
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
@@ -316,12 +307,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (esClusterHealthRequestTimeout200) {
-            return RestStatus.OK;
-        } else {
-            deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
-            return RestStatus.REQUEST_TIMEOUT;
-        }
+        return RestStatus.OK;
     }
 
     @Override

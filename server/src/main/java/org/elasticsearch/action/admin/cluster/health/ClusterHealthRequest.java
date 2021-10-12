@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
@@ -40,6 +41,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
      * The default value is 'cluster'.
      */
     private Level level = Level.CLUSTER;
+    private RestApiVersion restApiVersion = RestApiVersion.current();
 
     public ClusterHealthRequest() {
     }
@@ -66,6 +68,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            restApiVersion = RestApiVersion.valueOf(in.readString());
         }
     }
 
@@ -96,6 +101,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         out.writeBoolean(waitForNoInitializingShards);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeString(restApiVersion.name());
         }
     }
 
@@ -259,6 +267,14 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    public RestApiVersion restApiVersion() {
+        return restApiVersion;
+    }
+
+    public void setRestApiVersion(RestApiVersion restApiVersion) {
+        this.restApiVersion = restApiVersion;
     }
 
     public enum Level {

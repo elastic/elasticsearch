@@ -81,6 +81,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
+        clusterHealthRequest.setRestApiVersion(request.getRestApiVersion());
         return clusterHealthRequest;
     }
 

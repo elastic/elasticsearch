@@ -31,6 +31,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
@@ -122,7 +123,7 @@ public class RestIndicesAction extends AbstractCatAction {
                     sendClusterStateRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
                     sendClusterHealthRequest(indices, subRequestIndicesOptions, masterNodeTimeout, client,
-                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
+                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure), request.getRestApiVersion());
                 }
             });
         };
@@ -168,12 +169,14 @@ public class RestIndicesAction extends AbstractCatAction {
                                           final IndicesOptions indicesOptions,
                                           final TimeValue masterNodeTimeout,
                                           final NodeClient client,
-                                          final ActionListener<ClusterHealthResponse> listener) {
+                                          final ActionListener<ClusterHealthResponse> listener,
+                                          RestApiVersion restApiVersion) {
 
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.masterNodeTimeout(masterNodeTimeout);
+        request.setRestApiVersion(restApiVersion);
 
         client.admin().cluster().health(request, listener);
     }

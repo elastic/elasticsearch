@@ -361,7 +361,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent AD_REALM_FEATURE =
-        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active_directory", License.OperationMode.GOLD);
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
     public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
     // SSO realms are Platinum+

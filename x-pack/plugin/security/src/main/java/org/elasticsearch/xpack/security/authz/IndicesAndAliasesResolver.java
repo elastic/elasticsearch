@@ -137,6 +137,10 @@ class IndicesAndAliasesResolver {
         if (indicesRequest instanceof IndicesRequest.Replaceable) {
             return true;
         }
+        // TODO: Strictly speaking we should also check for allowRemoteIndices because resolveIndicesAndAliasesWithoutWildcards
+        //       assumes everything is local indices. It is currently not a practical issue since we don't have any requests
+        //       that are non-replaceable but allowRemoteIndices. We will address this in a separate PR and keep this as is
+        //       to match the existing behaviour.
         return false;
     }
 
@@ -245,8 +249,12 @@ class IndicesAndAliasesResolver {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());
             }
         } else {
+            // Non-replaceable requests should be directly handled by resolveIndicesAndAliasesWithoutWildcards
+            // instead of being delegated here for performance.
+            // That's why an assertion error is triggered here so that we can catch the erroneous usage in testing.
+            // But we still delegate in production to avoid our (potential) programing error becoming an end-user problem.
             assert false : "Request [" + indicesRequest + "] is not a replaceable request, but should be.";
-            throw new IllegalStateException("Request [" + indicesRequest + "] is not a replaceable request, but should be.");
+            resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
         }
 
         if (indicesRequest instanceof AliasesRequest) {

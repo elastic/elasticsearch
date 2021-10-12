@@ -188,7 +188,7 @@ public class ArchiveTests extends PackagingTestCase {
         assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onWindows(() -> {
             // a completely different incantantion is required for Windows
-            //sh.run("attrib +r " + installation.config + " /s /d");
+            // sh.run("attrib +r " + installation.config + " /s /d");
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
         });

@@ -8,7 +8,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
@@ -29,7 +29,7 @@ import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;

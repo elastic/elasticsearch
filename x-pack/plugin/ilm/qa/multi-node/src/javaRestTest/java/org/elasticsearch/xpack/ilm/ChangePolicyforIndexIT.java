@@ -14,7 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;

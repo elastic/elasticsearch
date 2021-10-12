@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 

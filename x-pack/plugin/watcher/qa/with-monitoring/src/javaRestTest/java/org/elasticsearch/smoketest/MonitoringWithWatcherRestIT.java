@@ -15,7 +15,7 @@ import org.junit.After;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.WatcherRestTestCase.deleteAllWatcherData;
 import static org.hamcrest.Matchers.is;
 

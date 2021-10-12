@@ -36,12 +36,12 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
@@ -623,7 +623,7 @@ public class ElasticsearchAssertions {
 
     /**
      * Asserts that the provided {@link BytesReference}s created through
-     * {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
+     * {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
      * The comparison is done by parsing both into a map and comparing those two, so that keys ordering doesn't matter.
      * Also binary values (byte[]) are properly compared through arrays comparisons.
      */

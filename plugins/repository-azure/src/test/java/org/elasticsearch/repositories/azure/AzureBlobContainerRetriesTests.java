@@ -329,8 +329,11 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     public void testWriteLargeBlob() throws Exception {
         final int maxRetries = randomIntBetween(2, 5);
 
-        final byte[] data = randomBytes((int) ByteSizeUnit.MB.toBytes(10));
-        int nbBlocks = (int) Math.ceil((double) data.length / (double) ByteSizeUnit.MB.toBytes(1));
+        final byte[] data = randomBytes(ByteSizeUnit.MB.toIntBytes(10) + randomIntBetween(0, ByteSizeUnit.MB.toIntBytes(1)));
+        int nbBlocks = data.length / ByteSizeUnit.MB.toIntBytes(1);
+        if (data.length % ByteSizeUnit.MB.toIntBytes(1) != 0) {
+            nbBlocks += 1;
+        }
 
         final int nbErrors = 2; // we want all requests to fail at least once
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
@@ -378,6 +381,9 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             if (randomBoolean()) {
                 Streams.readFully(exchange.getRequestBody());
                 AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            } else {
+                long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
+                readFromInputStream(exchange.getRequestBody(), randomLongBetween(0, contentLength));
             }
             exchange.close();
         });
@@ -620,5 +626,17 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     private String getEndpointForServer(HttpServer server, String accountName) {
         InetSocketAddress address = server.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
+    }
+
+    private void readFromInputStream(InputStream inputStream, long bytesToRead) {
+        try {
+            long totalBytesRead = 0;
+            while (inputStream.read() != -1 && totalBytesRead < bytesToRead) {
+                totalBytesRead += 1;
+            }
+            assertThat(totalBytesRead, equalTo(bytesToRead));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

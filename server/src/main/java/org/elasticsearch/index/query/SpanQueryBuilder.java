@@ -9,7 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 /**
  * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries.

@@ -10,6 +10,7 @@ package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -19,6 +20,8 @@ import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
@@ -88,18 +91,10 @@ import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
 import org.elasticsearch.index.rankeval.EvaluationMetric;
 import org.elasticsearch.index.rankeval.ExpectedReciprocalRank;
@@ -119,6 +114,14 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.RequestMatcher;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -139,6 +142,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -147,6 +151,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
@@ -1224,6 +1229,87 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         result.cancel();
         verify(cancellable, times(1)).cancel();
+    }
+
+    public void testModifyHeader() {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        assertTrue(restHighLevelClient.modifyHeader(builder,
+            new BasicHeader("Content-Type", "application/json; Charset=UTF-16"), "Content-Type"));
+
+        assertThat(builder.getHeaders().stream().map(h -> h.getName() + "=>" + h.getValue()).collect(Collectors.joining(",")),
+            containsString("Content-Type=>application/vnd.elasticsearch+json; compatible-with=7; Charset=UTF-16"));
+
+        builder = RequestOptions.DEFAULT.toBuilder();
+        assertFalse(restHighLevelClient.modifyHeader(builder, new BasicHeader("Content-Type", "other"), "Content-Type"));
+
+        assertThat(builder.getHeaders().stream().map(h -> h.getName() + "=>" + h.getValue()).collect(Collectors.joining(",")),
+            equalTo(""));
+    }
+
+    public void testAddCompatibilityFor() {
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        Header entityHeader = new BasicHeader("Content-Type", "application/json");
+        String headerName = "Content-Type";
+
+        // No request headers, use entity header
+        assertTrue(restHighLevelClient.addCompatibilityFor(builder, entityHeader, headerName));
+        assertThat(builder.getHeaders().stream().map(h -> h.getName() + "=>" + h.getValue()).collect(Collectors.joining(",")),
+            containsString("Content-Type=>application/vnd.elasticsearch+json; compatible-with=7"));
+
+        // Request has a header, ignore entity header
+        builder = RequestOptions.DEFAULT.toBuilder().addHeader("Content-Type", "application/yaml Charset=UTF-32");
+        assertTrue(restHighLevelClient.addCompatibilityFor(builder, entityHeader, headerName));
+        assertThat(builder.getHeaders().stream().map(h -> h.getName() + "=>" + h.getValue()).collect(Collectors.joining(",")),
+            containsString("Content-Type=>application/vnd.elasticsearch+yaml; compatible-with=7 Charset=UTF-32"));
+
+        // Request has no headers, and no entity, no changes
+        builder = RequestOptions.DEFAULT.toBuilder();
+        assertFalse(restHighLevelClient.addCompatibilityFor(builder, null, headerName));
+        assertThat(builder.getHeaders().stream().map(h -> h.getName() + "=>" + h.getValue()).collect(Collectors.joining(",")),
+            equalTo(""));
+    }
+
+    public void testModifyForCompatibility() {
+        final Function<Request, String> allHeaders = r ->
+            r.getOptions().getHeaders().stream().map(h -> h.getName() + "=>" + h.getValue()).collect(Collectors.joining(","));
+
+        Request req = new Request("POST", "/");
+
+        restHighLevelClient.modifyRequestForCompatibility(req);
+
+        assertThat(allHeaders.apply(req), containsString(""));
+
+        // With an entity
+        req = new Request("POST", "/");
+        req.setEntity(new StringEntity("{}", ContentType.APPLICATION_JSON));
+        restHighLevelClient.modifyRequestForCompatibility(req);
+
+        assertThat(allHeaders.apply(req),
+            containsString("Content-Type=>application/vnd.elasticsearch+json; compatible-with=7; charset=UTF-8," +
+                "Accept=>application/vnd.elasticsearch+json; compatible-with=7"));
+
+        // With "Content-Type" headers already set
+        req = new Request("POST", "/");
+        req.setEntity(new StringEntity("{}", ContentType.TEXT_PLAIN));
+        req.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Content-Type", "application/json; Charset=UTF-16"));
+        restHighLevelClient.modifyRequestForCompatibility(req);
+
+        assertThat(allHeaders.apply(req),
+            containsString("Content-Type=>application/vnd.elasticsearch+json; compatible-with=7; Charset=UTF-16," +
+                "Accept=>application/vnd.elasticsearch+json; compatible-with=7"));
+
+        // With "Content-Type" and "Accept" headers already set
+        req = new Request("POST", "/");
+        req.setEntity(new StringEntity("{}", ContentType.TEXT_PLAIN));
+        req.setOptions(RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Content-Type", "application/json; Charset=UTF-16")
+            .addHeader("Accept", "application/yaml; Charset=UTF-32"));
+        restHighLevelClient.modifyRequestForCompatibility(req);
+
+        assertThat(allHeaders.apply(req),
+            containsString("Content-Type=>application/vnd.elasticsearch+json; compatible-with=7; Charset=UTF-16," +
+                "Accept=>application/vnd.elasticsearch+yaml; compatible-with=7; Charset=UTF-32"));
+
     }
 
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {

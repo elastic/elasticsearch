@@ -32,9 +32,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License.OperationMode;
@@ -85,11 +85,12 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1585,7 +1586,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private String getAuditLogName() {
-        final DateTime date = new DateTime().plusDays(randomIntBetween(1, 360));
+        final ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC).plusDays(randomIntBetween(1, 360));
         final IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
         return IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, date, rollover);
     }

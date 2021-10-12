@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelConfigTests;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

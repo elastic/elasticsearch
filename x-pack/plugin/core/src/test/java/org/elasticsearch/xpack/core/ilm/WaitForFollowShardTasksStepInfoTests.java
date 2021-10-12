@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.ilm.WaitForFollowShardTasksStep.Info;
 import org.elasticsearch.xpack.core.ilm.WaitForFollowShardTasksStep.Info.ShardFollowTaskInfo;

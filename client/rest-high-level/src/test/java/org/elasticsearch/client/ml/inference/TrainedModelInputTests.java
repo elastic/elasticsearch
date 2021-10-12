@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

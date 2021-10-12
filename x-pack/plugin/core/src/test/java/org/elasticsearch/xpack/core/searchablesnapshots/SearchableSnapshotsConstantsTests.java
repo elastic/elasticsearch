@@ -18,19 +18,19 @@ import static org.hamcrest.Matchers.is;
 public class SearchableSnapshotsConstantsTests extends ESTestCase {
 
     public void testIsPartialSearchableSnapshotIndex() {
-        assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
+        assertThat(SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(
             Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE,
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, false)),
+                SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING, false)),
             is(false));
 
-        assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
+        assertThat(SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(
             Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, "abc",
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, randomBoolean())),
+                SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING, randomBoolean())),
             is(false));
 
-        assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
+        assertThat(SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(
             Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE,
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, true)),
+                SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING, true)),
             is(true));
     }
 }

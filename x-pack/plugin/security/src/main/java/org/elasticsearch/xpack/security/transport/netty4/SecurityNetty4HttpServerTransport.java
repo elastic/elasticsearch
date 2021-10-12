@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;

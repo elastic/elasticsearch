@@ -12,7 +12,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 

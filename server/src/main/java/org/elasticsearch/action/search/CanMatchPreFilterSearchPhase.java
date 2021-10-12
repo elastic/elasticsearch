@@ -176,7 +176,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
 
         if (matchedShardLevelRequests.isEmpty() == false) {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).start();
+            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
         } else {
             finishPhase();
         }
@@ -238,10 +238,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             this.shards = shards;
             this.countDown = new CountDown(shards.size());
             this.failedResponses = new AtomicReferenceArray<>(shardsIts.size());
-        }
-
-        void start() {
-            executor.execute(this);
         }
 
         @Override
@@ -326,8 +322,13 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             if (remainingShards.isEmpty()) {
                 CanMatchPreFilterSearchPhase.this.finishPhase();
             } else {
-                // trigger another round
-                new Round(new GroupShardsIterator<>(remainingShards)).start();
+                // trigger another round, forcing execution
+                executor.execute(new Round(new GroupShardsIterator<>(remainingShards)) {
+                    @Override
+                    public boolean isForceExecution() {
+                        return true;
+                    }
+                });
             }
         }
 
@@ -429,6 +430,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             return;
         }
 
+        // Note that the search is failed when this task is rejected by the executor
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {

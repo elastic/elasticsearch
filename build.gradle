@@ -426,3 +426,13 @@ tasks.register("buildReleaseArtifacts").configure {
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
 }
+
+tasks.named("spotlessApply").configure {
+  dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
+  dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
+}
+
+tasks.register("reformat").configure {
+  dependsOn tasks.named('spotlessApply')
+}

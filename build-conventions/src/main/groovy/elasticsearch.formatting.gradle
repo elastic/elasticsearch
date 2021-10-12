@@ -267,7 +267,8 @@ if (projectPathsToExclude.contains(project.path) == false ||
   String importOrderPath = 'build-tools-internal/elastic.importorder'
   String formatterConfigPath = 'build-tools-internal/formatterConfig.xml'
 
-  if (project.path == ':reaper') {
+  // When applied to e.g. `:build-tools`, we need to modify the path to our config files
+  if (rootProject.file(importOrderPath).exists() == false) {
     importOrderPath = '../' + importOrderPath
     formatterConfigPath = '../' + formatterConfigPath
   }

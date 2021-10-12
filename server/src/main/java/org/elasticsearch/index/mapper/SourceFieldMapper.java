@@ -18,16 +18,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +34,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
 
@@ -108,19 +106,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (isStored()) {
-                return new StoredValueFetcher(context.lookup(), NAME) {
-
-                    @Override
-                    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
-                        List<Object> values = super.fetchValues(lookup);
-                        // _source is stored as BytesRef, to make it useful convert it to String
-                        return values.stream().map(o -> ((BytesRef) o).utf8ToString()).collect(Collectors.toList());
-                    }
-                };
-            } else {
-                return lookup -> List.of();
-            }
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

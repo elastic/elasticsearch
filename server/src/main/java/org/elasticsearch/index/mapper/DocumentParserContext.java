@@ -258,7 +258,7 @@ public abstract class DocumentParserContext {
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
     public final RootObjectMapper.Builder updateRoot() {
-        return mappingLookup.getMapping().getRoot().mappingUpdate();
+        return mappingLookup.getMapping().getRoot().newBuilder();
     }
 
     /**

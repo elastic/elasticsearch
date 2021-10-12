@@ -279,26 +279,11 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper.Builder mappingUpdate() {
+    public RootObjectMapper.Builder newBuilder() {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), flatten);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
-    }
-
-    @Override
-    RootObjectMapper copyAndReset() {
-        RootObjectMapper copy = (RootObjectMapper) super.copyAndReset();
-        // for dynamic updates, no need to carry root-specific options, we just
-        // set everything to their implicit default value so that they are not
-        // applied at merge time
-        copy.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
-        copy.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
-        copy.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
-        copy.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        //also no need to carry the already defined runtime fields, only new ones need to be added
-        copy.runtimeFields.clear();
-        return copy;
     }
 
     /**

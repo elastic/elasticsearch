@@ -148,7 +148,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper.Builder mappingUpdate() {
+    public ObjectMapper.Builder newBuilder() {
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexVersionCreated);
         builder.enabled = enabled;
         builder.dynamic = dynamic;

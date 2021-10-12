@@ -119,12 +119,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             // does the child mapper already exist? if so, use that
             ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
             if (child != null) {
-                return child.mappingUpdate();
+                return child.newBuilder();
             }
             // has the child mapper been added as a dynamic update already?
             child = context.getObjectMapper(fullChildName);
             if (child != null) {
-                return child.mappingUpdate();
+                return child.newBuilder();
             }
             // create a new child mapper
             return new ObjectMapper.Builder(childName);
@@ -344,23 +344,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return clone;
     }
 
-    ObjectMapper copyAndReset() {
-        ObjectMapper copy = clone();
-        // reset the sub mappers
-        copy.mappers = new CopyOnWriteHashMap<>();
-        return copy;
-    }
-
     /**
-     * Build a mapping update with the provided sub mapping update.
+     * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
-    final ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = copyAndReset();
-        mappingUpdate.putMapper(mapper);
-        return mappingUpdate;
-    }
-
-    public ObjectMapper.Builder mappingUpdate() {
+    public ObjectMapper.Builder newBuilder() {
         ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName(), flatten);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;

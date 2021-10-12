@@ -138,10 +138,6 @@ class IndicesAndAliasesResolver {
         if (indicesRequest instanceof IndicesRequest.Replaceable) {
             return true;
         }
-        // TODO: Strictly speaking we should also check for allowRemoteIndices because resolveIndicesAndAliasesWithoutWildcards
-        //       assumes everything is local indices. It is currently not a practical issue since we don't have any requests
-        //       that are non-replaceable but allowRemoteIndices. We will address this in a separate PR and keep this as is
-        //       to match the existing behaviour.
         return false;
     }
 

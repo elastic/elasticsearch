@@ -10,7 +10,7 @@ package org.elasticsearch.client.ml.dataframe.stats;
 import org.elasticsearch.client.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.client.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.client.ml.dataframe.stats.regression.RegressionStats;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
 import java.util.Arrays;

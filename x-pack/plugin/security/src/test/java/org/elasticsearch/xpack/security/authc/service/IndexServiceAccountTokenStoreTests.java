@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;

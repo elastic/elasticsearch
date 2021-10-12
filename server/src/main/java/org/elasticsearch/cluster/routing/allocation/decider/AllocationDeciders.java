@@ -212,6 +212,25 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canForceAllocateDuringReplace(shardRouting, node, allocation);
+            // short track if a NO is returned.
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
+                } else {
+                    ret.add(decision);
+                }
+            } else {
+                addDecision(ret, decision, allocation);
+            }
+        }
+        return ret;
+    }
+
     private void addDecision(Decision.Multi ret, Decision decision, RoutingAllocation allocation) {
         // We never add ALWAYS decisions and only add YES decisions when requested by debug mode (since Multi default is YES).
         if (decision != Decision.ALWAYS

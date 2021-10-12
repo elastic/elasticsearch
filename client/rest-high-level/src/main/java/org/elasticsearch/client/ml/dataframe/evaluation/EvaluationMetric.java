@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Defines an evaluation metric

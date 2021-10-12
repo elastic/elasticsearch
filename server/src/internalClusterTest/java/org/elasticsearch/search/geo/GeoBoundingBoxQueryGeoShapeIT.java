@@ -9,8 +9,8 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;

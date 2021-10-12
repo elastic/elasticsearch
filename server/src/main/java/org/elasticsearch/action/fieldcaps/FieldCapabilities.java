@@ -534,7 +534,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
 
             final String[] metricConflictsIndices;
-            if (metricType != null && indiceList.stream().anyMatch((caps) -> caps.metricType != metricType)) {
+            if (indiceList.stream().anyMatch((caps) -> caps.metricType != metricType)) {
                 // Collect all indices that disagree on the dimension flag
                 metricConflictsIndices = indiceList.stream()
                     .map(caps -> caps.name)

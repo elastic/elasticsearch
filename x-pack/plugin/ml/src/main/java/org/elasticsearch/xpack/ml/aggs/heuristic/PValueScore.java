@@ -26,6 +26,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Significant terms heuristic that calculates the p-value between the term existing in foreground and background sets.
+ *
+ * The p-value is the probability of obtaining test results at least as extreme as
+ * the results actually observed, under the assumption that the null hypothesis is
+ * correct. The p-value is calculated assuming that the foreground set and the
+ * background set are independent https://en.wikipedia.org/wiki/Bernoulli_trial, with the null
+ * hypothesis that the probabilities are the same.
+ */
 public class PValueScore extends NXYSignificanceHeuristic {
     public static final String NAME = "p_value";
     public static final ParseField NORMALIZE_ABOVE = new ParseField("normalize_above");
@@ -40,8 +49,14 @@ public class PValueScore extends NXYSignificanceHeuristic {
 
     private static final MlChiSquaredDistribution CHI_SQUARED_DISTRIBUTION = new MlChiSquaredDistribution(1);
 
+    // NOTE: `0` is a magic value indicating no normalization occurs
     private final long normalizeAbove;
 
+    /**
+     * @param backgroundIsSuperset Does the background contain the foreground docs?
+     * @param normalizeAbove Should the results be normalized when above the given value.
+     *                       Note: `0` is a special value which means no normalization (set as such when `null` is provided)
+     */
     public PValueScore(boolean backgroundIsSuperset, Long normalizeAbove) {
         super(true, backgroundIsSuperset);
         if (normalizeAbove != null && normalizeAbove <= 0) {

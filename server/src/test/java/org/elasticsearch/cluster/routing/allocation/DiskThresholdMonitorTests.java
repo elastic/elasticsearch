@@ -268,7 +268,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata).routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2"))).build(), allocation);
-        assertThat(clusterState.getRoutingTable().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
 
         final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpacesBuilder
             = ImmutableOpenMap.builder();

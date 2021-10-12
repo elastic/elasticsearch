@@ -449,7 +449,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     private String findIdOfNodeWithPrimaryShard(String indexName) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
         return startedShards.stream()
             .filter(ShardRouting::primary)
             .filter(shardRouting -> indexName.equals(shardRouting.index().getName()))

@@ -193,7 +193,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .nodes(discoveryNodes)
             .build();
 
-        assertEquals(2, clusterState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size());
+        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size());
         return clusterState;
     }
 

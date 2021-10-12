@@ -32,6 +32,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TransportClusterHealthActionTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78978")
     public void testWaitForInitializingShards() throws Exception {
         final String[] indices = {"test"};
         final ClusterHealthRequest request = new ClusterHealthRequest();
@@ -51,6 +52,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78978")
     public void testWaitForAllShards() {
         final String[] indices = {"test"};
         final ClusterHealthRequest request = new ClusterHealthRequest();

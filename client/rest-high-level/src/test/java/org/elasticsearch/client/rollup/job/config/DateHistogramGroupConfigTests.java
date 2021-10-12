@@ -80,7 +80,7 @@ public class DateHistogramGroupConfigTests extends AbstractXContentTestCase<Date
     static DateHistogramGroupConfig randomDateHistogramGroupConfig() {
         final String field = randomAlphaOfLength(randomIntBetween(3, 10));
         final DateHistogramInterval delay = randomBoolean() ? new DateHistogramInterval(randomPositiveTimeValue()) : null;
-        final String timezone = randomBoolean() ? randomDateTimeZone().toString() : null;
+        final String timezone = randomBoolean() ? randomZone().toString() : null;
         int i = randomIntBetween(0,2);
         final DateHistogramInterval interval;
         switch (i) {

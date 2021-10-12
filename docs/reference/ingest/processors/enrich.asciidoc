@@ -45,9 +45,8 @@ The enrich coordinator supports the following node settings:
     to enrich documents across multiple bulk requests. Defaults to `8`.
 
 `enrich.coordinator_proxy.max_lookups_per_request`::
-
-    The maximum number of search requests for enriching documents that are batched
-    into a single msearch request. Defaults to `128`.
+Maximum number of searches to include in a <<search-multi-search,multi-search
+request>> when enriching documents. Defaults to `128`.
 
 The enrich policy executor supports the following node settings:
 

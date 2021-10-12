@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "index template v2 API has not been backported"
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
 
   - do:
       indices.delete_index_template:
@@ -11,8 +11,8 @@ setup:
 ---
 "Get missing template":
   - skip:
-      version: " - 7.99.99"
-      reason: "index template v2 API has not been backported"
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
 
   - do:
       catch:  missing
@@ -24,8 +24,8 @@ setup:
 ---
 "Get non-matching wildcard":
   - skip:
-      version: " - 7.99.99"
-      reason: "index template v2 API has not been backported"
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
 
   - do:
       catch: missing

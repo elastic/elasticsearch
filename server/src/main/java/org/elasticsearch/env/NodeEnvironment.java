@@ -555,8 +555,8 @@ public final class NodeEnvironment  implements Closeable {
         IndexSettings indexSettings,
         Consumer<Path[]> listener
     ) throws IOException, ShardLockObtainFailedException {
-        final Path path = availableShardPath(shardId);
-        logger.trace("deleting shard {} directory, path: [{}]", shardId, path);
+        final Path[] paths = availableShardPaths(shardId);
+        logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
             deleteShardDirectoryUnderLock(lock, indexSettings, listener);
         }
@@ -610,11 +610,11 @@ public final class NodeEnvironment  implements Closeable {
     ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
-        final Path path = availableShardPath(shardId);
-        logger.trace("acquiring locks for {}, path: [{}]", shardId, path);
-        acquireFSLockForPaths(indexSettings, path);
-        listener.accept(new Path[] { path });
-        IOUtils.rm(path);
+        final Path[] paths = availableShardPaths(shardId);
+        logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
+        acquireFSLockForPaths(indexSettings, paths);
+        listener.accept(paths);
+        IOUtils.rm(paths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
@@ -623,11 +623,11 @@ public final class NodeEnvironment  implements Closeable {
             listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
-        logger.trace("deleted shard {} directory, path: [{}]", shardId, path);
-        assert assertPathsDoNotExist(path);
+        logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
+        assert assertPathsDoNotExist(paths);
     }
 
-    private static boolean assertPathsDoNotExist(final Path... paths) {
+    private static boolean assertPathsDoNotExist(final Path[] paths) {
         Set<Path> existingPaths = Stream.of(paths)
             .filter(FileSystemUtils::exists)
             .filter(leftOver -> {
@@ -956,9 +956,14 @@ public final class NodeEnvironment  implements Closeable {
      * @see #resolveCustomLocation(String, ShardId)
      *
      */
-    public Path availableShardPath(ShardId shardId) {
+    public Path[] availableShardPaths(ShardId shardId) {
         assertEnvIsLocked();
-        return nodePaths[0].resolve(shardId);
+        final NodePath[] nodePaths = nodePaths();
+        final Path[] shardLocations = new Path[nodePaths.length];
+        for (int i = 0; i < nodePaths.length; i++) {
+            shardLocations[i] = nodePaths[i].resolve(shardId);
+        }
+        return shardLocations;
     }
 
     /**

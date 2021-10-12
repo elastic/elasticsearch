@@ -135,3 +135,90 @@ dependencies {
   }
 }
 ```
+
+## FAQ
+
+### How to test a development version of a third party dependency
+
+To test an unreleased third party dependencies you have several options.
+
+#### How to use a maven based third party dependency via mavenlocal?
+
+1. Clone the third party repository locally
+2. Run `mvn install` to install copy into your `~/.m2/repository` folder.
+3. Add this to the root build script:
+
+```
+   allprojects {
+     repositories {
+         mavenLocal()
+     }
+   }
+   ```
+4. Update the version in your dependency declaration accordingly (likely a snapshot version)
+5. Run the gradle build as needed
+
+#### How to use a maven built based third party dependency with jitpack repository?
+
+https://jitpack.io is an adhoc repository that supports building maven projects transparently in the background when 
+resolving unreleased snapshots from a github repository. This approach also works as temporally solution
+and is compliant with our CI builds. 
+
+1. Add the JitPack repository to the root build file:
+
+```
+   allprojects {
+     repositories {
+         mavenLocal()
+     }
+   }
+```
+2. Add the dependency in the following format
+```
+dependencies {
+  implementation 'com.github.User:Repo:Tag'
+}
+```
+
+As version you could also use a certain short commit hash or `master-SNAPSHOT`.
+In addition to snapshot builds JitPack supports building Pull Requests. Simply use PR<NR>-SNAPSHOT as the version.
+
+3. Run the gradle build as needed. Keep in mind the initial resolution might take a bit longer as this needs to be built 
+by jitpack in the background before we can resolve the adhoc built dependency. 
+
+---
+
+**NOTE**
+
+You should only use that locally or on a developer branchfor for production dependencies as we do
+not want to ship unreleased libraries into our releases.
+---
+
+#### How to use a custom third party artifact?
+
+For third party libraries that are not built with maven (e.g. ant) or provided as a plain jar artifact we can leverage
+a flat directory repository that resolves artifacts from a flat directory on your filesystem.
+
+1. Put the jar artifact with the format `artifactName-version.jar` into a directory named `localRepo` (you have to create this manually)
+2. Declare a flatDir repository in your root build.gradle file
+
+```
+repositories {
+    flatDir {
+        dirs 'localRepo'
+    }
+}
+```
+
+3. Update the dependency declaration of the artifact in question to match the custom build version.
+4. Run the gradle build as needed.
+
+---
+**NOTE**
+
+As Gradle prefers to use modules whose descriptor has been created from real meta-data rather than being generated,
+flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
+For example, if Gradle finds only `jmxri-1.2.1.jar` in a flat directory repository, but `jmxri-1.2.1.pom` in another repository
+that supports meta-data, it will use the second repository to provide the module.
+For the use case of overriding remote artifacts with local ones consider using an Ivy or Maven repository instead whose URL points to a local directory.
+---

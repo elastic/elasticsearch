@@ -9,11 +9,9 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.CoreMatchers;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -502,11 +500,6 @@ public class DateFormattersTests extends ESTestCase {
             () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
         assertThat(e1.getMessage(), containsString(pattern));
         assertThat(e1.getMessage(), containsString(text));
-
-        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
-            () -> dateMathToMillis(text, Joda.forPattern(pattern)));
-        assertThat(e2.getMessage(), containsString(pattern));
-        assertThat(e2.getMessage(), containsString(text));
     }
 
     private long dateMathToMillis(String text, DateFormatter dateFormatter) {
@@ -519,9 +512,8 @@ public class DateFormattersTests extends ESTestCase {
         //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
         ZonedDateTime now = LocalDateTime.of(2009,11,15,1,32,8,328402)
             .atZone(ZoneOffset.UTC); //Sunday
-        DateFormatter jodaFormatter = Joda.forPattern("e").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
         DateFormatter javaFormatter = DateFormatter.forPattern("8e").withZone(ZoneOffset.UTC);
-        assertThat(jodaFormatter.format(now), CoreMatchers.equalTo(javaFormatter.format(now)));
+        assertThat(javaFormatter.format(now), equalTo("7"));
     }
 
     public void testStartOfWeek() {
@@ -541,7 +533,6 @@ public class DateFormattersTests extends ESTestCase {
         assertParses("2001-01-01T00:00:00,123Z", "date_optional_time");
 
         // only java.time has nanos parsing, but the results for 3digits should be the same
-        DateFormatter jodaFormatter = Joda.forPattern("strict_date_optional_time");
         DateFormatter javaFormatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
         assertParses("2001-01-01T00:00:00.123Z", javaFormatter);
         assertParses("2001-01-01T00:00:00,123Z", javaFormatter);

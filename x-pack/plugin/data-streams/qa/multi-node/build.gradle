@@ -20,7 +20,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   //disabling ILM history as it disturbs testDSXpackUsage test
   setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'cluster.deprecation_indexing.enabled', 'false'
 }
 
 if (BuildParams.inFipsJvm){

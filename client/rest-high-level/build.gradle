@@ -114,7 +114,6 @@ testClusters.configureEach {
 
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'cluster.deprecation_indexing.enabled', 'false'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: clusterUserNameProvider.get(),

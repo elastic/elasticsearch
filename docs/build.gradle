@@ -67,7 +67,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
-  setting 'cluster.deprecation_indexing.enabled', 'false'
+
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
   setting 'xpack.security.enabled', 'false'

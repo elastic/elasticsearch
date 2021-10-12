@@ -69,6 +69,4 @@ The enrich policy executor supports the following node settings:
     be removed. Defaults to `15m`.
 
 `enrich.max_concurrent_policy_executions`::
-
-    Controls the maximum number of policy that are allowed to execute
-    concurrently.Defaults to `50`.
+Maximum number of enrich policies to execute concurrently. Defaults to `50`.

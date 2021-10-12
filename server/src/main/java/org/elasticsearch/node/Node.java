@@ -327,6 +327,10 @@ public class Node implements Closeable {
                 );
             }
 
+            if (Environment.dataPathUsesList(tmpSettings)) {
+                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+            }
+
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     initialEnvironment.configFile(), initialEnvironment.dataFile(),

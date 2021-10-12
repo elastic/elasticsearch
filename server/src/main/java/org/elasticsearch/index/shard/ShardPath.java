@@ -167,7 +167,7 @@ public final class ShardPath {
         final NodeEnvironment env,
         final ShardLock lock,
         final IndexSettings indexSettings,
-        final Consumer<Path> listener
+        final Consumer<Path[]> listener
     ) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path path = env.availableShardPath(lock.getShardId());
@@ -178,7 +178,7 @@ public final class ShardPath {
                 logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                 assert Files.isDirectory(path) : path + " is not a directory";
                 NodeEnvironment.acquireFSLockForPaths(indexSettings, path);
-                listener.accept(path);
+                listener.accept(new Path[]{path});
                 IOUtils.rm(path);
             }
         }

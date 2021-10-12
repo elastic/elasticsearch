@@ -178,7 +178,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      * @return the cluster state after completing the reroute.
      */
     public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState clusterState) {
-        return startShardsAndReroute(allocationService, clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+        return startShardsAndReroute(allocationService, clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
     }
 
     /**

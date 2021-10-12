@@ -311,7 +311,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertThat(td.totalHits.value, equalTo(count));
     }
 
-
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);

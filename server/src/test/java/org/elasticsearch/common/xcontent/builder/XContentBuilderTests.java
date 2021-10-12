@@ -177,9 +177,9 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime());
+        String expectedDate = XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentElasticsearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().timeField("date", date).endObject();
         assertThat(Strings.toString(builder), equalTo("{\"date\":\"" + expectedDate + "\"}"));

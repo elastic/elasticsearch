@@ -190,7 +190,7 @@ by JitPack in the background before we can resolve the adhoc built dependency.
 
 **NOTE**
 
-You should only use that approach locally or on a developer branchfor for production dependencies as we do
+You should only use that approach locally or on a developer branch for for production dependencies as we do
 not want to ship unreleased libraries into our releases.
 ---
 

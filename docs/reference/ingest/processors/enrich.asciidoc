@@ -62,11 +62,8 @@ The enrich policy executor supports the following node settings:
     system enrich index shard into a single segment. Defaults to `3`.
 
 `enrich.cleanup_period`::
-
-    The cleanup maintenance service cleans up unused enrich system
-    indices in the background. This setting controls how often this
-    service should check whether unused enrich system indices should
-    be removed. Defaults to `15m`.
+How often {es} checks whether unused enrich indices can be deleted. Defaults to
+`15m`.
 
 `enrich.max_concurrent_policy_executions`::
 Maximum number of enrich policies to execute concurrently. Defaults to `50`.

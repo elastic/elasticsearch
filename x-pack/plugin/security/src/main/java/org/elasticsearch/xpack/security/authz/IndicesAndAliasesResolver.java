@@ -184,7 +184,7 @@ class IndicesAndAliasesResolver {
         for (String name : indices) {
             localIndices.add(nameExpressionResolver.resolveDateMathExpression(name));
         }
-        return new ResolvedIndices(localIndices, List.of());
+        return new ResolvedIndices(localIndices, org.elasticsearch.core.List.of());
     }
 
     ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest, Metadata metadata,

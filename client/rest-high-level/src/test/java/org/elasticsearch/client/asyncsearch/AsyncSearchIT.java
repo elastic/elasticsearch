@@ -15,6 +15,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -49,8 +50,10 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
             .aggregation(AggregationBuilders.terms("1").field("foo.keyword"));
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(sourceBuilder, index);
         submitRequest.setKeepOnCompletion(true);
+        submitRequest.setWaitForCompletionTimeout(TimeValue.MAX_VALUE);
         AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submit(submitRequest, RequestOptions.DEFAULT);
         assertNotNull(submitResponse.getId());
+        assertFalse(submitResponse.isRunning());
         assertFalse(submitResponse.isPartial());
         assertTrue(submitResponse.getStartTime() > 0);
         assertTrue(submitResponse.getExpirationTime() > 0);
@@ -63,18 +66,8 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         assertThat(terms.getBuckets().get(1).getKeyAsString(), equalTo("bar2"));
         assertThat(terms.getBuckets().get(1).getDocCount(), equalTo(1L));
 
-        if (submitResponse.isRunning() == false) {
-            assertFalse(submitResponse.isPartial());
-        } else {
-            assertTrue(submitResponse.isPartial());
-        }
-
         GetAsyncSearchRequest getRequest = new GetAsyncSearchRequest(submitResponse.getId());
         AsyncSearchResponse getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
-        while (getResponse.isRunning()) {
-            getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
-        }
-
         assertFalse(getResponse.isRunning());
         assertFalse(getResponse.isPartial());
         assertTrue(getResponse.getStartTime() > 0);

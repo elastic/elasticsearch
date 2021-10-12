@@ -56,17 +56,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     public DocumentField(String name, List<Object> values, List<Object> ignoredValues) {
         this.name = Objects.requireNonNull(name, "name must not be null");
-        this.values = asUnmodifiableList(values, "values must not be null");
-        this.ignoredValues = asUnmodifiableList(ignoredValues, "ignoredValues must not be null");
-    }
-
-    private static List<Object> asUnmodifiableList(List<Object> list, String ifNullMessage) {
-        list = Objects.requireNonNull(list, ifNullMessage);
-        if (list == Collections.emptyList()) {
-            // already immutable
-            return list;
-        }
-        return Collections.unmodifiableList(list);
+        this.values = Objects.requireNonNull(values, "values must not be null");
+        this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
     }
 
     
@@ -101,10 +92,10 @@ public class DocumentField implements Writeable, Iterable<Object> {
     }
     
     /**
-     * The field's ignored values
+     * The field's ignored values as an immutable list.
      */
     public List<Object> getIgnoredValues() {
-        return ignoredValues;
+        return ignoredValues == Collections.emptyList() ? ignoredValues : Collections.unmodifiableList(ignoredValues);
     }    
 
     @Override

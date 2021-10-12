@@ -2,6 +2,7 @@ plugins {
   id 'java'
   id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
+  id 'elasticsearch.formatting'
 }
 
 group = "org.elasticsearch.gradle"

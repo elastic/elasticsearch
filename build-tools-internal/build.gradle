@@ -20,6 +20,7 @@ plugins {
   id 'elasticsearch.build-tools'
   id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
+  id 'elasticsearch.formatting'
 }
 
 group = 'org.elasticsearch.gradle'

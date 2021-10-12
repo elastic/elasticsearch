@@ -46,8 +46,6 @@ plugins {
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  id 'elasticsearch.formatting'
-  id "com.diffplug.spotless" version "5.15.1" apply false
 }
 
 /**
@@ -338,6 +336,7 @@ allprojects {
     }
   }
 
+  apply plugin: 'elasticsearch.formatting'
 }
 
 

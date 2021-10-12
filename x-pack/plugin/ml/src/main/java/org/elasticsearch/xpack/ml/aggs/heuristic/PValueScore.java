@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 
 import org.apache.commons.math3.util.FastMath;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -69,19 +68,13 @@ public class PValueScore extends NXYSignificanceHeuristic {
 
     public PValueScore(StreamInput in) throws IOException {
         super(true, in.readBoolean());
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            normalizeAbove = in.readVLong();
-        } else {
-            normalizeAbove = 0L;
-        }
+        normalizeAbove = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(backgroundIsSuperset);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVLong(normalizeAbove);
-        }
+        out.writeVLong(normalizeAbove);
     }
 
     @Override

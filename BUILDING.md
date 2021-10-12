@@ -220,5 +220,5 @@ As Gradle prefers to use modules whose descriptor has been created from real met
 flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
 For example, if Gradle finds only `jmxri-1.2.1.jar` in a flat directory repository, but `jmxri-1.2.1.pom` in another repository
 that supports meta-data, it will use the second repository to provide the module.
-For the use case of overriding remote artifacts with local ones consider using an Ivy or Maven repository instead whose URL points to a local directory.
+Therefore it is recommended to declare a version that is not resolveable from public repositories we use (e.g. maven central)
 ---

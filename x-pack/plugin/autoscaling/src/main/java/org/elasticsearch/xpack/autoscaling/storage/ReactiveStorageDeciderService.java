@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -249,9 +248,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 shardSizeInfo,
                 System.nanoTime()
             );
-            List<ShardRouting> candidates = state.getRoutingNodes()
-                .shardsWithState(ShardRoutingState.STARTED)
-                .stream()
+
+            List<ShardRouting> candidates = StreamSupport.stream(state.getRoutingNodes().spliterator(), false)
+                .flatMap(shardRoutings -> StreamSupport.stream(shardRoutings.spliterator(), false))
+                .filter(ShardRouting::started)
                 .filter(shard -> canRemainOnlyHighestTierPreference(shard, allocation) == false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .collect(Collectors.toList());

@@ -8,9 +8,13 @@
 
 package org.elasticsearch.common.util;
 
+import net.jpountz.util.Utils;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
@@ -23,15 +27,17 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private int[][] pages;
+    private static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, Utils.NATIVE_BYTE_ORDER);
+
+    private byte[][] pages;
 
     /** Constructor. */
     BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(INT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new int[numPages(size)][];
+        pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
     }
 
@@ -39,9 +45,9 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     public float set(long index, float value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        final float ret = Float.intBitsToFloat(page[indexInPage]);
-        page[indexInPage] = Float.floatToRawIntBits(value);
+        final byte[] page = pages[pageIndex];
+        final float ret = (float) floatPlatformNative.get(page, indexInPage);
+        floatPlatformNative.set(page, indexInPage, value);
         return ret;
     }
 
@@ -49,15 +55,17 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     public float increment(long index, float inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        return page[indexInPage] = Float.floatToRawIntBits(Float.intBitsToFloat(page[indexInPage]) + inc);
+        final byte[] page = pages[pageIndex];
+        final float newVal = (float) floatPlatformNative.get(page, indexInPage) + inc;
+        floatPlatformNative.set(page, newVal);
+        return newVal;
     }
 
     @Override
     public float get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return Float.intBitsToFloat(pages[pageIndex][indexInPage]);
+        return (float) floatPlatformNative.get(pages[pageIndex], indexInPage);
     }
 
     @Override
@@ -73,7 +81,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -87,17 +95,22 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
-        final int intBits = Float.floatToRawIntBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, intBits);
+            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, intBits);
+            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], intBits);
+                fill(pages[i], 0, pageSize(), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, intBits);
+            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, float value) {
+        for (int i = from; i < to; i++) {
+            floatPlatformNative.set(page, i, value);
         }
     }
 

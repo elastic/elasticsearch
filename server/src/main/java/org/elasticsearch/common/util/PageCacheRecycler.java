@@ -83,7 +83,7 @@ public class PageCacheRecycler {
         final double longsWeight = WEIGHT_LONG_SETTING .get(settings);
         final double objectsWeight = WEIGHT_OBJECTS_SETTING .get(settings);
 
-        final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
+        final double totalWeight = bytesWeight + objectsWeight;
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
@@ -134,7 +134,7 @@ public class PageCacheRecycler {
             }
         });
 
-        assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
+        assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxObjectPageCount) <= limit;
     }
 
     public Recycler.V<byte[]> bytePage(boolean clear) {

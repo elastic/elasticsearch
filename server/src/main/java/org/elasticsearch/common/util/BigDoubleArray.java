@@ -8,9 +8,13 @@
 
 package org.elasticsearch.common.util;
 
+import net.jpountz.util.Utils;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
@@ -23,15 +27,17 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private long[][] pages;
+    private static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, Utils.NATIVE_BYTE_ORDER);
+
+    private byte[][] pages;
 
     /** Constructor. */
     BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new long[numPages(size)][];
+        pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newLongPage(i);
+            pages[i] = newBytePage(i);
         }
     }
 
@@ -39,16 +45,16 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return Double.longBitsToDouble(pages[pageIndex][indexInPage]);
+        return (double) doublePlatformNative.get(pages[pageIndex], indexInPage);
     }
 
     @Override
     public double set(long index, double value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final long[] page = pages[pageIndex];
-        final double ret = Double.longBitsToDouble(page[indexInPage]);
-        page[indexInPage] = Double.doubleToRawLongBits(value);
+        final byte[] page = pages[pageIndex];
+        final double ret = (double) doublePlatformNative.get(page, indexInPage);
+        doublePlatformNative.set(page, indexInPage, value);
         return ret;
     }
 
@@ -56,8 +62,10 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double increment(long index, double inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final long[] page = pages[pageIndex];
-        return page[indexInPage] = Double.doubleToRawLongBits(Double.longBitsToDouble(page[indexInPage]) + inc);
+        final byte[] page = pages[pageIndex];
+        final double newVal = (double) doublePlatformNative.get(page, indexInPage) + inc;
+        doublePlatformNative.set(page, newVal);
+        return newVal;
     }
 
     @Override
@@ -73,7 +81,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newLongPage(i);
+            pages[i] = newBytePage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -87,17 +95,22 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
-        final long longBits = Double.doubleToRawLongBits(value);
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, longBits);
+            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, longBits);
+            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], longBits);
+                fill(pages[i], 0, pageSize(), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, longBits);
+            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, double value) {
+        for (int i = from; i < to; i++) {
+            doublePlatformNative.set(page, i, value);
         }
     }
 

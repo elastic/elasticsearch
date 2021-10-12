@@ -8,9 +8,13 @@
 
 package org.elasticsearch.common.util;
 
+import net.jpountz.util.Utils;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
@@ -23,15 +27,17 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private int[][] pages;
+    private static final VarHandle intPlatformNative = MethodHandles.byteArrayViewVarHandle(int[].class, Utils.NATIVE_BYTE_ORDER);
+
+    private byte[][] pages;
 
     /** Constructor. */
     BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(INT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
-        pages = new int[numPages(size)][];
+        pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
     }
 
@@ -39,16 +45,16 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     public int get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage];
+        return (int) intPlatformNative.get(pages[pageIndex], indexInPage);
     }
 
     @Override
     public int set(long index, int value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        final int ret = page[indexInPage];
-        page[indexInPage] = value;
+        final byte[] page = pages[pageIndex];
+        final int ret = (int) intPlatformNative.get(page, indexInPage);
+        intPlatformNative.set(page, indexInPage, value);
         return ret;
     }
 
@@ -56,7 +62,10 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     public int increment(long index, int inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return pages[pageIndex][indexInPage] += inc;
+        final byte[] page = pages[pageIndex];
+        final int newVal = (int) intPlatformNative.get(page, indexInPage) + inc;
+        intPlatformNative.set(page, newVal);
+        return newVal;
     }
 
     @Override
@@ -67,13 +76,19 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], value);
+                fill(pages[i], 0, pageSize(), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, long value) {
+        for (int i = from; i < to; i++) {
+            intPlatformNative.set(page, i, value);
         }
     }
 
@@ -90,7 +105,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newIntPage(i);
+            pages[i] = newBytePage(i);
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;

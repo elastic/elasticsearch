@@ -85,8 +85,7 @@ public class BinaryDvConfirmedAutomatonQuery extends Query {
                     public boolean matches() throws IOException {
                         if (values.advanceExact(approxDisi.docID()) == false)
                         {
-                            // Bug if we have an indexed value (i.e an approxQuery) but no doc value.
-                            assert approxQuery instanceof MatchAllDocsQuery;
+                            // Can happen when approxQuery resolves to some form of MatchAllDocs expression
                             return false;
                         }
                         BytesRef arrayOfValues = values.binaryValue();

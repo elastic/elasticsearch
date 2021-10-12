@@ -165,14 +165,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return true;
     }
 
-    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (IndexRoutingTable indexRoutingTable : this) {
-            shards.addAll(indexRoutingTable.shardsWithState(state));
-        }
-        return shards;
-    }
-
     /**
      * All the shards (replicas) for all indices in this routing table.
      *

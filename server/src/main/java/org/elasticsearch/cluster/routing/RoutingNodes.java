@@ -72,6 +72,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int relocatingShards = 0;
 
+    private int activeShardCount = 0;
+
+    private int totalShardCount = 0;
+
     private final Map<String, Set<String>> attributeValuesByAttribute = new HashMap<>();
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
 
@@ -95,6 +99,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                 assert indexShard.primary != null;
                 for (ShardRouting shard : indexShard) {
+                    totalShardCount++;
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
                     // by the ShardId, as this is common for primary and replicas.
@@ -107,6 +112,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             throw new IllegalArgumentException("Cannot have two different shards with same shard id on same node");
                         }
                         assignedShardsAdd(shard);
+                        if (shard.active()) {
+                            activeShardCount++;
+                        }
                         if (shard.relocating()) {
                             relocatingShards++;
                             // LinkedHashMap to preserve order.
@@ -271,6 +279,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public int getRelocatingShardCount() {
         return relocatingShards;
+    }
+
+    public int getActiveShardCount() {
+        return activeShardCount;
+    }
+
+    public int getTotalShardCount() {
+        return totalShardCount;
     }
 
     /**

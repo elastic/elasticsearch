@@ -137,67 +137,69 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
         // auto-config requires that the archive owner and the process user be the same,
-        // Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "discovery.seed_hosts");
-        // Platforms.onWindows(() -> sh.chown(installation.config));
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
-        // Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
-        // Platforms.onWindows(() -> sh.chown(installation.config));
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
-        // Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "node.roles");
-        // Platforms.onWindows(() -> sh.chown(installation.config));
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
-        // Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         ServerUtils.removeSettingFromExistingConfiguration(installation, "xpack.security.http.ssl.enabled");
-        // Platforms.onWindows(() -> sh.chown(installation.config));
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(installation.data);
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
-        // assumeTrue("Windows sucks HARD", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onWindows(() -> {
-            sh.run("attrib +r " + installation.config + " /s /d");
+            // a completely different incantantion is required for Windows
+            //sh.run("attrib +r " + installation.config + " /s /d");
             // auto-config requires that the archive owner and the process user be the same
-            // sh.chown(installation.config, installation.getOwner());
+            sh.chown(installation.config, installation.getOwner());
         });
         Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         Platforms.onWindows(() -> {
-            sh.run("attrib -r " + installation.config + " /s /d");
-            // sh.chown(installation.config);
+            // a completely different incantantion is required for Windows
+            // sh.run("attrib -r " + installation.config + " /s /d");
+            sh.chown(installation.config);
         });
         Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
         FileUtils.rm(installation.data);
@@ -205,7 +207,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
-        // Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
         Files.move(
@@ -218,13 +220,13 @@ public class ArchiveTests extends PackagingTestCase {
             tempDir.resolve("bcprov-jdk15on-1.64.jar"),
             installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk15on-1.64.jar")
         );
-        // Platforms.onWindows(() -> sh.chown(installation.config));
+        Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
     }
 
     public void test51AutoConfigurationWithPasswordProtectedKeystore() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
-        // assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         FileUtils.assertPathsDoNotExist(installation.data);
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
@@ -255,13 +257,13 @@ public class ArchiveTests extends PackagingTestCase {
             "run this in place of test51AutoConfigurationWithPasswordProtectedKeystore on windows",
             distribution.platform == Distribution.Platform.WINDOWS
         );
-        // sh.chown(installation.config, installation.getOwner());
+        sh.chown(installation.config, installation.getOwner());
         FileUtils.assertPathsDoNotExist(installation.data);
 
         startElasticsearch();
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
-        // sh.chown(installation.config);
+        sh.chown(installation.config);
     }
 
     public void test60StartAndStop() throws Exception {
@@ -274,6 +276,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test61EsJavaHomeOverride() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
@@ -292,6 +295,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test62JavaHomeIgnored() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
             String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -320,6 +324,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test63BundledJdkRemoved() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -346,6 +351,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test64JavaHomeWithSpecialCharacters() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onWindows(() -> {
             String javaPath = "C:\\Program Files (x86)\\java";
             try {
@@ -394,6 +400,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test65ForceBundledJdkEmptyJavaHome() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         assumeThat(distribution().hasJdk, is(true));
 
         sh.getEnv().put("ES_JAVA_HOME", "");
@@ -417,7 +424,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
-
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         withCustomConfig(tempConf -> {
             setHeap("512m", tempConf);
             final List<String> jvmOptions = List.of("-Dlog4j2.disable.jmx=true");
@@ -440,6 +447,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test71CustomJvmOptionsDirectoryFile() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
         try {
             setHeap(null); // delete default options
@@ -462,6 +470,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test72CustomJvmOptionsDirectoryFilesAreProcessedInSortedOrder() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
         final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
         try {
@@ -492,6 +501,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
         try {
             append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
@@ -505,6 +515,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test80RelativePathConf() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         withCustomConfig(tempConf -> {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
             startElasticsearch();
@@ -522,6 +533,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test90SecurityCliPackaging() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
 
         assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
@@ -539,6 +551,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test91ElasticsearchShardCliPackaging() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
@@ -551,6 +564,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test92ElasticsearchNodeCliPackaging() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
@@ -563,6 +577,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
@@ -581,6 +596,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
+        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         final Installation.Executables bin = installation.executables();
         // Run the cli tools from the tmp dir
         sh.setWorkingDirectory(getRootTempDir());
@@ -600,8 +616,5 @@ public class ArchiveTests extends PackagingTestCase {
 
         Platforms.onLinux(action);
         Platforms.onWindows(action);
-
-        // desperate measures
-        FileUtils.rm(installation.config);
     }
 }

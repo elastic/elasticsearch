@@ -50,10 +50,10 @@ public interface IndicesRequest {
          * NOTE in theory this method can belong to the {@link IndicesRequest} interface because whether a request
          * allowing remote indices has no inherent relationship to whether it is {@link Replaceable} or not.
          * However, we don't have an existing request that is non-replaceable but allows remote indices.
-         * In addition, authorization code currently relies on fact that non-replaceable requests also not allowing
+         * In addition, authorization code currently relies on the fact that non-replaceable requests do not allow
          * remote indices.
          * That said, it is possible to remove this constraint should the needs arise in the future. We just need
-         * proceed with extra carefulness.
+         * proceed with extra caution.
          */
         default boolean allowsRemoteIndices() {
             return false;

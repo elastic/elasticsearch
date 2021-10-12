@@ -70,7 +70,8 @@ class IndicesAndAliasesResolver {
      * that is consistent and does not change during the life of the request.
      * </p>
      * <p>
-     * If the provided <code>request</code> is of a type that {@link IndicesRequest#allowsRemoteIndices() allows remote indices},
+     * If the provided <code>request</code> is of a type that
+     * {@link IndicesRequest.Replaceable#allowsRemoteIndices() allows remote indices},
      * then the index names will be categorized into those that refer to {@link ResolvedIndices#getLocal() local indices}, and those that
      * refer to {@link ResolvedIndices#getRemote() remote indices}. This categorization follows the standard
      * {@link RemoteClusterAware#buildRemoteIndexName(String, String) remote index-name format} and also respects the currently defined
@@ -137,10 +138,6 @@ class IndicesAndAliasesResolver {
         if (indicesRequest instanceof IndicesRequest.Replaceable) {
             return true;
         }
-        // TODO: Strictly speaking we should also check for allowRemoteIndices because resolveIndicesAndAliasesWithoutWildcards
-        //       assumes everything is local indices. It is currently not a practical issue since we don't have any requests
-        //       that are non-replaceable but allowRemoteIndices. We will address this in a separate PR and keep this as is
-        //       to match the existing behaviour.
         return false;
     }
 
@@ -218,7 +215,7 @@ class IndicesAndAliasesResolver {
                 // we honour allow_no_indices like es core does.
             } else {
                 final ResolvedIndices split;
-                if (indicesRequest.allowsRemoteIndices()) {
+                if (replaceable.allowsRemoteIndices()) {
                     split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());

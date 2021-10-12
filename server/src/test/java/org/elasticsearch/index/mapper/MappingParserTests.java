@@ -65,7 +65,7 @@ public class MappingParserTests extends MapperServiceTestCase {
 
     public void testFieldNameWithDotsAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
-            b.field("allow_dots_in_leaf_fields", true);
+            b.field("flatten", true);
             b.startObject("properties");
             b.startObject("foo.bar").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
@@ -113,7 +113,7 @@ public class MappingParserTests extends MapperServiceTestCase {
 
     public void testFieldNameWithDotPrefixAllowed() throws IOException {
         XContentBuilder builder = topMapping(b -> {
-            b.field("allow_dots_in_leaf_fields", true);
+            b.field("flatten", true);
             b.startObject("properties");
             b.startObject("foo").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();

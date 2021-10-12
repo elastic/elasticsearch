@@ -277,8 +277,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = mapper.parse(source(b -> {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {
                 b.startObject("bar").field("baz", "foo").endObject();
@@ -287,7 +287,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertThat(Strings.toString(doc.dynamicMappingsUpdate()),
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertThat(Strings.toString(mapperService.documentMapper().mapping()),
             containsString("{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\""));
     }
 
@@ -588,20 +589,17 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testDynamicConcreteDotsInFieldNames() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> b.field("allow_dots_in_leaf_fields", true)));
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("flatten", true)));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.field("instrument.name", "fred");
-            b.startObject("metrics");
             b.field("temp", 20);
             b.field("temp.min", 15);
             b.field("temp.max", 25);
-            b.endObject();
         }));
-        assertEquals("{\"_doc\":{\"properties\":{" +
-            "\"instrument.name\":{\"type\":\"text\",\"fields\":{\"instrument.name.keyword\":{\"type\":\"keyword\"}}}," +
-            "\"metrics\":{\"type\":\"object\",\"properties\":{" +
-            "\"temp\":{\"type\":\"int\"},\"temp.min\":{\"type\":\"int\"},\"temp.max\":{\"type\":\"int\"}" +
-            "}}}}}",
+        assertEquals("{\"_doc\":{\"flatten\":true,\"properties\":{" +
+            "\"instrument.name\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}," +
+            "\"temp\":{\"type\":\"long\"},\"temp.max\":{\"type\":\"long\"},\"temp.min\":{\"type\":\"long\"}" +
+            "}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
 }

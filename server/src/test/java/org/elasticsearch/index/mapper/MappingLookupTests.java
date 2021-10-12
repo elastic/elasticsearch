@@ -67,8 +67,14 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testSubfieldOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("object.subfield");
-        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true),
-            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper));
+        ObjectMapper objectMapper = new ObjectMapper(
+            "object",
+            "object",
+            new Explicit<>(true, true),
+            new Explicit<>(false, false),
+            ObjectMapper.Dynamic.TRUE,
+            Collections.singletonMap("object.subfield", fieldMapper)
+        );
         MappingLookup mappingLookup = createMappingLookup(
             Collections.singletonList(fieldMapper),
             Collections.singletonList(objectMapper),

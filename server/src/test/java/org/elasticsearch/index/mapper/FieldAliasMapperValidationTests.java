@@ -185,6 +185,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     private static ObjectMapper createObjectMapper(String name) {
         return new ObjectMapper(name, name,
             new Explicit<>(true, false),
+            new Explicit<>(false, false),
             ObjectMapper.Dynamic.FALSE, emptyMap());
     }
 

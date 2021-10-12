@@ -34,7 +34,7 @@ public class NestedObjectMapper extends ObjectMapper {
         private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {
-            super(name);
+            super(name, new Explicit<>(false, false));
             this.indexCreatedVersion = indexCreatedVersion;
         }
 
@@ -94,6 +94,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
+    private final Version indexVersionCreated;
 
     NestedObjectMapper(
         String name,
@@ -101,7 +102,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Builder builder
     ) {
-        super(name, fullPath, builder.enabled, builder.dynamic, mappers);
+        super(name, fullPath, builder.enabled, new Explicit<>(false, false), builder.dynamic, mappers);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
         } else {
@@ -110,6 +111,7 @@ public class NestedObjectMapper extends ObjectMapper {
         this.nestedTypeFilter = NestedPathFieldMapper.filter(builder.indexCreatedVersion, nestedTypePath);
         this.includeInParent = builder.includeInParent;
         this.includeInRoot = builder.includeInRoot;
+        this.indexVersionCreated = builder.indexCreatedVersion;
     }
 
     public Query nestedTypeFilter() {
@@ -143,6 +145,16 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public Map<String, Mapper> getChildren() {
         return Collections.unmodifiableMap(this.mappers);
+    }
+
+    @Override
+    public ObjectMapper.Builder mappingUpdate() {
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexVersionCreated);
+        builder.enabled = enabled;
+        builder.dynamic = dynamic;
+        builder.includeInRoot = includeInRoot;
+        builder.includeInParent = includeInParent;
+        return builder;
     }
 
     @Override

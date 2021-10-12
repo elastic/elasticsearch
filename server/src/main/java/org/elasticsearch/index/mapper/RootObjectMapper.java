@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
@@ -52,8 +51,6 @@ public class RootObjectMapper extends ObjectMapper {
      */
     static final String TOXCONTENT_SKIP_RUNTIME = "skip_runtime";
 
-    public static final String ALLOW_DOTS_IN_LEAF_FIELDS = "allow_dots_in_leaf_fields";
-
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new DateFormatter[]{
@@ -71,11 +68,14 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        protected Explicit<Boolean> dotsInLeafFields = new Explicit<>(Defaults.DOTS_IN_LEAF_FIELDS, false);
-        protected Map<String, RuntimeField> runtimeFields;
+        protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
+
+        public Builder(String name, Explicit<Boolean> flatten) {
+            super(name, flatten);
+        }
 
         public Builder(String name) {
-            super(name);
+            this(name, new Explicit<>(false, false));
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -94,8 +94,13 @@ public class RootObjectMapper extends ObjectMapper {
             return this;
         }
 
+        public RootObjectMapper.Builder addRuntimeField(RuntimeField runtimeField) {
+            this.runtimeFields.put(runtimeField.name(), runtimeField);
+            return this;
+        }
+
         public RootObjectMapper.Builder setRuntime(Map<String, RuntimeField> runtimeFields) {
-            this.runtimeFields = runtimeFields;
+            this.runtimeFields.putAll(runtimeFields);
             return this;
         }
 
@@ -104,14 +109,14 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(
                 name,
                 enabled,
+                flatten,
                 dynamic,
                 buildMappers(true, context),
                 runtimeFields == null ? Collections.emptyMap() : runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
-                numericDetection,
-                dotsInLeafFields);
+                numericDetection);
         }
     }
 
@@ -151,10 +156,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            RootObjectMapper.Builder builder = new Builder(name);
-            if (allowDotsInLeafFieldNames(node, builder)) {
-                parserContext = parserContext.createDotsInFieldNamesContext();
-            }
+            RootObjectMapper.Builder builder = new Builder(name, parseFlatten(node));
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -166,16 +168,6 @@ public class RootObjectMapper extends ObjectMapper {
                 }
             }
             return builder;
-        }
-
-        private static boolean allowDotsInLeafFieldNames(Map<String, Object> node, RootObjectMapper.Builder builder) {
-            if (node.containsKey(ALLOW_DOTS_IN_LEAF_FIELDS) == false) {
-                return false;
-            }
-            boolean value = XContentMapValues.nodeBooleanValue(node.get(ALLOW_DOTS_IN_LEAF_FIELDS), ALLOW_DOTS_IN_LEAF_FIELDS);
-            node.remove(ALLOW_DOTS_IN_LEAF_FIELDS);
-            builder.dotsInLeafFields = new Explicit<>(value, true);
-            return value;
         }
 
         @SuppressWarnings("unchecked")
@@ -257,29 +249,26 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
-    private Explicit<Boolean> dotsInLeafFields;
     private Map<String, RuntimeField> runtimeFields;
 
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
+        Explicit<Boolean> flatten,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
-
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
         Explicit<Boolean> dateDetection,
-        Explicit<Boolean> numericDetection,
-        Explicit<Boolean> dotsInLeafFields
+        Explicit<Boolean> numericDetection
     ) {
-        super(name, name, enabled, dynamic, mappers);
+        super(name, name, enabled, flatten, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
-        this.dotsInLeafFields = dotsInLeafFields;
     }
 
     @Override
@@ -287,6 +276,14 @@ public class RootObjectMapper extends ObjectMapper {
         ObjectMapper clone = super.clone();
         ((RootObjectMapper) clone).runtimeFields = new HashMap<>(this.runtimeFields);
         return clone;
+    }
+
+    @Override
+    public RootObjectMapper.Builder mappingUpdate() {
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), flatten);
+        builder.enabled = enabled;
+        builder.dynamic = dynamic;
+        return builder;
     }
 
     @Override
@@ -299,7 +296,6 @@ public class RootObjectMapper extends ObjectMapper {
         copy.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         copy.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         copy.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        copy.dotsInLeafFields = new Explicit<>(Defaults.DOTS_IN_LEAF_FIELDS, false);
         //also no need to carry the already defined runtime fields, only new ones need to be added
         copy.runtimeFields.clear();
         return copy;
@@ -333,10 +329,6 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicTemplates.value();
     }
 
-    public boolean allowDotsInLeafFields() {
-        return dotsInLeafFields.value();
-    }
-
     Collection<RuntimeField> runtimeFields() {
         return runtimeFields.values();
     }
@@ -364,19 +356,6 @@ public class RootObjectMapper extends ObjectMapper {
 
         if (mergeWithObject.dynamicDateTimeFormatters.explicit()) {
             this.dynamicDateTimeFormatters = mergeWithObject.dynamicDateTimeFormatters;
-        }
-
-        if (mergeWithObject.dotsInLeafFields.explicit()) {
-            if (reason == MergeReason.INDEX_TEMPLATE) {
-                this.dotsInLeafFields = mergeWithObject.dotsInLeafFields;
-            } else {
-                if (this.dotsInLeafFields.value().equals(mergeWithObject.dotsInLeafFields.value()) == false) {
-                    throw new MapperParsingException(
-                        "Can't change parameter [allow_dots_in_leaf_fields] from ["
-                            + this.dotsInLeafFields.value() + "] to [" + mergeWithObject.dotsInLeafFields.value() + "]"
-                    );
-                }
-            }
         }
 
         if (mergeWithObject.dynamicTemplates.explicit()) {
@@ -438,9 +417,6 @@ public class RootObjectMapper extends ObjectMapper {
         }
         if (numericDetection.explicit() || includeDefaults) {
             builder.field("numeric_detection", numericDetection.value());
-        }
-        if (dotsInLeafFields.explicit() || includeDefaults) {
-            builder.field("allow_dots_in_leaf_fields", dotsInLeafFields.value());
         }
 
         if (runtimeFields.size() > 0 && params.paramAsBoolean(TOXCONTENT_SKIP_RUNTIME, false) == false) {

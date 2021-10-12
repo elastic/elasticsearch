@@ -954,4 +954,47 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             Strings.toString(parsedDoc2.dynamicMappingsUpdate())
         );
     }
+
+    public void testFlattenedObjects() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "object");
+                        b.field("match", "metric");
+                        b.startObject("mapping").field("type", "object").field("flatten", true).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("foo.bar", 10);
+            b.field("foo.metric.count", 10);
+            b.field("foo.metric.count.min", 4);
+            b.field("foo.metric.count.max", 15);
+            b.startObject("bar");
+            b.startObject("baz").field("count", 4).endObject();
+            b.startObject("bill");
+            b.startObject("metric");
+            b.field("count", 10);
+            b.field("count.min", 5);
+            b.field("count.max", 15);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("bar.bill.metric.count").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("bar.bill.metric"));
+    }
 }

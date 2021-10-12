@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
@@ -66,4 +67,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    @Override
+    public String toString() {
+        return name() + ":" + Strings.toString(this);
+    }
 }

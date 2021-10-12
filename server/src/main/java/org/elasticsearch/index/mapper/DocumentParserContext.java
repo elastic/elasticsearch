@@ -257,6 +257,10 @@ public abstract class DocumentParserContext {
      */
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
+    public final RootObjectMapper.Builder updateRoot() {
+        return mappingLookup.getMapping().getRoot().mappingUpdate();
+    }
+
     /**
      * Return a new context that will be within a copy-to operation.
      */

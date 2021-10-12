@@ -138,12 +138,12 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testAllowDotsInLeafFields() throws Exception {
-        MapperService mapperService = createMapperService(topMapping(b -> b.field("allow_dots_in_leaf_fields", true)));
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("flatten", true)));
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> merge(mapperService, topMapping(b -> b.field("allow_dots_in_leaf_fields", false)))
+            () -> merge(mapperService, topMapping(b -> b.field("flatten", false)))
         );
-        assertThat(e.getMessage(), containsString("Can't change parameter [allow_dots_in_leaf_fields] from [true] to [false]"));
+        assertThat(e.getMessage(), containsString("Can't change parameter [flatten] from [true] to [false]"));
     }
 
     public void testRuntimeSection() throws IOException {

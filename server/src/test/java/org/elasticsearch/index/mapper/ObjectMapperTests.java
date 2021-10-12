@@ -40,7 +40,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             "      \"value\":\"value\"\n" +
             "    }"),
                 XContentType.JSON)));
-        assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
     public void testEmptyArrayProperties() throws Exception {

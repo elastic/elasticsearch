@@ -102,8 +102,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(mappingLookup,
-                context.getDynamicMappers(), context.getDynamicRuntimeFields())
+            createDynamicUpdate(context)
         );
     }
 
@@ -248,6 +247,23 @@ public final class DocumentParser {
             }
             return new String[]{fullFieldPath};
         }
+    }
+
+    static Mapping createDynamicUpdate(DocumentParserContext context) {
+        if (context.getDynamicMappers().isEmpty() && context.getDynamicRuntimeFields().isEmpty()) {
+            return null;
+        }
+        RootObjectMapper.Builder rootBuilder = context.updateRoot();
+        for (Mapper mapper : context.getDynamicMappers()) {
+            splitAndValidatePath(mapper.name());
+            rootBuilder.addDynamic(mapper.name(), null, mapper, context);
+        }
+        for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
+            rootBuilder.addRuntimeField(runtimeField);
+        }
+        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.ROOT);
+        root.fixRedundantIncludes();
+        return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 
     /**
@@ -679,13 +695,18 @@ public final class DocumentParser {
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-            if (context.root().allowDotsInLeafFields()) {
+            if (parentMapper.flatten.value()) {
                 parseDynamicValue(context, parentMapper, currentFieldName, token);
             } else {
-                currentFieldName = paths[paths.length - 1];
                 Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
                 parentMapper = parentMapperTuple.v2();
-                parseDynamicValue(context, parentMapper, currentFieldName, token);
+                int pathLength = parentMapperTuple.v1();
+                StringBuilder compositeFieldName = new StringBuilder(paths[pathLength]);
+                while (pathLength < paths.length - 1) {
+                    pathLength++;
+                    compositeFieldName.append(".").append(paths[pathLength]);
+                }
+                parseDynamicValue(context, parentMapper, compositeFieldName.toString(), token);
                 for (int i = 0; i < parentMapperTuple.v1(); i++) {
                     context.path().remove();
                 }
@@ -817,6 +838,9 @@ public final class DocumentParser {
             context.path().add(paths[i]);
             pathsAdded++;
             parent = mapper;
+            if (parent.flatten.value()) {
+                break;
+            }
         }
         return new Tuple<>(pathsAdded, mapper);
     }
@@ -986,7 +1010,14 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
+            super(
+                name,
+                fullPath,
+                new Explicit<>(true, false),
+                new Explicit<>(false, false),
+                Dynamic.RUNTIME,
+                Collections.emptyMap()
+            );
         }
     }
 

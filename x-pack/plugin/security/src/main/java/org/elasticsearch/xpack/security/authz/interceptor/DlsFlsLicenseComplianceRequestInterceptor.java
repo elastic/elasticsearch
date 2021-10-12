@@ -25,13 +25,13 @@ import org.elasticsearch.xpack.security.authz.RBACEngine;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 
-public class LicenseComplianceRequestInterceptor implements RequestInterceptor {
-    private static final Logger logger = LogManager.getLogger(LicenseComplianceRequestInterceptor.class);
+public class DlsFlsLicenseComplianceRequestInterceptor implements RequestInterceptor {
+    private static final Logger logger = LogManager.getLogger(DlsFlsLicenseComplianceRequestInterceptor.class);
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    public LicenseComplianceRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
+    public DlsFlsLicenseComplianceRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
     }

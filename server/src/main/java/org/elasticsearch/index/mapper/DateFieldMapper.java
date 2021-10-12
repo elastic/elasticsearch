@@ -78,11 +78,6 @@ public final class DateFieldMapper extends FieldMapper {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
             @Override
             public long convert(Instant instant) {
-                if (instant.getNano() % 1000000 != 0) {
-                    DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
-                        "You are attempting to store a date field with nanosecond resolution on a date field. " +
-                            "The nanosecond part was lost. Use date_nanos field type.");
-                }
                 return instant.toEpochMilli();
             }
 
@@ -383,7 +378,13 @@ public final class DateFieldMapper extends FieldMapper {
 
         // Visible for testing.
         public long parse(String value) {
-            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
+            final Instant instant = DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant();
+            if (resolution == Resolution.MILLISECONDS && instant.getNano() % 1000000 != 0) {
+                DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
+                    "You are attempting to store a date field with nanosecond resolution on a date field. " +
+                        "The nanosecond part was lost. Use date_nanos field type.");
+            }
+            return resolution.convert(instant);
         }
 
         /**

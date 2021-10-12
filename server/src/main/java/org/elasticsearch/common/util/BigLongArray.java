@@ -64,7 +64,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
         final long newVal = (long) longPlatformNative.get(page, indexInPage << 3) + inc;
-        longPlatformNative.set(page, newVal);
+        longPlatformNative.set(page, indexInPage << 3, newVal);
         return newVal;
     }
 

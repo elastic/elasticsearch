@@ -115,7 +115,7 @@ setup:
       indices.get_index_template:
         name: "does-not-exist"
 
-  - match: { error.reason: "index templates [does-not-exist] not found" }
+  - match: { error.reason: "index template matching [does-not-exist] not found" }
 
   - do:
       catch: missing

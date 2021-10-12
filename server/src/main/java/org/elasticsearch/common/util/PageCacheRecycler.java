@@ -47,6 +47,8 @@ public class PageCacheRecycler {
     public static final int OBJECT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     public static final int LONG_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Long.BYTES;
     public static final int INT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Integer.BYTES;
+    public static final int FLOAT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Float.BYTES;
+    public static final int DOUBLE_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Double.BYTES;
     public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
 
     private final Recycler<byte[]> bytePage;

@@ -110,24 +110,6 @@ abstract class AbstractBigArray extends AbstractArray {
         }
     }
 
-    protected final int[] newIntPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<int[]> v = recycler.intPage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.INT_PAGE_SIZE);
-        } else {
-            return new int[PageCacheRecycler.INT_PAGE_SIZE];
-        }
-    }
-
-    protected final long[] newLongPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<long[]> v = recycler.longPage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.LONG_PAGE_SIZE);
-        } else {
-            return new long[PageCacheRecycler.LONG_PAGE_SIZE];
-        }
-    }
-
     protected final Object[] newObjectPage(int page) {
         if (recycler != null) {
             final Recycler.V<Object[]> v = recycler.objectPage();

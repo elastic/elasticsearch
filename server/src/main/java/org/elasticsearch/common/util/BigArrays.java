@@ -841,12 +841,12 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.LONG_PAGE_SIZE) {
+        if (size > PageCacheRecycler.DOUBLE_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigDoubleArray.estimateRamBytes(size), false);
             return new BigDoubleArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.LONG_PAGE_SIZE / 2 && recycler != null) {
+        } else if (size >= PageCacheRecycler.DOUBLE_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
             return validate(new ByteArrayAsDoubleWrapper(this, page.v(), size, page, clearOnResize));
         } else {
@@ -880,7 +880,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES);
+        final long newSize = overSize(minSize, PageCacheRecycler.DOUBLE_PAGE_SIZE, Double.BYTES);
         return resize(array, newSize);
     }
 
@@ -919,12 +919,12 @@ public class BigArrays {
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
-        if (size > PageCacheRecycler.INT_PAGE_SIZE) {
+        if (size > PageCacheRecycler.FLOAT_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
             adjustBreaker(BigFloatArray.estimateRamBytes(size), false);
             return new BigFloatArray(size, this, clearOnResize);
-        } else if (size >= PageCacheRecycler.INT_PAGE_SIZE / 2 && recycler != null) {
+        } else if (size >= PageCacheRecycler.FLOAT_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
             return validate(new ByteArrayAsFloatWrapper(this, page.v(), size, page, clearOnResize));
         } else {
@@ -958,7 +958,7 @@ public class BigArrays {
         if (minSize <= array.size()) {
             return array;
         }
-        final long newSize = overSize(minSize, PageCacheRecycler.INT_PAGE_SIZE, Float.BYTES);
+        final long newSize = overSize(minSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
         return resize(array, newSize);
     }
 

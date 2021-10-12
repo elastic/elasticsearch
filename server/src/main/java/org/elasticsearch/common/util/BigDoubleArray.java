@@ -17,7 +17,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
 
 /**
  * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -33,7 +33,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     /** Constructor. */
     BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
+        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {

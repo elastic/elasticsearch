@@ -17,7 +17,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.FLOAT_PAGE_SIZE;
 
 /**
  * Float array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -33,7 +33,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     /** Constructor. */
     BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(INT_PAGE_SIZE, bigArrays, clearOnResize);
+        super(FLOAT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {

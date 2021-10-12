@@ -52,9 +52,8 @@ The enrich coordinator supports the following node settings:
 The enrich policy executor supports the following node settings:
 
 `enrich.fetch_size`::
-
-    The maximum fetch size when reindexing the source index into
-    a new system enrich index. Defaults to `10000`.
+Maximum batch size when reindexing a source index into an enrich index. Defaults
+to `10000`.
 
 `enrich.max_force_merge_attempts`::
 Maximum number of <<indices-forcemerge,force merge>> attempts allowed on an

@@ -71,14 +71,6 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
-import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
@@ -91,14 +83,6 @@ import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportValidateTransformAction;
-import org.elasticsearch.xpack.transform.action.compat.TransportDeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportGetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportPreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportPutTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportStartTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportStopTransformActionDeprecated;
-import org.elasticsearch.xpack.transform.action.compat.TransportUpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
@@ -194,16 +178,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestUpdateTransformAction(),
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
-
-            // deprecated endpoints, to be removed for 8.0.0
-            new RestPutTransformActionDeprecated(),
-            new RestStartTransformActionDeprecated(),
-            new RestStopTransformActionDeprecated(),
-            new RestDeleteTransformActionDeprecated(),
-            new RestGetTransformActionDeprecated(),
-            new RestGetTransformStatsActionDeprecated(),
-            new RestPreviewTransformActionDeprecated(),
-            new RestUpdateTransformActionDeprecated()
         );
     }
 
@@ -222,16 +196,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
-
-            // deprecated actions, to be removed for 8.0.0
-            new ActionHandler<>(PutTransformActionDeprecated.INSTANCE, TransportPutTransformActionDeprecated.class),
-            new ActionHandler<>(StartTransformActionDeprecated.INSTANCE, TransportStartTransformActionDeprecated.class),
-            new ActionHandler<>(StopTransformActionDeprecated.INSTANCE, TransportStopTransformActionDeprecated.class),
-            new ActionHandler<>(DeleteTransformActionDeprecated.INSTANCE, TransportDeleteTransformActionDeprecated.class),
-            new ActionHandler<>(GetTransformActionDeprecated.INSTANCE, TransportGetTransformActionDeprecated.class),
-            new ActionHandler<>(GetTransformStatsActionDeprecated.INSTANCE, TransportGetTransformStatsActionDeprecated.class),
-            new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
-            new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
 
             // usage and info
             new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),

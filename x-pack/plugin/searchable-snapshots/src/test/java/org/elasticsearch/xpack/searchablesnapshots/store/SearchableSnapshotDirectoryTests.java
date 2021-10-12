@@ -629,7 +629,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
-                final Path shardDir = shardPath(shardId);
+                final Path shardDir = randomShardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 final CacheService cacheService = defaultCacheService();
@@ -737,7 +737,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
-            final Path shardDir = shardPath(shardId);
+            final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             final FrozenCacheService frozenCacheService = defaultFrozenCacheService();

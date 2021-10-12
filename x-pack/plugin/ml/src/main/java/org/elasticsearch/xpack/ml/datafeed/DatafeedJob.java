@@ -213,7 +213,7 @@ class DatafeedJob {
                 Date endTime = new Date((lastBucket.getEpoch() + lastBucket.getBucketSpan()) * 1000);
 
                 String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucket.getTimestamp().getTime()));
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(lastBucket.getTimestamp().toInstant()));
 
                 Annotation annotation = createDelayedDataAnnotation(missingDataBuckets.get(0).getBucket().getTimestamp(), endTime, msg);
 

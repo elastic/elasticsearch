@@ -367,7 +367,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 "starting shards for " + indexName,
                 clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName)
             );
-            assertTrue(clusterService.state().routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
+            assertTrue(clusterService.state().getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
 
         } else {
             // simulate deletion of the index

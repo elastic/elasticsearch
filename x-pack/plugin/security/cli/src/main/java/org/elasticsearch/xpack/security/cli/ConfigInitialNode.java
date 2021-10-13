@@ -103,19 +103,20 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // Silently skipping security auto configuration because node considered as restarting.
-        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
-            terminal.println(
-                Terminal.Verbosity.VERBOSE,
-                "Skipping security auto configuration because it appears that the node is not starting up for the first time."
-            );
-            terminal.println(
-                Terminal.Verbosity.VERBOSE,
-                "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new "
-                    + "clusters only."
-            );
-            // we wish the node to start as usual during a restart
-            // but still the exit code should indicate that this has not been run
-            throw new UserException(ExitCodes.NOOP, null);
+        for (Path dataPath : env.dataFiles()) {
+            // TODO: Files.list leaks a file handle because the stream is not closed
+            // this effectively doesn't matter since config is run in a separate, short lived, process
+            // but it should be fixed...
+            if (Files.isDirectory(dataPath) && Files.list(dataPath).findAny().isPresent()) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                    "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                    "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
+                        "clusters only.");
+                // we wish the node to start as usual during a restart
+                // but still the exit code should indicate that this has not been run
+                throw new UserException(ExitCodes.NOOP, null);
+            }
         }
 
         // pre-flight checks for the files that are going to be changed

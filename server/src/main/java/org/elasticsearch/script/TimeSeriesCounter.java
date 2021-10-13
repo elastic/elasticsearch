@@ -8,9 +8,7 @@
 
 package org.elasticsearch.script;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
@@ -21,9 +19,9 @@ import java.util.function.LongSupplier;
  * an epoch rollover, the previous value of the accumulator is stored in the appropriate epoch.
  */
 public class TimeSeriesCounter {
-    public final static LongSupplier SYSTEM_SECONDS_TIME_PROVIDER = () -> System.currentTimeMillis() / 1000;
-    public final static int MINUTE = 60;
-    public final static int HOUR = 60 * MINUTE;
+    public static final LongSupplier SYSTEM_SECONDS_TIME_PROVIDER = () -> System.currentTimeMillis() / 1000;
+    public static final int MINUTE = 60;
+    public static final int HOUR = 60 * MINUTE;
 
     protected final long resolutionSecs;
     protected final int[] epochs;

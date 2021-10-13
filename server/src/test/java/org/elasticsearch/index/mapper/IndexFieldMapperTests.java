@@ -10,16 +10,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -49,10 +46,7 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
         );
         String index = randomAlphaOfLength(12);
         withLuceneIndex(mapperService, iw -> {
-            XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-            builder.field("field", "value");
-            builder.endObject();
-            SourceToParse source = new SourceToParse(index, "id", BytesReference.bytes(builder), XContentType.JSON, "", Map.of());
+            SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", Map.of());
             iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
         }, iw -> {
             IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
@@ -66,7 +60,7 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source()));
+            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
         });
     }
 

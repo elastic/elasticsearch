@@ -19,6 +19,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +67,7 @@ public class VersionFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source()));
+            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
         });
     }
 

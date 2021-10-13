@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -101,6 +103,10 @@ public class XContentHelper {
         return convertToMap(bytes, ordered, null);
     }
 
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
+        return convertToMap(bytes, ordered, xContentType, null, null);
+    }
+
     /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      * <p>
@@ -110,8 +116,13 @@ public class XContentHelper {
      * frequently when folks write nanosecond precision dates as a decimal
      * number.
      */
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
-        throws ElasticsearchParseException {
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(
+            BytesReference bytes,
+            boolean ordered,
+            XContentType xContentType,
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
+    ) throws ElasticsearchParseException {
         try {
             final XContentType contentType;
             InputStream input;
@@ -129,14 +140,16 @@ public class XContentHelper {
                 final int length = bytes.length();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
                 return new Tuple<>(Objects.requireNonNull(contentType),
-                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
+                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered, include, exclude));
             } else {
                 input = bytes.streamInput();
                 contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
             try (InputStream stream = input) {
-                return new Tuple<>(Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                return new Tuple<>(
+                        Objects.requireNonNull(contentType),
+                        convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
+                );
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -163,9 +176,24 @@ public class XContentHelper {
      */
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
             throws ElasticsearchParseException {
+        return convertToMap(xContent, input, ordered, null, null);
+    }
+
+    public static Map<String, Object> convertToMap(
+            XContent xContent,
+            InputStream input,
+            boolean ordered,
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
+    ) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
+        try (XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                input,
+                include,
+                exclude
+        )) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -181,6 +209,31 @@ public class XContentHelper {
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes, offset, length)) {
+            return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    public static Map<String, Object> convertToMap(
+            XContent xContent,
+            byte[] bytes,
+            int offset,
+            int length,
+            boolean ordered,
+            @Nullable FilterPath[] include,
+            @Nullable FilterPath[] exclude
+    ) throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                bytes,
+                offset,
+                length,
+                include,
+                exclude)
+        ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

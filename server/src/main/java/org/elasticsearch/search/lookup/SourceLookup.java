@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -103,6 +104,14 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsMapAndType(source).v2();
     }
 
+    public static Map<String, Object> sourceAsMap(
+        BytesReference source,
+        FilterPath[] include,
+        FilterPath[] exclude
+    ) throws ElasticsearchParseException {
+        return  XContentHelper.convertToMap(source, false, null, include, exclude).v2();
+    }
+
     public void setSegmentAndDocument(
         LeafReaderContext context,
         int docId
@@ -155,6 +164,38 @@ public class SourceLookup implements Map<String, Object> {
      */
     public List<Object> extractRawValues(String path) {
         return XContentMapValues.extractRawValues(path, source());
+    }
+
+    /**
+     * Returns the values associated with the path. Those are "low" level values, and it can
+     * handle path expression where an array/list is navigated within.
+     *
+     * The major difference with {@link SourceLookup#extractRawValues(String)} is that this version will:
+     *
+     *  - not cache source if it's not already parsed
+     *  - will only extract the desired values from the compressed source instead of deserializing the whole object
+     *
+     * This is useful when the caller only wants a single value from source and does not care of source is fully parsed and cached
+     * for later use.
+     * @param path The path from which to extract the values from source
+     * @return The list of found values or an empty list if none are found
+     */
+    public List<Object> extractRawValuesOptimized(String path) {
+        if (source != null) {
+            return XContentMapValues.extractRawValues(path, source);
+        }
+        FilterPath[] filterPaths = FilterPath.compile(Set.of(path));
+        if (sourceAsBytes != null) {
+            return XContentMapValues.extractRawValues(path, sourceAsMap(sourceAsBytes, filterPaths, null));
+        }
+        try {
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            fieldReader.accept(docId, sourceFieldVisitor);
+            BytesReference source = sourceFieldVisitor.source();
+            return XContentMapValues.extractRawValues(path, sourceAsMap(source, filterPaths, null));
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("failed to parse / load source", e);
+        }
     }
 
     /**

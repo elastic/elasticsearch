@@ -640,7 +640,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            // there's a searchable_snapshot
+            // there's a searchable_snapshot action
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
             Phase phase = new Phase(randomFrom(COLD_PHASE, FROZEN_PHASE), TimeValue.ZERO, actions);

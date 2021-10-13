@@ -13,6 +13,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.client.feature.ResetFeaturesRequest;
+import org.elasticsearch.client.feature.ResetFeaturesResponse;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
@@ -25,9 +27,11 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -55,6 +59,29 @@ public class MlDeprecationIT extends ESRestTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         return false;
+    }
+
+    /**
+     * Currently the generic test cleanup code that runs in between tests is causing deprecation warnings
+     * when it deletes system indices like .ml-config. This causes particular problems within this test
+     * suite that's specifically testing for deprecations. Therefore, before the generic cleanup code runs,
+     * ensure that all ML system indices are already deleted.
+     *
+     * TODO: delete this method once the generic cleanup code deletes system indices without generating
+     *       deprecation warnings.
+     */
+    @After
+    public void resetFeatures() throws Exception {
+        HLRC adminHlrc = new HLRC(adminClient());
+        List<ResetFeaturesResponse.ResetFeatureStateStatus> statuses = adminHlrc.features()
+            .resetFeatures(new ResetFeaturesRequest(), RequestOptions.DEFAULT)
+            .getFeatureResetStatuses();
+        for (ResetFeaturesResponse.ResetFeatureStateStatus status : statuses) {
+            if ("machine_learning".equals(status.getFeatureName()) && status.getException() != null) {
+                throw status.getException();
+            }
+        }
+        // It's deliberate not to close the admin client
     }
 
     public void testMlDeprecationChecks() throws Exception {
@@ -99,5 +126,4 @@ public class MlDeprecationIT extends ESRestTestCase {
         assertThat(response.getMlSettingsIssues().get(0).getMeta(), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
         hlrc.close();
     }
-
 }

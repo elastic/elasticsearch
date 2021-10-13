@@ -1,8 +1,8 @@
 ---
 "Test put and reset transient settings":
   - skip:
-      version: " - 7.15.99"
-      reason:  "transient settings deprecation added in 7.16.0"
+      version: " - 7.99.99"
+      reason:  "transient settings deprecation"
       features: "warnings"
 
   - do:

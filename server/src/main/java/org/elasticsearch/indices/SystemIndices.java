@@ -599,6 +599,8 @@ public class SystemIndices {
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
         private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
+        private final MigrationPreparationHandler preMigrationFunction;
+        private final MigrationCompletionHandler postMigrationFunction;
 
         /**
          * Construct a Feature with a custom cleanup function
@@ -608,6 +610,8 @@ public class SystemIndices {
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          * @param associatedIndexDescriptors Collection of objects describing associated indices for this feature
          * @param cleanUpFunction A function that will clean up the feature's state
+         * @param preMigrationFunction A function that will be called prior to upgrading any of this plugin's system indices
+         * @param postMigrationFunction A function that will be called after upgrading all of this plugin's system indices
          */
         public Feature(
             String name,
@@ -615,13 +619,18 @@ public class SystemIndices {
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
-            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
+            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction,
+            MigrationPreparationHandler preMigrationFunction,
+            MigrationCompletionHandler postMigrationFunction
+        ) {
             this.name = name;
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
             this.associatedIndexDescriptors = associatedIndexDescriptors;
             this.cleanUpFunction = cleanUpFunction;
+            this.preMigrationFunction = preMigrationFunction;
+            this.postMigrationFunction = postMigrationFunction;
         }
 
         /**
@@ -631,11 +640,15 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          */
         public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(name, description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
+            this(
+                name, description, indexDescriptors, Collections.emptyList(), Collections.emptyList(),
                 (clusterService, client, listener) ->
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
+                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener),
+                Feature::noopPreMigrationFunction,
+                Feature::noopPostMigrationFunction
             );
         }
+
         /**
          * Construct a Feature using the default clean-up function
          * @param name Name of the feature, used in logging
@@ -643,11 +656,37 @@ public class SystemIndices {
          * @param indexDescriptors Patterns describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
          */
-        public Feature(String name, String description, Collection<SystemIndexDescriptor> indexDescriptors,
-                       Collection<SystemDataStreamDescriptor> dataStreamDescriptors) {
-            this(name, description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
+        public Feature(
+            String name,
+            String description,
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<SystemDataStreamDescriptor> dataStreamDescriptors
+        ) {
+            this(
+                name, description, indexDescriptors, dataStreamDescriptors, Collections.emptyList(),
                 (clusterService, client, listener) ->
-                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener)
+                    cleanUpFeature(indexDescriptors, Collections.emptyList(), name, clusterService, client, listener),
+                Feature::noopPreMigrationFunction,
+                Feature::noopPostMigrationFunction
+            );
+        }
+
+        /**
+         * Creates a {@link Feature} from a {@link SystemIndexPlugin}.
+         * @param plugin The {@link SystemIndexPlugin} that adds this feature.
+         * @param settings Node-level settings, as this may impact the descriptors returned by the plugin.
+         * @return A {@link Feature} which represents the feature added by the given plugin.
+         */
+        public static Feature fromSystemIndexPlugin(SystemIndexPlugin plugin, Settings settings) {
+            return new Feature(
+                plugin.getFeatureName(),
+                plugin.getFeatureDescription(),
+                plugin.getSystemIndexDescriptors(settings),
+                plugin.getSystemDataStreamDescriptors(),
+                plugin.getAssociatedIndexDescriptors(),
+                plugin::cleanUpFeature,
+                plugin::prepareForIndicesMigration,
+                plugin::indicesMigrationComplete
             );
         }
 
@@ -675,6 +714,14 @@ public class SystemIndices {
             return name;
         }
 
+        public MigrationPreparationHandler getPreMigrationFunction() {
+            return preMigrationFunction;
+        }
+
+        public MigrationCompletionHandler getPostMigrationFunction() {
+            return postMigrationFunction;
+        }
+
         /**
          * Clean up the state of a feature
          * @param indexDescriptors List of descriptors of a feature's system indices
@@ -690,7 +737,8 @@ public class SystemIndices {
             String name,
             ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener) {
+            ActionListener<ResetFeatureStateStatus> listener
+        ) {
             Metadata metadata = clusterService.state().getMetadata();
 
             List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
@@ -718,8 +766,40 @@ public class SystemIndices {
                 }
             });
         }
-    }
 
+        // No-op pre-migration function to be used as the default in case none are provided.
+        private static void noopPreMigrationFunction(
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Map<String, Object>> listener
+        ) {
+            listener.onResponse(Collections.emptyMap());
+        }
+
+        // No-op pre-migration function to be used as the default in case none are provided.
+        private static void noopPostMigrationFunction(
+            Map<String, Object> preUpgradeMetadata,
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Boolean> listener
+        ) {
+            listener.onResponse(true);
+        }
+
+        @FunctionalInterface
+        interface MigrationPreparationHandler {
+            void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
+        }
+
+        @FunctionalInterface
+        interface MigrationCompletionHandler {
+            void indicesMigrationComplete(
+                Map<String, Object> preUpgradeMetadata,
+                ClusterService clusterService,
+                Client client,
+                ActionListener<Boolean> listener
+            );
+        }
     public static Feature pluginToFeature(SystemIndexPlugin plugin, Settings settings) {
         return new Feature(
             plugin.getFeatureName(),
@@ -727,7 +807,9 @@ public class SystemIndices {
             plugin.getSystemIndexDescriptors(settings),
             plugin.getSystemDataStreamDescriptors(),
             plugin.getAssociatedIndexDescriptors(),
-            plugin::cleanUpFeature
+            plugin::cleanUpFeature,
+            plugin::prepareForIndicesMigration,
+            plugin::indicesMigrationComplete
         );
     }
 

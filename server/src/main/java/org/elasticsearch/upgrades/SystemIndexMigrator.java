@@ -155,7 +155,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             // should be the same as is in the task state
             if (nextIndexName != null && featureName != null && migrationQueue.isEmpty() == false) {
                 SystemIndexMigrationInfo nextMigrationInfo = migrationQueue.peek();
-                // GWB> How do we want to handle this case? For now just make it obvious if it happens
+                // This should never, ever happen in testing mode, but could conceivably happen if there are different sets of plugins
+                // installed on the previous node vs. this one.
                 assert nextMigrationInfo.getFeatureName().equals(featureName)
                     && nextMigrationInfo.getCurrentIndexName().equals(nextIndexName) : "index name ["
                         + nextIndexName
@@ -166,6 +167,27 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         + "] and feature ["
                         + nextMigrationInfo.getFeatureName()
                         + "] of locally computed queue, see logs";
+                if (nextMigrationInfo.getCurrentIndexName().equals(nextIndexName) == false) {
+                    if (clusterState.metadata().hasIndex(nextIndexName) == false) {
+                        // If we don't have that index at all, and also don't have the next one
+                        markAsFailed(
+                            new IllegalStateException(
+                                new ParameterizedMessage(
+                                    "failed to resume system index migration from index [{}], that index is not present in the cluster",
+                                    nextIndexName
+                                ).toString()
+                            )
+                        );
+                    }
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "resuming system index migration with index [{}], which does not match index given in last task state [{}]",
+                            nextMigrationInfo.getCurrentIndexName(),
+                            nextIndexName
+                        )
+                    );
+                }
+
             }
         }
 
@@ -184,12 +206,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     ) {
         logger.debug("cleaning up previous migration, task state: [{}]", taskState == null ? "null" : Strings.toString(taskState));
         if (taskState != null && taskState.getCurrentIndex() != null) {
-            SystemIndexMigrationInfo migrationInfo = SystemIndexMigrationInfo.fromTaskState(
-                taskState,
-                systemIndices,
-                currentState.metadata(),
-                indexScopedSettings
-            );
+            SystemIndexMigrationInfo migrationInfo;
+            try {
+                migrationInfo = SystemIndexMigrationInfo.fromTaskState(
+                    taskState,
+                    systemIndices,
+                    currentState.metadata(),
+                    indexScopedSettings
+                );
+            } catch (Exception e) {
+                markAsFailed(e);
+                return;
+            }
             final String newIndexName = migrationInfo.getNextIndexName();
             logger.info("Removing index [{}] from previous incomplete migration", newIndexName);
 
@@ -376,7 +404,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         setWriteBlock(index, false, ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(ex), e1 -> listener.onFailure(ex)));
     }
 
-    // GWB> This should store the exception
     private ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
         String bulkFailures = (bulkByScrollResponse.getBulkFailures() != null)
             ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getBulkFailures())

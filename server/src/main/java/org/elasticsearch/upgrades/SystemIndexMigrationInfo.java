@@ -8,6 +8,9 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,6 +28,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 
 class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
+    private static final Logger logger = LogManager.getLogger(SystemIndexMigrationInfo.class);
 
     private final IndexMetadata currentIndex;
     private final String featureName;
@@ -191,19 +195,28 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         // 2. The index in question is somehow deleted before we got to it.
         // The first case shouldn't happen, master nodes must have all `SystemIndexPlugins` installed.
         // In the second case, we should just start over.
-        assert descriptor != null : "got null descriptor for index ["
-            + taskState.getCurrentIndex()
-            + "] owned by feature ["
-            + taskState.getCurrentFeature()
-            + "]";
-        // GWB> Probably don't assert this, this is fine - just need to start from scratch
-        assert imd != null : "got null index metadata for index ["
-            + taskState.getCurrentIndex()
-            + "] owned by feature ["
-            + feature.getName()
-            + "] via descriptor pattern ["
-            + descriptor.getIndexPattern()
-            + "]";
+        if (descriptor == null) {
+            String errorMsg = new ParameterizedMessage(
+                "couldn't find system index descriptor for index [{}] from feature [{}], which likely means this node is missing a plugin",
+                taskState.getCurrentIndex(),
+                taskState.getCurrentFeature()
+            ).toString();
+            logger.warn(errorMsg);
+            assert false : errorMsg;
+            throw new IllegalStateException(errorMsg);
+        }
+
+        if (imd == null) {
+            String errorMsg = new ParameterizedMessage(
+                "couldn't find index [{}] from feature [{}] with descriptor pattern [{}]",
+                taskState.getCurrentIndex(),
+                taskState.getCurrentFeature(),
+                descriptor.getIndexPattern()
+            ).toString();
+            logger.warn(errorMsg);
+            assert false : errorMsg;
+            throw new IllegalStateException(errorMsg);
+        }
 
         return build(imd, descriptor, feature, indexScopedSettings);
     }

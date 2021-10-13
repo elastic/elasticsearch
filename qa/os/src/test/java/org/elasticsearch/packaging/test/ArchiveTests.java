@@ -207,7 +207,8 @@ public class ArchiveTests extends PackagingTestCase {
         try {
             startElasticsearch();
             verifySecurityNotAutoConfigured(installation);
-            ServerUtils.runElasticsearchTests();
+            // the node still starts, with Security enabled, but without TLS auto-configured (so only authentication)
+            ServerUtils.runElasticsearchTests(superuser, superuserPassword, null);
             stopElasticsearch();
         } finally {
             Platforms.onWindows(() -> {

@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -249,12 +250,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 System.nanoTime()
             );
 
-            List<ShardRouting> candidates = StreamSupport.stream(state.getRoutingNodes().spliterator(), false)
-                .flatMap(shardRoutings -> StreamSupport.stream(shardRoutings.spliterator(), false))
-                .filter(ShardRouting::started)
-                .filter(shard -> canRemainOnlyHighestTierPreference(shard, allocation) == false)
-                .filter(shard -> canAllocate(shard, allocation) == false)
-                .collect(Collectors.toList());
+            List<ShardRouting> candidates = new LinkedList<>();
+            for (RoutingNode routingNode : state.getRoutingNodes()) {
+                for (ShardRouting shard : routingNode) {
+                    if (shard.started()
+                        && canRemainOnlyHighestTierPreference(shard, allocation) == false
+                        && canAllocate(shard, allocation) == false) {
+                        candidates.add(shard);
+                    }
+                }
+            }
 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
             Set<ShardRouting> unmovableShards = candidates.stream()

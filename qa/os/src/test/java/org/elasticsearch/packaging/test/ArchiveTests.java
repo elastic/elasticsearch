@@ -194,7 +194,7 @@ public class ArchiveTests extends PackagingTestCase {
                 String.format(
                     Locale.ROOT,
                     "$ACL = Get-ACL -Path '%s'; "
-                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Modify','Deny'); "
+                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
                         + "$ACL.SetAccessRule($AccessRule); "
                         + "$ACL | Set-Acl -Path '%s';",
                     installation.config,
@@ -204,26 +204,30 @@ public class ArchiveTests extends PackagingTestCase {
             );
         });
         Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
-        startElasticsearch();
-        verifySecurityNotAutoConfigured(installation);
-        stopElasticsearch();
-        Platforms.onWindows(() -> {
-            sh.run(
-                String.format(
-                    Locale.ROOT,
-                    "$ACL = Get-ACL -Path '%s'; "
-                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Modify','Deny'); "
-                        + "$ACL.RemoveAccessRule($AccessRule); "
-                        + "$ACL | Set-Acl -Path '%s';",
-                    installation.config,
-                    installation.getOwner(),
-                    installation.config
-                )
-            );
-            sh.chown(installation.config);
-        });
-        Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
-        FileUtils.rm(installation.data);
+        try {
+            startElasticsearch();
+            verifySecurityNotAutoConfigured(installation);
+            ServerUtils.runElasticsearchTests();
+            stopElasticsearch();
+        } finally {
+            Platforms.onWindows(() -> {
+                sh.run(
+                    String.format(
+                        Locale.ROOT,
+                        "$ACL = Get-ACL -Path '%s'; "
+                            + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
+                            + "$ACL.RemoveAccessRule($AccessRule); "
+                            + "$ACL | Set-Acl -Path '%s';",
+                        installation.config,
+                        installation.getOwner(),
+                        installation.config
+                    )
+                );
+                sh.chown(installation.config);
+            });
+            Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
+            FileUtils.rm(installation.data);
+        }
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {

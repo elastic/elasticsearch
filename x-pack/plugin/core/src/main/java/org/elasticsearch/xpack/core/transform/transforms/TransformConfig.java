@@ -447,7 +447,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             settings.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMapWithConsistentOrder(metadata);
+            out.writeMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);

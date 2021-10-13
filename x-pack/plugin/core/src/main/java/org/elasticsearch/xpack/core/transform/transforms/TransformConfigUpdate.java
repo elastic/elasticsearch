@@ -190,7 +190,7 @@ public class TransformConfigUpdate implements Writeable {
             out.writeOptionalWriteable(settings);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMapWithConsistentOrder(metadata);
+            out.writeMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);

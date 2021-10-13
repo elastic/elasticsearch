@@ -338,7 +338,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
 
-        TransformInternalIndex.ensureLatestIndexInstalled(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(2)).threadPool();

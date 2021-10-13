@@ -130,7 +130,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L));
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
-        for (int i = 1; i < randomIntBetween(2, 5); i++) {
+        for (int i = 1; i <= 2; i++) {
             // assign the rollover-only policy to a few other indices - these indices and the rollover-only policy should not be migrated
             // in any way
             createIndexWithSettings(client(), rolloverIndexPrefix + "-00000" + i, alias + i, Settings.builder()

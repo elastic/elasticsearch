@@ -112,6 +112,9 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
         for (Path dataPath : env.dataFiles()) {
+            // TODO: Files.list leaks a file handle because the stream is not closed
+            // this effectively doesn't matter since enroll is run in a separate, short lived, process
+            // but it should be fixed...
             if (Files.isDirectory(dataPath) && Files.list(dataPath).findAny().isPresent()) {
                 throw new UserException(
                     ExitCodes.CONFIG,

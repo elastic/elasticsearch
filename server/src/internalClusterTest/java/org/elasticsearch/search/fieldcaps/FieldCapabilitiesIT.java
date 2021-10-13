@@ -504,7 +504,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertNotNull(response.getIndices());
         Arrays.sort(indices);
         Arrays.sort(response.getIndices());
-        assertThat(response.getIndices(), equalTo(indices));
+        assertArrayEquals(indices, response.getIndices());
     }
 
     /**

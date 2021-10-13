@@ -106,7 +106,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         final FailureCollector indexFailures = new FailureCollector();
-        final CountDown completionCounter = new CountDown(concreteIndices.length + remoteClusterIndices.size());
+        // One for each cluster including the local cluster
+        final CountDown completionCounter = new CountDown(1 + remoteClusterIndices.size());
         final Runnable countDown = createResponseMerger(request, completionCounter, indexResponses, indexFailures, listener);
         final RequestDispatcher requestDispatcher = new RequestDispatcher(
             clusterService,
@@ -116,16 +117,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             localIndices,
             nowInMillis,
             concreteIndices,
-            indexResponse -> {
-                if (indexResponse.canMatch()) {
-                    indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse);
-                }
-                countDown.run();
-            },
-            (index, failure) -> {
-                indexFailures.collect(failure, index);
-                countDown.run();
-            }
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            indexResponse -> indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse),
+            indexFailures::collect,
+            countDown
         );
         requestDispatcher.execute();
 
@@ -291,13 +286,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return new ArrayList<>(indexFailures.values());
         }
 
-        void collect(Exception e, String index) {
+        void collect(String index, Exception e) {
             failuresByIndex.putIfAbsent(index, e);
         }
 
         void collectRemoteException(Exception ex, String clusterAlias, String[] remoteIndices) {
             for (String failedIndex : remoteIndices) {
-                collect(ex, RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex));
+                collect(RemoteClusterAware.buildRemoteIndexName(clusterAlias, failedIndex), ex);
             }
         }
 
@@ -311,33 +306,37 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         public void messageReceived(FieldCapabilitiesNodeRequest request, TransportChannel channel, Task task) throws Exception {
             final ActionListener<FieldCapabilitiesNodeResponse> listener = new ChannelActionListener<>(channel, ACTION_NODE_NAME, request);
             ActionListener.completeWith(listener, () -> {
-                final Map<String, FieldCapabilitiesIndexResponse> indexToResponses = new HashMap<>();
-                final Map<String, Exception> indexToFailures = new HashMap<>();
+                final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
+                final Map<ShardId, Exception> allFailures = new HashMap<>();
+                final Set<ShardId> allUnmatchedShardIds = new HashSet<>();
                 // If the request has an index filter, it may contain several shards belonging to the same
                 // index. We make sure to skip over a shard if we already found a match for that index.
-                for (ShardId shardId : request.shardIds()) {
-                    final FieldCapabilitiesIndexResponse existing = indexToResponses.get(shardId.getIndexName());
-                    if (existing == null || existing.canMatch() == false) {
-                        FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request.fields(), shardId,
+                final Map<String, List<ShardId>> groupedShardIds = request.shardIds().stream()
+                    .collect(Collectors.groupingBy(ShardId::getIndexName));
+                for (List<ShardId> shardIds : groupedShardIds.values()) {
+                    final Map<ShardId, Exception> failures = new HashMap<>();
+                    final Set<ShardId> unmatched = new HashSet<>();
+                    for (ShardId shardId : shardIds) {
+                        final FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request.fields(), shardId,
                             request.originalIndices(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
                         try {
-                            indexToResponses.put(indexRequest.index(), fieldCapabilitiesFetcher.fetch(indexRequest));
+                            final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(indexRequest);
+                            if (response.canMatch()) {
+                                unmatched.clear();
+                                failures.clear();
+                                allResponses.add(response);
+                                break;
+                            } else {
+                                unmatched.add(shardId);
+                            }
                         } catch (Exception e) {
-                            indexToFailures.put(shardId.getIndexName(), e);
+                            failures.put(shardId, e);
                         }
                     }
+                    allUnmatchedShardIds.addAll(unmatched);
+                    allFailures.putAll(failures);
                 }
-                final List<FieldCapabilitiesIndexResponse> responses = indexToResponses.values().stream()
-                    .filter(r -> r.canMatch() || indexToFailures.containsKey(r.getIndexName()) == false)
-                    .collect(Collectors.toList());
-                final List<FieldCapabilitiesFailure> failures = indexToFailures.entrySet().stream()
-                    .filter(e -> {
-                        final FieldCapabilitiesIndexResponse r = indexToResponses.get(e.getKey());
-                        return r == null || r.canMatch() == false;
-                    })
-                    .map(e -> new FieldCapabilitiesFailure(new String[]{e.getKey()}, e.getValue()))
-                    .collect(Collectors.toList());
-                return new FieldCapabilitiesNodeResponse(responses, failures);
+                return new FieldCapabilitiesNodeResponse(allResponses, allFailures, allUnmatchedShardIds);
             });
         }
     }

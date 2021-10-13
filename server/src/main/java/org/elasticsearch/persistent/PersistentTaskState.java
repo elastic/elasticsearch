@@ -8,7 +8,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * {@link PersistentTaskState} represents the state of the persistent tasks, as it

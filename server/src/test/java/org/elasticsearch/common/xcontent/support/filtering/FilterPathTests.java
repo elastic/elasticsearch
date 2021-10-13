@@ -9,6 +9,7 @@
 package org.elasticsearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;

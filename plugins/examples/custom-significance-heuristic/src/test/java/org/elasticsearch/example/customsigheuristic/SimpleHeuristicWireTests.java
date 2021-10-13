@@ -9,8 +9,8 @@
 package org.elasticsearch.example.customsigheuristic;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

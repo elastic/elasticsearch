@@ -9,7 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.client.GeoIpStatsResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

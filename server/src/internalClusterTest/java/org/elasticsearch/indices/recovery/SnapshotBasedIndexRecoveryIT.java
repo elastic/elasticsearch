@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -32,11 +31,11 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -467,17 +466,18 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             final Settings.Builder indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s");
 
             final List<String> dataNodes;
             if (seqNoRecovery) {
                 dataNodes = internalCluster().startDataOnlyNodes(3);
-                indexSettings.put("index.routing.allocation.include._name", String.join(",", dataNodes));
+                indexSettings.put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
             } else {
                 dataNodes = internalCluster().startDataOnlyNodes(1);
-                indexSettings.put("index.routing.allocation.require._name", dataNodes.get(0));
+                indexSettings.put("index.routing.allocation.require._name", dataNodes.get(0))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
             }
             createIndex(indexName, indexSettings.build());
 
@@ -793,7 +793,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
         String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
 
-        Store.MetadataSnapshot primaryMetadataSnapshot = getMetadataSnapshot(primaryNodeName, indexName, numDocs - 1);
+        Store.MetadataSnapshot primaryMetadataSnapshot = getMetadataSnapshot(primaryNodeName, indexName);
 
         assertThat(internalCluster().stopNode(primaryNodeName), is(equalTo(true)));
 
@@ -819,21 +819,22 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             }
 
             Store.MetadataSnapshot replicaAfterFailoverMetadataSnapshot =
-                getMetadataSnapshot(replicaNodeNameAfterFailOver, indexName, numDocs - 1);
+                getMetadataSnapshot(replicaNodeNameAfterFailOver, indexName);
             Store.RecoveryDiff recoveryDiff = primaryMetadataSnapshot.recoveryDiff(replicaAfterFailoverMetadataSnapshot);
             assertThat(recoveryDiff.identical, is(not(empty())));
         }
     }
 
-    private Store.MetadataSnapshot getMetadataSnapshot(String nodeName, String indexName, int globalCheckpoint) throws IOException {
+    private Store.MetadataSnapshot getMetadataSnapshot(String nodeName, String indexName) throws IOException {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         IndexService indexService = indicesService.indexService(clusterState.metadata().index(indexName).getIndex());
         IndexShard shard = indexService.getShard(0);
-        List<IndexCommit> commits = DirectoryReader.listCommits(shard.store().directory());
-        IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-        assertThat(safeCommit, is(notNullValue()));
-        return shard.store().getMetadata(safeCommit);
+        try(Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
+            IndexCommit safeCommit = indexCommitRef.getIndexCommit();
+            assertThat(safeCommit, is(notNullValue()));
+            return shard.store().getMetadata(safeCommit);
+        }
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {

@@ -582,6 +582,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String FIELDS = "fields";
+        static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
         static final String SORT = "sort";
         static final String MATCHED_QUERIES = "matched_queries";
@@ -666,7 +667,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
                 if (field.getValues().size() > 0) {
-                    field.toXContent(builder, params);
+                    field.getValidValuesWriter().toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+        //ignored field values
+        if (documentFields.isEmpty() == false &&
+            // omit ignored_field_values all together if there are none
+            documentFields.values().stream().anyMatch(df -> df.getIgnoredValues().size() > 0)) {
+            builder.startObject(Fields.IGNORED_FIELD_VALUES);
+            for (DocumentField field : documentFields.values()) {
+                if (field.getIgnoredValues().size() > 0) {
+                    field.getIgnoredValuesWriter().toXContent(builder, params);
                 }
             }
             builder.endObject();

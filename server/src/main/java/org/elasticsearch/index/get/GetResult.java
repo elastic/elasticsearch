@@ -275,7 +275,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         if (documentFields.isEmpty() == false) {
             builder.startObject(FIELDS);
             for (DocumentField field : documentFields.values()) {
-                field.toXContent(builder, params);
+                field.getValidValuesWriter().toXContent(builder, params);
             }
             builder.endObject();
         }

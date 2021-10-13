@@ -32,7 +32,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TransportClusterHealthActionTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78978")
     public void testWaitForInitializingShards() throws Exception {
         final String[] indices = {"test"};
         final ClusterHealthRequest request = new ClusterHealthRequest();
@@ -52,7 +51,6 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78978")
     public void testWaitForAllShards() {
         final String[] indices = {"test"};
         final ClusterHealthRequest request = new ClusterHealthRequest();
@@ -81,15 +79,23 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
         Randomness.shuffle(shardRoutingStates);
 
+        // primary can not be unassigned, otherwise replicas can't in initializing or relocating state.
+        // (assertion in RoutingNodes disallows this)
+        if (shardRoutingStates.get(0) == ShardRoutingState.UNASSIGNED) {
+            // Don't randomly pick ShardRoutingState.UNASSIGNED, since that already has randomly been inserted based on initializingShards
+            shardRoutingStates.set(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
+        }
+
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex());
 
         // Primary
         {
             ShardRoutingState state = shardRoutingStates.remove(0);
-            String node = state == ShardRoutingState.UNASSIGNED ? null : "node";
+            String node = "node";
+            String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" : null;
             routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, node, "relocating", true, state)
+                TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state)
             );
         }
 
@@ -97,7 +103,8 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         for (int i = 0; i < shardRoutingStates.size(); i++) {
             ShardRoutingState state = shardRoutingStates.get(i);
             String node = state == ShardRoutingState.UNASSIGNED ? null : "node" + i;
-            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, "relocating"+i, randomBoolean(), state));
+            String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" + i : null;
+            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, false, state));
         }
 
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

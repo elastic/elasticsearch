@@ -343,7 +343,7 @@ public final class TestUtils {
         }
 
         @Override
-        public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+        public ByteRange computeBlobCacheByteRange(ShardId shardId, String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
             return ByteRange.EMPTY;
         }
     }

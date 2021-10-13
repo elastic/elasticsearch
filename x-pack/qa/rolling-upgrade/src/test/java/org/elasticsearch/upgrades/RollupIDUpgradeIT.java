@@ -13,7 +13,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

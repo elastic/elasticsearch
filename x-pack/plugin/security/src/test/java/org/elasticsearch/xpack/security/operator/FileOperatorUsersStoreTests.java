@@ -14,7 +14,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;

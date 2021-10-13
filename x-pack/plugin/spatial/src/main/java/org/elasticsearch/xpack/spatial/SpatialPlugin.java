@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
-import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.ingest.Processor;

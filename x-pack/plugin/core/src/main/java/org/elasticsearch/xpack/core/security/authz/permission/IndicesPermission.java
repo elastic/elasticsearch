@@ -55,9 +55,12 @@ public final class IndicesPermission {
     private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final Group[] groups;
+    private final boolean hasFieldOrDocumentLevelSecurity;
 
     public IndicesPermission(Group... groups) {
         this.groups = groups;
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
+            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     private static StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
@@ -84,6 +87,10 @@ public final class IndicesPermission {
      */
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, a -> Group.buildIndexMatcherPredicateForAction(a, groups));
+    }
+
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return hasFieldOrDocumentLevelSecurity;
     }
 
     /**

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.trigger.manual;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;

@@ -56,10 +56,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -70,6 +72,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -791,7 +794,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    void innerUpdatePipelines(IngestMetadata newIngestMetadata) {
+    synchronized void innerUpdatePipelines(IngestMetadata newIngestMetadata) {
         Map<String, PipelineHolder> existingPipelines = this.pipelines;
 
         // Lazy initialize these variables in order to favour the most like scenario that there are no pipeline changes:
@@ -890,7 +893,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param clazz the Processor class to look for
      * @return True if the pipeline contains an instance of the Processor class passed in
      */
-    public<P extends Processor> List<P> getProcessorsInPipeline(String pipelineId, Class<P> clazz) {
+    public <P extends Processor> List<P> getProcessorsInPipeline(String pipelineId, Class<P> clazz) {
         Pipeline pipeline = getPipeline(pipelineId);
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
@@ -917,6 +920,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         return processors;
+    }
+
+    public <P extends Processor> Collection<String> getPipelineWithProcessorType(Class<P> clazz, Predicate<P> predicate) {
+        List<String> matchedPipelines = new LinkedList<>();
+        for (PipelineHolder holder : pipelines.values()) {
+            String pipelineId = holder.pipeline.getId();
+            List<P> processors = getProcessorsInPipeline(pipelineId, clazz);
+            if (processors.isEmpty() == false && processors.stream().anyMatch(predicate)) {
+                matchedPipelines.add(pipelineId);
+            }
+        }
+        return matchedPipelines;
+    }
+
+    public synchronized void reloadPipeline(String id) throws Exception {
+        PipelineHolder holder = pipelines.get(id);
+        Pipeline updatedPipeline =
+            Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
+        Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
+        updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
+        this.pipelines = Map.copyOf(updatedPipelines);
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {

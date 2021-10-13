@@ -43,10 +43,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -60,6 +57,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -90,6 +90,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -392,6 +395,82 @@ public class IngestServiceTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
         assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
+    }
+
+    public void testGetPipelineWithProcessorType() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
+                "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        PutPipelineRequest putRequest2 = new PutPipelineRequest("_id2", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest2, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> true), containsInAnyOrder("_id1", "_id2"));
+        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> false), emptyIterable());
+        assertThat(ingestService.getPipelineWithProcessorType(WrappingProcessorImpl.class, processor -> true), containsInAnyOrder("_id1"));
+    }
+
+    public void testReloadPipeline() throws Exception {
+        boolean[] externalProperty = new boolean[] {false};
+
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        processorFactories.put("set", (factories, tag, description, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+            if (externalProperty[0]) {
+                return new FakeProcessor("set", tag, description, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
+            } else {
+                return new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                        throw new RuntimeException("reload me");
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "set";
+                    }
+                };
+            }
+        });
+
+        IngestService ingestService = createWithProcessors(processorFactories);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        {
+            Exception[] exceptionHolder = new Exception[1];
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
+            assertThat(exceptionHolder[0], notNullValue());
+            assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
+            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
+        }
+
+        externalProperty[0] = true;
+        ingestService.reloadPipeline("_id1");
+
+        {
+            Exception[] holder = new Exception[1];
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
+            assertThat(holder[0], nullValue());
+            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
+        }
     }
 
     public void testGetProcessorsInPipelineComplexConditional() throws Exception {

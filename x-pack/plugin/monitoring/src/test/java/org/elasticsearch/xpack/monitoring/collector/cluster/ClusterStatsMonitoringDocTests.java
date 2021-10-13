@@ -517,7 +517,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "        ],"
                 + "        \"mem\": {"
                 + "          \"total_in_bytes\": 100,"
-                + "          \"total_override_in_bytes\": 99,"
+                + "          \"adjusted_total_in_bytes\": 99,"
                 + "          \"free_in_bytes\": 79,"
                 + "          \"used_in_bytes\": 21,"
                 + "          \"free_percent\": 79,"

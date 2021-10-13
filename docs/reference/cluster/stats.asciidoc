@@ -1411,6 +1411,8 @@ The API returns the following response:
          "mem" : {
             "total" : "16gb",
             "total_in_bytes" : 17179869184,
+            "adjusted_total" : "16gb",
+            "adjusted_total_in_bytes" : 17179869184,
             "free" : "78.1mb",
             "free_in_bytes" : 81960960,
             "used" : "15.9gb",

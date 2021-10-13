@@ -484,6 +484,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(true, false, expectedWarnings);
     }
 
+    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
+        assertWarnings(stripXContentPosition, false, expectedWarnings);
+    }
+
     protected final void assertWarnings(boolean stripXContentPosition, boolean includeLevelCheck, String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");

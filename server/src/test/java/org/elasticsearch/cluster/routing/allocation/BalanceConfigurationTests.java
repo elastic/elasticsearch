@@ -264,7 +264,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = Settings.builder();
         AllocationService strategy = new AllocationService(randomAllocationDeciders(settings.build(),
-                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
                 new TestGatewayAllocator(), new ShardsAllocator() {
             /*
              *  // this allocator tries to rebuild this scenario where a rebalance is

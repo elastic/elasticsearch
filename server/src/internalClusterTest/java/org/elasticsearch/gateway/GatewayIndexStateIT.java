@@ -513,18 +513,20 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen("test");
 
         final Metadata metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
-        final Path path = internalCluster().getInstance(NodeEnvironment.class).nodeDataPath();
+        final Path[] paths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
         final String nodeId = client().admin().cluster().prepareNodesInfo(nodeName).clear().get().getNodes().get(0).getNode().getId();
 
         writeBrokenMeta(metaStateService -> {
-            IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+            for (final Path path : paths) {
+                IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+            }
             metaStateService.writeGlobalState("test", Metadata.builder(metadata)
                 // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
                 // term in the coordination metadata
                 .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
                 // add a tombstone but do not delete the index metadata from disk
                .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build()).build());
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT), path);
+            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT), paths);
         });
 
         ensureGreen();

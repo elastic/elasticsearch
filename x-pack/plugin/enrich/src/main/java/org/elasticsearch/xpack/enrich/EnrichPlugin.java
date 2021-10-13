@@ -148,6 +148,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return XPackPlugin.getSharedLicenseState();
     }
 
+    @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
@@ -165,6 +166,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         );
     }
 
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -236,6 +238,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         );
     }
 
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 /**
  * Contains common attributes for results.

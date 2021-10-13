@@ -91,7 +91,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     public void testTiebreakerNotComparable() throws Exception {
-        final Object o = randomDateTimeZone();
+        final Object o = randomZone();
         HitExtractor badExtractor = new HitExtractor() {
             @Override
             public Object extract(SearchHit hit) {

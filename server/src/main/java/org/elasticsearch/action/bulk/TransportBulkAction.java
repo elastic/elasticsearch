@@ -347,8 +347,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         if (writeRequest.routing() != null) {
             IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-            throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
-                "routing. target the backing indices directly or remove the custom routing.");
+            if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+                throw new IllegalArgumentException(
+                    "index request targeting data stream ["
+                        + dataStream.getName()
+                        + "] specifies a custom routing but the [allow_custom_routing] setting was "
+                        + "not enabled in the data stream's template."
+                );
+            }
         }
     }
 

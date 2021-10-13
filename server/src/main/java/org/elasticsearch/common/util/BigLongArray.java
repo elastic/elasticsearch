@@ -16,6 +16,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
 
 /**
@@ -26,7 +27,19 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+
+    static final byte[] ZERO_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
+    static final byte[] MIN_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
+    static final byte[] MAX_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
+
+    static {
+        for (int i = 0; i < LONG_PAGE_SIZE; i++) {
+            longPlatformNative.set(ZERO_VALUE_FILL, i << 3, 0L);
+            longPlatformNative.set(MIN_VALUE_FILL, i << 3, Long.MIN_VALUE);
+            longPlatformNative.set(MAX_VALUE_FILL, i << 3, Long.MAX_VALUE);
+        }
+    }
 
     private byte[][] pages;
 
@@ -111,8 +124,16 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     }
 
     public static void fill(byte[] page, int from, int to, long value) {
-        for (int i = from; i < to; i++) {
-            longPlatformNative.set(page, i << 3, value);
+        if (value == 0L) {
+            System.arraycopy(ZERO_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
+        } else if (value == Long.MIN_VALUE) {
+            System.arraycopy(MIN_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
+        } else if (value == Long.MAX_VALUE) {
+            System.arraycopy(MAX_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
+        } else {
+            for (int i = from; i < to; i++) {
+                longPlatformNative.set(page, i << 3, value);
+            }
         }
     }
 
@@ -121,4 +142,23 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        assert index + len <= size();
+        int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        if (indexInPage + len <= pageSize()) {
+            System.arraycopy(buf, offset << 3, pages[pageIndex], indexInPage << 3, len << 3);
+        } else {
+            int copyLen = pageSize() - indexInPage;
+            System.arraycopy(buf, offset << 3, pages[pageIndex], indexInPage, copyLen << 3);
+            do {
+                ++pageIndex;
+                offset += copyLen;
+                len -= copyLen;
+                copyLen = Math.min(len, pageSize());
+                System.arraycopy(buf, offset << 3, pages[pageIndex], 0, copyLen << 3);
+            } while (len > copyLen);
+        }
+    }
 }

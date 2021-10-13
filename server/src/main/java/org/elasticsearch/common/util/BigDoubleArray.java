@@ -16,6 +16,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
 
 /**
@@ -26,7 +27,17 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+    static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+
+    static final byte[] NEGATIVE_INFINITY_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
+    static final byte[] POSITIVE_INFINITY_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
+
+    static {
+        for (int i = 0; i < DOUBLE_PAGE_SIZE; i++) {
+            doublePlatformNative.set(NEGATIVE_INFINITY_VALUE_FILL, i << 2, Double.NEGATIVE_INFINITY);
+            doublePlatformNative.set(POSITIVE_INFINITY_VALUE_FILL, i << 2, Double.POSITIVE_INFINITY);
+        }
+    }
 
     private byte[][] pages;
 
@@ -108,8 +119,14 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     }
 
     public static void fill(byte[] page, int from, int to, double value) {
-        for (int i = from; i < to; i++) {
-            doublePlatformNative.set(page, i << 3, value);
+        if (value == Double.NEGATIVE_INFINITY) {
+            System.arraycopy(NEGATIVE_INFINITY_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
+        } else if (value == Double.POSITIVE_INFINITY) {
+            System.arraycopy(POSITIVE_INFINITY_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
+        } else {
+            for (int i = from; i < to; i++) {
+                doublePlatformNative.set(page, i << 3, value);
+            }
         }
     }
 
@@ -118,4 +135,23 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        assert index + len <= size();
+        int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        if (indexInPage + len <= pageSize()) {
+            System.arraycopy(buf, offset << 3, pages[pageIndex], indexInPage << 3, len << 3);
+        } else {
+            int copyLen = pageSize() - indexInPage;
+            System.arraycopy(buf, offset << 3, pages[pageIndex], indexInPage, copyLen << 3);
+            do {
+                ++pageIndex;
+                offset += copyLen;
+                len -= copyLen;
+                copyLen = Math.min(len, pageSize());
+                System.arraycopy(buf, offset << 3, pages[pageIndex], 0, copyLen << 3);
+            } while (len > copyLen);
+        }
+    }
 }

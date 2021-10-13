@@ -26,7 +26,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
+    static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
 
     private byte[][] pages;
 
@@ -118,4 +118,23 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        assert index + len <= size();
+        int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        if (indexInPage + len <= pageSize()) {
+            System.arraycopy(buf, offset << 2, pages[pageIndex], indexInPage << 2, len << 2);
+        } else {
+            int copyLen = pageSize() - indexInPage;
+            System.arraycopy(buf, offset << 2, pages[pageIndex], indexInPage, copyLen << 2);
+            do {
+                ++pageIndex;
+                offset += copyLen;
+                len -= copyLen;
+                copyLen = Math.min(len, pageSize());
+                System.arraycopy(buf, offset << 2, pages[pageIndex], 0, copyLen << 2);
+            } while (len > copyLen);
+        }
+    }
 }

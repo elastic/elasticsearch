@@ -16,9 +16,31 @@ import org.gradle.api.Project;
 
 import java.util.List;
 
+/**
+ * This plugin configures formatting for Java source using Spotless
+ * for Gradle. Since the act of formatting existing source can interfere
+ * with developers' workflows, we don't automatically format all code
+ * (yet). Instead, we maintain a list of projects that are excluded from
+ * formatting, until we reach a point where we can comfortably format them
+ * in one go without too much disruption.
+ *
+ * <p>Any new sub-projects must not be added to the exclusions list!
+ *
+ * <p>To perform a reformat, run:
+ *
+ * <pre>    ./gradlew spotlessApply</pre>
+ *
+ * <p>To check the current format, run:
+ *
+ * <pre>    ./gradlew spotlessJavaCheck</pre>
+ *
+ * <p>This is also carried out by the `precommit` task.
+ *
+ * <p>See also the <a href="https://github.com/diffplug/spotless/tree/master/plugin-gradle"
+ * >Spotless project page</a>.
+ */
 public class FormattingPrecommitPlugin implements Plugin<Project> {
 
-    // Do not add new sub-projects here!
     @Override
     public void apply(Project project) {
         final boolean shouldFormatProject = PROJECT_PATHS_TO_EXCLUDE.contains(project.getPath()) == false
@@ -80,6 +102,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
         }
     }
 
+    // Do not add new sub-projects here!
     private static final List<String> PROJECT_PATHS_TO_EXCLUDE = List.of(
         ":client:benchmark",
         ":client:client-benchmark-noop-api-plugin",

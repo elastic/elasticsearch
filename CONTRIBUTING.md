@@ -288,9 +288,6 @@ can do this with:
 
     ./gradlew spotlessApply
 
-    # This is also aliased:
-    ./gradlew reformat
-
 These tasks can also be run for specific subprojects, e.g.
 
     ./gradlew server:spotlessJavaCheck

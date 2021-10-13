@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -332,6 +333,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+                if (node.getVersion().onOrAfter("7.16.0")) {
+                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
+                }
+            }
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
                 commonNodeConfig(node, nodeNames, firstNode);

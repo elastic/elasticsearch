@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -240,9 +240,8 @@ public class ShardPathTests extends ESTestCase {
                 }
                 ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> {
                     List<Path> envPathList = Arrays.asList(envPaths);
-
                     for (Path path : shardPaths) {
-                        assertTrue(envPathList.stream().anyMatch(p -> p.equals(path)));
+                        assertThat(envPathList, hasItem(path));
                     }
                 });
                 for (Path path : envPaths) {

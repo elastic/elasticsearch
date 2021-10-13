@@ -519,7 +519,7 @@ sequence
 [[eql-with-maxspan-keywords]]
 === `with maxspan` statement
 
-You can use `with maxspan`to constrain a sequence to a specified timespan. All
+You can use `with maxspan` to constrain a sequence to a specified timespan. All
 events in a matching sequence must occur within this duration, starting at the
 first event's timestamp.
 

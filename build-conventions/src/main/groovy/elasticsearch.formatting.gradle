@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin
+
 /*
  * This script plugin configures formatting for Java source using Spotless
  * for Gradle. Since the act of formatting existing source can interfere
@@ -262,6 +264,8 @@ def projectPathsToExclude = [
 if (projectPathsToExclude.contains(project.path) == false ||
     providers.systemProperty("es.format.everything").forUseAtConfigurationTime().isPresent()) {
 
+  project.plugins.apply(PrecommitTaskPlugin.class)
+
   project.apply plugin: "com.diffplug.spotless"
 
   String importOrderPath = 'build-conventions/elastic.importorder'
@@ -308,10 +312,5 @@ if (projectPathsToExclude.contains(project.path) == false ||
     }
   }
 
-  def precommitTask = tasks.findByName("precommit");
-  if (precommitTask != null) {
-    precommitTask.configure { dependsOn 'spotlessJavaCheck' }
-  } else {
-    tasks.named("check").configure { dependsOn 'spotlessJavaCheck' }
-  }
+  tasks.named('precommit').configure { dependsOn 'spotlessJavaCheck' }
 }

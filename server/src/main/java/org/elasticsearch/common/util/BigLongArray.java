@@ -8,13 +8,12 @@
 
 package org.elasticsearch.common.util;
 
-import net.jpountz.util.Utils;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
@@ -27,7 +26,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, Utils.NATIVE_BYTE_ORDER);
+    private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
     private byte[][] pages;
 

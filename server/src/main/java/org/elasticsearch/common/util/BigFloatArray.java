@@ -8,13 +8,12 @@
 
 package org.elasticsearch.common.util;
 
-import net.jpountz.util.Utils;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.FLOAT_PAGE_SIZE;
@@ -27,7 +26,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, Utils.NATIVE_BYTE_ORDER);
+    private static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
 
     private byte[][] pages;
 

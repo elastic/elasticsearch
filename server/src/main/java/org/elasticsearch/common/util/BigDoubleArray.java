@@ -8,13 +8,12 @@
 
 package org.elasticsearch.common.util;
 
-import net.jpountz.util.Utils;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
@@ -27,7 +26,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, Utils.NATIVE_BYTE_ORDER);
+    private static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
     private byte[][] pages;
 

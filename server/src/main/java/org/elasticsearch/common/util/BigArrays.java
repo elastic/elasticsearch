@@ -8,22 +8,21 @@
 
 package org.elasticsearch.common.util;
 
-import net.jpountz.util.Utils;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
@@ -153,7 +152,7 @@ public class BigArrays {
 
     private static class ByteArrayAsIntArrayWrapper extends AbstractArrayWrapper implements IntArray {
 
-        private static final VarHandle intPlatformNative = MethodHandles.byteArrayViewVarHandle(int[].class, Utils.NATIVE_BYTE_ORDER);
+        private static final VarHandle intPlatformNative = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
         private final byte[] array;
 
@@ -242,7 +241,7 @@ public class BigArrays {
 
     private static class ByteArrayAsLongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
-        private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, Utils.NATIVE_BYTE_ORDER);
+        private static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
         private final byte[] array;
 
@@ -330,7 +329,7 @@ public class BigArrays {
 
     private static class ByteArrayAsDoubleWrapper extends AbstractArrayWrapper implements DoubleArray {
 
-        private static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, Utils.NATIVE_BYTE_ORDER);
+        private static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
         private final byte[] array;
 
@@ -420,7 +419,7 @@ public class BigArrays {
 
     private static class ByteArrayAsFloatWrapper extends AbstractArrayWrapper implements FloatArray {
 
-        private static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, Utils.NATIVE_BYTE_ORDER);
+        private static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
 
         private final byte[] array;
 

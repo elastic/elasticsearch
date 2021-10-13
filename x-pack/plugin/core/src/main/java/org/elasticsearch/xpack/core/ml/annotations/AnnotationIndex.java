@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -48,9 +49,9 @@ public class AnnotationIndex {
     // Due to historical bugs this index may not have the correct mappings
     // in some production clusters. Therefore new annotations should be
     // written to the latest index. If we ever switch to another new annotations
-    // index then this pattern should be adjusted to include the previous latest
+    // index then this list should be adjusted to include the previous latest
     // index.
-    static final String OLD_INDEX_PATTERN = ".ml-annotations-6";
+    static final List<String> OLD_INDEX_NAMES = List.of(".ml-annotations-6");
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
@@ -93,15 +94,18 @@ public class AnnotationIndex {
             finalListener::onFailure);
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
-            final IndicesAliasesRequest request =
+            final IndicesAliasesRequestBuilder requestBuilder =
                 client.admin().indices().prepareAliases()
-                    .removeAlias(OLD_INDEX_PATTERN, WRITE_ALIAS_NAME)
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add()
                         .index(LATEST_INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                        .index(LATEST_INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true))
-                    .request();
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
+                        .index(LATEST_INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true));
+            for (String oldIndexName : OLD_INDEX_NAMES) {
+                if (state.getMetadata().getIndicesLookup().containsKey(oldIndexName)) {
+                    requestBuilder.removeAlias(oldIndexName, WRITE_ALIAS_NAME);
+                }
+            }
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, requestBuilder.request(),
                 ActionListener.<AcknowledgedResponse>wrap(
                     r -> checkMappingsListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
                 client.admin().indices()::aliases);

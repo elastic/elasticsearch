@@ -153,8 +153,9 @@ public class ShardPathTests extends ESTestCase {
             ShardStateMetadata.FORMAT.writeAndCleanup(
                 new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), envPaths);
 
+            final int nodeLockId = env.getNodeLockId();
             // Doesn't matter which of the paths contains shard data, we should be able to load it
-            ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, "", paths, env.sharedDataPath());
+            ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, "", paths, nodeLockId, env.sharedDataPath());
             assertNotNull(shardPath.getDataPath());
             assertEquals(envPaths[0], shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
@@ -170,7 +171,7 @@ public class ShardPathTests extends ESTestCase {
             Path[] extendedPaths = Arrays.copyOf(paths, paths.length + 1);
             extendedPaths[paths.length] = badPath;
             Exception e = expectThrows(IllegalStateException.class, () ->
-                ShardPath.loadShardPath(logger, shardId, "", extendedPaths, env.sharedDataPath()));
+                ShardPath.loadShardPath(logger, shardId, "", extendedPaths, nodeLockId, env.sharedDataPath()));
             assertThat(e.getMessage(),
                 is("[foo][0] index UUID in shard state was: 0xDEADF00D expected: 0xDEADBEEF on shard path: " + badPath));
         }
@@ -183,7 +184,7 @@ public class ShardPathTests extends ESTestCase {
             paths[i] = createTempDir();
         }
 
-        assertNull(ShardPath.loadShardPath(logger, shardId, "", paths, createTempDir()));
+        assertNull(ShardPath.loadShardPath(logger, shardId, "", paths, 0, createTempDir()));
     }
 
     public void testShardPathSelection() throws IOException {
@@ -214,6 +215,8 @@ public class ShardPathTests extends ESTestCase {
                 ShardStateMetadata.FORMAT.writeAndCleanup(
                     new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), envPaths);
 
+                final int nodeLockId = env.getNodeLockId();
+
                 Path badPath = createTempDir();
                 // Cause a failure by writing metadata with UUID that doesn't match
                 ShardStateMetadata.FORMAT.writeAndCleanup(
@@ -224,7 +227,7 @@ public class ShardPathTests extends ESTestCase {
                 Path[] paths = temp.toArray(new Path[0]);
 
                 Exception e = expectThrows(IllegalStateException.class, () ->
-                    ShardPath.loadShardPath(logger, shardId, "", paths, env.sharedDataPath()));
+                    ShardPath.loadShardPath(logger, shardId, "", paths, nodeLockId, env.sharedDataPath()));
                 assertThat(e.getMessage(),
                     is("[foo][0] index UUID in shard state was: 0xDEADF00D expected: 0xDEADBEEF on shard path: " + badPath));
 
@@ -237,7 +240,6 @@ public class ShardPathTests extends ESTestCase {
                 }
                 ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> {
                     List<Path> envPathList = Arrays.asList(envPaths);
-                    assertEquals(envPaths.length, shardPaths.length);
                     for (Path path : shardPaths) {
                         assertThat(envPathList, contains(path));
                     }

@@ -109,9 +109,9 @@ public final class ShardPath {
      */
     public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
                                           ShardId shardId, String customDataPath) throws IOException {
-        final Path shardPath = env.availableShardPath(shardId);
+        final Path[] paths = env.availableShardPaths(shardId);
         final Path sharedDataPath = env.sharedDataPath();
-        return loadShardPath(logger, shardId, customDataPath, new Path[] { shardPath }, sharedDataPath);
+        return loadShardPath(logger, shardId, customDataPath, paths, sharedDataPath);
     }
 
     /**
@@ -170,16 +170,18 @@ public final class ShardPath {
         final Consumer<Path[]> listener
     ) throws IOException {
         final String indexUUID = indexSettings.getUUID();
-        final Path path = env.availableShardPath(lock.getShardId());
-        // EMPTY is safe here because we never call namedObject
-        ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
-        if (load != null) {
-            if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
-                logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
-                assert Files.isDirectory(path) : path + " is not a directory";
-                NodeEnvironment.acquireFSLockForPaths(indexSettings, path);
-                listener.accept(new Path[]{path});
-                IOUtils.rm(path);
+        final Path[] paths = env.availableShardPaths(lock.getShardId());
+        for (Path path : paths) {
+            // EMPTY is safe here because we never call namedObject
+            ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+            if (load != null) {
+                if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                    logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
+                    assert Files.isDirectory(path) : path + " is not a directory";
+                    NodeEnvironment.acquireFSLockForPaths(indexSettings, path);
+                    listener.accept(new Path[]{path});
+                    IOUtils.rm(path);
+                }
             }
         }
     }

@@ -143,7 +143,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         clusterState = strategy.reroute(clusterState, "reroute");
         int numRelocations = 0;
         while (true) {
-            List<ShardRouting> initializing = clusterState.routingTable().shardsWithState(INITIALIZING);
+            List<ShardRouting> initializing = clusterState.getRoutingNodes().shardsWithState(INITIALIZING);
             if (initializing.isEmpty()) {
                 break;
             }

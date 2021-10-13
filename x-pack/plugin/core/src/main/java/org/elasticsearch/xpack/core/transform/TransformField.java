@@ -44,6 +44,7 @@ public final class TransformField {
     public static final ParseField DELAY = new ParseField("delay");
     // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
+    public static final ParseField DRY_RUN = new ParseField("dry_run");
     public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
     public static final ParseField MAX_AGE = new ParseField("max_age");
 

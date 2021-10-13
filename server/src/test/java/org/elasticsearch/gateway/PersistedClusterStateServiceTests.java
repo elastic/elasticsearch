@@ -276,7 +276,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState);
             }
 
-            final Path brokenPath = nodeEnvironment.nodeDataPath();
+            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
@@ -654,7 +654,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
             }
 
-            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(nodeEnvironment.nodeDataPath().resolve("_state"))) {
+            Path pathToCorrupt = randomFrom(nodeEnvironment.nodeDataPaths());
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(pathToCorrupt.resolve("_state"))) {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport
                     .stream(directoryStream.spliterator(), false)
                     .filter(p -> {

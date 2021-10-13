@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -74,7 +75,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source()));
+            assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
         });
     }
 }

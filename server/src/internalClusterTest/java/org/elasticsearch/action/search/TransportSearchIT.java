@@ -254,7 +254,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testWaitForRefreshConcreteIndexValidation() throws Exception {
+    public void testWaitForRefreshIndexValidation() throws Exception {
         int numberOfShards = randomIntBetween(3, 10);
         assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         client().admin().indices().prepareAliases().addAlias("test1", "testAlias").get();
@@ -270,7 +270,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
             () -> client().prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2])).get());
         assertThat(e2.getMessage(), containsString("Index configured with wait_for_checkpoints must search the same number of shards as " +
-            "checkpoints provided. [2] checkpoints provided. [" + numberOfShards + "] shards to be searched for index [test1]"));
+            "checkpoints provided. [2] checkpoints provided. Index [test1] has [" + numberOfShards + "] shards."));
     }
 
     public void testShardCountLimit() throws Exception {

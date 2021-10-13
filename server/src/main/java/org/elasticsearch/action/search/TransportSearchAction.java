@@ -85,6 +85,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
@@ -664,7 +665,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
         if (searchRequest.getWaitForCheckpoints().isEmpty() == false) {
-            validateWaitForCheckpoint(searchRequest, shardIterators);
+            if (remoteShardIterators.isEmpty() == false) {
+                throw new IllegalArgumentException("Cannot use wait_for_checkpoints parameter with cross-cluster searches.");
+            } else {
+                validateWaitForCheckpoint(clusterState, searchRequest, shardIterators);
+            }
         }
 
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
@@ -841,28 +846,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private static void validateWaitForCheckpoint(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
-        HashMap<String, Integer> searchedIndices = new HashMap<>();
+    private static void validateWaitForCheckpoint(ClusterState clusterState, SearchRequest searchRequest,
+                                                  GroupShardsIterator<SearchShardIterator> shardIterators) {
+        HashSet<String> searchedIndices = new HashSet<>();
         for (SearchShardIterator shardIterator : shardIterators) {
-            searchedIndices.compute(shardIterator.shardId().getIndexName(), (s, shardCount) -> {
-                if (shardCount == null) {
-                    return 1;
-                } else {
-                    return shardCount + 1;
-                }
-            });
+            searchedIndices.add(shardIterator.shardId().getIndexName());
         }
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
             int checkpointsProvided = waitForCheckpointIndex.getValue().length;
             String index = waitForCheckpointIndex.getKey();
-            Integer shardsSearched = searchedIndices.get(index);
-            if (searchedIndices.containsKey(index) == false) {
+            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (searchedIndices.contains(index) == false) {
                 throw new IllegalArgumentException("Index configured with wait_for_checkpoints must be a concrete index resolved in " +
                     "this search. Index [" + index + "] is not a concrete index resolved in this search.");
-            } else if (shardsSearched != checkpointsProvided) {
+            } else if (indexMetadata == null) {
+                throw new IllegalArgumentException("Cannot find index configured for wait_for_checkpoints parameter [" + index + "].");
+            } else if (indexMetadata.getNumberOfShards() != checkpointsProvided) {
                 throw new IllegalArgumentException("Index configured with wait_for_checkpoints must search the same number of shards as " +
-                    "checkpoints provided. [" + checkpointsProvided + "] checkpoints provided. [" + shardsSearched + "] shards " +
-                    "to be searched for index ["  + index + "]");
+                    "checkpoints provided. [" + checkpointsProvided + "] checkpoints provided. Index [" + index + "] has " +
+                    "["  + indexMetadata.getNumberOfShards() + "] shards.");
+
             }
         }
     }

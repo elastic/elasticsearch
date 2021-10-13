@@ -114,7 +114,7 @@ field types are all described as the `keyword` type family.
 `time_series_dimension`::
   Whether this field is used as a time series dimension.
 
-`time_series_metrics`::
+`time_series_metric`::
   Contains metric type if this fields is used as a time series metrics, null if the field is not used as metric.
 
 `indices`::
@@ -134,7 +134,8 @@ field types are all described as the `keyword` type family.
   indices have the same definition for the field.
 
 `metric_conflicts_indices`::
-  The list of indices where this field is present but don't have the same metrics type.
+  The list of indices where this field is present if these indices don't have the same `time_series_metric` value for
+  this field.
 
 `meta`::
   Merged metadata across all indices as a map of string keys to arrays of values.

@@ -466,7 +466,8 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isAggregatable &= agg;
             this.isMetadataField |= isMetadataField;
             this.isDimension &= isDimension;
-            // If we have discrepancy in metric types - we ignore it
+            // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
+            // treat is a non-metric field and report this discrepancy in metricConflictsIndices
             if (this.mertricTypeIsSet) {
                 if (this.metricType != metricType) {
                     this.metricType = null;
@@ -524,7 +525,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] nonDimensionIndices;
             if (isDimension == false && indiceList.stream().anyMatch((caps) -> caps.isDimension)) {
-                // Collect all indices that disagree on the dimension flag
+                // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
                 nonDimensionIndices = indiceList.stream()
                     .filter((caps) -> caps.isDimension == false)
                     .map(caps -> caps.name)
@@ -535,7 +536,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] metricConflictsIndices;
             if (indiceList.stream().anyMatch((caps) -> caps.metricType != metricType)) {
-                // Collect all indices that disagree on the dimension flag
+                // Collect all indices that have this field. If it is marked differently in different indices, we cannot really
+                // make a decisions which index is "right" and which index is "wrong" so collecting all indices where this field
+                // is present is probably the only sensible thing to do here
                 metricConflictsIndices = indiceList.stream()
                     .map(caps -> caps.name)
                     .toArray(String[]::new);

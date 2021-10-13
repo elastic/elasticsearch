@@ -17,6 +17,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE;
@@ -85,7 +86,7 @@ public class IdFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(id), valueFetcher.fetchValues(lookup.source()));
+            assertEquals(List.of(id), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
         });
     }
 

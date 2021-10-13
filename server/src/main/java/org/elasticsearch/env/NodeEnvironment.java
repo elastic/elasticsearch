@@ -694,10 +694,10 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index being deleted
      */
     public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
-        final Path indexPath = indexPath(index);
-        logger.trace("deleting index {} directory: [{}]", index, indexPath);
-        listener.accept(new Path[] { indexPath });
-        IOUtils.rm(indexPath);
+        final Path[] indexPaths = indexPaths(index);
+        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        listener.accept(indexPaths);
+        IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
@@ -941,9 +941,13 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Returns all index paths.
      */
-    public Path indexPath(Index index) {
+    public Path[] indexPaths(Index index) {
         assertEnvIsLocked();
-        return nodePaths[0].resolve(index);
+        Path[] indexPaths = new Path[nodePaths.length];
+        for (int i = 0; i < nodePaths.length; i++) {
+            indexPaths[i] = nodePaths[i].resolve(index);
+        }
+        return indexPaths;
     }
 
 

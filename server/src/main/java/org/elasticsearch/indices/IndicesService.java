@@ -940,7 +940,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
-            MetadataStateFormat.deleteMetaState(nodeEnv.indexPath(index));
+            MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
         }
     }
 
@@ -1029,7 +1029,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (clusterState.metadata().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
-        if (nodeEnv.hasNodeFile() && Files.exists(nodeEnv.indexPath(index))) {
+        if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
             final IndexMetadata metadata;
             try {
                 metadata = metaStateService.loadIndexState(index);

@@ -227,10 +227,11 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                         .build());
                 }
             }
-            Path path = env.indexPath(INDEX);
-            for (int i = 0; i < shardCount; ++i) {
-                Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
-                shardDataDirNumber += randomIntBetween(1,10);
+            for (Path path : env.indexPaths(INDEX)) {
+                for (int i = 0; i < shardCount; ++i) {
+                    Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
+                    shardDataDirNumber += randomIntBetween(1,10);
+                }
             }
         }
     }

@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -33,6 +33,8 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.
 public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
+
+    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -207,7 +209,11 @@ public class TransformConfigUpdate implements Writeable {
         return PARSER.apply(parser, null);
     }
 
-    public boolean isNoop(TransformConfig config) {
+    public boolean isEmpty() {
+        return this.equals(EMPTY);
+    }
+
+    boolean isNoop(TransformConfig config) {
         return isNullOrEqual(source, config.getSource())
             && isNullOrEqual(dest, config.getDestination())
             && isNullOrEqual(frequency, config.getFrequency())

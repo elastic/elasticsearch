@@ -8,6 +8,8 @@
 package org.elasticsearch.common.logging;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -283,6 +285,24 @@ public class HeaderWarningTests extends ESTestCase {
                 .range(lowerInclusive, upperInclusive + 1)
                 .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
                 .toString();
+    }
+
+    public void testAddWarningNonDefaultLogLevel() {
+        final int maxWarningHeaderCount = 2;
+        Settings settings = Settings.builder()
+            .put("http.max_warning_header_count", maxWarningHeaderCount)
+            .build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+        HeaderWarning.addWarning(threadContexts, Level.WARN, "A simple message 1");
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+
+        assertThat(responseHeaders.size(), equalTo(1));
+        final List<String> responses = responseHeaders.get("Warning");
+        assertThat(responses, hasSize(1));
+        assertThat(responses.get(0), warningValueMatcher);
+        assertThat(responses.get(0), containsString("\"A simple message 1\""));
+        assertThat(responses.get(0), containsString(Integer.toString(Level.WARN.intLevel())));
     }
 
 }

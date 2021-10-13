@@ -12,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -1257,5 +1257,26 @@ public class SettingTests extends ESTestCase {
         final Setting<String> setting = Setting.simpleString("foo.bar", property);
         assertTrue(setting.isDynamic());
         assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
+    }
+
+    public void testCheckForDeprecation() {
+        final String criticalSettingName = "foo.bar";
+        final String warningSettingName = "foo.foo";
+        final String settingValue = "blat";
+        final Setting<String> undeprecatedSetting1 = Setting.simpleString(criticalSettingName, settingValue);
+        final Setting<String> undeprecatedSetting2 = Setting.simpleString(warningSettingName, settingValue);
+        final Settings settings = Settings.builder()
+            .put(criticalSettingName, settingValue)
+            .put(warningSettingName, settingValue).build();
+        undeprecatedSetting1.checkDeprecation(settings);
+        undeprecatedSetting2.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(criticalSettingName, settingValue, Property.Deprecated);
+        criticalDeprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarningsIncludingLevel(new Setting<?>[]{ criticalDeprecatedSetting });
+        final Setting<String> deprecatedSettingWarningOnly =
+            Setting.simpleString(warningSettingName, settingValue, Property.DeprecatedWarning);
+        deprecatedSettingWarningOnly.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarningsIncludingLevel(new Setting<?>[]{ deprecatedSettingWarningOnly });
     }
 }

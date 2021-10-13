@@ -35,11 +35,13 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
@@ -458,11 +460,31 @@ public abstract class ESTestCase extends LuceneTestCase {
                         .toArray(String[]::new));
     }
 
-    protected final void assertWarnings(String... expectedWarnings) {
-        assertWarnings(true, expectedWarnings);
+    protected final void assertSettingDeprecationsAndWarningsIncludingLevel(final Setting<?>[] settings, final String... warnings) {
+        assertWarnings(
+            true,
+            true,
+            Stream.concat(
+                Arrays
+                    .stream(settings)
+                    .map(setting -> String.format(
+                        Locale.ROOT, "%s Elasticsearch-%s%s-%s \"[%s] setting was deprecated in Elasticsearch and will be " +
+                            "removed in a future release! See the breaking changes documentation for the next major version.\"",
+                        setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL.intLevel() :
+                            Level.WARN.intLevel(),
+                        Version.CURRENT.toString(),
+                        Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
+                        Build.CURRENT.hash(),
+                        setting.getKey())),
+                Arrays.stream(warnings))
+                .toArray(String[]::new));
     }
 
-    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
+    protected final void assertWarnings(String... expectedWarnings) {
+        assertWarnings(true, false, expectedWarnings);
+    }
+
+    protected final void assertWarnings(boolean stripXContentPosition, boolean includeLevelCheck, String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
@@ -473,7 +495,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             } else {
                 assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
                 final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                    actualWarnings.stream()
+                        .map(s -> includeLevelCheck ? HeaderWarning.escapeAndEncode(s) :
+                            HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
                         .collect(Collectors.toSet());
                 for (String msg : expectedWarnings) {
                     assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));

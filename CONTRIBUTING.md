@@ -193,7 +193,7 @@ need them.
    2. Click "Use the Eclipse Code Formatter"
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
-   4. Click "Browse", and navigate to the file `build-tools-internal/formatterConfig.xml`
+   4. Click "Browse", and navigate to the file `build-conventions/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
 
@@ -234,7 +234,7 @@ Next you'll want to import our auto-formatter:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Formatter**
  - Click **Import**
- - Import the file at **build-tools-internal/formatterConfig.xml**
+ - Import the file at **build-conventions/formatterConfig.xml**
  - Make sure it is the **Active profile**
 
 Finally, set up import order:
@@ -242,7 +242,7 @@ Finally, set up import order:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
- - Import the file at **build-tools-internal/elastic.importorder**
+ - Import the file at **build-conventions/elastic.importorder**
  - Set the **Number of imports needed for `.*`** to ***9999***
  - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that

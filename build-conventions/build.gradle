@@ -9,7 +9,6 @@
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
-    id 'groovy-gradle-plugin'
     id 'java-gradle-plugin'
     id 'java-test-fixtures'
     id 'eclipse'
@@ -49,6 +48,10 @@ gradlePlugin {
         versions {
             id = 'elasticsearch.versions'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin'
+        }
+        formatting {
+            id = 'elasticsearch.formatting'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.FormattingPrecommitPlugin'
         }
     }
 }

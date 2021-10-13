@@ -96,25 +96,31 @@ public class Realms implements Iterable<Realm> {
             Strings.collectionToCommaDelimitedString(licensedRealms)
         );
 
-        stopTrackingInactiveRealms(licenseStateSnapshot, licensedRealms);
+        // Stop license-tracking for any previously-active realms that are no longer allowed
+        if (activeRealms != null) {
+            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
+            });
+        }
 
         activeRealms = licensedRealms;
     }
 
     // Can be overridden in testing
-    protected void stopTrackingInactiveRealms(XPackLicenseState licenseStateSnapshot, List<Realm> licensedRealms) {
-        // Stop license-tracking for any previously-active realms that are no longer allowed
-        if (activeRealms != null) {
-            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
-                final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
-                assert feature != null : "Realm ["
-                    + realm
-                    + "] with no licensed feature became inactive due to change to license mode ["
-                    + licenseStateSnapshot.getOperationMode()
-                    + "]";
-                feature.stopTracking(licenseStateSnapshot, realm.name());
-            });
-        }
+    protected void handleDisabledRealmDueToLicenseChange(Realm realm, XPackLicenseState licenseStateSnapshot) {
+        final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
+        assert feature != null : "Realm ["
+            + realm
+            + "] with no licensed feature became inactive due to change to license mode ["
+            + licenseStateSnapshot.getOperationMode()
+            + "]";
+        feature.stopTracking(licenseStateSnapshot, realm.name());
+        logger.warn(
+            "The [{}.{}] realm has been automatically disabled due to a change in license [{}]",
+            realm.type(),
+            realm.name(),
+            licenseStateSnapshot.statusDescription()
+        );
     }
 
     @Override

@@ -1,0 +1,57 @@
+[role="xpack"]
+[testenv="basic"]
+[[upgrade-transforms]]
+= Upgrade {transform} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Upgrade {transform}</titleabbrev>
+++++
+
+Upgrades all {transform}s.
+
+[[upgrade-transforms-request]]
+== {api-request-title}
+
+`POST _transform/_upgrade`
+
+[[upgrade-transforms-prereqs]]
+== {api-prereq-title}
+
+Requires the following privileges:
+
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `index`.
+
+
+[[upgrade-transforms-desc]]
+== {api-description-title}
+
+This API upgrades all existing {transform}s.
+
+[[upgrade-transforms-query-parms]]
+== {api-query-parms-title}
+
+`dry_run`::
+  (Optional, Boolean) When `true`, only checks for updates but does not execute them.
+
+[[upgrade-transforms-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _transform/_upgrade
+--------------------------------------------------
+// TEST[setup:simple_kibana_continuous_pivot]
+
+When all {transform}s are upgraded, you receive a summary:
+
+[source,console-result]
+----
+{
+  "no_action": 1
+}
+----
+// TESTRESPONSE[s/"no_action" : 1/"no_action" : $body.no_action/]

@@ -1,8 +1,5 @@
 ---
 "Access to values of dense_vector in script":
-  - skip:
-      version: " - 7.12.99"
-      reason: "Access to values of dense_vector in script was added in 7.13"
   - do:
       indices.create:
         index: test-index

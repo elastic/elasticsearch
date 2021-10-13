@@ -93,6 +93,7 @@ public class Constants {
         "cluster:admin/transform/start",
         "cluster:admin/transform/stop",
         "cluster:admin/transform/update",
+        "cluster:admin/transform/upgrade",
         "cluster:admin/transform/validate",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",

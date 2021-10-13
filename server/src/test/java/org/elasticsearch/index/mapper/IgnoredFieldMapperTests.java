@@ -13,80 +13,56 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.IdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IdFieldMapperTests extends MapperServiceTestCase {
+public class IgnoredFieldMapperTests extends MapperServiceTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
         Exception e = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(source(b -> b.field("_id", 1))));
+            () -> docMapper.parse(source(b -> b.field("_ignored", 1))));
 
         assertThat(e.getCause().getMessage(),
-            containsString("Field [_id] is a metadata field and cannot be added inside a document"));
+            containsString("Field [_ignored] is a metadata field and cannot be added inside a document"));
     }
 
     public void testDefaults() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument document = mapper.parse(source(b -> {}));
-        IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("field").field("type", "keyword").field("ignore_above", 3).endObject())
+        );
+        ParsedDocument document = mapper.parse(source(b -> b.field("field", "value")));
+        IndexableField[] fields = document.rootDoc().getFields(IgnoredFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
         assertTrue(fields[0].fieldType().stored());
-        assertEquals(Uid.encodeId("1"), fields[0].binaryValue());
     }
 
-    public void testEnableFieldData() throws IOException {
-
-        boolean[] enabled = new boolean[1];
-
-        MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
-        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
-
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test", () -> {
-                throw new UnsupportedOperationException();
-            }).build(null, null));
-        assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
-        assertFalse(ft.isAggregatable());
-
-        enabled[0] = true;
-        ft.fielddataBuilder("test", () -> {
-            throw new UnsupportedOperationException();
-        }).build(null, null);
-        assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
-        assertTrue(ft.isAggregatable());
-    }
-
-    public void testFetchIdFieldValue() throws IOException {
+    public void testFetchIgnoredFieldValue() throws IOException {
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword"))
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 3))
         );
-        String id = randomAlphaOfLength(12);
         withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc());
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc());
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
             when(searchExecutionContext.lookup()).thenReturn(lookup);
-            IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) mapperService.fieldType("_id");
+            IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(id), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+            assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
         });
     }
 

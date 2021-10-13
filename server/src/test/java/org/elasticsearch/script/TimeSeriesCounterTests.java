@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
-public class TimeSeriesCounterTest extends ESTestCase {
+public class TimeSeriesCounterTests extends ESTestCase {
     protected final int RES = 15;
     protected final long NOW = randomLongBetween(1632935764L, 16329357645L + randomLongBetween(1L, RES * 1_000_000));
     protected final TimeProvider time = new TimeProvider();

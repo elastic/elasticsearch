@@ -197,10 +197,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                List<String> indices = dataStream.getIndices()
-                    .stream()
-                    .map(Index::getName)
-                    .collect(Collectors.toList());
+                List<String> indices = dataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList());
                 stats.backingIndices.addAll(indices);
                 allBackingIndices.addAll(indices);
             }

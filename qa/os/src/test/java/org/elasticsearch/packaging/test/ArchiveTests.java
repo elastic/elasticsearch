@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -185,20 +186,40 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
-        assumeTrue("Muted temporarily for debug", distribution.platform != Distribution.Platform.WINDOWS);
         Platforms.onWindows(() -> {
-            // a completely different incantantion is required for Windows
-            // sh.run("attrib +r " + installation.config + " /s /d");
             // auto-config requires that the archive owner and the process user be the same
             sh.chown(installation.config, installation.getOwner());
+            // prevent modifications to the config directory
+            sh.run(
+                String.format(
+                    Locale.ROOT,
+                    "$ACL = Get-ACL -Path '%s'; "
+                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Modify','Deny'); "
+                        + "$ACL.SetAccessRule($AccessRule); "
+                        + "$ACL | Set-Acl -Path '%s';",
+                    installation.config,
+                    installation.getOwner(),
+                    installation.config
+                )
+            );
         });
         Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
         startElasticsearch();
         verifySecurityNotAutoConfigured(installation);
         stopElasticsearch();
         Platforms.onWindows(() -> {
-            // a completely different incantantion is required for Windows
-            // sh.run("attrib -r " + installation.config + " /s /d");
+            sh.run(
+                String.format(
+                    Locale.ROOT,
+                    "$ACL = Get-ACL -Path '%s'; "
+                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Modify','Deny'); "
+                        + "$ACL.RemoveAccessRule($AccessRule); "
+                        + "$ACL | Set-Acl -Path '%s';",
+                    installation.config,
+                    installation.getOwner(),
+                    installation.config
+                )
+            );
             sh.chown(installation.config);
         });
         Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });

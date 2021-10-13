@@ -58,6 +58,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -193,7 +194,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionWithSomeNodesHasNoEnoughDiskBytes() throws IOException {
+    public void testPerformActionWithSomeNodesHaveEnoughDiskBytes() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         Settings.Builder indexSettings = settings(Version.CURRENT);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
@@ -217,7 +218,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetadata, index, validNodeIds, nodes);
     }
 
-    public void testPerformActionWithAllNodesHasNoEnoughDiskBytes() throws IOException {
+    public void testPerformActionWithNoNodeHasEnoughDiskBytes() {
         final int numNodes = randomIntBetween(1, 20);
         Settings.Builder indexSettings = settings(Version.CURRENT);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
@@ -248,14 +249,14 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         mockNodeStatsCall(nodeStats);
 
         expectThrows(NoNodeAvailableException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).cluster();
         Mockito.verify(clusterClient, Mockito.only()).nodesStats(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionNodeContainsMaximumShardsStorageBytesSelected() throws IOException {
+    public void testPerformActionNodeContainsMaximumShardsStorageBytesSelected() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         Settings.Builder indexSettings = settings(Version.CURRENT);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
@@ -306,7 +307,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, times(2)).admin();
         Mockito.verify(adminClient, times(1)).cluster();
@@ -315,7 +316,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionGetNodeStatsFail() throws IOException {
+    public void testPerformActionGetNodeStatsFail() {
         final int numNodes = randomIntBetween(1, 20);
         Settings.Builder indexSettings = settings(Version.CURRENT);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(indexSettings)
@@ -340,22 +341,22 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             .metadata(Metadata.builder().indices(indices.build()))
             .nodes(discoveryNodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
-        Exception exception = new RuntimeException();
-
         Mockito.doAnswer(invocation -> {
             NodesStatsRequest request = (NodesStatsRequest) invocation.getArguments()[0];
             assertThat(request.requestedMetrics().size(), equalTo(1));
             assertThat(request.indices().isSet(CommonStatsFlags.Flag.Store), equalTo(true));
             @SuppressWarnings("unchecked")
             ActionListener<NodesStatsResponse> listener = (ActionListener<NodesStatsResponse>) invocation.getArguments()[1];
-            listener.onFailure(exception);
+            listener.onFailure(new NoNodeAvailableException("failed to retrieve disk information" +
+                " to select a single node for shard copy allocation"));
             return null;
         }).when(clusterClient).nodesStats(Mockito.any(), Mockito.any());
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
-            f -> step.performAction(indexMetadata, clusterState, null, f))));
+        Exception exception = expectThrows(NoNodeAvailableException.class, () -> PlainActionFuture.<Void, Exception>get(
+            f -> step.performAction(indexMetadata, clusterState, null, f)));
+        assertEquals(exception.getMessage(), "failed to retrieve disk information to select a single node for shard copy allocation");
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).cluster();
@@ -390,15 +391,8 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        List<NodeStats> nodeStats = mockNodeStats(index, discoveryNodes, indexRoutingTable, Set.of(nodeId));
-        mockNodeStatsCall(nodeStats);
-
         expectThrows(NoNodeAvailableException.class,
             () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).cluster();
-        Mockito.verify(clusterClient, Mockito.only()).nodesStats(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionAttrsNoNodesValid() {
@@ -706,6 +700,25 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         assertNodeSelected(indexMetadata, indexMetadata.getIndex(), oldNodeIds, discoveryNodes, indexRoutingTable.build());
     }
 
+    public void testSelectSingleNode() {
+        final Map<String, Long> nodeShardsStorageBytes = new HashMap<>();
+        nodeShardsStorageBytes.put("node1", 1L);
+        nodeShardsStorageBytes.put("node2", 2L);
+        Set<String> validNodeIds = new HashSet<>();
+        validNodeIds.add("node3");
+
+        SetSingleNodeAllocateStep step = createRandomInstance();
+        Optional<String> nodeSelected = step.selectSingleNode(validNodeIds, nodeShardsStorageBytes);
+        assertTrue(nodeSelected.isPresent());
+        assertEquals("node3", nodeSelected.get());
+
+        validNodeIds.add("node1");
+        validNodeIds.add("node2");
+        nodeSelected = step.selectSingleNode(validNodeIds, nodeShardsStorageBytes);
+        assertTrue(nodeSelected.isPresent());
+        assertEquals("node2", nodeSelected.get());
+    }
+
     private void assertNodeSelected(IndexMetadata indexMetadata, Index index,
                                     Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws Exception {
         DiscoveryNodes discoveryNodes = nodes.build();
@@ -842,9 +855,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         expectThrows(NoNodeAvailableException.class,
             () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).cluster();
-        Mockito.verify(clusterClient, Mockito.only()).nodesStats(Mockito.any(), Mockito.any());
+        Mockito.verify(client, Mockito.atMost(1)).admin();
+        Mockito.verify(adminClient, Mockito.atMost(1)).cluster();
+        Mockito.verify(clusterClient, Mockito.atMost(1)).nodesStats(Mockito.any(), Mockito.any());
     }
 
     private IndexRoutingTable.Builder createRoutingTable(IndexMetadata indexMetadata, Index index, DiscoveryNodes discoveryNodes) {

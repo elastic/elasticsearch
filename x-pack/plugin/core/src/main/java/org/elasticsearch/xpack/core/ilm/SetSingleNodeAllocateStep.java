@@ -96,24 +96,38 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
 
 
         if (routingsByShardId.isEmpty() == false) {
-            List<String> allNodeIds = new ArrayList<>();
+            List<String> dataNodeIds = new ArrayList<>();
             for (RoutingNode node : routingNodes) {
-                allNodeIds.add(node.node().getId());
+                boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream()
+                    .allMatch(shardRoutings -> shardRoutings.stream()
+                        .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())
+                        .anyMatch(Decision.Type.YES::equals));
+                if (canAllocateOneCopyOfEachShard) {
+                    dataNodeIds.add(node.node().getId());
+                }
             }
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(allNodeIds.toArray(new String[0])).clear().
-                addMetric(NodesStatsRequest.Metric.FS.metricName()).indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+
+            if (dataNodeIds.size() == 0) {
+                logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
+                listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" +
+                    indexName + "] onto prior to shrink"));
+                return;
+            }
+
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(dataNodeIds.toArray(new String[0])).clear()
+                .addMetric(NodesStatsRequest.Metric.FS.metricName()).indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
             getClient().admin().cluster().nodesStats(nodesStatsRequest, ActionListener.wrap((nodesStatsResponse) -> {
-                List<RoutingNode> validRoutingNodes = new ArrayList<>();
                 final Map<String, Long> nodeShardsStorageBytes = new HashMap<>();
 
                 Map<String, NodeStats> nodeStatsMap = nodesStatsResponse.getNodesMap();
-                for (String nodeId : allNodeIds) {
+                for (String nodeId : dataNodeIds) {
                     if (nodeStatsMap.get(nodeId) != null) {
                         List<IndexShardStats> indexShardStatsList = nodeStatsMap.get(nodeId).getIndices().
                             getShardStats(indexMetadata.getIndex());
                         long shardsOnCurrentNodeStorageBytes = indexShardStatsList.stream().mapToLong(indexShardStats ->
                             Arrays.stream(indexShardStats.getShards()).mapToLong(shardStats ->
-                                shardStats.getStats().getStore().getSizeInBytes()).sum()).sum();
+                                shardStats.getStats().getStore() == null ? 0 :
+                                    shardStats.getStats().getStore().getSizeInBytes()).sum()).sum();
                         if (shardsOnCurrentNodeStorageBytes != 0) {
                             nodeShardsStorageBytes.put(nodeId, shardsOnCurrentNodeStorageBytes);
                         }
@@ -123,9 +137,9 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 if (indexMetadata.getNumberOfReplicas() != 0) {
                     indexPrimaryShardsStorageBytes /= indexMetadata.getNumberOfReplicas();
                 }
-                for (RoutingNode node : routingNodes) {
-                    if (nodeStatsMap.get(node.nodeId()) != null) {
-                        FsInfo.Path totalFsInfo = nodeStatsMap.get(node.nodeId()).getFs().getTotal();
+                for (String nodeId : dataNodeIds) {
+                    if (nodeStatsMap.get(nodeId) != null) {
+                        FsInfo.Path totalFsInfo = nodeStatsMap.get(nodeId).getFs().getTotal();
                         long nodeTotalBytes = totalFsInfo.getTotal().getBytes();
                         long nodeAvailableBytes = totalFsInfo.getAvailable().getBytes();
                         long freeBytesThresholdLow;
@@ -135,53 +149,27 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                         } else {
                             freeBytesThresholdLow = diskThresholdSettings.getFreeBytesThresholdLow().getBytes();
                         }
-                        // we should make sure that allocating two copies of the index's primary shards to that node doesn't put the node
+                        // we should make sure that allocating one copy of the index's primary shards to that node doesn't put the node
                         // above the low watermark, if not, the new shrunken index may not be initialized successfully
                         long shardsOnCurrentNodeStorageBytes = 0;
-                        if (nodeShardsStorageBytes.containsKey(node.nodeId())) {
-                            shardsOnCurrentNodeStorageBytes = nodeShardsStorageBytes.get(node.nodeId());
+                        if (nodeShardsStorageBytes.containsKey(nodeId)) {
+                            shardsOnCurrentNodeStorageBytes = nodeShardsStorageBytes.get(nodeId);
                         }
-                        if (nodeAvailableBytes > freeBytesThresholdLow + 2 * indexPrimaryShardsStorageBytes -
+                        if (nodeAvailableBytes > freeBytesThresholdLow + indexPrimaryShardsStorageBytes -
                             shardsOnCurrentNodeStorageBytes) {
-                            validRoutingNodes.add(node);
+                            validNodeIds.add(nodeId);
                         }
                     }
                 }
 
-                for (RoutingNode node : validRoutingNodes) {
-                    boolean canAllocateOneCopyOfEachShard = routingsByShardId.values().stream()
-                        .allMatch(shardRoutings -> shardRoutings.stream()
-                            .map(shardRouting -> allocationDeciders.canAllocate(shardRouting, node, allocation).type())
-                            .anyMatch(Decision.Type.YES::equals));
-                    if (canAllocateOneCopyOfEachShard) {
-                        validNodeIds.add(node.node().getId());
-                    }
-                }
                 if (validNodeIds.size() == 0) {
-                    logger.debug("could not find any nodes to allocate index [{}] onto prior to shrink", indexName);
-                    listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" +
+                    logger.debug("no nodes have enough disk space to hold one copy of the index [{}] onto prior to shrink ", indexName);
+                    listener.onFailure(new NoNodeAvailableException("no nodes have enough disk space to hold one copy of the index [" +
                         indexName + "] onto prior to shrink"));
                     return;
                 }
 
-                List<Map.Entry<String, Long>> nodeShardsStorageList = new ArrayList<>(nodeShardsStorageBytes.entrySet());
-                nodeShardsStorageList.sort((o1, o2) -> o2.getValue().compareTo(o1.getValue()));
-                Optional<String> nodeId = Optional.empty();
-                for (Map.Entry<String, Long> entry : nodeShardsStorageList) {
-                    // we prefer to select the node which contains the maximum shards storage bytes of the index from the valid node list
-                    if (validNodeIds.contains(entry.getKey())) {
-                        nodeId = Optional.of(entry.getKey());
-                        break;
-                    }
-                }
-
-                // if we cannot find a node which contains any shard of the index,
-                // shuffle the valid node list and select randomly
-                if (nodeId.isEmpty()) {
-                    List<String> list = new ArrayList<>(validNodeIds);
-                    Randomness.shuffle(list);
-                    nodeId = list.stream().findAny();
-                }
+                Optional<String> nodeId = selectSingleNode(validNodeIds, nodeShardsStorageBytes);
 
                 if (nodeId.isPresent()) {
                     Settings settings = Settings.builder()
@@ -199,11 +187,35 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     listener.onFailure(new NoNodeAvailableException("could not find any nodes to allocate index [" + indexName +
                         "] onto prior to shrink"));
                 }
-            }, listener::onFailure));
+            }, (Exception e) -> listener.onFailure(new NoNodeAvailableException("failed to retrieve disk information" +
+                " to select a single node for shard copy allocation"))));
+
         } else {
             // There are no shards for the index, the index might be gone. Even though this is a retryable step ILM will not retry in
             // this case as we're using the periodic loop to trigger the retries and that is run over *existing* indices.
             listener.onFailure(new IndexNotFoundException(indexMetadata.getIndex()));
         }
+    }
+
+    Optional<String> selectSingleNode(Set<String> validNodeIds, Map<String, Long> nodeShardsStorageBytes) {
+        List<Map.Entry<String, Long>> nodeShardsStorageList = new ArrayList<>(nodeShardsStorageBytes.entrySet());
+        nodeShardsStorageList.sort((o1, o2) -> o2.getValue().compareTo(o1.getValue()));
+        Optional<String> nodeId = Optional.empty();
+        for (Map.Entry<String, Long> entry : nodeShardsStorageList) {
+            // we prefer to select the node which contains the maximum shards storage bytes of the index from the valid node list
+            if (validNodeIds.contains(entry.getKey())) {
+                nodeId = Optional.of(entry.getKey());
+                break;
+            }
+        }
+
+        // if we cannot find a node which contains any shard of the index,
+        // shuffle the valid node list and select randomly
+        if (nodeId.isEmpty()) {
+            List<String> list = new ArrayList<>(validNodeIds);
+            Randomness.shuffle(list);
+            nodeId = list.stream().findAny();
+        }
+        return nodeId;
     }
 }

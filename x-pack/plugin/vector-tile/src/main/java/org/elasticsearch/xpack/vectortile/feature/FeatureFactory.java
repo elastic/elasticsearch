@@ -62,7 +62,8 @@ public class FeatureFactory {
         final Rectangle r = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
         final Envelope tileEnvelope = new Envelope(r.getMinX(), r.getMaxX(), r.getMinY(), r.getMaxY());
         final Envelope clipEnvelope = new Envelope(tileEnvelope);
-        clipEnvelope.expandBy(this.pixelPrecision, this.pixelPrecision);
+        // expand enough the clip envelope to prevent visual artefacts
+        clipEnvelope.expandBy(10 * this.pixelPrecision, 10 * this.pixelPrecision);
         final GeometryFactory geomFactory = new GeometryFactory();
         this.builder = new JTSGeometryBuilder(geomFactory);
         this.clipTile = geomFactory.toGeometry(clipEnvelope);

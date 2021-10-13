@@ -38,7 +38,7 @@ setup:
       fleet.search:
         index: "test-after-refresh"
         allow_partial_search_results: false
-        wait_for_checkpoints: [1]
+        wait_for_checkpoints: 1
         body: { query: { match_all: {} } }
 
   - match: { _shards.successful: 1 }
@@ -51,7 +51,7 @@ setup:
       fleet.search:
         index: "test-alias"
         allow_partial_search_results: false
-        wait_for_checkpoints: [1]
+        wait_for_checkpoints: 1
         body: { query: { match_all: {} } }
 
 ---
@@ -70,7 +70,7 @@ setup:
       catch: bad_request
       fleet.search:
         index: "test-refresh-disabled"
-        wait_for_checkpoints: [0]
+        wait_for_checkpoints: 0
         body: { query: { match_all: { } } }
 
 ---
@@ -80,7 +80,7 @@ setup:
       fleet.search:
         index: "test-after-refresh"
         allow_partial_search_results: false
-        wait_for_checkpoints: [2]
+        wait_for_checkpoints: 2
         body: { query: { match_all: {} } }
 
 ---
@@ -89,9 +89,9 @@ setup:
       fleet.msearch:
         index: "test-after-refresh"
         body:
-          - { "allow_partial_search_results": false, wait_for_checkpoints: [ 1 ] }
+          - { "allow_partial_search_results": false, wait_for_checkpoints: 1 }
           - { query: { match_all: { } } }
-          - { "allow_partial_search_results": false, wait_for_checkpoints: [ 2 ] }
+          - { "allow_partial_search_results": false, wait_for_checkpoints: 2 }
           - { query: { match_all: { } } }
 
   - match: { responses.0._shards.successful: 1 }
@@ -100,9 +100,9 @@ setup:
   - do:
       fleet.msearch:
         body:
-          - {"index": "test-after-refresh", "allow_partial_search_results" : false, wait_for_checkpoints: [1]}
+          - {"index": "test-after-refresh", "allow_partial_search_results" : false, wait_for_checkpoints: 1}
           - {query: { match_all: {} } }
-          - {"index": "test-refresh-disabled", "allow_partial_search_results":  false, wait_for_checkpoints: [2]}
+          - {"index": "test-refresh-disabled", "allow_partial_search_results":  false, wait_for_checkpoints: 2}
           - {query: { match_all: {} } }
 
   - match: { responses.0._shards.successful: 1 }

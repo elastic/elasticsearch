@@ -628,7 +628,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private StoreFileMetadata randomStoreFileMetadata() {
-        return new StoreFileMetadata(randomAlphaOfLength(10), randomLongBetween(1, 100),
+        return new StoreFileMetadata("_" + randomAlphaOfLength(10), randomLongBetween(1, 100),
             randomAlphaOfLength(10), Version.CURRENT.toString());
     }
 

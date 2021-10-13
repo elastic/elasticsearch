@@ -150,7 +150,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
-                            hasEntry("component", "o.e.d.c.x.ParseField"),
+                            hasEntry("component", "o.e.d.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
@@ -161,7 +161,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
-                            hasEntry("component", "o.e.d.c.x.ParseField"),
+                            hasEntry("component", "o.e.d.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "Deprecated field [deprecated_name2] used, expected [new_name] instead"),

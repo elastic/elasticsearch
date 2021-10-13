@@ -14,6 +14,8 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -58,6 +60,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79038")
 public class DeprecationHttpIT extends ESRestTestCase {
 
     /**

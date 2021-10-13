@@ -563,10 +563,12 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
 
             DeprecationCategory category = this.isSecure(settings) ? DeprecationCategory.SECURITY : DeprecationCategory.SETTINGS;
-
-            Settings.DeprecationLoggerHolder.deprecationLogger
-                .critical(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.", key);
+            List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
+            if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
+                Settings.DeprecationLoggerHolder.deprecationLogger
+                    .critical(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version.", key);
+            }
         }
     }
 

@@ -9,6 +9,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetBasicStatusResponse;
@@ -29,6 +31,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -37,9 +40,11 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 
 public class LicenseIT extends ESRestHighLevelClientTestCase {
 
@@ -91,16 +96,49 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testPutInvalidTrialLicense() throws Exception {
+        assumeTrue("Trial license is only valid when tested against snapshot/test builds",
+            Build.CURRENT.isSnapshot());
+
+        // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
+        final String signature = "xx"; // Truncated, so it is expected to fail validation
+        final String licenseDefinition = Strings.toString(jsonBuilder()
+            .startObject()
+            .field("licenses", List.of(
+                Map.of(
+                    "uid", "96fc37c6-6fc9-43e2-a40d-73143850cd72",
+                    "type", "trial",
+                    // 2018-10-16 07:02:48 UTC
+                    "issue_date_in_millis", "1539673368158",
+                    // 2038-10-11 07:02:48 UTC, 20 yrs later
+                    "expiry_date_in_millis", "2170393368158",
+                    "max_nodes", "5",
+                    "issued_to", "client_rest-high-level_integTestCluster",
+                    "issuer", "elasticsearch",
+                    "start_date_in_millis", "-1",
+                    "signature", signature)))
+            .endObject());
+
+        final PutLicenseRequest request = new PutLicenseRequest();
+        request.setAcknowledge(true);
+        request.setLicenseDefinition(licenseDefinition);
+        Exception e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> highLevelClient().license().putLicense(request, RequestOptions.DEFAULT)
+        );
+        assertThat(e.getMessage(), stringContainsInOrder("malformed signature for license"));
+    }
+
     public static void putTrialLicense() throws IOException {
         assumeTrue("Trial license is only valid when tested against snapshot/test builds",
             Build.CURRENT.isSnapshot());
 
         // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
         final String signature =
-                "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
-                        + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
-                        + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
-                        + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=";
+            "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
+                + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
+                + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
+                + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=";
         final String licenseDefinition = Strings.toString(jsonBuilder()
             .startObject()
             .field("licenses", List.of(

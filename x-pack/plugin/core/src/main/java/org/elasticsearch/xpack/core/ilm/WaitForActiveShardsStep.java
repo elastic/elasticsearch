@@ -77,10 +77,10 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
-            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex());
-            if (rolledIndexMeta == null) {
+            if (dataStreamAbstraction.getWriteIndex() == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
+            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex() );
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -93,10 +93,11 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
             assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
-            IndexMetadata aliasWriteIndex = metadata.index(aliasAbstraction.getWriteIndex());
+            Index aliasWriteIndex = aliasAbstraction.getWriteIndex();
             if (aliasWriteIndex != null) {
-                rolledIndexName = aliasWriteIndex.getIndex().getName();
-                waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
+                IndexMetadata writeIndexImd = metadata.index(aliasWriteIndex);
+                rolledIndexName = writeIndexImd.getIndex().getName();
+                waitForActiveShardsSettingValue = writeIndexImd.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
             } else {
                 List<Index> indices = aliasAbstraction.getIndices();
                 int maxIndexCounter = -1;

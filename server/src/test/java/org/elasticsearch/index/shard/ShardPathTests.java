@@ -240,8 +240,9 @@ public class ShardPathTests extends ESTestCase {
                 }
                 ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> {
                     List<Path> envPathList = Arrays.asList(envPaths);
+
                     for (Path path : shardPaths) {
-                        assertThat(envPathList, contains(path));
+                        assertTrue(envPathList.stream().anyMatch(p -> p.equals(path)));
                     }
                 });
                 for (Path path : envPaths) {

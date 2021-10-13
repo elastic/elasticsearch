@@ -35,9 +35,9 @@ public class PageCacheRecycler {
     public static final Setting<Double> WEIGHT_BYTES_SETTING  =
         Setting.doubleSetting("cache.recycler.page.weight.bytes", 1d, 0d, Property.NodeScope);
     public static final Setting<Double> WEIGHT_LONG_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, Property.NodeScope);
+        Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, Property.NodeScope, Property.Deprecated);
     public static final Setting<Double> WEIGHT_INT_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, Property.NodeScope);
+        Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, Property.NodeScope, Property.Deprecated);
     // object pages are less useful to us so we give them a lower weight by default
     public static final Setting<Double> WEIGHT_OBJECTS_SETTING  =
         Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, Property.NodeScope);
@@ -67,20 +67,7 @@ public class PageCacheRecycler {
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
-        // Trying to store all of them in a single stack would be problematic because eg.
-        // a work load could fill the recycler with only byte[] pages and then another
-        // workload that would work with double[] pages couldn't recycle them because there
-        // is no space left in the stack/queue. LRU/LFU policies are not an option either
-        // because they would make obtain/release too costly: we really need constant-time
-        // operations.
-        // Ultimately a better solution would be to only store one kind of data and have the
-        // ability to interpret it either as a source of bytes, doubles, longs, etc. eg. thanks
-        // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
-        // that would need to be addressed such as garbage collection of native memory or safety
-        // of Unsafe writes.
         final double bytesWeight = WEIGHT_BYTES_SETTING .get(settings);
-        final double intsWeight = WEIGHT_INT_SETTING .get(settings);
-        final double longsWeight = WEIGHT_LONG_SETTING .get(settings);
         final double objectsWeight = WEIGHT_OBJECTS_SETTING .get(settings);
 
         final double totalWeight = bytesWeight + objectsWeight;

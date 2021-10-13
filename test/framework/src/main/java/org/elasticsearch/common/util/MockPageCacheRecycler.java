@@ -42,14 +42,6 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                     Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);
                 } else if (ref instanceof byte[]) {
                     Arrays.fill((byte[])ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
-                } else if (ref instanceof long[]) {
-                    Arrays.fill((long[])ref, 0, Array.getLength(ref), random.nextLong());
-                } else if (ref instanceof int[]) {
-                    Arrays.fill((int[])ref, 0, Array.getLength(ref), random.nextInt());
-                } else if (ref instanceof double[]) {
-                    Arrays.fill((double[])ref, 0, Array.getLength(ref), random.nextDouble() - 0.5);
-                } else if (ref instanceof float[]) {
-                    Arrays.fill((float[])ref, 0, Array.getLength(ref), random.nextFloat() - 0.5f);
                 } else {
                     for (int i = 0; i < Array.getLength(ref); ++i) {
                             Array.set(ref, i, (byte) random.nextInt(256));

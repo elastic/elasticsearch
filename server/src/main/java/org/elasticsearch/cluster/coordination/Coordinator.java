@@ -14,9 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -51,7 +48,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
@@ -115,7 +111,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final boolean singleNodeDiscovery;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
-    private final Client client;
     private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
@@ -180,7 +175,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     ) {
         this.settings = settings;
         this.transportService = transportService;
-        this.client = client;
         this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
@@ -231,7 +225,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.lagDetector = new LagDetector(
             settings,
             transportService.getThreadPool(),
-            this::onLagDetected,
+            new LagDetector.HotThreadsLoggingLagListener(
+                transportService,
+                client,
+                (node, appliedVersion, expectedVersion) -> removeNode(node, "lagging")),
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
             transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
@@ -1375,41 +1372,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             }
             return false;
         }
-    }
-
-    private void onLagDetected(DiscoveryNode node, ActionListener<NodesHotThreadsResponse> debugListener) {
-        if (debugListener != null) {
-            if (client == null) {
-                debugListener.onFailure(new NullPointerException("client"));
-            } else {
-                // we're removing the node from the cluster so we need to keep the connection open for the hot threads request
-                transportService.connectToNode(node, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Releasable releasable) {
-                        boolean success = false;
-                        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                            threadContext.markAsSystemContext();
-                            client.execute(
-                                NodesHotThreadsAction.INSTANCE,
-                                new NodesHotThreadsRequest(node).threads(9999),
-                                ActionListener.runBefore(debugListener, () -> Releasables.close(releasable)));
-                            success = true;
-                        } finally {
-                            if (success == false) {
-                                Releasables.close(releasable);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        debugListener.onFailure(e);
-                    }
-                });
-            }
-        }
-        removeNode(node, "lagging");
     }
 
     class CoordinatorPublication extends Publication {

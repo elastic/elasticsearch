@@ -11,14 +11,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -165,58 +171,105 @@ public class LagDetector {
             logger.warn(
                 "node [{}] is lagging at cluster state version [{}], although publication of cluster state version [{}] completed [{}] ago",
                 discoveryNode, appliedVersion, version, clusterStateApplicationTimeout);
-            lagListener.onLagDetected(discoveryNode, getDebugListener(discoveryNode, appliedVersion, version));
+            lagListener.onLagDetected(discoveryNode, appliedVersion, version);
         }
     }
 
     public interface LagListener {
         /**
          * Called when a node is detected as lagging and should be removed from the cluster.
-         *
          * @param discoveryNode the node that is lagging.
-         * @param debugListener if not {@code null}, a listener to be completed with information retrieved from the node that might help
-         *                      determine why it is lagging
+         * @param appliedVersion the cluster state version that the node has definitely applied
+         * @param expectedVersion the cluster state version that we were waiting for the node to apply
          */
-        void onLagDetected(DiscoveryNode discoveryNode, @Nullable ActionListener<NodesHotThreadsResponse> debugListener);
+        void onLagDetected(DiscoveryNode discoveryNode, long appliedVersion, long expectedVersion);
     }
 
-    public static ActionListener<NodesHotThreadsResponse> getDebugListener(
-        DiscoveryNode discoveryNode,
-        long appliedVersion,
-        long expectedVersion
-    ) {
-        if (logger.isDebugEnabled()) {
-            return new ActionListener<>() {
-                @Override
-                public void onResponse(NodesHotThreadsResponse nodesHotThreadsResponse) {
+    /**
+     * Wraps around another {@link LagListener} and logs the hot threads on the lagging node at debug level.
+     */
+    static class HotThreadsLoggingLagListener implements LagListener {
 
-                    if (nodesHotThreadsResponse.getNodes().size() == 0) {
-                        assert nodesHotThreadsResponse.failures().size() == 1;
-                        onFailure(nodesHotThreadsResponse.failures().get(0));
-                        return;
+        private final TransportService transportService;
+        private final Client client;
+        private final LagListener delegate;
+
+        HotThreadsLoggingLagListener(TransportService transportService, Client client, LagListener delegate) {
+            this.transportService = transportService;
+            this.client = client;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onLagDetected(DiscoveryNode discoveryNode, long appliedVersion, long expectedVersion) {
+            try {
+                if (logger.isDebugEnabled() == false) {
+                    return;
+                }
+
+                if (client == null) {
+                    // only happens in tests
+                    return;
+                }
+
+                final ActionListener<NodesHotThreadsResponse> debugListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(NodesHotThreadsResponse nodesHotThreadsResponse) {
+                        if (nodesHotThreadsResponse.getNodes().size() == 0) {
+                            assert nodesHotThreadsResponse.failures().size() == 1;
+                            onFailure(nodesHotThreadsResponse.failures().get(0));
+                            return;
+                        }
+
+                        logger.debug(
+                            "hot threads from node [{}] lagging at version [{}] despite commit of cluster state version [{}]:\n{}",
+                            discoveryNode.descriptionWithoutAttributes(),
+                            appliedVersion,
+                            expectedVersion,
+                            nodesHotThreadsResponse.getNodes().get(0).getHotThreads()
+                        );
                     }
 
-                    logger.debug(
-                        "hot threads from node [{}] lagging at version [{}] despite commit of cluster state version [{}]:\n{}",
-                        discoveryNode.descriptionWithoutAttributes(),
-                        appliedVersion,
-                        expectedVersion,
-                        nodesHotThreadsResponse.getNodes().get(0).getHotThreads()
-                    );
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(new ParameterizedMessage(
+                            "failed to get hot threads from node [{}] lagging at version {} despite commit of cluster state version [{}]",
+                            discoveryNode.descriptionWithoutAttributes(),
+                            appliedVersion,
+                            expectedVersion
+                        ), e);
+                    }
+                };
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(new ParameterizedMessage(
-                        "failed to get hot threads from node [{}] lagging at version {} despite commit of cluster state version [{}]",
-                        discoveryNode.descriptionWithoutAttributes(),
-                        appliedVersion,
-                        expectedVersion
-                    ), e);
-                }
-            };
-        } else {
-            return null;
+                // we're removing the node from the cluster so we need to keep the connection open for the hot threads request
+                transportService.connectToNode(discoveryNode, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        boolean success = false;
+                        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                            threadContext.markAsSystemContext();
+                            client.execute(
+                                NodesHotThreadsAction.INSTANCE,
+                                new NodesHotThreadsRequest(discoveryNode).threads(500),
+                                ActionListener.runBefore(debugListener, () -> Releasables.close(releasable)));
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                Releasables.close(releasable);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        debugListener.onFailure(e);
+                    }
+                });
+            } finally {
+                // call delegate after transportService#connectToNode to keep existing connection open
+                delegate.onLagDetected(discoveryNode, appliedVersion, expectedVersion);
+            }
         }
     }
 

@@ -50,7 +50,7 @@ public class LagDetectorTests extends ESTestCase {
         lagDetector = new LagDetector(
             settingsBuilder.build(),
             deterministicTaskQueue.getThreadPool(),
-            (discoveryNode, debugListener) -> failedNodes.add(discoveryNode),
+            (discoveryNode, appliedVersion, expectedVersion) -> failedNodes.add(discoveryNode),
             () -> localNode);
 
         localNode = CoordinationStateTests.createNode("local");

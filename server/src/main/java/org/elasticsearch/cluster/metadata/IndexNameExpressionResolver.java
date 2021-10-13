@@ -275,17 +275,17 @@ public class IndexNameExpressionResolver {
             }
 
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
-                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+                Index writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex == null) {
                     throw new IllegalArgumentException("no write index is defined for alias [" + indexAbstraction.getName() + "]." +
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                if (addIndex(writeIndex, context)) {
-                    concreteIndices.add(writeIndex.getIndex());
+                if (addIndex(metadata.index(writeIndex), context)) {
+                    concreteIndices.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+                IndexMetadata writeIndex = metadata.index(indexAbstraction.getWriteIndex());
                 if (addIndex(writeIndex, context)) {
                     concreteIndices.add(writeIndex.getIndex());
                 }
@@ -293,17 +293,18 @@ public class IndexNameExpressionResolver {
                 if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
-                    for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
-                        indexNames[i++] = indexMetadata.getIndex().getName();
+                    for (Index indexName : indexAbstraction.getIndices()) {
+                        indexNames[i++] = indexName.getName();
                     }
                     throw new IllegalArgumentException(indexAbstraction.getType().getDisplayName() + " [" + expression +
                         "] has more than one index associated with it " + Arrays.toString(indexNames) +
                         ", can't execute a single index op");
                 }
 
-                for (IndexMetadata index : indexAbstraction.getIndices()) {
-                    if (shouldTrackConcreteIndex(context, options, index)) {
-                        concreteIndices.add(index.getIndex());
+                for (Index indexName : indexAbstraction.getIndices()) {
+                    IndexMetadata imd = metadata.index(indexName);
+                    if (shouldTrackConcreteIndex(context, options, imd)) {
+                        concreteIndices.add(indexName);
                     }
                 }
             }
@@ -626,9 +627,9 @@ public class IndexNameExpressionResolver {
         for (String expression : resolvedExpressions) {
             IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                for (IndexMetadata index : indexAbstraction.getIndices()) {
-                    String concreteIndex = index.getIndex().getName();
-                    AliasMetadata aliasMetadata = index.getAliases().get(indexAbstraction.getName());
+                for (Index index : indexAbstraction.getIndices()) {
+                    String concreteIndex = index.getName();
+                    AliasMetadata aliasMetadata = state.metadata().index(concreteIndex).getAliases().get(indexAbstraction.getName());
                     if (norouting.contains(concreteIndex) == false) {
                         if (aliasMetadata != null && aliasMetadata.searchRoutingValues().isEmpty() == false) {
                             // Routing alias
@@ -672,8 +673,8 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 if (dataStream.getIndices() != null) {
-                    for (IndexMetadata indexMetadata : dataStream.getIndices()) {
-                        String concreteIndex = indexMetadata.getIndex().getName();
+                    for (Index index : dataStream.getIndices()) {
+                        String concreteIndex =  index.getName();
                         if (norouting.contains(concreteIndex) == false) {
                             norouting.add(concreteIndex);
                             if (paramRouting != null) {
@@ -1159,7 +1160,8 @@ public class IndexNameExpressionResolver {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                         expand.add(aliasOrIndexName);
                     } else {
-                        for (IndexMetadata meta : indexAbstraction.getIndices()) {
+                        for (Index index : indexAbstraction.getIndices()) {
+                            IndexMetadata meta = context.state.metadata().index(index);
                             if (excludeState == null || meta.getState() != excludeState) {
                                 expand.add(meta.getIndex().getName());
                             }

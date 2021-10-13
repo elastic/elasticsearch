@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -328,10 +329,10 @@ public final class IndicesPermission {
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else {
-                final List<IndexMetadata> indices = indexAbstraction.getIndices();
+                final List<Index> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndices = new ArrayList<>(indices.size());
                 for (var idx : indices) {
-                    concreteIndices.add(idx.getIndex().getName());
+                    concreteIndices.add(idx.getName());
                 }
                 return concreteIndices;
             }

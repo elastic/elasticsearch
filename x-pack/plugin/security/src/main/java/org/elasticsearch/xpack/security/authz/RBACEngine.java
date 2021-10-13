@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -609,8 +610,8 @@ public class RBACEngine implements AuthorizationEngine {
                     indicesAndAliases.add(indexAbstraction.getName());
                     if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                         // add data stream and its backing indices for any authorized data streams
-                        for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
-                            indicesAndAliases.add(indexMetadata.getIndex().getName());
+                        for (Index index : indexAbstraction.getIndices()) {
+                            indicesAndAliases.add(index.getName());
                         }
                     }
                 }

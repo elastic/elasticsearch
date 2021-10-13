@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -118,8 +117,8 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-                List<IndexMetadata> indices = dataStream.getIndices();
-                return indices.stream().map(idx -> idx.getIndex().getName());
+                List<Index> indices = dataStream.getIndices();
+                return indices.stream().map(Index::getName);
             } else {
                 return Stream.empty();
             }
@@ -200,7 +199,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 List<String> indices = dataStream.getIndices()
                     .stream()
-                    .map(IndexMetadata::getIndex)
                     .map(Index::getName)
                     .collect(Collectors.toList());
                 stats.backingIndices.addAll(indices);

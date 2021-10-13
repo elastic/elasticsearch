@@ -307,65 +307,6 @@ public class TransformInternalIndexTests extends ESTestCase {
         verifyNoMoreInteractions(clusterClient);
     }
 
-    public void testHaveLatestAuditIndexTemplate() {
-
-        assertTrue(TransformInternalIndex.hasLatestAuditIndexTemplate(stateWithLatestAuditIndexTemplate));
-        assertFalse(TransformInternalIndex.hasLatestAuditIndexTemplate(ClusterState.EMPTY_STATE));
-    }
-
-    public void testInstallLatestAuditIndexTemplateIfRequired_GivenNotRequired() {
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(stateWithLatestAuditIndexTemplate);
-
-        Client client = mock(Client.class);
-
-        AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
-
-        TransformInternalIndex.installLatestAuditIndexTemplateIfRequired(clusterService, client, testListener);
-
-        assertTrue(gotResponse.get());
-        verifyNoMoreInteractions(client);
-    }
-
-    public void testInstallLatestAuditIndexTemplateIfRequired_GivenRequired() {
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-
-        IndicesAdminClient indicesClient = mock(IndicesAdminClient.class);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(indicesClient).putTemplate(any(), any());
-
-        AdminClient adminClient = mock(AdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesClient);
-        Client client = mock(Client.class);
-        when(client.admin()).thenReturn(adminClient);
-
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(client.threadPool()).thenReturn(threadPool);
-
-        AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
-
-        TransformInternalIndex.installLatestAuditIndexTemplateIfRequired(clusterService, client, testListener);
-
-        assertTrue(gotResponse.get());
-        verify(client, times(1)).threadPool();
-        verify(client, times(1)).admin();
-        verifyNoMoreInteractions(client);
-        verify(adminClient, times(1)).indices();
-        verifyNoMoreInteractions(adminClient);
-        verify(indicesClient, times(1)).putTemplate(any(), any());
-        verifyNoMoreInteractions(indicesClient);
-    }
-
     public void testEnsureLatestIndexAndTemplateInstalled_GivenRequired() {
 
         ClusterService clusterService = mock(ClusterService.class);
@@ -397,7 +338,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
 
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, client, testListener);
+        TransformInternalIndex.ensureLatestIndexInstalled(clusterService, client, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(2)).threadPool();

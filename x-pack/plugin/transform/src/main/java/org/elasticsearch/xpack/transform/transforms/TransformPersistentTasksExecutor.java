@@ -303,7 +303,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the index templates are installed
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             buildTask.getParentTaskClient(),
             templateCheckListener

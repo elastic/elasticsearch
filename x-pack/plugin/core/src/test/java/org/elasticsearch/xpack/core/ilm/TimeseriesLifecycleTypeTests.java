@@ -623,11 +623,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testShouldMigrateDataToTiers() {
         {
-            // the allocate action contain allocation rules
+            // there's an allocate action that contains allocation rules
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
         }
 
         {

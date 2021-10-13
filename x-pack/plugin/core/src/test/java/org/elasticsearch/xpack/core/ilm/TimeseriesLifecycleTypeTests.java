@@ -625,7 +625,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         {
             // the allocate action contain allocation rules
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
             actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));

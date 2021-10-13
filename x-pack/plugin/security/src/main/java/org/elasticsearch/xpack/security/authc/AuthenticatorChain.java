@@ -168,7 +168,10 @@ class AuthenticatorChain {
                         addMetadata(context, ese);
                     }
                 }
-                // Not adding additional metadata if the exception is not security related, e.g. server busy
+                // Not adding additional metadata if the exception is not security related, e.g. server busy.
+                // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
+                // about their nature so that no additional information is needed; (2) Non-security errors may
+                // not inherit ElasticsearchException and thus does not have the addMetadata method.
                 listener.onFailure(e);
             }));
         };
@@ -293,8 +296,9 @@ class AuthenticatorChain {
             if (false == context.getUnsuccessfulMessages().isEmpty()) {
                 logger.debug("Authenticating with null credentials is unsuccessful in request [{}]" +
                     " after unsuccessful attempts of other credentials", context.getRequest());
-                final ElasticsearchSecurityException eseWithPreviousCredentials =
-                    new ElasticsearchSecurityException("unable to authenticate as the anonymous user", ese.status(), ese.getCause());
+                final ElasticsearchSecurityException eseWithPreviousCredentials = new ElasticsearchSecurityException(
+                    "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
+                    ese.status(), ese.getCause());
                 ese.getHeaderKeys().forEach(k -> eseWithPreviousCredentials.addHeader(k, ese.getHeader(k)));
                 addMetadata(context, eseWithPreviousCredentials);
                 listener.onFailure(eseWithPreviousCredentials);

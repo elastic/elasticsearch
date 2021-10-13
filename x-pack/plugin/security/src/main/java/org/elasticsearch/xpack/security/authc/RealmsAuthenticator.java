@@ -209,7 +209,9 @@ class RealmsAuthenticator implements Authenticator {
                     } else {
                         listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
                     }
-                }), context.getThreadContext()), realmAuthenticatingConsumer, realmsList, context.getThreadContext());
+                }), context.getThreadContext()),
+            realmAuthenticatingConsumer, realmsList, context.getThreadContext()
+        );
         try {
             authenticatingListener.run();
         } catch (Exception e) {

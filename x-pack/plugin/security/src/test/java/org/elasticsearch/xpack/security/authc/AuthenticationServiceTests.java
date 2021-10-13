@@ -1836,7 +1836,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
             if (invalidHeader.equals("apikey foo")) {
-                assertThat(e.getMessage(), containsString("unable to authenticate as the anonymous user"));
+                assertThat(e.getMessage(), containsString(
+                    "unable to authenticate with provided credentials and anonymous access is not allowed for this request"));
             } else {
                 assertThat(e.getMessage(), containsString("missing authentication credentials"));
             }

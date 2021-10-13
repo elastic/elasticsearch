@@ -180,7 +180,19 @@ public interface Authenticator {
     }
 
     enum Status {
-        SUCCESS, UNSUCCESSFUL, NOT_HANDLED,
+        /**
+         * The authenticator successfully handled the authentication request
+         */
+        SUCCESS,
+        /**
+         * The authenticator tried to handle the authentication request but it was unsuccessful.
+         * Subsequent authenticators (if any) still have chance to attempt authentication.
+         */
+        UNSUCCESSFUL,
+        /**
+         * The authenticator did not handle the authentication request for reasons such as it cannot find necessary credentials
+         */
+        NOT_HANDLED
     }
 
     class Result {

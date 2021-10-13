@@ -263,7 +263,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         authenticatorChain.authenticateAsync(context, future);
         final ElasticsearchSecurityException e =
             expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("unable to authenticate as the anonymous user"));
+        assertThat(e.getMessage(), containsString("" +
+            "unable to authenticate with provided credentials and anonymous access is not allowed for this request"));
         assertThat(e.getMetadata("es.additional_unsuccessful_credentials"),
             hasItem(containsString(unsuccessfulApiKey ? "unsuccessful api key" : "unsuccessful bearer token")));
     }

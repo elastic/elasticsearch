@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -61,7 +62,7 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source()));
+            assertEquals(List.of("field"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
         });
     }
 

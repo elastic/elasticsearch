@@ -110,7 +110,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         verifyZeroInteractions(operatorPrivilegesService);
     }
 
-    public void testExistingAuthenticationWillFailIfFoundForRestRequest() throws IOException {
+    public void testAuthenticateFailsIfExistingAuthenticationFoundForRestRequest() throws IOException {
         final AuthenticationService.AuditableRestRequest auditableRestRequest = mock(AuthenticationService.AuditableRestRequest.class);
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(auditableRestRequest.tamperedRequest()).thenReturn(e);

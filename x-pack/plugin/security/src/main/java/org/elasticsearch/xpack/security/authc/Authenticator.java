@@ -143,6 +143,7 @@ public interface Authenticator {
             authenticationTokens.add(authenticationToken);
         }
 
+        @Nullable
         public AuthenticationToken getMostRecentAuthenticationToken() {
             return authenticationTokens.isEmpty() ? null : authenticationTokens.get(authenticationTokens.size() - 1);
         }

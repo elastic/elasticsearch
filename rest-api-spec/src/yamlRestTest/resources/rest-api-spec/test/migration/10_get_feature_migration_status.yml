@@ -1,11 +1,11 @@
-"Get feature upgrade status":
+"Get feature migration status":
 
   - skip:
       version: " - 7.99.99"
       reason: "Not yet backported"
 
   - do:
-      migration.get_feature_upgrade_status: {}
+      migration.get_feature_migration_status: {}
 
   - is_true: migration_status
   - is_true: features

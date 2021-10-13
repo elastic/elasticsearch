@@ -5,7 +5,7 @@
       reason: "Not yet backported"
 
   - do:
-      migration.get_feature_upgrade_status: {}
+      migration.post_feature_upgrade: {}
 
-  - is_false: accepted
+  - is_true: accepted
   - is_true: features

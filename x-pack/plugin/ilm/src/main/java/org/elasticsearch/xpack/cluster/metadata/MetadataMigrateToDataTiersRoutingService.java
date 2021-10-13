@@ -376,9 +376,11 @@ public final class MetadataMigrateToDataTiersRoutingService {
         for (ObjectObjectCursor<String, IndexMetadata> index : currentState.metadata().indices()) {
             IndexMetadata indexMetadata = index.value;
             Settings currentSettings = indexMetadata.getSettings();
+            // migrate using the `require` setting
             Settings newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexRequireRoutingSetting, indexMetadata);
+
             if (newSettings.equals(currentSettings)) {
-                // migrating based on the `require` setting was not successful so let's check if the index used the `include` routing
+                // migrating based on the `require` setting was not successful, so let's check if the index used the `include` routing
                 // setting to configure the allocations and try to migrate it
                 newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexIncludeRoutingSetting, indexMetadata);
             }
@@ -413,9 +415,11 @@ public final class MetadataMigrateToDataTiersRoutingService {
         if (currentIndexSettings.keySet().contains(attributeBasedRoutingSettingName) == false) {
             return currentIndexSettings;
         }
-        // look at the value, get the correct tiers config and update the settings and index metadata
+
         Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
         String indexName = indexMetadata.getIndex().getName();
+
+        // look at the value, get the correct tiers config and update the settings
         if (currentIndexSettings.keySet().contains(TIER_PREFERENCE)) {
             newSettingsBuilder.remove(attributeBasedRoutingSettingName);
             logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);

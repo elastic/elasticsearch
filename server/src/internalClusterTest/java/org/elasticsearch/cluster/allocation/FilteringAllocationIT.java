@@ -255,8 +255,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().get().getState();
 
-        // The transient settings still exist in the state
-        assertThat(state.metadata().transientSettings(), equalTo(exclude));
+        // The persistent settings still exist in the state
+        assertThat(state.metadata().persistentSettings(), equalTo(exclude));
 
         for (ShardRouting shard : state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();

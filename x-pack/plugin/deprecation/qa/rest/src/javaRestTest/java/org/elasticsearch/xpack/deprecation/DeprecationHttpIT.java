@@ -90,6 +90,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
             List<Map<String, Object>> documents = getIndexedDeprecations();
             logger.warn(documents);
+            // if data stream is still present, that means that previous test (could be different class) created a deprecation
+            // hence resetting again
             resetDeprecationIndexAndCache();
             fail("Index should be removed on startup");
         }, 30, TimeUnit.SECONDS);

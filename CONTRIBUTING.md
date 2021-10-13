@@ -200,7 +200,7 @@ need them.
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
 automatically formatted in
-[build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle](build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle).
+[FormattingPrecommitPlugin.java](build-conventions/src/main/java/org/elasticsearch/gradle/internal/conventions/precommit/FormattingPrecommitPlugin.java).
 
 ### Importing the project into Eclipse
 

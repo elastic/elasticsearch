@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -308,7 +307,6 @@ public class TransformInternalIndexTests extends ESTestCase {
     }
 
     public void testEnsureLatestIndexAndTemplateInstalled_GivenRequired() {
-
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
@@ -319,12 +317,6 @@ public class TransformInternalIndexTests extends ESTestCase {
             listener.onResponse(new CreateIndexResponse(true, true, TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME));
             return null;
         }).when(indicesClient).create(any(), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(indicesClient).putTemplate(any(), any());
 
         AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesClient);
@@ -341,13 +333,12 @@ public class TransformInternalIndexTests extends ESTestCase {
         TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
 
         assertTrue(gotResponse.get());
-        verify(client, times(2)).threadPool();
-        verify(client, times(2)).admin();
+        verify(client, times(1)).threadPool();
+        verify(client, times(1)).admin();
         verifyNoMoreInteractions(client);
-        verify(adminClient, times(2)).indices();
+        verify(adminClient, times(1)).indices();
         verifyNoMoreInteractions(adminClient);
         verify(indicesClient, times(1)).create(any(), any());
-        verify(indicesClient, times(1)).putTemplate(any(), any());
         verifyNoMoreInteractions(indicesClient);
     }
 }

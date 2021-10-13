@@ -209,7 +209,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         String routing = randomAlphaOfLength(12);
         long version = randomLongBetween(1, 100);
         withLuceneIndex(mapperService, iw -> {
-            ParsedDocument parsedDocument = mapperService.documentMapper().parse(source(docId, b -> b.field("integer_field", "value"), routing));
+            ParsedDocument parsedDocument = mapperService.documentMapper()
+                .parse(source(docId, b -> b.field("integer_field", "value"), routing));
             parsedDocument.version().setLongValue(version);
             iw.addDocument(parsedDocument.rootDoc());
         }, iw -> {

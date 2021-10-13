@@ -8,6 +8,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name 'unsigned-long'
@@ -21,4 +22,11 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+restResources {
+    restApi {
+        include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
+    }
 }

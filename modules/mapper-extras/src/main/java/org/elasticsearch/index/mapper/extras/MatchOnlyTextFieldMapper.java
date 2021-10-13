@@ -48,6 +48,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -178,7 +179,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 return docID -> {
                     try {
                         sourceLookup.setSegmentAndDocument(context, docID);
-                        return valueFetcher.fetchValues(sourceLookup);
+                        return valueFetcher.fetchValues(sourceLookup, new ArrayList<>());
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

@@ -236,7 +236,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
-        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +
@@ -255,7 +255,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().get().getState();
 
-        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+        // The transient settings still exist in the state
+        assertThat(state.metadata().transientSettings(), equalTo(exclude));
+
+        for (ShardRouting shard : state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +

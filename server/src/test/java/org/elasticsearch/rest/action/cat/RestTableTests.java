@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;

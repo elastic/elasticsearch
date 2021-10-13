@@ -104,4 +104,22 @@ public abstract class AllocationDecider {
             return decision;
         }
     }
+
+    /**
+     * Returns a {@link Decision} whether the given shard can be forced to the
+     * given node in the event that the shard's source node is being replaced.
+     * This allows nodes using a replace-type node shutdown to
+     * override certain deciders in the interest of moving the shard away from
+     * a node that *must* be removed.
+     *
+     * It defaults to returning "YES" and must be overridden by deciders that
+     * opt-out to having their other NO decisions *not* overridden while vacating.
+     *
+     * The caller is responsible for first checking:
+     * - that a replacement is ongoing
+     * - the shard routing's current node is the source of the replacement
+     */
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return Decision.YES;
+    }
 }

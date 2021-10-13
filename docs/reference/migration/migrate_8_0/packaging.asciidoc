@@ -6,16 +6,22 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.Java 11 is required.
+.Java 17 is required.
 [%collapsible]
 ====
 *Details* +
-Java 11 or higher is now required to run {es} and any of its command
+Java 17 or higher is now required to run {es} and any of its command
 line tools.
 
 *Impact* +
-Use Java 11 or higher. Attempts to run {es} 8.0 using earlier Java versions will
+Use Java 17 or higher. Attempts to run {es} 8.0 using earlier Java versions will
 fail.
+
+There is not yet a FIPS-certified security module for Java 17 
+that you can use when running {es} 8.0 in FIPS 140-2 mode. 
+If you run in FIPS 140-2 mode, you will either need to request an exception 
+from your security organization to upgrade to {es} 8.0, 
+or remain on {es} 7.x until Java 17 is certified.
 ====
 
 .JAVA_HOME is no longer supported.

@@ -102,11 +102,7 @@ public class Environment {
         pluginsFile = homeFile.resolve("plugins");
 
         if (PATH_DATA_SETTING.exists(settings)) {
-            String rawDataPath = PATH_DATA_SETTING.get(settings);
-            if (rawDataPath.startsWith("[")) {
-                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
-            }
-            dataFile = PathUtils.get(rawDataPath).toAbsolutePath().normalize();
+            dataFile = PathUtils.get(PATH_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
         } else {
             dataFile = homeFile.resolve("data");
         }
@@ -295,6 +291,15 @@ public class Environment {
         if (Files.isDirectory(tmpFile) == false) {
             throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
         }
+    }
+
+    /** Returns true if the data path is a list, false otherwise */
+    public static boolean dataPathUsesList(Settings settings) {
+        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
+            return false;
+        }
+        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
+        return rawDataPath.startsWith("[");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

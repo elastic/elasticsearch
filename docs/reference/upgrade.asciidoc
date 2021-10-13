@@ -3,6 +3,16 @@
 
 [partintro]
 --
+ifeval::["{release-state}"!="released"]
+[[upgrade-pre-release]]
+IMPORTANT: This documentation is for a pre-release of {es} {minor-version}. 
+Upgrades from pre-release builds are not supported and
+could result in errors or data loss. 
+If you upgrade from a released version to a pre-release verion for testing, 
+discard the contents of the cluster when you are done.
+Do not attempt to upgrade to the final release. 
+endif::[]
+
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
@@ -16,7 +26,7 @@ endif::[]
 
 [TIP]
 ====
-For rolling upgrades between major versions (e.g., 5.6 to 6.8), we recommend
+For rolling upgrades between major versions, we recommend
 using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
 
 The upgrade assistant identifies deprecated settings in your cluster and guides
@@ -26,7 +36,9 @@ We also recommend checking your <<deprecation-logging,deprecation logs>> for any
 other functionality that may have changed.
 ====
 
-The following table shows the recommended upgrade paths to {version}.
+[discrete]
+[[upgrade-paths]]
+=== Upgrade paths to {version}
 
 [cols="<1,3",options="header",]
 |====
@@ -69,12 +81,18 @@ To upgrade directly to {version} from 6.7 or earlier, you must shut down the
 cluster, install {version}, and restart. For more information, see
 <<restart-upgrade, Full cluster restart upgrade>>.
 
-[WARNING]
-====
+[discrete]
+[[upgrade-downgrade]]
+=== Downgrades
+
 In-place downgrades to earlier versions are *not* supported. To downgrade to an
 earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
 to the version upgrade.
-====
+
+
+[discrete]
+[[upgrade-index-compatibility]]
+=== Index compatibility
 
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
@@ -87,17 +105,11 @@ When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
 
-ifeval::["{release-state}"!="released"]
-[[upgrade-pre-release]]
-NOTE: This documentation is for {es} version {version}, which is not yet
-released. You may run a pre-release build of {es} for testing, and you may
-upgrade from an earlier released version to a pre-release build of {es}
-{version} if permitted by the compatibility table above, but upgrading from a
-pre-release build to another build (whether released or not) is unsupported.
-Upgrading a pre-release build may result in errors or may appear to succeed
-having silently lost some data. You should discard the contents of a cluster
-running a pre-release build before using a different build.
-endif::[]
+[discrete]
+[[upgrade-fips-java17]]
+=== FIPS Compliance and Java 17
+
+include::{xes-repo-dir}/security/fips-java17.asciidoc[]
 
 --
 

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.joda.time.DateTimeZone;
-
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.function.LongSupplier;
@@ -23,18 +21,12 @@ public interface DateMathParser {
      * Parse a date math expression without timezone info and rounding down.
      */
     default Instant parse(String text, LongSupplier now) {
-        return parse(text, now, false, (ZoneId) null);
+        return parse(text, now, false, null);
     }
 
     // Note: we take a callable here for the timestamp in order to be able to figure out
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
-
-    // exists for backcompat, do not use!
-    @Deprecated
-    default Instant parse(String text, LongSupplier now, boolean roundUpProperty, DateTimeZone tz) {
-        return parse(text, now, roundUpProperty, tz == null ? null : ZoneId.of(tz.getID()));
-    }
 
     /**
      * Parse text, that potentially contains date math into the milliseconds since the epoch

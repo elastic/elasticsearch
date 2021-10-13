@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xpack.sql.client.ClientVersion;

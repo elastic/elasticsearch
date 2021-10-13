@@ -273,7 +273,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
+                transformServices.getConfigManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(

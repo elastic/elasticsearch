@@ -78,15 +78,6 @@ occur at `frequency` interval.
 == Operational limitations
 
 [discrete]
-[[transform-rolling-upgrade-limitation]]
-=== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
-
-If your cluster contains mixed version nodes, for example during a rolling
-upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped 
-will not be reassigned until the upgrade is complete. After the upgrade is done, 
-{transforms} resume automatically; no action is required.
-
-[discrete]
 [[transform-aggresponse-limitations]]
 === Aggregation responses may be incompatible with destination index mappings
 
@@ -280,15 +271,6 @@ documents if your {transform} contains a `group_by` based on `date_histogram`.
 destination indices and other saved objects in {kib} and to see only the objects 
 that belong to your space. However, this limited scope does not apply to 
 {transforms}; they are visible in all spaces.
-
-[discrete]
-[[transform-rolling-upgrade-ui-limitation]]
-=== {transforms-cap} UI will not work during a rolling upgrade from 7.2
-
-If your cluster contains mixed version nodes, for example during a rolling 
-upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
-the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
-nodes have been upgraded to the newer version before using the {transforms} UI.
 
 [discrete]
 [[transform-kibana-limitations]]

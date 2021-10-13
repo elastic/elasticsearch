@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -86,23 +86,14 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             List<String> templates = Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix()
+                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                TransformInternalIndexConstants.AUDIT_INDEX
             );
 
             for (String template : templates) {
                 awaitCallApi("indices.exists_index_template", singletonMap("name", template), emptyList(),
                     response -> true,
                     () -> "Exception when waiting for [" + template + "] template to be created");
-            }
-
-            List<String> legacyTemplates = Collections.singletonList(
-                TransformInternalIndexConstants.AUDIT_INDEX
-            );
-
-            for (String legacyTemplate : legacyTemplates) {
-                awaitCallApi("indices.exists_template", singletonMap("name", legacyTemplate), emptyList(),
-                    response -> true,
-                    () -> "Exception when waiting for [" + legacyTemplate + "] legacy template to be created");
             }
         }
     }

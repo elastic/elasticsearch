@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class TimeSeriesCounterTest extends ESTestCase {

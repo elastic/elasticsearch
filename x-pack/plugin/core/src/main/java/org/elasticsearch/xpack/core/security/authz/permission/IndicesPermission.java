@@ -57,6 +57,7 @@ public final class IndicesPermission {
     private final Automaton restrictedNamesAutomaton;
     private final Group[] groups;
     private final CharacterRunAutomaton characterRunAutomaton;
+    private final boolean hasFieldOrDocumentLevelSecurity;
 
     public static class Builder {
 
@@ -85,6 +86,8 @@ public final class IndicesPermission {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
+            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     /**
@@ -124,6 +127,10 @@ public final class IndicesPermission {
      */
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, this::buildIndexMatcherPredicateForAction);
+    }
+
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return hasFieldOrDocumentLevelSecurity;
     }
 
     private Predicate<IndexAbstraction> buildIndexMatcherPredicateForAction(String action) {

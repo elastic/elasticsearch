@@ -279,7 +279,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 builder.startObject(Fields.FIELDS);
                 for (DocumentField field : fetchFields.values()) {
                     if (field.getValues().size() > 0) {
-                        field.toXContent(builder, params);
+                        field.getValidValuesWriter().toXContent(builder, params);
                     }
                 }
                 builder.endObject();

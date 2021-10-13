@@ -428,7 +428,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 newSettingsBuilder.remove(attributeBasedRoutingSettingName);
                 logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
                 logger.debug("index [{}]: configured setting [{}] to [{}]", indexName,
-                        TIER_PREFERENCE, convertedTierPreference);
+                    TIER_PREFERENCE, convertedTierPreference);
             } else {
                 // log warning and do *not* remove setting, return the settings unchanged
                 logger.warn("index [{}]: could not convert attribute based setting [{}] value of [{}] to a tier preference " +

@@ -264,8 +264,8 @@ if (projectPathsToExclude.contains(project.path) == false ||
 
   project.apply plugin: "com.diffplug.spotless"
 
-  String importOrderPath = 'build-tools-internal/elastic.importorder'
-  String formatterConfigPath = 'build-tools-internal/formatterConfig.xml'
+  String importOrderPath = 'build-conventions/elastic.importorder'
+  String formatterConfigPath = 'build-conventions/formatterConfig.xml'
 
   // When applied to e.g. `:build-tools`, we need to modify the path to our config files
   if (rootProject.file(importOrderPath).exists() == false) {

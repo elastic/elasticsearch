@@ -107,7 +107,6 @@ public class MlDeprecationIT extends ESRestTestCase {
             containsString("model snapshot [1] for job [deprecation_check_job] needs to be deleted or upgraded")
         );
         assertThat(response.getMlSettingsIssues().get(0).getMeta(), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
-//        hlrc.close();
     }
 
 }

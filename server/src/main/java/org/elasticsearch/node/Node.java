@@ -438,7 +438,7 @@ public class Node implements Closeable {
                 .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
                 .collect(Collectors.toUnmodifiableMap(
                     SystemIndexPlugin::getFeatureName,
-                    plugin -> SystemIndices.pluginToFeature(plugin, settings)
+                    plugin -> SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();

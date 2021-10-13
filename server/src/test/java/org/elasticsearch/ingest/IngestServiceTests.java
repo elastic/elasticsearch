@@ -344,7 +344,7 @@ public class IngestServiceTests extends ESTestCase {
                         Locale.ROOT,
                         "default pipeline for %s index(es) including [%s]",
                         defaultIndices.size(),
-                        defaultIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                        defaultIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
                     )
                 )
             );
@@ -361,7 +361,7 @@ public class IngestServiceTests extends ESTestCase {
                         Locale.ROOT,
                         "final pipeline for %s index(es) including [%s]",
                         finalIndices.size(),
-                        finalIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                        finalIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
                     )
                 )
             );

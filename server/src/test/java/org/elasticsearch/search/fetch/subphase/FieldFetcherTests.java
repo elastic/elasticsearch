@@ -824,7 +824,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         // this should not return a field bc. f1 is malformed
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, Collections.singletonList(new FieldAndFormat("*", null, true)));
+        Map<String, DocumentField> fields = fetchFields(mapperService, source,
+                Collections.singletonList(new FieldAndFormat("*", null, true)));
         assertThat(fields.get("f1").getValues().size(), equalTo(0));
         assertThat(fields.get("f1").getIgnoredValues().size(), equalTo(1));
 

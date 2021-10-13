@@ -360,8 +360,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // index with `warm` data attribute is migrated to the equivalent _tier_preference routing
             IndexMetadata.Builder indexWithWarmDataAttribute =
-                IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING,
-                    "warm"));
+                IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_REQUIRE_SETTING, "warm"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithWarmDataAttribute)).build();
 
@@ -380,8 +380,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // test the migration of the `include.data` configuration to the equivalent _tier_preference routing
             IndexMetadata.Builder indexWithWarmDataAttribute =
-                IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING,
-                    "warm"));
+                IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_INCLUDE_SETTING, "warm"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithWarmDataAttribute)).build();
 
@@ -404,8 +404,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
                     .put(DATA_ROUTING_REQUIRE_SETTING, "cold")
                     .put(DATA_ROUTING_INCLUDE_SETTING, "hot")
-                    .put(TIER_PREFERENCE, "data_warm,data_hot")
-                );
+                    .put(TIER_PREFERENCE, "data_warm,data_hot"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute)).build();
 
@@ -428,8 +427,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
                 IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
                     .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
-                    .put(TIER_PREFERENCE, "data_warm,data_hot")
-                );
+                    .put(TIER_PREFERENCE, "data_warm,data_hot"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute)).build();
 
@@ -448,8 +446,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // index with an unknown `data` attribute routing value should **not** be migrated
             IndexMetadata.Builder indexWithUnknownDataAttribute =
-                IndexMetadata.builder("indexWithUnknownDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING,
-                    "something_else"));
+                IndexMetadata.builder("indexWithUnknownDataAttribute").settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_REQUIRE_SETTING, "something_else"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithUnknownDataAttribute)).build();
 
@@ -466,9 +464,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             // index with data and another attribute should only see the data attribute removed and the corresponding tier_preference
             // configured
             IndexMetadata.Builder indexDataAndBoxAttribute =
-                IndexMetadata.builder("indexWithDataAndBoxAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING,
-                    "warm").put(BOX_ROUTING_REQUIRE_SETTING, "box1"));
-
+                IndexMetadata.builder("indexWithDataAndBoxAttribute").settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_REQUIRE_SETTING, "warm")
+                    .put(BOX_ROUTING_REQUIRE_SETTING, "box1"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexDataAndBoxAttribute)).build();
 
@@ -487,8 +485,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // index that doesn't have any data attribute routing but has another attribute should not see any change
             IndexMetadata.Builder indexBoxAttribute =
-                IndexMetadata.builder("indexWithBoxAttribute").settings(getBaseIndexSettings().put(BOX_ROUTING_REQUIRE_SETTING, "warm"));
-
+                IndexMetadata.builder("indexWithBoxAttribute").settings(getBaseIndexSettings()
+                    .put(BOX_ROUTING_REQUIRE_SETTING, "warm"));
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexBoxAttribute)).build();
 
@@ -506,7 +504,6 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             IndexMetadata.Builder indexNoRoutingAttribute =
                 IndexMetadata.builder("indexNoRoutingAttribute").settings(getBaseIndexSettings());
-
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexNoRoutingAttribute)).build();
 
@@ -575,7 +572,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
                 .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                    Map.of(policyToMigrate.getName(), policyWithDataAttribute, shouldntBeMigratedPolicy.getName(), policyWithOtherAttribute),
+                    Map.of(policyToMigrate.getName(), policyWithDataAttribute,
+                        shouldntBeMigratedPolicy.getName(), policyWithOtherAttribute),
                     OperationMode.STOPPED))
                 .put(IndexTemplateMetadata.builder("catch-all").patterns(List.of("*"))
                     .settings(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot"))

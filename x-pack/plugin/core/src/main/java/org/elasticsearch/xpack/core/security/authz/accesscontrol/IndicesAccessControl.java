@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -64,6 +65,21 @@ public class IndicesAccessControl {
             .filter(e -> e.getValue().granted == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableSet());
+    }
+
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return indexPermissions.values().stream().anyMatch(indexAccessControl ->
+            indexAccessControl.fieldPermissions.hasFieldLevelSecurity()
+                || indexAccessControl.documentPermissions.hasDocumentLevelPermissions()
+        );
+    }
+
+    public List<String> getIndicesWithFieldOrDocumentLevelSecurity() {
+        return indexPermissions.entrySet().stream()
+            .filter(entry -> entry.getValue().fieldPermissions.hasFieldLevelSecurity()
+                || entry.getValue().documentPermissions.hasDocumentLevelPermissions())
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**

@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.vectors.Vectors;
+import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
@@ -48,7 +48,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new Vectors());
+        return List.of(new DenseVectorPlugin());
     }
 
     @Override

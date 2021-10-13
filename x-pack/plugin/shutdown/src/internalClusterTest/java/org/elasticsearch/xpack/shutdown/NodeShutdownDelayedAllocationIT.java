@@ -228,7 +228,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
     private String findIdOfNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
         Collections.shuffle(startedShards, random());
         return startedShards.get(0).currentNodeId();
     }

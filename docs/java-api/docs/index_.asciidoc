@@ -83,7 +83,7 @@ Elasticsearch provides built-in helpers to generate JSON content.
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.xcontent.XContentFactory.*;
 
 XContentBuilder builder = jsonBuilder()
     .startObject()
@@ -117,7 +117,7 @@ twitter, under a type called `_doc`, with id valued 1:
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.xcontent.XContentFactory.*;
 
 IndexResponse response = client.prepareIndex("twitter", "_doc", "1")
         .setSource(jsonBuilder()

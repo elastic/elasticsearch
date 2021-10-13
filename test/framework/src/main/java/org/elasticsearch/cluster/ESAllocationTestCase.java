@@ -60,7 +60,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     };
 
     public static MockAllocationService createAllocationService() {
-        return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
+        return createAllocationService(Settings.EMPTY);
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
@@ -179,7 +179,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      * @return the cluster state after completing the reroute.
      */
     public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState clusterState) {
-        return startShardsAndReroute(allocationService, clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+        return startShardsAndReroute(allocationService, clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
     }
 
     /**

@@ -6,6 +6,9 @@
 <titleabbrev>Unfreeze index</titleabbrev>
 ++++
 
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
+
 Unfreezes an index.
 
 [[unfreeze-index-api-request]]

@@ -38,7 +38,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private boolean copySettings;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
 
-    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     private final Map<String, String> mappings = new HashMap<>();
 

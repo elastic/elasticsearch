@@ -39,7 +39,7 @@ public class ConfigurationTests extends PackagingTestCase {
         assertThat(result.isSuccess(), is(true));
     }
 
-    public void test60HostnameSubstitution() throws Exception {
+    public void test20HostnameSubstitution() throws Exception {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
@@ -50,6 +50,8 @@ public class ConfigurationTests extends PackagingTestCase {
             // Packaged installations don't get autoconfigured yet
             // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
             String protocol = distribution.isPackage() ? "http" : "https";
+            // security auto-config requires that the archive owner and the node process user be the same
+            Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
                 final String nameResponse = makeRequest(
                     Request.Get(protocol + "://localhost:9200/_cat/nodes?h=name"),
@@ -59,6 +61,7 @@ public class ConfigurationTests extends PackagingTestCase {
                 ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
+            Platforms.onWindows(() -> sh.chown(confPath));
         });
     }
 }

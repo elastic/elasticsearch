@@ -500,7 +500,8 @@ public abstract class PackagingTestCase extends Assert {
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
 
-        Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
+        // this is what install does
+        sh.chown(tempDir);
 
         if (distribution.isPackage()) {
             Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"), StandardCopyOption.COPY_ATTRIBUTES);// backup

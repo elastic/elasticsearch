@@ -221,6 +221,23 @@ Instead, you can:
 include::geo-match-enrich-policy-type-ex.asciidoc[]
 include::match-enrich-policy-type-ex.asciidoc[]
 
+[[ingest-enrich-components]]
+==== Enrich components
+
+The enrich coordinator is a node component that manages
+and performs the searches that are required the do the
+enrichment in the `enrich` processor. It tries to
+bulk execute the searches from all `enrich` processor
+instances in all pipelines into a single multi search.
+
+The enrich policy executor is a component that manages
+enrich executions for all enrich policies. An enrich
+policy execution creates a new hidden system enrich
+index that contains data from the configured source
+index in an optimal form. When a new system enrich
+index is created then the previous system enrich
+index is cleaned up in the background.
+
 [[ingest-enrich-settings]]
 ==== Node Settings
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

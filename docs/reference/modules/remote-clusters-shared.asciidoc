@@ -13,12 +13,14 @@ h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 |====
 
 ifeval::["{release-state}"!="released"]
-NOTE: This documentation is for {es} {version}, which is not yet released. The
-above compatibility table only applies if the local or remote cluster is running
-a released version of {es}. A local cluster running a pre-release build of {es}
-can also communicate with remote clusters running the same pre-release build.
-Running a mix of pre-release builds is unsupported and typically will not work,
-even if the builds are the same version.
+NOTE: This documentation is for {es} version {version}, which is not yet
+released. The above compatibility table applies if both clusters are running a
+released version of {es}, or if one of the clusters is running a released
+version and the other is running a pre-release build with a later build date. A
+cluster running a pre-release build of {es} can also communicate with remote
+clusters running the same pre-release build. Running a mix of pre-release
+builds is unsupported and typically will not work, even if the builds have the
+same version number.
 endif::[]
 
 // end::remote-cluster-compatibility-matrix[]

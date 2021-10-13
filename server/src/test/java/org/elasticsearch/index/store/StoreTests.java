@@ -9,6 +9,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -473,11 +474,16 @@ public class StoreTests extends ESTestCase {
         List<Document> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
-            doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body",
-                TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+            final Field.Store stringFieldStored = random().nextBoolean() ? Field.Store.YES : Field.Store.NO;
+            doc.add(new StringField("id", "" + i, stringFieldStored));
+            final String textFieldContent = TestUtil.randomRealisticUnicodeString(random());
+            final Field.Store textFieldStored = random().nextBoolean() ? Field.Store.YES : Field.Store.NO;
+            doc.add(new TextField("body", textFieldContent, textFieldStored));
+            final String docValueFieldContent = TestUtil.randomRealisticUnicodeString(random());
+            doc.add(new BinaryDocValuesField("dv", new BytesRef(docValueFieldContent)));
             docs.add(doc);
+            logger.info("--> doc [{}] id=[{}] (store={}) body=[{}] (store={}) dv=[{}]",
+                i, i, stringFieldStored, textFieldContent, textFieldStored, docValueFieldContent);
         }
         long seed = random().nextLong();
         Store.MetadataSnapshot first;
@@ -492,9 +498,8 @@ public class StoreTests extends ESTestCase {
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
                 writer.addDocument(d);
-                if (lotsOfSegments && random.nextBoolean()) {
-                    writer.commit();
-                } else if (rarely(random)) {
+                if (lotsOfSegments && random.nextBoolean() || rarely(random)) {
+                    logger.info("--> commit after doc {}", d.getField("id").stringValue());
                     writer.commit();
                 }
             }
@@ -521,9 +526,7 @@ public class StoreTests extends ESTestCase {
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
                 writer.addDocument(d);
-                if (lotsOfSegments && random.nextBoolean()) {
-                    writer.commit();
-                } else if (rarely(random)) {
+                if (lotsOfSegments && random.nextBoolean() || rarely(random)) {
                     writer.commit();
                 }
             }
@@ -548,35 +551,40 @@ public class StoreTests extends ESTestCase {
         assertThat(selfDiff.different, empty());
         assertThat(selfDiff.missing, empty());
 
-
-        // lets add some deletes
-        Random random = new Random(seed);
-        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
-        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-        iwc.setUseCompoundFile(random.nextBoolean());
-        iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        IndexWriter writer = new IndexWriter(store.directory(), iwc);
-        writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
-        writer.commit();
-        writer.close();
-        Store.MetadataSnapshot metadata = store.getMetadata(null);
+        // delete a doc
+        final String deleteId = Integer.toString(random().nextInt(numDocs));
+        Store.MetadataSnapshot metadata;
+        {
+            Random random = new Random(seed);
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setUseCompoundFile(random.nextBoolean());
+            iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            IndexWriter writer = new IndexWriter(store.directory(), iwc);
+            logger.info("--> delete doc {}", deleteId);
+            writer.deleteDocuments(new Term("id", deleteId));
+            writer.commit();
+            writer.close();
+            metadata = store.getMetadata(null);
+        }
         StoreFileMetadata delFile = null;
         for (StoreFileMetadata md : metadata) {
             if (md.name().endsWith(".liv")) {
                 delFile = md;
+                logger.info("--> delFile=[{}]", delFile);
                 break;
             }
         }
         Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second);
         if (delFile != null) {
-            assertThat(afterDeleteDiff.identical.size(), equalTo(metadata.size() - 2)); // segments_N + del file
-            assertThat(afterDeleteDiff.different.size(), equalTo(0));
-            assertThat(afterDeleteDiff.missing.size(), equalTo(2));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.identical.size(), equalTo(metadata.size() - 2)); // segments_N + del file
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.different.size(), equalTo(0));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.missing.size(), equalTo(2));
         } else {
             // an entire segment must be missing (single doc segment got dropped)
-            assertThat(afterDeleteDiff.identical.size(), greaterThan(0));
-            assertThat(afterDeleteDiff.different.size(), equalTo(0));
-            assertThat(afterDeleteDiff.missing.size(), equalTo(1)); // the commit file is different
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.identical.size(), greaterThan(0));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.different.size(), equalTo(0));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.missing.size(), equalTo(1)); // the commit file is different
         }
 
         // check the self diff
@@ -586,29 +594,69 @@ public class StoreTests extends ESTestCase {
         assertThat(selfDiff.missing, empty());
 
         // add a new commit
-        iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
-        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
-        iwc.setUseCompoundFile(true); // force CFS - easier to test here since we know it will add 3 files
-        iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        writer = new IndexWriter(store.directory(), iwc);
-        writer.addDocument(docs.get(0));
-        writer.close();
+        {
+            Random random = new Random(seed);
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setUseCompoundFile(true); // force CFS - easier to test here since we know it will add 3 files
+            iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            IndexWriter writer = new IndexWriter(store.directory(), iwc);
+            logger.info("--> add new empty doc");
+            writer.addDocument(new Document());
+            writer.close();
+        }
 
         Store.MetadataSnapshot newCommitMetadata = store.getMetadata(null);
         Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
         if (delFile != null) {
-            assertThat(newCommitDiff.identical.size(),
-                equalTo(newCommitMetadata.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
-            assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
-            assertThat(newCommitDiff.different.get(0).name(), endsWith(".liv"));
-            assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
-        } else {
-            assertThat(newCommitDiff.identical.size(),
+            assertThat(newCommitDiff.toString(), newCommitDiff.identical.size(),
                 equalTo(newCommitMetadata.size() - 4)); // segments_N, cfs, cfe, si for the new segment
-            assertThat(newCommitDiff.different.size(), equalTo(0));
-            assertThat(newCommitDiff.missing.size(),
+            assertThat(newCommitDiff.toString(), newCommitDiff.different.size(), equalTo(0)); // the del file must be different
+            assertThat(newCommitDiff.toString(), newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
+            assertTrue(newCommitDiff.toString(), newCommitDiff.identical.stream().anyMatch(m -> m.name().endsWith(".liv")));
+        } else {
+            assertThat(newCommitDiff.toString(), newCommitDiff.identical.size(),
+                equalTo(newCommitMetadata.size() - 4)); // segments_N, cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.toString(), newCommitDiff.different.size(), equalTo(0));
+            assertThat(newCommitDiff.toString(), newCommitDiff.missing.size(),
                 equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
         }
+
+        // update doc values
+        Store.MetadataSnapshot dvUpdateSnapshot;
+        final String updateId = randomValueOtherThan(deleteId, () -> Integer.toString(random().nextInt(numDocs)));
+        {
+            Random random = new Random(seed);
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(TestUtil.getDefaultCodec());
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setUseCompoundFile(random.nextBoolean());
+            iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            try(IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
+                final String newDocValue = TestUtil.randomRealisticUnicodeString(random());
+                logger.info("--> update doc [{}] with dv=[{}]", updateId, newDocValue);
+                writer.updateBinaryDocValue(new Term("id", updateId), "dv", new BytesRef(newDocValue));
+                writer.commit();
+            }
+            dvUpdateSnapshot = store.getMetadata(null);
+        }
+        logger.info("--> source: {}", dvUpdateSnapshot.asMap());
+        logger.info("--> target: {}", newCommitMetadata.asMap());
+        Store.RecoveryDiff dvUpdateDiff = dvUpdateSnapshot.recoveryDiff(newCommitMetadata);
+        final int delFileCount;
+        if (delFile == null || dvUpdateDiff.different.isEmpty()) {
+            // liv file either doesn't exist or belongs to a different segment from the one that we just updated
+            delFileCount = 0;
+            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different, empty());
+        } else {
+            // liv file is generational and belongs to the updated segment
+            delFileCount = 1;
+            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(1));
+            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.get(0).name(), endsWith(".liv"));
+        }
+
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - 4 - delFileCount));
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(delFileCount));
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing.size(), equalTo(4)); // segments_N, fnm, dvd, dvm for the updated segment
 
         deleteContent(store.directory());
         IOUtils.close(store);

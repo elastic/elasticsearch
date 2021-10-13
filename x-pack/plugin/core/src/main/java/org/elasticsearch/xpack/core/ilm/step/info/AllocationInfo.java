@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.core.ilm.step.info;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Represents the state of an index's shards allocation, including a user friendly message describing the current state.
- * It allows to transfer the allocation information to {@link org.elasticsearch.common.xcontent.XContent} using
+ * It allows to transfer the allocation information to {@link org.elasticsearch.xcontent.XContent} using
  * {@link #toXContent(XContentBuilder, Params)}
  */
 public class AllocationInfo implements ToXContentObject {

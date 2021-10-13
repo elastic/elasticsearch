@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -16,11 +15,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -67,12 +66,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.index = in.readString();
             this.currentStepKey = new StepKey(in);
-            if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-                this.nextStepKey = new PartialStepKey(in);
-            } else {
-                StepKey spec = new StepKey(in);
-                this.nextStepKey = new PartialStepKey(spec.getPhase(), spec.getAction(), spec.getName());
-            }
+            this.nextStepKey = new PartialStepKey(in);
         }
 
         public Request() {
@@ -104,14 +98,7 @@ public class MoveToStepAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(index);
             currentStepKey.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-                nextStepKey.writeTo(out);
-            } else {
-                String action = nextStepKey.getAction();
-                String name = nextStepKey.getName();
-                StepKey key = new StepKey(nextStepKey.getPhase(), action == null ? "" : action, name == null ? "" : name);
-                key.writeTo(out);
-            }
+            nextStepKey.writeTo(out);
         }
 
         @Override

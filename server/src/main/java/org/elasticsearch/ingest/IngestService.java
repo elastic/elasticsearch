@@ -8,13 +8,13 @@
 
 package org.elasticsearch.ingest;
 
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -67,6 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Holder class for several ingest related services.
@@ -282,7 +284,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return currentState;
         }
         final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
+        ImmutableOpenMap<String, IndexMetadata> indices = currentState.metadata().indices();
         for (String key : toRemove) {
+            validateNotInUse(key, indices);
             pipelinesCopy.remove(key);
         }
         ClusterState.Builder newState = ClusterState.builder(currentState);
@@ -290,6 +294,38 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelinesCopy))
                 .build());
         return newState.build();
+    }
+
+    static void validateNotInUse(String pipeline, ImmutableOpenMap<String, IndexMetadata> indices) {
+        List<String> defaultPipelineIndices = new ArrayList<>();
+        List<String> finalPipelineIndices = new ArrayList<>();
+        for (IndexMetadata indexMetadata : indices.values()) {
+            String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
+            String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
+            if (pipeline.equals(defaultPipeline)) {
+                defaultPipelineIndices.add(indexMetadata.getIndex().getName());
+            }
+
+            if (pipeline.equals(finalPipeline)) {
+                finalPipelineIndices.add(indexMetadata.getIndex().getName());
+            }
+        }
+
+        if (defaultPipelineIndices.size() > 0 || finalPipelineIndices.size() > 0) {
+            throw new IllegalArgumentException(
+                "pipeline ["
+                    + pipeline
+                    + "] cannot be deleted because it is the default pipeline for "
+                    + defaultPipelineIndices.size()
+                    + " indices including ["
+                    + defaultPipelineIndices.stream().limit(3).collect(Collectors.joining(","))
+                    + "] and the final pipeline for "
+                    + finalPipelineIndices.size()
+                    + " indices including ["
+                    + finalPipelineIndices.stream().limit(3).collect(Collectors.joining(","))
+                    + "]"
+            );
+        }
     }
 
     /**
@@ -349,15 +385,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 // existing pipeline matches request pipeline -- no need to update
                 listener.onResponse(AcknowledgedResponse.TRUE);
                 return;
-            }
-        }
-
-        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
-            pipelineConfig = pipelineConfig == null
-                ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
-                : pipelineConfig;
-            if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
-                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
             }
         }
 

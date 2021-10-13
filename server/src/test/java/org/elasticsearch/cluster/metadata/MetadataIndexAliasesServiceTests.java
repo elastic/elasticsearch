@@ -56,7 +56,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             Collection<Index> indices = (Collection<Index>) i.getArguments()[1];
             Metadata.Builder meta = Metadata.builder(state.metadata());
             for (Index index : indices) {
-                assertTrue("index now found", state.metadata().hasConcreteIndex(index.getName()));
+                assertTrue("index now found", state.metadata().hasIndexAbstraction(index.getName()));
                 meta.remove(index.getName()); // We only think about metadata for this test. Not routing or any other fun stuff.
             }
             return ClusterState.builder(state).metadata(meta).build();
@@ -499,7 +499,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.applyAliasActions(state,
             singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
         assertThat(exception.getMessage(), is("The provided index [" + backingIndexName + "] is a backing index belonging to data " +
-            "stream [foo-stream]. Data streams and their backing indices don't support alias operations."));
+            "stream [foo-stream]. Data stream backing indices don't support alias operations."));
     }
 
     public void testDataStreamAliases() {

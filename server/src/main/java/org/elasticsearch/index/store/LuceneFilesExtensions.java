@@ -68,9 +68,10 @@ public enum LuceneFilesExtensions {
     TVF("tvf", "Term Vector Fields", false, false),
     TVM("tvm", "Term Vector Metadata", true, false),
     TVX("tvx", "Term Vector Index", false, false),
-    VEC("vec", "Vector Data", false, false),
-    // Lucene 9.0 indexed vectors metadata
-    VEM("vem","Vector Metadata", true, false);
+    // kNN vectors format
+    VEC("vec", "Vector Data", false, true),
+    VEX("vex", "Vector Index", false, true),
+    VEM("vem", "Vector Metadata", true, false);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

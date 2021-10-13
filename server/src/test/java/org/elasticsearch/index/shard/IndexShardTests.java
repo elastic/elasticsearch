@@ -58,10 +58,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -160,8 +160,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -189,13 +189,13 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class IndexShardTests extends IndexShardTestCase {
 
-    public static ShardStateMetadata load(Logger logger, Path shardPath) throws IOException {
-        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath);
+    public static ShardStateMetadata load(Logger logger, Path... shardPaths) throws IOException {
+        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
     }
 
     public static void write(ShardStateMetadata shardStateMetadata,
-                             Path shardPath) throws IOException {
-        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPath);
+                             Path... shardPaths) throws IOException {
+        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPaths);
     }
 
     public static Engine getEngineFromShard(IndexShard shard) {
@@ -208,18 +208,18 @@ public class IndexShardTests extends IndexShardTestCase {
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
             ShardStateMetadata state1 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state1, env.availableShardPath(id));
-            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPath(id));
+            write(state1, env.availableShardPaths(id));
+            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state2 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state2, env.availableShardPath(id));
-            shardStateMetadata = load(logger, env.availableShardPath(id));
+            write(state2, env.availableShardPaths(id));
+            shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state3 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state3, env.availableShardPath(id));
-            shardStateMetadata = load(logger, env.availableShardPath(id));
+            write(state3, env.availableShardPaths(id));
+            shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state3);
             assertEquals("fooUUID", state3.indexUUID);
         }
@@ -3469,7 +3469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "_doc", Integer.toString(i));
             shard.refresh("test"); // produce segments
         }
-        List<Segment> segments = shard.segments(false);
+        List<Segment> segments = shard.segments();
         Set<String> names = new HashSet<>();
         for (Segment segment : segments) {
             assertFalse(segment.committed);
@@ -3480,7 +3480,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.flush(new FlushRequest());
         shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
         shard.refresh("test");
-        segments = shard.segments(false);
+        segments = shard.segments();
         for (Segment segment : segments) {
             if (names.contains(segment.getName())) {
                 assertTrue(segment.committed);
@@ -3496,7 +3496,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(shard.isActive());
 
         assertBusy(() -> { // flush happens in the background using the flush threadpool
-            List<Segment> segmentsAfterFlush = shard.segments(false);
+            List<Segment> segmentsAfterFlush = shard.segments();
             assertEquals(1, segmentsAfterFlush.size());
             for (Segment segment : segmentsAfterFlush) {
                 assertTrue(segment.committed);

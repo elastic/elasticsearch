@@ -187,7 +187,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.metadata.DataStream.DATASTREAM_LEAF_READERS_SORTER;
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -407,6 +407,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Sort getIndexSort() {
         return indexSortSupplier.get();
+    }
+
+    /**
+     * Returns if this shard is a part of datastream
+     * @return {@code true} if this shard is a part of datastream, {@code false} otherwise
+     */
+    public boolean isDataStreamIndex() {
+        return isDataStreamIndex;
     }
 
     public ShardGetService getService() {
@@ -2093,8 +2101,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
     }
 
-    public List<Segment> segments(boolean verbose) {
-        return getEngine().segments(verbose);
+    public List<Segment> segments() {
+        return getEngine().segments();
     }
 
     public String getHistoryUUID() {
@@ -2913,6 +2921,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
+        final boolean isTimeseriesIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
         return new EngineConfig(
                 shardId,
                 threadPool,
@@ -2936,7 +2945,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
                 snapshotCommitSupplier,
-                isDataStreamIndex ? DATASTREAM_LEAF_READERS_SORTER : null);
+                isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null);
     }
 
     /**

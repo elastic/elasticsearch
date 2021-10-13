@@ -11,9 +11,7 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -42,9 +40,6 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
         } else if (value instanceof Number) {
             resize(1);
             values[0] = ((Number) value).doubleValue();
-        } else if (value instanceof ReadableInstant) {
-            resize(1);
-            values[0] = ((ReadableInstant) value).getMillis();
         } else if (value instanceof ZonedDateTime) {
             resize(1);
             values[0] = ((ZonedDateTime) value).toInstant().toEpochMilli();
@@ -80,13 +75,8 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
     private static double toDoubleValue(Object o) {
         if (o instanceof Number) {
             return ((Number) o).doubleValue();
-        } else if (o instanceof ReadableInstant) {
-            // Dates are exposed in scripts as ReadableDateTimes but aggregations want them to be numeric
-            return ((ReadableInstant) o).getMillis();
         } else if (o instanceof ZonedDateTime) {
             return ((ZonedDateTime) o).toInstant().toEpochMilli();
-        } else if (o instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {
             // We do expose boolean fields as boolean in scripts, however aggregations still expect
             // that scripts return the same internal representation as regular fields, so boolean

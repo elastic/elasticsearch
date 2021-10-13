@@ -95,13 +95,15 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName) {
-        return "{\n" +
-            "      \"properties\": {\n" +
-            "        \"" + timestampFieldName + "\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
+        return "{" +
+            "     \"_doc\":{\n" +
+            "        \"properties\": {\n" +
+            "          \"" + timestampFieldName + "\": {\n" +
+            "            \"type\": \"date\"\n" +
+            "          }\n" +
             "      }\n" +
-            "    }";
+            "    }" +
+            "}";
     }
 
     public static String generateMapping(String timestampFieldName, String type) {
@@ -148,7 +150,7 @@ public final class DataStreamTestHelper {
             metadata = Map.of("key", "value");
         }
         return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
-            randomBoolean(), randomBoolean(), false, timeProvider);
+            randomBoolean(), randomBoolean(), false, timeProvider, false);
     }
 
     public static DataStreamAlias randomAliasInstance() {

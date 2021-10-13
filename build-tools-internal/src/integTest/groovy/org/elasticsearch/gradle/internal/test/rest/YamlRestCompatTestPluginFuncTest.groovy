@@ -82,7 +82,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         String wrongTest = "wrong_version.yml"
         String additionalTest = "additional_test.yml"
         setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
-        addRestTestsToProject([additionalTest], "yamlRestCompatTest")
+        String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat"
+        addRestTestsToProject([additionalTest], sourceSetName)
         //intentionally adding to yamlRestTest source set since the .classes are copied from there
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
@@ -107,17 +108,17 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/${testIntermediateDir}/original/rest-api-spec/test/" + test).exists()
         file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).exists()
         file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).exists()
+        file("/build/resources/${sourceSetName}/rest-api-spec/test/" + additionalTest).exists()
 
         //additionalTest is not copied from the prior version, and thus not in the intermediate directory, nor transformed
-        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
+        file("/build/resources/${sourceSetName}/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
+        file("/build/resources/${sourceSetName}/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
 
         file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
 
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + wrongApi).exists() == false
-        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + wrongTest).exists() == false
+        file("/build/resources/${sourceSetName}/rest-api-spec/api/" + wrongApi).exists() == false
+        file("/build/resources/${sourceSetName}/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
+        file("/build/resources/${sourceSetName}/rest-api-spec/test/" + wrongTest).exists() == false
 
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
@@ -196,6 +197,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
                yamlRestTestImplementation "junit:junit:4.12"
             }
             tasks.named("yamlRestTestV${compatibleVersion}CompatTransform").configure({ task ->
+              task.skipTest("test/test/two", "This is a test to skip test two")
               task.replaceValueInMatch("_type", "_doc")
               task.replaceValueInMatch("_source.values", ["z", "x", "y"], "one")
               task.removeMatch("_source.blah")
@@ -333,6 +335,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         ---
         two:
+        - skip:
+            version: "all"
+            reason: "This is a test to skip test two"
         - do:
             get:
               index: "test2"

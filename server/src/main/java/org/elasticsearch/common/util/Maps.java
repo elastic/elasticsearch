@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -18,6 +19,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -206,6 +208,20 @@ public class Maps {
         return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
             throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
         }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
+    }
+
+    /**
+     * Returns a {@link Collector} that accumulates the input elements into a linked hash map and finishes the resulting set into an
+     * unmodifiable map. The resulting read-only view through the unmodifiable map is a linked hash map.
+     *
+     * @param <T> the type of the input elements
+     * @return an unmodifiable {@link Map} where the underlying map has a consistent order
+     */
+    public static <T, K, V> Collector<T, ?, Map<K, V>> toUnmodifiableOrderedMap(Function<T, ? extends K> keyMapper,
+                                                                                Function<T, ? extends V> valueMapper) {
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new), Collections::unmodifiableMap);
     }
 
 }

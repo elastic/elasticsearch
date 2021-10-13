@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeApiIT extends ESRestTestCase {
+public class FeatureMigrationApiIT extends ESRestTestCase {
 
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
 
@@ -47,13 +47,13 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetFeatureUpgradedStatuses() throws Exception {
+    public void testGetFeatureMigrationStatuses() throws Exception {
         client().performRequest(new Request("PUT", "/_net_new_sys_index/_create"));
         Response response = client().performRequest(new Request("GET", "/_migration/system_features"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         XContentTestUtils.JsonMapView view = XContentTestUtils.createJsonMapView(response.getEntity().getContent());
-        String upgradeStatus = view.get("upgrade_status");
-        assertThat(upgradeStatus, equalTo("NO_UPGRADE_NEEDED"));
+        String migrationStatus = view.get("migration_status");
+        assertThat(migrationStatus, equalTo("NO_MIGRATION_NEEDED"));
         List<Map<String, Object>> features = view.get("features");
         Map<String, Object> testFeature = features.stream()
             .filter(feature -> "system indices qa".equals(feature.get("feature_name")))
@@ -62,7 +62,7 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
 
         assertThat(testFeature.size(), equalTo(4));
         assertThat(testFeature.get("minimum_index_version"), equalTo(Version.CURRENT.toString()));
-        assertThat(testFeature.get("upgrade_status"), equalTo("NO_UPGRADE_NEEDED"));
+        assertThat(testFeature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(testFeature.get("indices"), instanceOf(List.class));
 
         assertThat((List<Object>) testFeature.get("indices"), hasSize(1));

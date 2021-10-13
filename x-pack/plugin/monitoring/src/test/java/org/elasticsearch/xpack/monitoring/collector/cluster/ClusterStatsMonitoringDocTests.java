@@ -297,7 +297,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final OsStats mockOsStats = mock(OsStats.class);
         when(mockNodeStats.getOs()).thenReturn(mockOsStats);
-        when(mockOsStats.getMem()).thenReturn(new OsStats.Mem(100, 99L, 79));
+        when(mockOsStats.getMem()).thenReturn(new OsStats.Mem(100, 99, 79));
 
         final ProcessStats mockProcessStats = mock(ProcessStats.class);
         when(mockNodeStats.getProcess()).thenReturn(mockProcessStats);

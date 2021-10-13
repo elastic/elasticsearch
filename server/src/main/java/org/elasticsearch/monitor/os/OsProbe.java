@@ -128,14 +128,15 @@ public class OsProbe {
     }
 
     /**
-     * Returns the overridden total amount of physical memory in bytes.
+     * Returns the adjusted total amount of physical memory in bytes.
      * Total memory may be overridden when some other process is running
-     * that is known to consume a non-negligible amount of memory. This
-     * is read from the "es.total_memory_bytes" system property. Negative
-     * values or not set at all mean no override.
+     * that is known to consume a non-negligible amount of memory. This is
+     * read from the "es.total_memory_bytes" system property. Negative values
+     * or not set at all mean no override. When there is no override this
+     * method returns the same value as {@link #getTotalPhysicalMemorySize}.
      */
-    public Long getTotalMemoryOverride() {
-        return getTotalMemoryOverride(memoryOverrideProperty);
+    public long getAdjustedTotalMemorySize() {
+        return Optional.ofNullable(getTotalMemoryOverride(memoryOverrideProperty)).orElse(getTotalPhysicalMemorySize());
     }
 
     static Long getTotalMemoryOverride(String memoryOverrideProperty) {
@@ -883,7 +884,7 @@ public class OsProbe {
 
     public OsStats osStats() {
         final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
-        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getTotalMemoryOverride(), getFreePhysicalMemorySize());
+        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);

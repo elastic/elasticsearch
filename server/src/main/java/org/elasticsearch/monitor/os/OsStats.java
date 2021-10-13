@@ -91,8 +91,8 @@ public class OsStats implements Writeable, ToXContentFragment {
         static final String USED_IN_BYTES = "used_in_bytes";
         static final String TOTAL = "total";
         static final String TOTAL_IN_BYTES = "total_in_bytes";
-        static final String TOTAL_OVERRIDE = "total_override";
-        static final String TOTAL_OVERRIDE_IN_BYTES = "total_override_in_bytes";
+        static final String ADJUSTED_TOTAL = "adjusted_total";
+        static final String ADJUSTED_TOTAL_IN_BYTES = "adjusted_total_in_bytes";
 
         static final String FREE_PERCENT = "free_percent";
         static final String USED_PERCENT = "used_percent";
@@ -240,29 +240,28 @@ public class OsStats implements Writeable, ToXContentFragment {
         private static final Logger logger = LogManager.getLogger(Mem.class);
 
         private final long total;
-        private final Long totalOverride;
+        private final long adjustedTotal;
         private final long free;
 
-        public Mem(long total, Long totalOverride, long free) {
+        public Mem(long total, long adjustedTotal, long free) {
             assert total >= 0 : "expected total memory to be positive, got: " + total;
-            assert totalOverride == null || totalOverride >= 0 : "expected total overridden memory to be positive, got: " + totalOverride;
+            assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
             assert free >= 0 : "expected free memory to be positive, got: " + free;
             this.total = total;
-            this.totalOverride = totalOverride;
+            this.adjustedTotal = adjustedTotal;
             this.free = free;
         }
 
         public Mem(StreamInput in) throws IOException {
-            this.total = in.readLong();
+            total = in.readLong();
             assert total >= 0 : "expected total memory to be positive, got: " + total;
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.totalOverride = in.readOptionalLong();
-                assert totalOverride == null || totalOverride >= 0
-                    : "expected total overridden memory to be positive, got: " + totalOverride;
+                adjustedTotal = in.readLong();
+                assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
             } else {
-                this.totalOverride = null;
+                adjustedTotal = total;
             }
-            this.free = in.readLong();
+            free = in.readLong();
             assert free >= 0 : "expected free memory to be positive, got: " + free;
         }
 
@@ -270,7 +269,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(total);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalLong(totalOverride);
+                out.writeLong(adjustedTotal);
             }
             out.writeLong(free);
         }
@@ -279,8 +278,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             return new ByteSizeValue(total);
         }
 
-        public ByteSizeValue getTotalOverride() {
-            return totalOverride == null ? null : new ByteSizeValue(totalOverride);
+        public ByteSizeValue getAdjustedTotal() {
+            return new ByteSizeValue(adjustedTotal);
         }
 
         public ByteSizeValue getUsed() {
@@ -315,9 +314,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(Fields.MEM);
             builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
-            if (getTotalOverride() != null) {
-                builder.humanReadableField(Fields.TOTAL_OVERRIDE_IN_BYTES, Fields.TOTAL_OVERRIDE, getTotalOverride());
-            }
+            builder.humanReadableField(Fields.ADJUSTED_TOTAL_IN_BYTES, Fields.ADJUSTED_TOTAL, getAdjustedTotal());
             builder.humanReadableField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
             builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
             builder.field(Fields.FREE_PERCENT, getFreePercent());

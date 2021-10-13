@@ -916,17 +916,17 @@ Total amount of physical memory across all selected nodes.
 (integer)
 Total amount, in bytes, of physical memory across all selected nodes.
 
-`total_override`::
+`adjusted_total`::
 (<<byte-units,byte value>>)
-If the amount of physical memory has been overridden using the `es.total_memory_bytes`
-system property on all selected nodes then this reports the sum of the overridden
-values. Otherwise it is not present.
+Total amount of memory across all selected nodes, but using the value specified
+using the `es.total_memory_bytes` system property instead of measured total
+memory for those nodes where that system property was set.
 
-`total_override_in_bytes`::
+`adjusted_total_in_bytes`::
 (integer)
-If the amount of physical memory has been overridden using the `es.total_memory_bytes`
-system property on all selected nodes then this reports the sum of the overridden
-values in bytes. Otherwise it is not present.
+Total amount, in bytes, of memory across all selected nodes, but using the
+value specified using the `es.total_memory_bytes` system property instead
+of measured total memory for those nodes where that system property was set.
 
 `free`::
 (<<byte-units, byte units>>)

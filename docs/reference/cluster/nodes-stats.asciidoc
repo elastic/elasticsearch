@@ -1036,16 +1036,17 @@ Total amount of physical memory.
 (integer)
 Total amount of physical memory in bytes.
 
-`total_override`::
+`adjusted_total`::
 (<<byte-units,byte value>>)
 If the amount of physical memory has been overridden using the `es.total_memory_bytes`
-system property then this reports the overridden value. Otherwise it is not present.
+system property then this reports the overridden value. Otherwise it reports the same
+value as `total`.
 
-`total_override_in_bytes`::
+`adjusted_total_in_bytes`::
 (integer)
 If the amount of physical memory has been overridden using the `es.total_memory_bytes`
-system property then this reports the overridden value in bytes. Otherwise it is not
-present.
+system property then this reports the overridden value in bytes. Otherwise it reports
+the same value as `total_in_bytes`.
 
 `free`::
 (<<byte-units,byte value>>)

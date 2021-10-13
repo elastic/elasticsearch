@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,6 +53,11 @@ public class PyTorchPassThroughResults implements InferenceResults {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeDoubleArray, inference);
         out.writeString(resultsField);
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override

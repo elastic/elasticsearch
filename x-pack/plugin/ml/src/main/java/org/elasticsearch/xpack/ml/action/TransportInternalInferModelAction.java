@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -14,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -158,10 +161,22 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
-            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc)),
+            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc), null),
             ActionListener.wrap(
                 r -> listener.onResponse(r.getResults()),
-                e -> listener.onResponse(new WarningInferenceResults(e.getMessage()))
+                e -> {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ElasticsearchStatusException) {
+                        ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
+                        if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
+                            listener.onFailure(ex);
+                        } else {
+                            listener.onResponse(new WarningInferenceResults(ex.getMessage()));
+                        }
+                    } else {
+                        listener.onResponse(new WarningInferenceResults(e.getMessage()));
+                    }
+                }
             )
         );
     }

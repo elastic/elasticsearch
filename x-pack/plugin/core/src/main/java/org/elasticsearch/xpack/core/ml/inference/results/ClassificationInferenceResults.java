@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
@@ -194,6 +194,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public Double getPredictionScore() {
         return predictionScore;
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override

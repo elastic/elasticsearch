@@ -17,6 +17,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -33,6 +36,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.TRAINED_MODEL_CIRCUIT_BREAKER_NAME;
 
@@ -84,6 +88,20 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
         mlPlugin.cleanUpFeature(clusterService, client, finalListener);
     }
 
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return mlPlugin.getAggregations();
+    }
+
+    @Override
+    public Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        return mlPlugin.getCharFilters();
+    }
+
+    @Override
+    public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        return mlPlugin.getTokenizers();
+    }
 
     /**
      * This is only required as we now have to have the GetRollupIndexCapsAction as a valid action in our node.

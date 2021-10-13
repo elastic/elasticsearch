@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.logstash.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 public class PutPipelineRequestTests extends AbstractWireSerializingTestCase<PutPipelineRequest> {
 

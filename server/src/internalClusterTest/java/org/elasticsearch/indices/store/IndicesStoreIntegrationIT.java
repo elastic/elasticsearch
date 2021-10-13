@@ -457,7 +457,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.availableShardPath(new ShardId(index, shard));
+        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private void assertShardDeleted(final String server, final Index index, final int shard) throws Exception {

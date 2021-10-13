@@ -134,6 +134,20 @@ public final class AuthenticationResult {
         return new AuthenticationResult(Status.TERMINATE, null, message, cause, null);
     }
 
+    /**
+     * Creates an {@code AuthenticationResult} that indicates that the realm attempted to handle the authentication request, was
+     * unsuccessful and wants to terminate this authentication request.
+     * The reason for the failure is given in the supplied message.
+     * <p>
+     * The {@link #getStatus() status} is set to {@link Status#TERMINATE}.
+     * </p><p>
+     * The {@link #getUser() user} is not populated.
+     * </p>
+     */
+    public static AuthenticationResult terminate(String message) {
+        return terminate(message, null);
+    }
+
     public boolean isAuthenticated() {
         return status == Status.SUCCESS;
     }

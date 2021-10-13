@@ -84,7 +84,7 @@ repository to take periodic snapshots of your cluster. You can also use it for
 your own snapshots.
 
 The `found-snapshots` repository is specific to each deployment. To use another
-deployment's default repository, see
+deployment's `found-snapshots` repository, see
 {cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
 clusters].
 
@@ -152,8 +152,6 @@ include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
 ==== Read-only URL repository
 
 include::register-repository.asciidoc[tag=on-prem-repo-type]
-
-include::register-repository.asciidoc[tag=multi-cluster-repo]
 
 You can use a URL repository to give a cluster read-only access to a shared file
 system. Since URL repositories are always read-only, they're a safer and more

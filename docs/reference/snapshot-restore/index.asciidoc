@@ -11,7 +11,7 @@ A snapshot is a backup of a running {es} cluster. You can use snapshots to:
 
 // tag::backup-warning[]
 **A snapshot is the only supported way to back up a cluster.** Other backup
-methods may result in data loss, even if they initially appear to succeed.
+methods may result in data loss, even if they appear successful.
 // end::backup-warning[]
 
 [discrete]
@@ -29,8 +29,8 @@ repository. Before you can take or restore snapshots, you must
 
 After you register a snapshot repository, you can use
 <<snapshot-lifecycle-management,{slm} ({slm-init})>> to automatically take and
-manage snapshots. You can also <<snapshots-restore-snapshot,restore a snapshot>>
-to recover or transfer data.
+manage snapshots. You can then <<snapshots-restore-snapshot,restore a snapshot>>
+to recover or transfer its data.
 
 [discrete]
 [[snapshot-contents]]
@@ -59,12 +59,12 @@ Snapshots are incremental. You can take snapshots frequently with little impact
 to your storage overhead.
 
 To back up an index, a snapshot makes a copy of the index's
-<<near-real-time,segment files>> and stores them in the snapshot repository.
-Since segments are immutable, the snapshot only needs to copy any new segments
-created since the last snapshot.
+<<near-real-time,segments>> and stores them in the snapshot repository. Since
+segments are immutable, the snapshot only needs to copy any new segments created
+since the last snapshot.
 
-When you delete a snapshot, {es} only deletes segments used exclusively by that
-snapshot. {es} doesn't delete segments used by other snapshots in the
+When you delete a snapshot, {es} only deletes the segments used exclusively by
+that snapshot. {es} doesn't delete segments used by other snapshots in the
 repository.
 
 [discrete]
@@ -133,17 +133,15 @@ endif::[]
 [[snapshot-index-compatibility]]
 === Index compatibility
 
-A snapshot can contain indices created in a previous major version. For example,
-a snapshot of a 7.x cluster can contain an index created in 6.x.
-
-A cluster is only compatible with indices created in the previous major version.
 Any data stream or index you restore from a snapshot must also be compatible
-with the current cluster's version. If you try to restore an index created in an
-incompatible version, the restore attempt will fail. Keep this in mind if you
-create a snapshot before upgrading a cluster.
+with the current cluster's version. A cluster is only compatible with indices
+created in the previous major version. If you try to restore an index created in
+an incompatible version, the restore attempt will fail. 
 
-For example, a snapshot of a 6.x cluster can contain an index created in 5.x. If
-you try to restore the 5.x index to a 7.x cluster, the attempt will fail.
+A snapshot can contain indices created in a previous major version. For example,
+a snapshot of a 6.x cluster can contain an index created in 5.x. If you try to
+restore the 5.x index to a 7.x cluster, the attempt will fail. Keep this in mind
+if you take a snapshot before upgrading a cluster.
 
 As a workaround, you can first restore the data stream or index to another
 cluster running the latest version of {es} that's compatible with both the index

@@ -36,8 +36,8 @@ blocks>> that prevent read access.
 [[take-snapshot-considerations]]
 === Considerations
 
-* Each snapshot must have a unique name within its snapshot repository. Attempts
-to create a snapshot with the same name as an existing snapshot will fail.
+* Each snapshot must have a unique name within its repository. Attempts to
+create a snapshot with the same name as an existing snapshot will fail.
 
 * Snapshots are incremental. You can take snapshots frequently with little
 impact to your storage overhead. See <<how-snapshots-work>>.
@@ -55,9 +55,8 @@ setting limits the maximum number of concurrent snapshot operations.
 * If you include a data stream in a snapshot, the snapshot also includes the
 stream’s backing indices and metadata.
 +
-You can also choose to include only specific backing indices in a snapshot.
-However, the snapshot won't include the associated data stream’s metadata or
-its other backing indices.
+You can also include only specific backing indices in a snapshot. However, the
+snapshot won't include the data stream’s metadata or its other backing indices.
 
 * A snapshot can include a data stream but exclude specific backing indices.
 When you restore the data stream, it will contain only backing indices in the
@@ -80,8 +79,9 @@ You can also manage
 {slm-init} using the <<snapshot-lifecycle-management-api,{slm-init} APIs>>.
 
 TIP: {ess} deployments automatically include the `cloud-snapshot-policy`
-{slm-init} policy. For more information, see the
-{cloud}/ec-snapshot-restore.html[{ess} snapshot documentation].
+{slm-init} policy. {ess} uses this policy to take periodic snapshots of your
+cluster. For more information, see the {cloud}/ec-snapshot-restore.html[{ess}
+snapshot documentation].
 
 [discrete]
 [[create-slm-policy]]
@@ -131,7 +131,7 @@ PUT _slm/policy/nightly-snapshots
 [[manually-run-slm-policy]]
 ==== Manually run an {slm-init} policy
 
-You can manually run an {slm-init} policy to immediately start a snapshot. This
+You can manually run an {slm-init} policy to immediately create a snapshot. This
 is useful for testing a new policy or taking a snapshot before an upgrade.
 Manually running a policy doesn't affect its snapshot schedule.
 
@@ -145,11 +145,8 @@ POST _slm/policy/nightly-snapshots/_execute
 ----
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
-Once started, the snapshot process runs in the background. To monitor its
-progress, see <<monitor-snapshot>>.
-
-You can also clone an existing snapshot using <<clone-snapshot-api,clone
-snapshot API>>.
+The snapshot process runs in the background. To monitor its progress, see
+<<monitor-snapshot>>.
 
 [discrete]
 [[slm-retention-task]]
@@ -206,6 +203,9 @@ background. To block the client until the snapshot finishes, set the
 PUT _snapshot/my_repository/my-snapshot?wait_for_completion=true
 ----
 
+You can also clone an existing snapshot using <<clone-snapshot-api,clone
+snapshot API>>.
+
 [discrete]
 [[monitor-snapshot]]
 === Monitor a snapshot
@@ -231,8 +231,9 @@ GET _snapshot/_status
 ==== Check {slm-init} execution history
 
 Use the <<slm-api-get-policy,get {slm-init} policy API>> to check when an
-{slm-init} policy last successfully started a snapshot. However, starting a
-snapshot doesn't guarantee the snapshot completed.
+{slm-init} policy last successfully started the snapshot process. However,
+successfully starting the snapshot process doesn't guarantee the snapshot
+completed.
 
 [source,console]
 ----
@@ -283,12 +284,12 @@ data, such as passwords or keys. If so, consider encrypting your file backups.
 === Dedicated cluster state snapshots
 
 By default, a snapshot includes all system indices. Some of these system indices
-contain sensitive data. For example, the `.security-*` indices contain user
-names or encrypted password hashes.
+contain sensitive data. For example, the `.security-*` syste, indices may
+contain user names and encrypted password hashes.
 
 To better protect this data, consider creating a dedicated repository and
-{slm-init} policy for snapshots of the cluster state. You can stictly limit and
-audit access to the repository.
+{slm-init} policy for snapshots of the cluster state. This lets you stictly
+limit and audit access to the repository.
 
 For example, the following {slm-init} policy only backs up the cluster state
 and system indices. The policy stores these snapshots in a dedicated repository.

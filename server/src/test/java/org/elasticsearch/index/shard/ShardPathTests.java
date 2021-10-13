@@ -7,15 +7,25 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -128,4 +138,101 @@ public class ShardPathTests extends ESTestCase {
         }
     }
 
+    public void testLoadShardMultiPath() throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+            ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
+            Path[] paths = new Path[4];
+            for (int i = 0; i < paths.length; i++) {
+                paths[i] = createTempDir();
+            }
+            Path path = env.availableShardPath(shardId);
+            paths[between(0, paths.length - 1)] = path;
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+
+            // Doesn't matter which of the paths contains shard data, we should be able to load it
+            ShardPath shardPath = ShardPath.loadShardPath(logger, shardId, "", paths, env.sharedDataPath());
+            assertNotNull(shardPath.getDataPath());
+            assertEquals(path, shardPath.getDataPath());
+            assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
+            assertEquals("foo", shardPath.getShardId().getIndexName());
+            assertEquals(path.resolve("translog"), shardPath.resolveTranslog());
+            assertEquals(path.resolve("index"), shardPath.resolveIndex());
+
+            // Ensure we validate all paths regardless of successful load
+            Path badPath = createTempDir();
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                new ShardStateMetadata(true, "0xDEADF00D", AllocationId.newInitializing()), badPath);
+
+            Path[] extendedPaths = Arrays.copyOf(paths, paths.length + 1);
+            extendedPaths[paths.length] = badPath;
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                ShardPath.loadShardPath(logger, shardId, "", extendedPaths, env.sharedDataPath()));
+            assertThat(e.getMessage(),
+                is("[foo][0] index UUID in shard state was: 0xDEADF00D expected: 0xDEADBEEF on shard path: " + badPath));
+        }
+    }
+
+    public void testLoadEmptyShards() throws IOException {
+        ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
+        Path[] paths = new Path[4];
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = createTempDir();
+        }
+
+        assertNull(ShardPath.loadShardPath(logger, shardId, "", paths, createTempDir()));
+    }
+
+    public void testShardPathSelection() throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+            NodeEnvironment.NodePath path = env.nodePaths()[0];
+            assertEquals(path, ShardPath.getPathWithMostFreeSpace(env));
+            ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
+
+            Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+
+            ShardPath shardPath = ShardPath.selectNewPathForShard(env, shardId, idxSettings, 1L, new HashMap<>());
+            assertNotNull(shardPath.getDataPath());
+            assertEquals(path.indicesPath.resolve("0xDEADBEEF").resolve("0"), shardPath.getDataPath());
+            assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
+            assertEquals("foo", shardPath.getShardId().getIndexName());
+            assertFalse(shardPath.isCustomDataPath());
+        }
+    }
+
+    public void testDeleteLeftoverShardDirs() throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {
+            ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
+            ShardLock lock = env.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
+            try {
+                Path path = env.availableShardPath(shardId);
+                ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+
+                Path badPath = createTempDir();
+                // Cause a failure by writing metadata with UUID that doesn't match
+                ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, "0xDEADF00D", AllocationId.newInitializing()), badPath);
+
+                Path[] paths = new Path[]{ badPath, path };
+
+                Exception e = expectThrows(IllegalStateException.class, () ->
+                    ShardPath.loadShardPath(logger, shardId, "", paths, env.sharedDataPath()));
+                assertThat(e.getMessage(),
+                    is("[foo][0] index UUID in shard state was: 0xDEADF00D expected: 0xDEADBEEF on shard path: " + badPath));
+
+                Settings indexSettings = Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+
+                assertTrue(Files.exists(path));
+                ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> assertEquals(path, shardPaths[0]));
+                assertFalse(Files.exists(path));
+            } finally {
+                IOUtils.closeWhileHandlingException(lock);
+            }
+        }
+    }
 }

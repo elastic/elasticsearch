@@ -518,7 +518,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertEquals(1, clusterStateResponse.getState().getNodes().getDataNodes().size());
             assertEquals(
                 restoreInfo.failedShards(),
-                clusterStateResponse.getState().getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size()
+                clusterStateResponse.getState().getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size()
             );
         }
     }

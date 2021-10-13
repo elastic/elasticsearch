@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.DoubleUnaryOperator;
 
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
@@ -152,12 +153,18 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     ) throws IOException {
         RangeAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
+        /*
+         This will downgrade the precision of the range bounds to match the field's precision.  Fixes float/double issues, but not
+         long/double issues.  See https://github.com/elastic/elasticsearch/issues/77033
+         */
+        DoubleUnaryOperator fixPrecision = config.reduceToStoredPrecisionFunction();
+
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
             assert parser != null;
-            Double from = range.from;
-            Double to = range.to;
+            Double from = fixPrecision.applyAsDouble(range.from);
+            Double to = fixPrecision.applyAsDouble(range.to);
             if (range.fromAsStr != null) {
                 from = parser.parseDouble(range.fromAsStr, false, context::nowInMillis);
             }

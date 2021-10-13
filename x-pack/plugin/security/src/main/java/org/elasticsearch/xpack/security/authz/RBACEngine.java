@@ -363,7 +363,7 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(
                 new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
             );
-        } else if (((IndicesRequest) request).allowsRemoteIndices()) {
+        } else if (request instanceof IndicesRequest.Replaceable && ((IndicesRequest.Replaceable) request).allowsRemoteIndices()) {
             // remote indices are allowed
             authorizeIndexActionAndMaybeCache(
                 requestInfo, authorizationInfo, indicesAsyncSupplier, metadata, listener);
@@ -764,6 +764,13 @@ public class RBACEngine implements AuthorizationEngine {
             throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
         }
         return (RBACAuthorizationInfo) authorizationInfo;
+    }
+
+    public static Role maybeGetRBACEngineRole(AuthorizationInfo authorizationInfo) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            return ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        }
+        return null;
     }
 
     private static boolean checkChangePasswordAction(Authentication authentication) {

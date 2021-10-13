@@ -52,6 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
 
+    public static final Version CONFIG_VERSION_LAST_CHANGED = Version.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
@@ -556,7 +557,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
-            && transformConfig.getVersion().onOrAfter(Version.V_7_15_0)
+            && transformConfig.getVersion().onOrAfter(CONFIG_VERSION_LAST_CHANGED)
             && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
@@ -605,7 +606,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
 
         // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
+        if (builder.getVersion() != null && builder.getVersion().before(CONFIG_VERSION_LAST_CHANGED)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),

@@ -227,7 +227,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUp() throws IOException {
         ensureNoInitializingShards();
-        new MlTestStateCleaner(logger, highLevelClient()).clearMlMetadata();
+        new MlTestStateCleaner(logger, adminHighLevelClient()).clearMlMetadata();
     }
 
     public void testPutJob() throws Exception {

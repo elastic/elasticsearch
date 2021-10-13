@@ -58,13 +58,12 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup)  {
+            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues)  {
                 List<Object> values = new ArrayList<>();
                 try {
                     fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
                 } catch (Exception e) {
-                    // ignore errors - if they exist here then they existed at index time
-                    // and so on_script_error must have been set to `ignore`
+                    ignoredValues.addAll(values);
                 }
                 return values;
             }
@@ -89,13 +88,12 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup)  {
+            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues)  {
                 List<T> values = new ArrayList<>();
                 try {
                     fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));
                 } catch (Exception e) {
-                    // ignore errors - if they exist here then they existed at index time
-                    // and so on_script_error must have been set to `ignore`
+                    ignoredValues.addAll(values);
                 }
                 return formatter.apply(values);
             }

@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-license-checker'
+  description 'Elasticsearch Expanded Pack Plugin - License checker'
+  classname 'org.elasticsearch.xpack.license.checker.XPackLicenseCheckerPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+archivesBaseName = 'x-pack-license-checker'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+}
+
+// Disable testing conventions since this plug-in only exposes a license
+// check and there's no logic here
+tasks.named("testingConventions").configure { enabled = false }

@@ -33,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
@@ -76,7 +77,12 @@ public class IndicesServiceCloseTests extends ESTestCase {
             .build();
 
         Node node = new MockNode(settings,
-                Arrays.asList(MockNioTransportPlugin.class, MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class), true);
+                Arrays.asList(MockNioTransportPlugin.class,
+                    MockHttpTransport.TestPlugin.class,
+                    InternalSettingsPlugin.class,
+                    MockLicenseCheckerPlugin.class
+                ),
+            true);
         node.start();
         return node;
     }

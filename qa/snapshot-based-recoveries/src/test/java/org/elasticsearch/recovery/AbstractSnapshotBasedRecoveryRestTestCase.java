@@ -72,7 +72,7 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
         // Add a new replica
         updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         ensureGreen(indexName);
-        assertSnapshotIsUsed(indexName);
+        checkSnapshotUsageDuringRecovery(indexName);
 
         assertMatchAllReturnsAllDocuments(indexName, numDocs);
         assertMatchQueryReturnsAllDocuments(indexName, numDocs);
@@ -112,7 +112,7 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
         }
     }
 
-    private void assertSnapshotIsUsed(String index) throws Exception {
+    protected void checkSnapshotUsageDuringRecovery(String index) throws Exception {
         Request request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_recovery?detailed=true");
         Response response = client().performRequest(request);
         assertOK(response);
@@ -192,7 +192,7 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T extractValue(Map<String, Object> map, String path) {
+    protected static <T> T extractValue(Map<String, Object> map, String path) {
         return (T) XContentMapValues.extractValue(path, map);
     }
 }

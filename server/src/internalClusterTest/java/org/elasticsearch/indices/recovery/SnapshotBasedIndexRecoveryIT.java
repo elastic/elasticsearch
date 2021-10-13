@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.plugins.LicenseCheckerPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
@@ -62,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -81,12 +83,39 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase {
 
+    public static class MockLicenseCheckerPlugin extends Plugin implements LicenseCheckerPlugin {
+
+        public static AtomicBoolean recoveryFromSnapshotAllowed = new AtomicBoolean(true);
+
+        public MockLicenseCheckerPlugin() {
+        }
+
+        @Override
+        public boolean isRecoveryFromSnapshotAllowed() {
+            return recoveryFromSnapshotAllowed.get();
+        }
+
+        public static void allowRecoveryFromSnapshot() {
+            recoveryFromSnapshotAllowed.set(true);
+        }
+
+        public static void denyRecoveryFromSnapshot() {
+            recoveryFromSnapshotAllowed.set(false);
+        }
+    }
+
+    @Override
+    protected boolean addMockLicenseChecker() {
+        return false;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
             TestRepositoryPlugin.class,
             MockTransportService.TestPlugin.class,
-            InternalSettingsPlugin.class
+            InternalSettingsPlugin.class,
+            MockLicenseCheckerPlugin.class
         );
     }
 
@@ -626,40 +655,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         updateSetting(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), "false");
 
         try {
-            internalCluster().ensureAtLeastNumDataNodes(2);
-            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            createIndex(indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                    .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
-                    .build()
-            );
-
-            int numDocs = randomIntBetween(300, 1000);
-            indexDocs(indexName, 0, numDocs);
-
-            String repoName = "repo";
-            createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
-            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
-
-            assertAcked(
-                client().admin().indices().prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            );
-
-            ensureGreen(indexName);
-            assertDocumentsAreEqual(indexName, numDocs);
-
-            RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
-            String currentPrimary = recoveryState.getSourceNode().getName();
-            String replica = recoveryState.getTargetNode().getName();
-            assertPeerRecoveryWasSuccessful(recoveryState, currentPrimary, replica);
-
-            InstrumentedRepo replicaRepo = getRepositoryOnNode(repoName, replica);
-            assertThat(replicaRepo.totalBytesRead.get(), is(equalTo(0L)));
+            checkRecoveryIsPerformedFromSourceNode();
         } finally {
             updateSetting(RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.getKey(), null);
         }
@@ -720,6 +716,53 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
 
         assertDocumentsAreEqual(indexName, numDocs.get());
+    }
+
+    public void testFallbacksToSourceNodeWhenLicenseIsInvalid() throws Exception {
+        MockLicenseCheckerPlugin.denyRecoveryFromSnapshot();
+
+        try {
+            checkRecoveryIsPerformedFromSourceNode();
+        } finally {
+            MockLicenseCheckerPlugin.allowRecoveryFromSnapshot();
+        }
+    }
+
+    private void checkRecoveryIsPerformedFromSourceNode() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .build()
+        );
+
+        int numDocs = randomIntBetween(300, 1000);
+        indexDocs(indexName, 0, numDocs);
+
+        String repoName = "repo";
+        createRepo(repoName, TestRepositoryPlugin.INSTRUMENTED_TYPE);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        assertAcked(
+            client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        ensureGreen(indexName);
+        assertDocumentsAreEqual(indexName, numDocs);
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        String currentPrimary = recoveryState.getSourceNode().getName();
+        String replica = recoveryState.getTargetNode().getName();
+        assertPeerRecoveryWasSuccessful(recoveryState, currentPrimary, replica);
+
+        InstrumentedRepo replicaRepo = getRepositoryOnNode(repoName, replica);
+        assertThat(replicaRepo.totalBytesRead.get(), is(equalTo(0L)));
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {

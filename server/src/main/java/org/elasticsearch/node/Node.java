@@ -79,6 +79,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.plugins.LicenseCheckerPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -194,6 +195,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -657,6 +659,12 @@ public class Node implements Closeable {
             final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);
             clusterService.addListener(pluginShutdownService);
 
+            final List<LicenseCheckerPlugin> licenseCheckerPlugins = pluginsService.filterPlugins(LicenseCheckerPlugin.class);
+            if (licenseCheckerPlugins.size() != 1) {
+                throw new IllegalStateException("A single LicenseCheckerPlugin was expected but got: " + licenseCheckerPlugins);
+            }
+            final LicenseCheckerPlugin licenseCheckerPlugin = licenseCheckerPlugins.get(0);
+
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
@@ -704,7 +712,10 @@ public class Node implements Closeable {
                             threadPool,
                             clusterService
                         );
-                        final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
+                        final BooleanSupplier useSnapshotsDuringRecovery =
+                            () -> licenseCheckerPlugin.isRecoveryFromSnapshotAllowed() && recoverySettings.getUseSnapshotsDuringRecovery();
+                        final RecoveryPlannerService recoveryPlannerService =
+                            new SnapshotsRecoveryPlannerService(shardSnapshotsService, useSnapshotsDuringRecovery);
                         final SnapshotFilesProvider snapshotFilesProvider =
                             new SnapshotFilesProvider(repositoryService);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,

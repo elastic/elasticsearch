@@ -201,7 +201,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             between(1, 5),
             between(1, 5),
             between(1, 5),
-            false,
             recoveryPlannerService);
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
@@ -265,7 +264,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
-            threadPool, request, fileChunkSizeInBytes, between(1, 10), between(1, 10), between(1, 10), false, recoveryPlannerService);
+            threadPool, request, fileChunkSizeInBytes, between(1, 10), between(1, 10), between(1, 10), recoveryPlannerService);
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(operations, emptyList()),
             randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
@@ -307,7 +306,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
-            threadPool, request, fileChunkSizeInBytes, between(1, 10), between(1, 10), between(1, 10), false, recoveryPlannerService);
+            threadPool, request, fileChunkSizeInBytes, between(1, 10), between(1, 10), between(1, 10), recoveryPlannerService);
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
         final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
@@ -361,7 +360,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         List<Translog.Operation> skipOperations = randomSubsetOf(operations);
         Translog.Snapshot snapshot = newTranslogSnapshot(operations, skipOperations);
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(target, recoveryExecutor),
-            threadPool, getStartRecoveryRequest(), between(1, 10 * 1024), between(1, 5), between(1, 5), between(1, 5), false,
+            threadPool, getStartRecoveryRequest(), between(1, 10 * 1024), between(1, 5), between(1, 5), between(1, 5),
             recoveryPlannerService);
         handler.phase2(startingSeqNo, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases,
             mappingVersion, sendFuture);
@@ -438,7 +437,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(target, recoveryExecutor), threadPool,
-            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8), between(1, 8), between(1, 8), false,
+            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8), between(1, 8), between(1, 8),
             recoveryPlannerService) {
             @Override
             protected void failEngine(IOException cause) {
@@ -496,7 +495,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(target, recoveryExecutor), threadPool,
-            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 10), between(1, 4), between(1, 4), false,
+            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 10), between(1, 4), between(1, 4),
             recoveryPlannerService) {
             @Override
             protected void failEngine(IOException cause) {
@@ -555,7 +554,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             between(1, 8),
             between(1, 8),
             between(1, 5),
-            false,
             recoveryPlannerService) {
 
             @Override
@@ -634,7 +632,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int maxConcurrentChunks = between(1, 8);
         final int chunkSize = between(1, 32);
         final RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, threadPool, getStartRecoveryRequest(),
-            chunkSize, maxConcurrentChunks, between(1, 10), between(1, 5), false, recoveryPlannerService);
+            chunkSize, maxConcurrentChunks, between(1, 10), between(1, 5), recoveryPlannerService);
         Store store = newStore(createTempDir(), false);
         List<StoreFileMetadata> files = generateFiles(store, between(1, 10), () -> between(1, chunkSize * 20));
         int totalChunks = files.stream().mapToInt(md -> ((int) md.length() + chunkSize - 1) / chunkSize).sum();
@@ -693,7 +691,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int chunkSize = between(1, 16);
         final RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(recoveryTarget, recoveryExecutor),
             threadPool, getStartRecoveryRequest(), chunkSize, maxConcurrentChunks, between(1, 5), between(1, 5),
-            false, recoveryPlannerService);
+            recoveryPlannerService);
         Store store = newStore(createTempDir(), false);
         List<StoreFileMetadata> files = generateFiles(store, between(1, 10), () -> between(1, chunkSize * 20));
         int totalChunks = files.stream().mapToInt(md -> ((int) md.length() + chunkSize - 1) / chunkSize).sum();
@@ -781,7 +779,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             between(1, 4),
             between(1, 4),
             between(1, 4),
-            false,
             recoveryPlannerService) {
             @Override
             void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
@@ -819,7 +816,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             between(1, 4),
             between(1, 4),
             between(1, 4),
-            false,
             recoveryPlannerService);
 
         String syncId = UUIDs.randomBase64UUID();
@@ -869,7 +865,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 4),
                 between(1, 4),
                 between(1, 4),
-                true,
                 recoveryPlannerService
             ) {
                 @Override
@@ -967,7 +962,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 4),
                 between(1, 4),
                 between(1, 4),
-                true,
                 recoveryPlannerService) {
                 @Override
                 void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
@@ -1035,7 +1029,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 4),
                 between(1, 4),
                 maxConcurrentSnapshotFileDownloads,
-                true,
                 null) {
                 @Override
                 void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
@@ -1118,7 +1111,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 4),
                 between(1, 4),
                 maxConcurrentSnapshotFileDownloads,
-                true,
                 null) {
                 @Override
                 void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
@@ -1184,7 +1176,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 4),
                 between(1, 4),
                 maxConcurrentSnapshotFileDownloads,
-                true,
                 null) {
                 @Override
                 void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {

@@ -229,7 +229,7 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
     }
   }
   copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+  if (xpackModule.name.equals('core') || xpackModule.name.equals('security') || xpackModule.name.equals('license-checker')) {
     copyModule(processIntegTestOutputsTaskProvider, xpackModule)
   }
 }

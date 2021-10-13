@@ -27,7 +27,6 @@ public class SourceOnlyRecoveryPlannerService implements RecoveryPlannerService 
                                     long startingSeqNo,
                                     int translogOps,
                                     Version targetVersion,
-                                    boolean useSnapshots,
                                     ActionListener<ShardRecoveryPlan> listener) {
         ActionListener.completeWith(listener, () -> {
             Store.RecoveryDiff recoveryDiff = sourceMetadata.recoveryDiff(targetMetadata);

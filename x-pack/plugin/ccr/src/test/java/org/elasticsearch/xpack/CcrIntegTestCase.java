@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -135,7 +136,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     private static ClusterGroup clusterGroup;
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.emptyList();
+        return Collections.singletonList(MockLicenseCheckerPlugin.class);
     }
 
     protected Settings leaderClusterSettings() {

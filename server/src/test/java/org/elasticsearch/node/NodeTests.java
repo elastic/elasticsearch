@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -80,6 +81,7 @@ public class NodeTests extends ESTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(getTestTransportPlugin());
         plugins.add(MockHttpTransport.TestPlugin.class);
+        plugins.add(MockLicenseCheckerPlugin.class);
         return plugins;
     }
 
@@ -317,6 +319,12 @@ public class NodeTests extends ESTestCase {
                 ((MockCircuitBreakerPlugin) breakerPlugin).myCircuitBreaker.get(),
                 service.getBreaker("test_breaker"));
         }
+    }
+
+    public void testNodeFailsToStartWhenThereAreMultipleLicenseCheckerPluginsLoaded() {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockLicenseCheckerPlugin.class);
+        expectThrows(RuntimeException.class, () -> new MockNode(baseSettings().build(), plugins));
     }
 
     public static class MockCircuitBreakerPlugin extends Plugin implements CircuitBreakerPlugin {

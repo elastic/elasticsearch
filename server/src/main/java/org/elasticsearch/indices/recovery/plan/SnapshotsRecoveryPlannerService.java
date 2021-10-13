@@ -20,6 +20,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -31,9 +32,11 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     private final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
 
     private final ShardSnapshotsService shardSnapshotsService;
+    private final BooleanSupplier canUseSnapshotsDuringRecovery;
 
-    public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+    public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService, BooleanSupplier canUseSnapshotsDuringRecovery) {
         this.shardSnapshotsService = shardSnapshotsService;
+        this.canUseSnapshotsDuringRecovery = canUseSnapshotsDuringRecovery;
     }
 
     public void computeRecoveryPlan(ShardId shardId,
@@ -42,10 +45,10 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
                                     long startingSeqNo,
                                     int translogOps,
                                     Version targetVersion,
-                                    boolean useSnapshots,
                                     ActionListener<ShardRecoveryPlan> listener) {
         // Fallback to source only recovery if the target node is in an incompatible version
-        boolean canUseSnapshots = useSnapshots && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
+        boolean canUseSnapshots = canUseSnapshotsDuringRecovery() &&
+            targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
 
         fetchLatestSnapshotsIgnoringErrors(shardId, canUseSnapshots, latestSnapshotOpt ->
             ActionListener.completeWith(listener, () ->
@@ -58,6 +61,10 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
                 )
             )
         );
+    }
+
+    private boolean canUseSnapshotsDuringRecovery() {
+        return canUseSnapshotsDuringRecovery.getAsBoolean();
     }
 
     private ShardRecoveryPlan computeRecoveryPlanWithSnapshots(Store.MetadataSnapshot sourceMetadata,

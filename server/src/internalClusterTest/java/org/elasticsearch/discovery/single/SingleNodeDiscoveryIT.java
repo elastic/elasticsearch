@@ -21,6 +21,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -87,7 +88,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         configurationSource,
                         0,
                         "other",
-                        Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                        Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, MockLicenseCheckerPlugin.class),
                         Function.identity())) {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
@@ -158,7 +159,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                      configurationSource,
                      0,
                      "other",
-                     Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+                     Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, MockLicenseCheckerPlugin.class),
                      Function.identity())) {
 
             Logger clusterLogger = LogManager.getLogger(JoinHelper.class);

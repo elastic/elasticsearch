@@ -394,7 +394,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                                                        boolean snapshotRecoveriesEnabled,
                                                        Version version) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService =
-            new SnapshotsRecoveryPlannerService(shardSnapshotsService);
+            new SnapshotsRecoveryPlannerService(shardSnapshotsService, () -> snapshotRecoveriesEnabled);
 
         PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
         recoveryPlannerService.computeRecoveryPlan(shardId,
@@ -403,7 +403,6 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             startingSeqNo,
             translogOps,
             version,
-            snapshotRecoveriesEnabled,
             planFuture
         );
         final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();

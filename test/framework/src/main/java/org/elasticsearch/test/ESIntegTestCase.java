@@ -1778,7 +1778,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
             transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
-        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), nodePlugins(), getClientWrapper(), clusterName,
+        Collection<Class<? extends Plugin>> pluginClasses = nodePlugins();
+        if (pluginClasses.contains(MockLicenseCheckerPlugin.class) == false) {
+            pluginClasses = new ArrayList<>(pluginClasses);
+            pluginClasses.add(MockLicenseCheckerPlugin.class);
+        }
+        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), pluginClasses, getClientWrapper(), clusterName,
             transportAddresses);
     }
 
@@ -1894,6 +1899,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
+    /** Returns {@code true} iff this test cluster should use a dummy license checker. Defaults to true. */
+    protected boolean addMockLicenseChecker() {
+        return true;
+    }
+
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -1932,6 +1942,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             mocks.add(MockHttpTransport.TestPlugin.class);
         }
+
+        if (addMockLicenseChecker()) {
+            mocks.add(MockLicenseCheckerPlugin.class);
+        }
+
         mocks.add(TestSeedPlugin.class);
         mocks.add(AssertActionNamePlugin.class);
         mocks.add(MockScriptService.TestPlugin.class);

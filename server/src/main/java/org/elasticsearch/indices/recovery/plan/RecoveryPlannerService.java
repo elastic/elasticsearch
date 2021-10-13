@@ -20,6 +20,5 @@ public interface RecoveryPlannerService {
                              long startingSeqNo,
                              int translogOps,
                              Version targetVersion,
-                             boolean useSnapshots,
                              ActionListener<ShardRecoveryPlan> listener);
 }

@@ -54,7 +54,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return Collections.emptyList();
+        return Collections.singletonList(MockLicenseCheckerPlugin.class);
     }
 
     protected Settings nodeSettings() {

@@ -60,6 +60,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 3
   plugin repositoryPlugin.path
 
+  setting 'xpack.license.self_generated.type', 'trial'
+
   keystore 's3.client.snapshot_based_recoveries.access_key', s3AccessKey
   keystore 's3.client.snapshot_based_recoveries.secret_key', s3SecretKey
 

@@ -59,6 +59,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 3
   plugin repositoryPlugin.path
 
+  setting 'xpack.license.self_generated.type', 'trial'
+
   keystore 'azure.client.snapshot_based_recoveries.account', azureAccount
   if (azureKey != null && azureKey.isEmpty() == false) {
     keystore 'azure.client.snapshot_based_recoveries.key', azureKey

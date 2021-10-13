@@ -103,6 +103,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 3
   plugin repositoryPlugin.path
 
+  setting 'xpack.license.self_generated.type', 'trial'
+
   keystore 'gcs.client.snapshot_based_recoveries.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
     /* Use a closure on the string to delay evaluation until tests are executed */

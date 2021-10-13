@@ -237,6 +237,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        plugins.add(MockLicenseCheckerPlugin.class);
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
             node.start();

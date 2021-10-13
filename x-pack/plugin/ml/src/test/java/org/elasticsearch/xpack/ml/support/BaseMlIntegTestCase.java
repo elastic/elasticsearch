@@ -45,6 +45,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -151,7 +152,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Arrays.asList(TestSeedPlugin.class, MockHttpTransport.TestPlugin.class);
+        return Arrays.asList(TestSeedPlugin.class, MockHttpTransport.TestPlugin.class, MockLicenseCheckerPlugin.class);
     }
 
     @Before

@@ -17,6 +17,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public class MockNodeTests extends ESTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
         plugins.add(getTestTransportPlugin());
         plugins.add(MockHttpTransport.TestPlugin.class);
+        plugins.add(MockLicenseCheckerPlugin.class);
         boolean useMockBigArrays = randomBoolean();
         boolean useMockSearchService = randomBoolean();
         if (useMockBigArrays) {

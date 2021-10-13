@@ -31,6 +31,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -207,7 +208,8 @@ public class LicensingTests extends SecurityIntegTestCase {
             .putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedHosts);
 
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
+        Collection<Class<? extends Plugin>> mockPlugins =
+            Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class, MockLicenseCheckerPlugin.class);
         try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             ensureStableCluster(cluster().size() + 1);

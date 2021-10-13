@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLicenseCheckerPlugin;
 import org.elasticsearch.test.NodeConfigurationSource;
 
 import java.io.IOException;
@@ -58,7 +59,7 @@ import static org.hamcrest.Matchers.not;
 public class InternalTestClusterTests extends ESTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
-        return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, MockLicenseCheckerPlugin.class);
     }
 
     @Override

@@ -16,7 +16,7 @@ dependencies {
   testImplementation testArtifact(project(':qa:snapshot-based-recoveries'))
 }
 
-final File repoDir = file("$buildDir/testclusters/snapshot-recoveries-repo")
+final File repoDir = file("$buildDir/testclusters/snapshot-recoveries-repo-license")
 
 restResources {
   restApi {
@@ -35,7 +35,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
 
-  setting 'xpack.license.self_generated.type', 'trial'
+  // This project tests that licensing is enforced, therefore
+  // we don't add any licesing on purpose
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.security.enabled', 'false'
 }

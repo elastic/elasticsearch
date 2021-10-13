@@ -623,16 +623,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }));
     }
 
-    // creates an object mapper, which is about 100x harder than it should be....
-    private static ObjectMapper createObjectMapper(String name) {
-        ContentPath path = new ContentPath(0);
-        String[] nameParts = name.split("\\.");
-        for (int i = 0; i < nameParts.length - 1; ++i) {
-            path.add(nameParts[i]);
-        }
-        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(MapperBuilderContext.forPath(path));
-    }
-
     public void testEmptyMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         ParsedDocument doc = docMapper.parse(source(b -> {}));

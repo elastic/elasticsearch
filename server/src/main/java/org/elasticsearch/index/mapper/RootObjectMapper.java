@@ -59,7 +59,6 @@ public class RootObjectMapper extends ObjectMapper {
                 };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;
-        public static final boolean DOTS_IN_LEAF_FIELDS = false;
     }
 
     public static class Builder extends ObjectMapper.Builder {
@@ -70,12 +69,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
 
-        public Builder(String name, Explicit<Boolean> flatten) {
+        public Builder(String name, boolean flatten) {
             super(name, flatten);
-        }
-
-        public Builder(String name) {
-            this(name, new Explicit<>(false, false));
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -254,7 +249,7 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> flatten,
+        boolean flatten,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,

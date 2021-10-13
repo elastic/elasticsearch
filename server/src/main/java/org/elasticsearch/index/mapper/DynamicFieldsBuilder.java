@@ -10,13 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -128,9 +127,7 @@ final class DynamicFieldsBuilder {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null
             ? mapper
-            : new ObjectMapper.Builder(
-            name,
-            new Explicit<>(false, false)).enabled(true).build(MapperBuilderContext.forPath(context.path())
+            : new ObjectMapper.Builder(name, false).enabled(true).build(MapperBuilderContext.forPath(context.path())
         );
     }
 

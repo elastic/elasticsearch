@@ -185,7 +185,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     private static ObjectMapper createObjectMapper(String name) {
         return new ObjectMapper(name, name,
             new Explicit<>(true, false),
-            new Explicit<>(false, false),
+            false,
             ObjectMapper.Dynamic.FALSE, emptyMap());
     }
 
@@ -197,7 +197,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                                                      List<ObjectMapper> objectMappers,
                                                      List<FieldAliasMapper> fieldAliasMappers,
                                                      List<RuntimeField> runtimeFields) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", false);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(

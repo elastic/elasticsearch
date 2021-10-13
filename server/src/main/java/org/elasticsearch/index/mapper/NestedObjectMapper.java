@@ -34,7 +34,7 @@ public class NestedObjectMapper extends ObjectMapper {
         private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {
-            super(name, new Explicit<>(false, false));
+            super(name, false);
             this.indexCreatedVersion = indexCreatedVersion;
         }
 
@@ -102,7 +102,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Builder builder
     ) {
-        super(name, fullPath, builder.enabled, new Explicit<>(false, false), builder.dynamic, mappers);
+        super(name, fullPath, builder.enabled, false, builder.dynamic, mappers);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
         } else {

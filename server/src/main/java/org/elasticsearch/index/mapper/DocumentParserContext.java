@@ -257,6 +257,9 @@ public abstract class DocumentParserContext {
      */
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
+    /**
+     * @return a RootObjectMapper.Builder to be used to construct a dynamic mapping update
+     */
     public final RootObjectMapper.Builder updateRoot() {
         return mappingLookup.getMapping().getRoot().newBuilder();
     }

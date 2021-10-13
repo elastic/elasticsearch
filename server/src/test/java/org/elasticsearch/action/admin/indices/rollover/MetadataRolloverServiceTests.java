@@ -569,7 +569,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", false);
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();

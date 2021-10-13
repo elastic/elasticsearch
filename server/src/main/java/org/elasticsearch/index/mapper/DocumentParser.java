@@ -527,12 +527,15 @@ public final class DocumentParser {
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
-            if (parentMapper.flatten.value()) {
+            if (parentMapper.flatten) {
                 parseDynamicValue(context, parentMapper, currentFieldName, token);
             } else {
                 Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
                 parentMapper = parentMapperTuple.v2();
                 int pathLength = parentMapperTuple.v1();
+                // If our dynamic parent mapper is flattened, then we can't just assume that our name
+                // is the last path part. We instead need to construct it by concatenating all path
+                // parts from the parent mapper onwards.
                 StringBuilder compositeFieldName = new StringBuilder(paths[pathLength]);
                 while (pathLength < paths.length - 1) {
                     pathLength++;
@@ -670,7 +673,7 @@ public final class DocumentParser {
             context.path().add(paths[i]);
             pathsAdded++;
             parent = mapper;
-            if (parent.flatten.value()) {
+            if (parent.flatten) {
                 break;
             }
         }
@@ -846,7 +849,7 @@ public final class DocumentParser {
                 name,
                 fullPath,
                 new Explicit<>(true, false),
-                new Explicit<>(false, false),
+                false,
                 Dynamic.RUNTIME,
                 Collections.emptyMap()
             );

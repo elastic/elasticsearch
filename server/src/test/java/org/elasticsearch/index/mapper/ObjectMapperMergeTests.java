@@ -67,7 +67,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         // GIVEN a mapping with "foo" field disabled
         Map<String, Mapper> mappers = new HashMap<>();
         //the field is disabled, and we are not trying to re-enable it, hence merge should work
-        mappers.put("disabled", new ObjectMapper.Builder("disabled").build(MapperBuilderContext.ROOT));
+        mappers.put("disabled", new ObjectMapper.Builder("disabled", false).build(MapperBuilderContext.ROOT));
         RootObjectMapper mergeWith = createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
 
         RootObjectMapper merged = (RootObjectMapper)rootObjectMapper.merge(mergeWith);
@@ -99,10 +99,10 @@ public class ObjectMapperMergeTests extends ESTestCase {
     public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
         final RootObjectMapper rootObjectMapper =
-            (RootObjectMapper) new RootObjectMapper.Builder(type).enabled(false).build(MapperBuilderContext.ROOT);
+            (RootObjectMapper) new RootObjectMapper.Builder(type, false).enabled(false).build(MapperBuilderContext.ROOT);
         //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
         final RootObjectMapper mergeWith =
-            new RootObjectMapper.Builder(type)
+            new RootObjectMapper.Builder(type, false)
                 .setRuntime(Collections.singletonMap("test", new TestRuntimeField("test", "long")))
                 .build(MapperBuilderContext.ROOT);
 
@@ -133,7 +133,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         final RootObjectMapper rootObjectMapper
-            = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(MapperBuilderContext.ROOT);
+            = (RootObjectMapper) new RootObjectMapper.Builder(name, false).enabled(enabled).build(MapperBuilderContext.ROOT);
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 
@@ -141,7 +141,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(MapperBuilderContext.ROOT);
+        final ObjectMapper mapper = new ObjectMapper.Builder(name, false).enabled(enabled).build(MapperBuilderContext.ROOT);
 
         mappers.values().forEach(mapper::putMapper);
 

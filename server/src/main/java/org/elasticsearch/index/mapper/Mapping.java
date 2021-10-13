@@ -9,16 +9,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,7 +35,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", new Explicit<>(false, false)).build(MapperBuilderContext.ROOT),
+        new RootObjectMapper.Builder("_doc", false).build(MapperBuilderContext.ROOT),
         new MetadataFieldMapper[0],
         null);
 

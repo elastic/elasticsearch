@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
 
@@ -24,7 +23,7 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, new Explicit<>(false, false))
+        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, false)
             .build(MapperBuilderContext.ROOT);
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);

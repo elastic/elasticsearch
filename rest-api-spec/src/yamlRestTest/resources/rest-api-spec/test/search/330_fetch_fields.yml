@@ -1012,7 +1012,7 @@ error for flattened includes whole path:
 test fetching metadata fields:
   - skip:
       version: ' - 7.15.99'
-      reason:  'fetching metadata via fields introduced in 7.16'
+      reason:  'fetching metadata via fields was introduced in 7.16'
 
   - do:
       indices.create:

@@ -210,7 +210,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
 
-    public void testPersistentSettingsStillApplied() {
+    public void testTransientSettingsStillApplied() {
         List<String> nodes = internalCluster().startNodes(6);
         Set<String> excludeNodes = new HashSet<>(nodes.subList(0, 3));
         Set<String> includeNodes = new HashSet<>(nodes.subList(3, 6));
@@ -229,7 +229,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             Strings.collectionToCommaDelimitedString(excludeNodes)).build();
 
         logger.info("--> updating settings");
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exclude).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(exclude).get();
 
         logger.info("--> waiting for relocation");
         waitForRelocation(ClusterHealthStatus.GREEN);
@@ -248,15 +248,15 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> updating settings with random persistent setting");
         client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(other).get();
+            .setPersistentSettings(other).setTransientSettings(exclude).get();
 
         logger.info("--> waiting for relocation");
         waitForRelocation(ClusterHealthStatus.GREEN);
 
         state = client().admin().cluster().prepareState().get().getState();
 
-        // The persistent settings still exist in the state
-        assertThat(state.metadata().persistentSettings(), equalTo(exclude));
+        // The transient settings still exist in the state
+        assertThat(state.metadata().transientSettings(), equalTo(exclude));
 
         for (ShardRouting shard : state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();

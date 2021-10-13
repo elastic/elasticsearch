@@ -1033,7 +1033,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -55,6 +56,7 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             when(searchExecutionContext.getForField(ft)).thenReturn(
                 ft.fielddataBuilder(index, () -> lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
             );
+            when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index(index, "indexUUid"));
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);

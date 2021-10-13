@@ -392,7 +392,10 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
             // commit the new history id
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
-            userData.put(Engine.ES_VERSION, Version.CURRENT.toString());
+            final String commitESVersion = userData.get(Engine.ES_VERSION);
+            if (commitESVersion == null || Version.fromString(commitESVersion).onOrBefore(Version.CURRENT)) {
+                userData.put(Engine.ES_VERSION, Version.CURRENT.toString());
+            }
 
             indexWriter.setLiveCommitData(userData.entrySet());
             indexWriter.commit();

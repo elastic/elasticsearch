@@ -15,11 +15,13 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 
+import org.apache.http.client.fluent.Request;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -28,6 +30,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.docker.Docker;
 import org.elasticsearch.packaging.util.docker.DockerFileMatcher;
@@ -86,6 +89,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -133,6 +137,7 @@ public abstract class PackagingTestCase extends Assert {
 
     // the current installation of the distribution being tested
     protected static Installation installation;
+    protected static Tuple<String, String> fileSuperuserForInstallation;
 
     private static boolean failed;
 
@@ -463,6 +468,50 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    public void setFileSuperuser(String username, String password) {
+        assertThat(installation, Matchers.not(Matchers.nullValue()));
+        assertThat(fileSuperuserForInstallation, Matchers.nullValue());
+        Shell.Result result = sh.run(
+            installation.executables().usersTool + " useradd " + username + " -p " + password + " -r " + "superuser"
+        );
+        assertThat(result.isSuccess(), is(true));
+        fileSuperuserForInstallation = new Tuple<>(username, password);
+    }
+
+    public void runElasticsearchTestsAsElastic(String elasticPassword) throws Exception {
+        ServerUtils.runElasticsearchTests("elastic", elasticPassword, ServerUtils.getCaCert(installation));
+    }
+
+    public void runElasticsearchTests() throws Exception {
+        ServerUtils.runElasticsearchTests(
+            fileSuperuserForInstallation.v1(),
+            fileSuperuserForInstallation.v2(),
+            ServerUtils.getCaCert(installation)
+        );
+    }
+
+    public String makeRequest(String request) throws Exception {
+        return ServerUtils.makeRequest(
+            Request.Get(request),
+            fileSuperuserForInstallation.v1(),
+            fileSuperuserForInstallation.v2(),
+            ServerUtils.getCaCert(installation)
+        );
+    }
+
+    public String makeRequestAsElastic(String request, String elasticPassword) throws Exception {
+        return ServerUtils.makeRequest(Request.Get(request), "elastic", elasticPassword, ServerUtils.getCaCert(installation));
+    }
+
+    public int makeRequestAsElastic(String elasticPassword) throws Exception {
+        return ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            "elastic",
+            elasticPassword,
+            ServerUtils.getCaCert(installation)
+        );
+    }
+
     public static Path getRootTempDir() {
         if (distribution().isPackage()) {
             // The custom config directory is not under /tmp or /var/tmp because
@@ -675,6 +724,10 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
+        Path caCert = ServerUtils.getCaCert(installation);
+        if (caCert != null) {
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config_initial_node")));
+        }
     }
 
     public static Optional<String> getAutoConfigDirName(Installation es) {

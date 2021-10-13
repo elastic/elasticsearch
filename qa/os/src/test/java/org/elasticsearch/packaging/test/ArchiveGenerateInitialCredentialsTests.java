@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -83,12 +82,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         assertThat(parseElasticPassword(result.stdout), notNullValue());
         assertThat(parseKibanaToken(result.stdout), notNullValue());
         assertThat(parseFingerprint(result.stdout), notNullValue());
-        String response = ServerUtils.makeRequest(
-            Request.Get("https://localhost:9200"),
-            "elastic",
-            parseElasticPassword(result.stdout),
-            ServerUtils.getCaCert(installation)
-        );
+        String response = makeRequestAsElastic("https://localhost:9200", parseElasticPassword(result.stdout));
         assertThat(response, containsString("You Know, for Search"));
     }
 

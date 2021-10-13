@@ -30,15 +30,12 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class WindowsServiceTests extends PackagingTestCase {
 
     private static final String DEFAULT_ID = "elasticsearch-service-x64";
     private static final String DEFAULT_DISPLAY_NAME = "Elasticsearch " + FileUtils.getCurrentVersion() + " (elasticsearch-service-x64)";
     private static String serviceScript;
-    private static String superuser = "test_superuser";
-    private static String superuserPassword = "test_superuser";
 
     @BeforeClass
     public static void ensureWindows() {
@@ -96,10 +93,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test10InstallArchive() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
-        Shell.Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assertThat(result.isSuccess(), is(true));
+        setFileSuperuser("test_superuser", "test_superuser_password");
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
     }
 
@@ -179,7 +173,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
     public void assertStartedAndStop() throws Exception {
         ServerUtils.waitForElasticsearch(installation);
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);

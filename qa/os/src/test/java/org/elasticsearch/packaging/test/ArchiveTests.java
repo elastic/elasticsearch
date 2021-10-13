@@ -36,7 +36,6 @@ import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -53,16 +52,10 @@ public class ArchiveTests extends PackagingTestCase {
         assumeTrue("only archives", distribution.isArchive());
     }
 
-    private static String superuser = "test_superuser";
-    private static String superuserPassword = "test_superuser";
-
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
-        Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser("test_superuser", "test_superuser_password");
         // See https://bugs.openjdk.java.net/browse/JDK-8267701. In short, when generating PKCS#12 keystores in JDK 12 and later
         // the MAC algorithm used for integrity protection is incompatible with any previous JDK version. This affects us as we generate
         // PKCS12 keystores on startup ( with the bundled JDK ) but we also need to run certain tests with a JDK other than the bundled
@@ -208,7 +201,7 @@ public class ArchiveTests extends PackagingTestCase {
             startElasticsearch();
             verifySecurityNotAutoConfigured(installation);
             // the node still starts, with Security enabled, but without TLS auto-configured (so only authentication)
-            ServerUtils.runElasticsearchTests(superuser, superuserPassword, null);
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             Platforms.onWindows(() -> {
@@ -294,10 +287,8 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test60StartAndStop() throws Exception {
         startElasticsearch();
-
         assertThat(installation.logs.resolve("gc.log"), fileExists());
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
-
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -312,7 +303,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
 
         String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
@@ -339,7 +330,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(runResult.stderr, containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
 
         // if the JDK started with the bundled JDK then we know that JAVA_HOME was ignored
@@ -363,7 +354,7 @@ public class ArchiveTests extends PackagingTestCase {
             });
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
 
             String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
@@ -384,7 +375,7 @@ public class ArchiveTests extends PackagingTestCase {
 
                 // verify ES can start, stop and run plugin list
                 startElasticsearch();
-                ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+                runElasticsearchTests();
                 stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
@@ -409,7 +400,7 @@ public class ArchiveTests extends PackagingTestCase {
 
                 // verify ES can start, stop and run plugin list
                 startElasticsearch();
-                ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+                runElasticsearchTests();
                 stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
@@ -427,7 +418,7 @@ public class ArchiveTests extends PackagingTestCase {
         sh.getEnv().put("ES_JAVA_HOME", "");
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -439,7 +430,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test66InstallUnderPosix() throws Exception {
         sh.getEnv().put("POSIXLY_CORRECT", "1");
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -452,11 +443,11 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
+            final String nodesResponse = ServerUtils.makeRequest(
                 Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
+                "test_superuser",
+                "test_superuser_password",
+                ServerUtils.getCaCert(tempConf)
             );
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
@@ -473,12 +464,7 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
             stopElasticsearch();
@@ -501,12 +487,7 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
@@ -523,7 +504,7 @@ public class ArchiveTests extends PackagingTestCase {
             append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);
@@ -535,12 +516,7 @@ public class ArchiveTests extends PackagingTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
             stopElasticsearch();

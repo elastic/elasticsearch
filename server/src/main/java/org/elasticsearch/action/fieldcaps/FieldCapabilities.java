@@ -9,13 +9,12 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -284,81 +283,50 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    // TODO: Maybe rename this as it feels weird to serialize a Builder.
-    static final class Builder implements Writeable {
+    static class Builder {
+        private final String name;
+        private final String type;
         private boolean isMetadataField;
         private boolean isSearchable;
         private boolean isAggregatable;
-        // TODO: Instead of using a list of IndexCaps here we can use two FixedBitSets for searchable and aggregatable,
-        // and share the indices (as subset or array of ordinals) of the global indices in the MergedResponse
-        final List<IndexCaps> indexCaps;
-        final Map<String, Set<String>> meta;
+        private List<IndexCaps> indiceList;
+        private Map<String, Set<String>> meta;
 
-        Builder() {
+        Builder(String name, String type) {
+            this.name = name;
+            this.type = type;
             this.isSearchable = true;
             this.isAggregatable = true;
-            this.indexCaps = new ArrayList<>();
+            this.indiceList = new ArrayList<>();
             this.meta = new HashMap<>();
-        }
-
-        Builder(StreamInput in) throws IOException {
-            this.isMetadataField = in.readBoolean();
-            this.isSearchable = in.readBoolean();
-            this.isAggregatable = in.readBoolean();
-            this.indexCaps = in.readList(IndexCaps::new);
-            this.meta = in.readMap(StreamInput::readString, i -> i.readSet(StreamInput::readString));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(isMetadataField);
-            out.writeBoolean(isSearchable);
-            out.writeBoolean(isAggregatable);
-            out.writeList(indexCaps);
-            out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
 
         /**
          * Collect the field capabilities for an index.
          */
-        synchronized void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
+        void add(String index, boolean isMetadataField, boolean search, boolean agg, Map<String, String> meta) {
             IndexCaps indexCaps = new IndexCaps(index, search, agg);
-            this.indexCaps.add(indexCaps);
+            indiceList.add(indexCaps);
             this.isSearchable &= search;
             this.isAggregatable &= agg;
             this.isMetadataField |= isMetadataField;
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>())
-                    .add(entry.getValue());
-            }
-        }
-
-        synchronized void add(Builder builder, Set<String> ignoredIndices) {
-            for (IndexCaps indexCaps : builder.indexCaps) {
-                if (ignoredIndices.contains(indexCaps.name)) {
-                    continue;
-                }
-                this.indexCaps.add(indexCaps);
-            }
-            this.isSearchable &= builder.isSearchable;
-            this.isAggregatable &= builder.isAggregatable;
-            this.isMetadataField |= builder.isMetadataField;
-            for (Map.Entry<String, Set<String>> e : builder.meta.entrySet()) {
-                this.meta.computeIfAbsent(e.getKey(), key -> new HashSet<>()).addAll(e.getValue());
+                        .add(entry.getValue());
             }
         }
 
         List<String> getIndices() {
-            return indexCaps.stream().map(c -> c.name).collect(Collectors.toList());
+            return indiceList.stream().map(c -> c.name).collect(Collectors.toList());
         }
 
-        synchronized FieldCapabilities build(String name, String type, boolean withIndices) {
+        FieldCapabilities build(boolean withIndices) {
             final String[] indices;
             /* Eclipse can't deal with o -> o.name, maybe because of
              * https://bugs.eclipse.org/bugs/show_bug.cgi?id=511750 */
-            Collections.sort(indexCaps, Comparator.comparing((IndexCaps o) -> o.name));
+            Collections.sort(indiceList, Comparator.comparing((IndexCaps o) -> o.name));
             if (withIndices) {
-                indices = indexCaps.stream()
+                indices = indiceList.stream()
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
             } else {
@@ -367,10 +335,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] nonSearchableIndices;
             if (isSearchable == false &&
-                indexCaps.stream().anyMatch((caps) -> caps.isSearchable)) {
+                    indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
                 // Iff this field is searchable in some indices AND non-searchable in others
                 // we record the list of non-searchable indices
-                nonSearchableIndices = indexCaps.stream()
+                nonSearchableIndices = indiceList.stream()
                     .filter((caps) -> caps.isSearchable == false)
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
@@ -380,10 +348,10 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
 
             final String[] nonAggregatableIndices;
             if (isAggregatable == false &&
-                indexCaps.stream().anyMatch((caps) -> caps.isAggregatable)) {
+                indiceList.stream().anyMatch((caps) -> caps.isAggregatable)) {
                 // Iff this field is aggregatable in some indices AND non-searchable in others
                 // we keep the list of non-aggregatable indices
-                nonAggregatableIndices = indexCaps.stream()
+                nonAggregatableIndices = indiceList.stream()
                     .filter((caps) -> caps.isAggregatable == false)
                     .map(caps -> caps.name)
                     .toArray(String[]::new);
@@ -392,41 +360,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
             final Function<Map.Entry<String, Set<String>>, Set<String>> entryValueFunction = Map.Entry::getValue;
             Map<String, Set<String>> immutableMeta = Collections.unmodifiableMap(meta.entrySet().stream()
-                .collect(Collectors.toMap(
-                    Map.Entry::getKey, entryValueFunction.andThen(HashSet::new).andThen(Collections::unmodifiableSet))));
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey, entryValueFunction.andThen(HashSet::new).andThen(Collections::unmodifiableSet))));
             return new FieldCapabilities(name, type, isMetadataField, isSearchable, isAggregatable,
                 indices, nonSearchableIndices, nonAggregatableIndices, immutableMeta);
         }
-
-        // for testing
-        boolean isMetadataField() {
-            return isMetadataField;
-        }
-
-        boolean isSearchable() {
-            return isSearchable;
-        }
-
-        boolean isAggregatable() {
-            return isAggregatable;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Builder that = (Builder) o;
-            return isMetadataField == that.isMetadataField && isSearchable == that.isSearchable && isAggregatable == that.isAggregatable
-                && meta.equals(that.meta) && Sets.newHashSet(indexCaps).equals(Sets.newHashSet(that.indexCaps));
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isMetadataField, isSearchable, isAggregatable, meta);
-        }
     }
 
-    static final class IndexCaps implements Writeable {
+    private static class IndexCaps {
         final String name;
         final boolean isSearchable;
         final boolean isAggregatable;
@@ -436,39 +377,5 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isSearchable = isSearchable;
             this.isAggregatable = isAggregatable;
         }
-
-        IndexCaps(StreamInput in) throws IOException {
-            this.name = in.readString();
-            this.isSearchable = in.readBoolean();
-            this.isAggregatable = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeBoolean(isSearchable);
-            out.writeBoolean(isAggregatable);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IndexCaps indexCaps = (IndexCaps) o;
-            return isSearchable == indexCaps.isSearchable && isAggregatable == indexCaps.isAggregatable && name.equals(indexCaps.name);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, isSearchable, isAggregatable);
-        }
-    }
-
-    static Map<String, FieldCapabilities.Builder> readBuilderField(StreamInput in) throws IOException {
-        return in.readMap(StreamInput::readString, FieldCapabilities.Builder::new);
-    }
-
-    static void writeBuilderField(StreamOutput out, Map<String, FieldCapabilities.Builder> maps) throws IOException {
-        out.writeMap(maps, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 }

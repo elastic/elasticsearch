@@ -101,8 +101,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
             request.indicesOptions(indicesOptions);
         });
-        mutators.add(request -> request.setMergeMode(
-            randomValueOtherThan(request.getMergeMode(), () -> randomFrom(MergeResultsMode.values()))));
+        mutators.add(request -> request.setMergeResults(request.isMergeResults() == false));
         mutators.add(request -> request.includeUnmapped(request.includeUnmapped() == false));
         mutators.add(request -> request.nowInMillis(request.nowInMillis() != null ? request.nowInMillis() + 1 : 1L));
         mutators.add(

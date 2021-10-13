@@ -37,8 +37,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] fields = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
-    // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should be partially merged
-    private MergeResultsMode mergeMode = MergeResultsMode.FULL_MERGE;
+    // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
+    private boolean mergeResults = true;
     private QueryBuilder indexFilter;
     private Map<String, Object> runtimeFields = Collections.emptyMap();
     private Long nowInMillis;
@@ -48,7 +48,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         fields = in.readStringArray();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        mergeMode = MergeResultsMode.readValue(in);
+        mergeResults = in.readBoolean();
         includeUnmapped = in.getVersion().onOrAfter(Version.V_7_2_0) ? in.readBoolean() : false;
         indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
         nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
@@ -59,20 +59,22 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     /**
-     * Returns the option for merging results
+     * Returns <code>true</code> iff the results should be merged.
      * <p>
-     * Note that when using the high-level REST client, results are always fully combined
+     * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
-    MergeResultsMode getMergeMode() {
-        return mergeMode;
+    boolean isMergeResults() {
+        return mergeResults;
     }
 
     /**
-     * Note that when using the high-level REST client, results are always fully combined
+     * If set to <code>true</code> the response will contain only a merged view of the per index field capabilities.
+     * Otherwise only unmerged per index field capabilities are returned.
+     * <p>
+     * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
-    FieldCapabilitiesRequest setMergeMode(MergeResultsMode mergeMode) {
-        this.mergeMode = mergeMode;
-        return this;
+    void setMergeResults(boolean mergeResults) {
+        this.mergeResults = mergeResults;
     }
 
     @Override
@@ -81,7 +83,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(fields);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        mergeMode.writeTo(out);
+        out.writeBoolean(mergeResults);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeBoolean(includeUnmapped);
         }
@@ -218,7 +220,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesRequest that = (FieldCapabilitiesRequest) o;
         return includeUnmapped == that.includeUnmapped &&
-            mergeMode == that.mergeMode &&
+            mergeResults == that.mergeResults &&
             Arrays.equals(indices, that.indices) &&
             indicesOptions.equals(that.indicesOptions) &&
             Arrays.equals(fields, that.fields) &&
@@ -229,7 +231,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, includeUnmapped, mergeMode, indexFilter, nowInMillis, runtimeFields);
+        int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         return result;

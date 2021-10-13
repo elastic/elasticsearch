@@ -32,7 +32,6 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
-    private final MergeResultsMode mergeMode;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -42,7 +41,6 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis =  in.readLong();
         runtimeFields = in.readMap();
-        mergeMode = MergeResultsMode.readValue(in);
     }
 
     FieldCapabilitiesNodeRequest(List<ShardId> shardIds,
@@ -50,19 +48,13 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
                                  OriginalIndices originalIndices,
                                  QueryBuilder indexFilter,
                                  long nowInMillis,
-                                 Map<String, Object> runtimeFields,
-                                 MergeResultsMode mergeMode) {
+                                 Map<String, Object> runtimeFields) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
         this.runtimeFields = runtimeFields;
-        if (mergeMode == MergeResultsMode.NO_MERGE) {
-            this.mergeMode = MergeResultsMode.NO_MERGE;
-        } else {
-            this.mergeMode = MergeResultsMode.INTERNAL_PARTIAL_MERGE;
-        }
     }
 
     public String[] fields() {
@@ -99,10 +91,6 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         return nowInMillis;
     }
 
-    public MergeResultsMode getMergeMode() {
-        return mergeMode;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -112,7 +100,6 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
         out.writeMap(runtimeFields);
-        mergeMode.writeTo(out);
     }
 
     @Override
@@ -125,14 +112,14 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesNodeRequest that = (FieldCapabilitiesNodeRequest) o;
-        return nowInMillis == that.nowInMillis && shardIds.equals(that.shardIds) && mergeMode == that.mergeMode
+        return nowInMillis == that.nowInMillis && shardIds.equals(that.shardIds)
             && Arrays.equals(fields, that.fields) && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter) && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, mergeMode);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         return result;

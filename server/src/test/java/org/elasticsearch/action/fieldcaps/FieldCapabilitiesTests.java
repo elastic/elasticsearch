@@ -40,13 +40,13 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
     }
 
     public void testBuilder() {
-        FieldCapabilities.Builder builder = new FieldCapabilities.Builder();
+        FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         builder.add("index1", false, true, false, Collections.emptyMap());
         builder.add("index2", false, true, false, Collections.emptyMap());
         builder.add("index3", false, true, false, Collections.emptyMap());
 
         {
-            FieldCapabilities cap1 = builder.build("field", "type", false);
+            FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(false));
             assertNull(cap1.indices());
@@ -54,7 +54,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap1.nonAggregatableIndices());
             assertEquals(Collections.emptyMap(), cap1.meta());
 
-            FieldCapabilities cap2 = builder.build("field", "type", true);
+            FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(false));
             assertThat(cap2.indices().length, equalTo(3));
@@ -64,12 +64,12 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
-        builder = new FieldCapabilities.Builder();
+        builder = new FieldCapabilities.Builder("field", "type");
         builder.add("index1", false, false, true, Collections.emptyMap());
         builder.add("index2", false, true, false, Collections.emptyMap());
         builder.add("index3", false, false, false, Collections.emptyMap());
         {
-            FieldCapabilities cap1 = builder.build("field", "type", false);
+            FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(false));
             assertThat(cap1.isAggregatable(), equalTo(false));
             assertNull(cap1.indices());
@@ -77,7 +77,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap1.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
             assertEquals(Collections.emptyMap(), cap1.meta());
 
-            FieldCapabilities cap2 = builder.build("field", "type", true);
+            FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(false));
             assertThat(cap2.isAggregatable(), equalTo(false));
             assertThat(cap2.indices().length, equalTo(3));
@@ -87,12 +87,12 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
-        builder = new FieldCapabilities.Builder();
+        builder = new FieldCapabilities.Builder("field", "type");
         builder.add("index1", false, true, true, Collections.emptyMap());
         builder.add("index2", false, true, true, Collections.singletonMap("foo", "bar"));
         builder.add("index3", false, true, true, Collections.singletonMap("foo", "quux"));
         {
-            FieldCapabilities cap1 = builder.build("field", "type", false);
+            FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
             assertNull(cap1.indices());
@@ -100,7 +100,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertNull(cap1.nonAggregatableIndices());
             assertEquals(Collections.singletonMap("foo", new HashSet<>(Arrays.asList("bar", "quux"))), cap1.meta());
 
-            FieldCapabilities cap2 = builder.build("field", "type", true);
+            FieldCapabilities cap2 = builder.build(true);
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
             assertThat(cap2.indices().length, equalTo(3));

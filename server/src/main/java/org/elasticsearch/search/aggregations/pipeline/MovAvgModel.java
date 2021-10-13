@@ -10,8 +10,8 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.io.IOException;
 import java.text.ParseException;

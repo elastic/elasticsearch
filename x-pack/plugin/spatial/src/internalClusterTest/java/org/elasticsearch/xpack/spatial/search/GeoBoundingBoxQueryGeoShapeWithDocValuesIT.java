@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoBoundingBoxQueryIntegTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;

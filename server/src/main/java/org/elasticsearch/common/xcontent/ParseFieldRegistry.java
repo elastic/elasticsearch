@@ -10,6 +10,9 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.HashMap;
 import java.util.Map;

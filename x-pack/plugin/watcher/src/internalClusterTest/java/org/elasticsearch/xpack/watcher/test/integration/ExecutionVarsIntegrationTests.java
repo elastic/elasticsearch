@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;

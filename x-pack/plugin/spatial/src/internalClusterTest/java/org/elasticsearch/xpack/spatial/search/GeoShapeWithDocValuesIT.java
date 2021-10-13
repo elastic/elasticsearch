@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;

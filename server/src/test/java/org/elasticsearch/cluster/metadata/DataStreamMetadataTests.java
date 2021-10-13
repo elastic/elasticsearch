@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;

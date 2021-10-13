@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.ArrayList;
 import java.util.Collections;

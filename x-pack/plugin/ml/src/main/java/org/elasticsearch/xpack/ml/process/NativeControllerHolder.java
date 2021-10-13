@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;

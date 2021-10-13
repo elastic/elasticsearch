@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 

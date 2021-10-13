@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;

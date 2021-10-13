@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 /**
  * Represents the common interface that all moving average models share. Moving

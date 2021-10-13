@@ -7,13 +7,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
-import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
-import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
-import org.elasticsearch.test.rest.yaml.section.LengthAssertion;
-import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
-import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.util.List;
 import java.util.Map;

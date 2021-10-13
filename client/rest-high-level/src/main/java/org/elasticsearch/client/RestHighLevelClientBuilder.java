@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Collections;

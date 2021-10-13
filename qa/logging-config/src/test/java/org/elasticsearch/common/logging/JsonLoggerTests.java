@@ -15,7 +15,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -150,7 +150,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
-                            hasEntry("component", "o.e.d.c.x.ParseField"),
+                            hasEntry("component", "o.e.d.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
@@ -161,7 +161,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
-                            hasEntry("component", "o.e.d.c.x.ParseField"),
+                            hasEntry("component", "o.e.d.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "Deprecated field [deprecated_name2] used, expected [new_name] instead"),

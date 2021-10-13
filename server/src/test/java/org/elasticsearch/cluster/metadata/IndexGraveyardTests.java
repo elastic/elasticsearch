@@ -22,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -62,8 +63,8 @@ public class IndexGraveyardTests extends ESTestCase {
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
             assertThat(Strings.toString(graveyard, false, true),
-                containsString(XContentElasticsearchExtension.DEFAULT_DATE_PRINTER
-                        .print(graveyard.getTombstones().get(0).getDeleteDateInMillis())));
+                containsString(XContentElasticsearchExtension.DEFAULT_FORMATTER
+                        .format(Instant.ofEpochMilli(graveyard.getTombstones().get(0).getDeleteDateInMillis()))));
         }
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken(); // the beginning of the parser

@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'vectors'
   description 'A plugin for working with vectors'
-  classname 'org.elasticsearch.xpack.vectors.Vectors'
+  classname 'org.elasticsearch.xpack.vectors.DenseVectorPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 archivesBaseName = 'x-pack-vectors'

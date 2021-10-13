@@ -8,13 +8,20 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
+import org.elasticsearch.common.io.stream.FilterStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -92,5 +99,92 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     @Override
     public int hashCode() {
         return Objects.hash(indexName, responseMap, canMatch);
+    }
+
+    private static void addStringToDict(ObjectIntMap<String> dictionary, String s) {
+        dictionary.putOrAdd(s, dictionary.size(), 0);
+    }
+
+    private static ObjectIntMap<String> collectStringLiterals(List<FieldCapabilitiesIndexResponse> responses) {
+        final ObjectIntMap<String> dict = new ObjectIntHashMap<>();
+        for (FieldCapabilitiesIndexResponse response : responses) {
+            addStringToDict(dict, response.getIndexName());
+            for (Map.Entry<String, IndexFieldCapabilities> fieldEntry : response.responseMap.entrySet()) {
+                addStringToDict(dict, fieldEntry.getKey());
+                final IndexFieldCapabilities fieldCap = fieldEntry.getValue();
+                addStringToDict(dict, fieldCap.getName());
+                addStringToDict(dict, fieldCap.getType());
+                for (Map.Entry<String, String> e : fieldCap.meta().entrySet()) {
+                    addStringToDict(dict, e.getKey());
+                    addStringToDict(dict, e.getValue());
+                }
+            }
+        }
+        return dict;
+    }
+
+    static void writeResponses(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
+        if (output.getVersion().onOrAfter(Version.V_8_0_0)) {
+            final boolean withOrdinals = responses.size() > 1;
+            output.writeBoolean(withOrdinals);
+            if (withOrdinals) {
+                final ObjectIntMap<String> dictionary = collectStringLiterals(responses);
+                final String[] inverseTable = new String[dictionary.size()];
+                for (ObjectIntCursor<String> cursor : dictionary) {
+                    inverseTable[cursor.value] = cursor.key;
+                }
+                output.writeStringArray(inverseTable);
+                output = new StreamOutputWithOrdinals(output, dictionary);
+            }
+        }
+        output.writeList(responses);
+    }
+
+    static List<FieldCapabilitiesIndexResponse> readResponses(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            final boolean withOrdinals = in.readBoolean();
+            if (withOrdinals) {
+                final String[] lookupTable = in.readStringArray();
+                in = new StreamInputWithOrdinals(in, lookupTable);
+            }
+        }
+        return in.readList(FieldCapabilitiesIndexResponse::new);
+    }
+
+    private static class StreamOutputWithOrdinals extends FilterStreamOutput {
+        private final ObjectIntMap<String> dictionary;
+        StreamOutputWithOrdinals(StreamOutput out, ObjectIntMap<String> dictionary) {
+            super(out);
+            this.dictionary = dictionary;
+        }
+
+        @Override
+        public void writeString(String str) throws IOException {
+            final int index = dictionary.getOrDefault(str, -1);
+            if (index == -1) {
+                assert false : "string value [" + str + " wasn't added to the dictionary";
+                throw new IllegalStateException("String value [" + str + "] was added to the dictionary");
+            }
+            super.writeVInt(index);
+        }
+    }
+
+    private static class StreamInputWithOrdinals extends FilterStreamInput {
+        private final String[] lookupTable;
+
+        StreamInputWithOrdinals(StreamInput in, String[] lookupTable) {
+            super(in);
+            this.lookupTable = lookupTable;
+        }
+
+        @Override
+        public String readString() throws IOException {
+            final int index = readVInt();
+            if (index < 0 || index >= lookupTable.length) {
+                assert false : "index " + index + " table length = " + lookupTable.length;
+                throw new IndexOutOfBoundsException(index);
+            }
+            return lookupTable[index];
+        }
     }
 }

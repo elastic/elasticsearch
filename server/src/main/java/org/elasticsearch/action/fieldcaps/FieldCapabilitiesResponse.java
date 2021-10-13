@@ -71,7 +71,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         super(in);
         indices = in.readStringArray();
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
-        indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+        indexResponses = FieldCapabilitiesIndexResponse.readResponses(in);
         this.failures = in.readList(FieldCapabilitiesFailure::new);
     }
 
@@ -137,7 +137,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
-        out.writeList(indexResponses);
+        FieldCapabilitiesIndexResponse.writeResponses(out, indexResponses);
         out.writeList(failures);
     }
 

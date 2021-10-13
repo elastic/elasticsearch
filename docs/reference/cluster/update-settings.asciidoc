@@ -87,7 +87,7 @@ PUT /_cluster/settings?flat_settings=true
   }
 }
 --------------------------------------------------
-
+// TEST[warning:[transientSettings removal] Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead.]
 
 The response to an update returns the changed setting, as in this response to
 the transient example:

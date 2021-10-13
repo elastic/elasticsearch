@@ -111,11 +111,13 @@ public class EnrollNodeToCluster extends KeyStoreAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
-        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
-            throw new UserException(
-                ExitCodes.CONFIG,
-                "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
-            );
+        for (Path dataPath : env.dataFiles()) {
+            if (Files.isDirectory(dataPath) && Files.list(dataPath).findAny().isPresent()) {
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Aborting enrolling to cluster. It appears that this is not the first time this node starts."
+                );
+            }
         }
 
         final Path ymlPath = env.configFile().resolve("elasticsearch.yml");

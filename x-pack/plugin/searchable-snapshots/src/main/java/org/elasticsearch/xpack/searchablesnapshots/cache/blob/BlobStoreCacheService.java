@@ -323,13 +323,14 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      * For files that are declared as metadata files in {@link LuceneFilesExtensions}, the header can be as large as the specified
      * maximum metadata length parameter {@code maxMetadataLength}. Non-metadata files have a fixed length header of maximum 1KB.
      *
+     * @param shardId the {@link ShardId} the file belongs to
      * @param fileName the name of the file
      * @param fileLength the length of the file
      * @param maxMetadataLength the maximum accepted length for metadata files
      *
      * @return the header {@link ByteRange}
      */
-    public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+    public ByteRange computeBlobCacheByteRange(ShardId shardId, String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
 
         if (useLegacyCachedBlobSizes()) {
@@ -343,7 +344,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
-                logExceedingFile(fileExtension, fileLength, maxMetadataLength);
+                logExceedingFile(shardId, fileExtension, fileLength, maxMetadataLength);
             }
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
@@ -355,13 +356,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
-    private static void logExceedingFile(LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {
-        if (logger.isWarnEnabled()) {
+    private static void logExceedingFile(ShardId shardId, LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {
+        if (logger.isInfoEnabled()) {
             try {
                 // Use of a cache to prevent too many log traces per hour
                 LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension.getExtension(), key -> {
-                    logger.warn(
-                        "file with extension [{}] is larger ([{}]) than the max. length allowed [{}] to cache metadata files in blob cache",
+                    logger.info(
+                        "{} file with extension [{}] is larger ([{}]) than the max. length allowed [{}] "
+                            + "to cache metadata files in blob cache",
+                        shardId,
                         extension,
                         length,
                         maxAllowedLength
@@ -371,7 +374,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             } catch (ExecutionException e) {
                 logger.warn(
                     () -> new ParameterizedMessage(
-                        "Failed to log information about exceeding file type [{}] with length [{}]",
+                        "{} failed to log information about exceeding file type [{}] with length [{}]",
+                        shardId,
                         extension,
                         length
                     ),

@@ -376,6 +376,9 @@ public final class MetadataMigrateToDataTiersRoutingService {
         for (ObjectObjectCursor<String, IndexMetadata> index : currentState.metadata().indices()) {
             IndexMetadata indexMetadata = index.value;
             Settings currentSettings = indexMetadata.getSettings();
+
+            boolean removeNodeAttrIndexRoutingSettings = true;
+
             // migrate using the `require` setting
             Settings newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexRequireRoutingSetting, indexMetadata);
 
@@ -384,14 +387,23 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 // setting to configure the allocations and try to migrate it
                 newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexIncludeRoutingSetting, indexMetadata);
             }
+            if (newSettings.equals(currentSettings)) {
+                removeNodeAttrIndexRoutingSettings = false;
+                // migrating based on the `include` setting was not successful,
+                // so, last stop, we just inject a tier preference regardless of anything else
+                newSettings = migrateToDefaultTierPreference(currentState, indexMetadata);
+            }
 
             if (newSettings.equals(currentSettings) == false) {
-                // we converted either the require or the include routing setting to tier preference
-                // so let's clear all the routing settings for the given attribute
                 Settings.Builder finalSettings = Settings.builder().put(newSettings);
-                finalSettings.remove(nodeAttrIndexExcludeRoutingSetting);
-                finalSettings.remove(nodeAttrIndexRequireRoutingSetting);
-                finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
+
+                if (removeNodeAttrIndexRoutingSettings) {
+                    // we converted either the `require` or the `include` routing setting to tier preference
+                    // so let's clear all the routing settings for the given attribute
+                    finalSettings.remove(nodeAttrIndexExcludeRoutingSetting);
+                    finalSettings.remove(nodeAttrIndexRequireRoutingSetting);
+                    finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
+                }
 
                 mb.put(IndexMetadata.builder(indexMetadata)
                     .settings(finalSettings)
@@ -441,6 +453,23 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 return currentIndexSettings;
             }
         }
+        return newSettingsBuilder.build();
+    }
+
+    private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
+        Settings currentIndexSettings = indexMetadata.getSettings();
+        List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
+        if (tierPreference.isEmpty() == false) {
+            return currentIndexSettings;
+        }
+
+        Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
+        String indexName = indexMetadata.getIndex().getName();
+
+        boolean isDataStream = currentState.metadata().findDataStreams(indexName).isEmpty() == false;
+        String convertedTierPreference = isDataStream ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+        newSettingsBuilder.put(TIER_PREFERENCE, convertedTierPreference);
+        logger.debug("index [{}]: configured setting [{}] to [{}]", indexName, TIER_PREFERENCE, convertedTierPreference);
         return newSettingsBuilder.build();
     }
 

@@ -14,6 +14,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -143,7 +144,10 @@ public class RBACEngine implements AuthorizationEngine {
             this.indexAuthorizationCache =
                 CacheBuilder.<IndexAuthorizationCacheKey, ListenableFuture<IndexAuthorizationCacheValue>>builder()
                     .setMaximumWeight(cacheSize)
-                    .setExpireAfterWrite(TimeValue.timeValueMinutes(5))  // a fallback just in case
+                    // In theory we don't need configure expiration for cache entries because they are actively
+                    // evicted as soon as the authorization finishes. But we set a 5 minute expire-after-write
+                    // as a safety net in case things go wrong unexpectedly.
+                    .setExpireAfterWrite(TimeValue.timeValueMinutes(5))
                     .build();
         } else {
             this.indexAuthorizationCache = null;
@@ -450,7 +454,7 @@ public class RBACEngine implements AuthorizationEngine {
             final IndexAuthorizationResult indexAuthorizationResult;
             if (resolvedIndices.isNoIndicesPlaceholder()) {
                 // check action name
-                if (((IndicesRequest) requestInfo.getRequest()).allowsRemoteIndices()) {
+                if (((IndicesRequest.Replaceable) requestInfo.getRequest()).allowsRemoteIndices()) {
                     // check action name
                     indexAuthorizationResult = authorizeIndexActionName(
                         requestInfo.getAction(), authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES);
@@ -898,8 +902,16 @@ public class RBACEngine implements AuthorizationEngine {
      * Only cache requests that genuinely need wildcard expansion and replacement.
      */
     private boolean isRequestCacheableForIndexAuthorization(TransportRequest request) {
-        return request instanceof IndicesRequest.Replaceable
-            && (false == request instanceof PutMappingRequest || ((PutMappingRequest) request).getConcreteIndex() == null);
+        if (false == request instanceof IndicesRequest.Replaceable) {
+            return false;
+        }
+        if (request instanceof PutMappingRequest && ((PutMappingRequest) request).getConcreteIndex() != null) {
+            return false;
+        }
+        if (request instanceof AliasesRequest) {
+            return false;
+        }
+        return true;
     }
 
     static class IndexAuthorizationCacheKey {

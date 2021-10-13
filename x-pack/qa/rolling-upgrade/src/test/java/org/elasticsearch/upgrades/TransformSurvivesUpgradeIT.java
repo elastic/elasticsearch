@@ -121,7 +121,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
-            "{\"transient\": {" +
+            "{\"persistent\": {" +
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.transform\": \"trace\"" +

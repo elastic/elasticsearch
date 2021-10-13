@@ -17,9 +17,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class Vectors extends Plugin implements MapperPlugin {
+public class DenseVectorPlugin extends Plugin implements MapperPlugin {
 
-    public Vectors() { }
+    public DenseVectorPlugin() { }
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

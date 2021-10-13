@@ -326,7 +326,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             Locale.ROOT,
                             "the default pipeline for %s index(es) including [%s]",
                             defaultPipelineIndices.size(),
-                            defaultPipelineIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                            defaultPipelineIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
                           )
                         : Strings.EMPTY,
                     defaultPipelineIndices.size() > 0 && finalPipelineIndices.size() > 0
@@ -337,7 +337,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             Locale.ROOT,
                             "the final pipeline for %s index(es) including [%s]",
                             finalPipelineIndices.size(),
-                            finalPipelineIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                            finalPipelineIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
                           )
                         : Strings.EMPTY
                 )

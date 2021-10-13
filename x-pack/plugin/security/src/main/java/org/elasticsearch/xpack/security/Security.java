@@ -356,13 +356,25 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
         LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
 
+    private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
-    // Standard realms (LDAP, AD, PKI, etc) are Gold+
+    // Some realms (LDAP, AD, PKI) are Gold+
+    public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent AD_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
     // SSO realms are Platinum+
-    public static final LicensedFeature.Persistent STANDARD_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_standard_realms", License.OperationMode.GOLD);
-    public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_all_realms", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent SAML_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent OIDC_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
+    // Custom realms are Platinum+
+    public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 

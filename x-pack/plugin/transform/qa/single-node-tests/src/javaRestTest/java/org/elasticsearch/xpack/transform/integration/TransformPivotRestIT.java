@@ -1517,7 +1517,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testContinuousStopWaitForCheckpoint() throws Exception {
         Request updateLoggingLevels = new Request("PUT", "/_cluster/settings");
         updateLoggingLevels.setJsonEntity(
-            "{\"transient\": {"
+            "{\"persistent\": {"
                 + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
                 + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
         );

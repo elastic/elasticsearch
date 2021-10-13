@@ -47,7 +47,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testIndexWithDisabledAutoCreateIndex() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")).build()).get());
         final BulkItemResponse itemResponse =
                 client().prepareBulk().add(client().prepareIndex("test-index", "type1").setSource("foo", "bar")).get().getItems()[0];

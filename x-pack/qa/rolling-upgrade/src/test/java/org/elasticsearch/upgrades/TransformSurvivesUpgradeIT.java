@@ -128,7 +128,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assumeTrue("Continuous transform time sync not fixed until 7.4", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_4_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
-            "{\"transient\": {" +
+            "{\"persistent\": {" +
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.transform\": \"trace\"" +

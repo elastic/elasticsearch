@@ -297,7 +297,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
         String transportAddress = (String) nodesResponse.get("transport_address");
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-        updateSettingsRequest.transientSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        updateSettingsRequest.persistentSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
         ClusterUpdateSettingsResponse updateSettingsResponse =
                 restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));

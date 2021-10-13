@@ -60,7 +60,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField<?>>() {
                 @Override
                 public DocValuesField<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptField();
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
                 }
             });
 

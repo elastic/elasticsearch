@@ -14,6 +14,9 @@ import java.util.List;
 /** A field in a document accessible via scripting. */
 public interface Field<T> {
 
+    /** Returns the name of this field. */
+    String getName();
+
     /** Returns {@code true} if this field has no values, otherwise {@code false}. */
     boolean isEmpty();
 

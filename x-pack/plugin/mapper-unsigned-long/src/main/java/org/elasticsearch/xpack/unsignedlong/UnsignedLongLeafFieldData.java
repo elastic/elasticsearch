@@ -79,8 +79,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public DocValuesField<?> getScriptField() {
-        return new UnsignedLongDocValuesField(getLongValues());
+    public DocValuesField<?> getScriptField(String name) {
+        return new UnsignedLongDocValuesField(getLongValues(), name);
     }
 
     @Override

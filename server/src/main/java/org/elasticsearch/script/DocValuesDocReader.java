@@ -43,7 +43,7 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         LeafDocLookup leafDocLookup = leafSearchLookup.doc();
 
         if (leafDocLookup.containsKey(fieldName) == false) {
-            return new EmptyField<>();
+            return new EmptyField<>(fieldName);
         }
 
         return leafDocLookup.getScriptField(fieldName);

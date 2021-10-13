@@ -16,6 +16,17 @@ import java.util.List;
  */
 public class EmptyField<T> implements Field<T> {
 
+    private final String name;
+
+    public EmptyField(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
     @Override
     public boolean isEmpty() {
         return true;

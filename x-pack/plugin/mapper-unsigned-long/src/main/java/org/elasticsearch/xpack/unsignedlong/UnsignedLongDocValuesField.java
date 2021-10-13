@@ -26,8 +26,11 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     private long[] values = new long[0];
     private int count;
 
-    public UnsignedLongDocValuesField(SortedNumericDocValues input) {
+    private final String name;
+
+    public UnsignedLongDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
+        this.name = name;
     }
 
     @Override
@@ -45,6 +48,11 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     protected void resize(int newSize) {
         count = newSize;
         values = ArrayUtil.grow(values, count);
+    }
+
+    @Override
+    public String getName() {
+        return name;
     }
 
     @Override

@@ -203,14 +203,23 @@ a flat directory repository that resolves artifacts from a flat directory on you
 2. Declare a flatDir repository in your root build.gradle file
 
 ```
-repositories {
-    flatDir {
-        dirs 'localRepo'
-    }
+allprojects { 
+  repositories {
+      flatDir {
+          dirs 'localRepo'
+      }
+  }
 }
 ```
 
-3. Update the dependency declaration of the artifact in question to match the custom build version.
+3. Update the dependency declaration of the artifact in question to match the custom build version. For a file named e.g. `jmxri-1.2.1.jar` the 
+  dependency definition would be `:jmxri:1.2.1` as it comes with no group information:
+  
+  ```
+  dependencies {
+      implementation ':jmxri:1.2.1'
+  }
+  ```
 4. Run the gradle build as needed.
 
 ---

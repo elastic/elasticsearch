@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -17,10 +16,11 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/77190")
 public class BreakingChangesGeneratorTest {
 
     /**
@@ -33,6 +33,7 @@ public class BreakingChangesGeneratorTest {
         final String expectedOutput = getResource(
             "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateFile.asciidoc"
         );
+
         final List<ChangelogEntry> entries = getEntries();
 
         // when:

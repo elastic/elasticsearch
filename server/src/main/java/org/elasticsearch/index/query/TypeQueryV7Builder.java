@@ -14,10 +14,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -82,7 +82,7 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
     }
 
     public static TypeQueryV7Builder fromXContent(XContentParser parser) throws IOException {
-        deprecationLogger.compatibleApiWarning("type_query", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.compatibleCritical("type_query", TYPES_DEPRECATION_MESSAGE);
         throw new ParsingException(parser.getTokenLocation(), TYPES_DEPRECATION_MESSAGE);
     }
 

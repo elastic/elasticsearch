@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Collections;
 import java.util.List;

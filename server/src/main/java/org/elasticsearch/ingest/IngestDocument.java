@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -660,12 +661,14 @@ public final class IngestDocument {
     }
 
     private Map<String, Object> createTemplateModel() {
-        Map<String, Object> model = new HashMap<>(sourceAndMetadata);
-        model.put(SourceFieldMapper.NAME, sourceAndMetadata);
-        // If there is a field in the source with the name '_ingest' it gets overwritten here,
-        // if access to that field is required then it get accessed via '_source._ingest'
-        model.put(INGEST_KEY, ingestMetadata);
-        return model;
+        return new LazyMap<>(() -> {
+            Map<String, Object> model = new HashMap<>(sourceAndMetadata);
+            model.put(SourceFieldMapper.NAME, sourceAndMetadata);
+            // If there is a field in the source with the name '_ingest' it gets overwritten here,
+            // if access to that field is required then it get accessed via '_source._ingest'
+            model.put(INGEST_KEY, ingestMetadata);
+            return model;
+        });
     }
 
     /**
@@ -738,6 +741,16 @@ public final class IngestDocument {
         } else if (value instanceof byte[]) {
             byte[] bytes = (byte[]) value;
             return Arrays.copyOf(bytes, bytes.length);
+        } else if (value instanceof double[][]) {
+            double[][] doubles = (double[][]) value;
+            double[][] result = new double[doubles.length][];
+            for (int i = 0; i < doubles.length; i++) {
+                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
+            }
+            return result;
+        } else if (value instanceof double[]) {
+            double[] doubles = (double[]) value;
+            return Arrays.copyOf(doubles, doubles.length);
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean ||

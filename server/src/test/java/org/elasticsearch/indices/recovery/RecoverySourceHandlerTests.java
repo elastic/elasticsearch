@@ -46,7 +46,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -421,9 +421,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             metas.add(md);
         }
 
+        // only corrupt files that belong to the lucene index and use one that we don't cache on heap so the corruption on disk has an
+        // effect
         CorruptionUtils.corruptFile(random(), FileSystemUtils.files(tempDir, (p) ->
-            (p.getFileName().toString().equals("write.lock") ||
-                p.getFileName().toString().startsWith("extra")) == false));
+            metas.stream().anyMatch(m -> m.name().equals(p.getFileName().toString()) && m.hashEqualsContents() == false)));
         Store targetStore = newStore(createTempDir(), false);
         MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {

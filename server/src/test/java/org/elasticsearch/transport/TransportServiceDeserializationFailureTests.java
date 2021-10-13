@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -63,7 +64,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final PlainActionFuture<Void> connectionFuture = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> connectionFuture = new PlainActionFuture<>();
         transportService.connectToNode(otherNode, connectionFuture);
         assertTrue(connectionFuture.isDone());
 

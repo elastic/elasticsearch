@@ -35,7 +35,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
 import java.net.SocketAddress;

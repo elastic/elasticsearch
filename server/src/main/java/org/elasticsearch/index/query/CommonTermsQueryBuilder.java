@@ -12,9 +12,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     }
 
     public static CommonTermsQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        deprecationLogger.compatibleApiWarning("common_term_query", COMMON_TERMS_QUERY_DEPRECATION_MSG);
+        deprecationLogger.compatibleCritical("common_term_query", COMMON_TERMS_QUERY_DEPRECATION_MSG);
         throw new ParsingException(parser.getTokenLocation(), COMMON_TERMS_QUERY_DEPRECATION_MSG);
     }
 

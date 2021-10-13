@@ -59,13 +59,7 @@ public class RefCountedTests extends ESTestCase {
         assertThat(
             expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
             equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
-
-        try {
-            counted.ensureOpen();
-            fail(" expected exception");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), equalTo("closed"));
-        }
+        assertThat(expectThrows(IllegalStateException.class, counted::ensureOpen).getMessage(), equalTo("closed"));
     }
 
     public void testMultiThreaded() throws InterruptedException {
@@ -79,6 +73,7 @@ public class RefCountedTests extends ESTestCase {
                     latch.await();
                     for (int j = 0; j < 10000; j++) {
                         counted.incRef();
+                        assertTrue(counted.hasReferences());
                         try {
                             counted.ensureOpen();
                         } finally {
@@ -96,13 +91,11 @@ public class RefCountedTests extends ESTestCase {
             thread.join();
         }
         counted.decRef();
-        try {
-            counted.ensureOpen();
-            fail("expected to be closed");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), equalTo("closed"));
-        }
+        assertThat(expectThrows(IllegalStateException.class, counted::ensureOpen).getMessage(), equalTo("closed"));
+        assertThat(expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
+            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
         assertThat(counted.refCount(), is(0));
+        assertFalse(counted.hasReferences());
         assertThat(exceptions, Matchers.emptyIterable());
     }
 
@@ -117,7 +110,8 @@ public class RefCountedTests extends ESTestCase {
 
         public void ensureOpen() {
             if (closed.get()) {
-                assert this.refCount() == 0;
+                assertEquals(0, this.refCount());
+                assertFalse(hasReferences());
                 throw new IllegalStateException("closed");
             }
         }

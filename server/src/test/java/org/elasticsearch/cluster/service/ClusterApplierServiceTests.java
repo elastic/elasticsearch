@@ -8,11 +8,11 @@
 
 package org.elasticsearch.cluster.service;
 
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -146,9 +145,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 "test1",
                 Priority.HIGH,
                 currentState -> advanceTime(TimeValue.timeValueSeconds(1).millis()),
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void ignored) {
                     }
 
                     @Override
@@ -164,9 +163,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     advanceTime(TimeValue.timeValueSeconds(2).millis());
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void ignored) {
                         fail();
                     }
 
@@ -179,9 +178,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 "test3",
                 Priority.HIGH,
                 currentState -> {},
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() { }
+                    public void onResponse(Void ignored) { }
 
                     @Override
                     public void onFailure(Exception e) {
@@ -231,9 +230,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 "test1",
                 Priority.HIGH,
                 currentState -> advanceTime(TimeValue.timeValueSeconds(1).millis()),
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void ignored) {
                         latch.countDown();
                         processedFirstTask.countDown();
                     }
@@ -252,9 +251,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     advanceTime(TimeValue.timeValueSeconds(32).millis());
                     throw new IllegalArgumentException("Testing handling of exceptions in the cluster state task");
                 },
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void ignored) {
                         fail();
                     }
 
@@ -268,9 +267,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 "test3",
                 Priority.HIGH,
                 currentState -> advanceTime(TimeValue.timeValueSeconds(34).millis()),
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void ignored) {
                         latch.countDown();
                     }
 
@@ -286,9 +285,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 "test4",
                 Priority.HIGH,
                 currentState -> {},
-                new ClusterApplyListener() {
+                new ActionListener<>() {
                     @Override
-                    public void onSuccess() {
+                    public void onResponse(Void ignored) {
                         latch.countDown();
                     }
 
@@ -360,10 +359,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
-            new ClusterApplyListener() {
+            new ActionListener<>() {
 
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     latch.countDown();
                 }
 
@@ -388,10 +387,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
-            new ClusterApplyListener() {
+            new ActionListener<>() {
 
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     latch.countDown();
                     fail("should not be called");
                 }
@@ -421,10 +420,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), false).build())
                     .build())
                 .build(),
-            new ClusterApplyListener() {
+            new ActionListener<>() {
 
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     latch.countDown();
                     fail("should not be called");
                 }
@@ -452,10 +451,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
-            new ClusterApplyListener() {
+            new ActionListener<>() {
 
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     latch.countDown();
                 }
 
@@ -502,9 +501,9 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state()).build(),
-            new ClusterApplyListener() {
+            new ActionListener<>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     latch.countDown();
                 }
 
@@ -538,10 +537,10 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 } else {
                     throw new IllegalArgumentException("mock failure");
                 }
-            }, new ClusterApplyListener() {
+            }, new ActionListener<>() {
 
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());

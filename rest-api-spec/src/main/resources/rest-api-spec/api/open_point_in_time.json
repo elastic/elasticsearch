@@ -12,12 +12,6 @@
     "url":{
       "paths":[
         {
-          "path":"/_pit",
-          "methods":[
-            "POST"
-          ]
-        },
-        {
           "path":"/{index}/_pit",
           "methods":[
             "POST"

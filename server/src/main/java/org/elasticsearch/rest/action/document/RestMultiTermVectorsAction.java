@@ -53,7 +53,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
-            deprecationLogger.compatibleApiWarning(DeprecationRestHandler.DEPRECATED_ROUTE_KEY, TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical(DeprecationRestHandler.DEPRECATED_ROUTE_KEY, TYPES_DEPRECATION_MESSAGE);
         }
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest()

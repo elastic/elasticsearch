@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -162,6 +162,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         final String descriptionWithoutAttributes = stringBuilder.toString();
         assertThat(node.toString(), allOf(startsWith(descriptionWithoutAttributes), containsString("test-attr=val")));
         assertThat(descriptionWithoutAttributes, not(containsString("test-attr")));
+        assertEquals(descriptionWithoutAttributes, node.descriptionWithoutAttributes());
     }
 
     public void testDiscoveryNodeToXContent() {

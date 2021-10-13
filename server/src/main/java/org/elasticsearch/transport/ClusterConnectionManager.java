@@ -12,10 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.util.Collections;
@@ -36,7 +39,8 @@ public class ClusterConnectionManager implements ConnectionManager {
     private static final Logger logger = LogManager.getLogger(ClusterConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Transport.Connection>> pendingConnections
+        = ConcurrentCollections.newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
     private final Transport transport;
@@ -71,14 +75,38 @@ public class ClusterConnectionManager implements ConnectionManager {
     }
 
     /**
-     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
-     * Once a successful is established, it can be validated before being exposed.
-     * The ActionListener will be called on the calling thread or the generic thread pool.
+     * Connects to the given node, or acquires another reference to an existing connection to the given node if a connection already exists.
+     *
+     * @param connectionProfile   the profile to use if opening a new connection. Only used in tests, this is {@code null} in production.
+     * @param connectionValidator a callback to validate the connection before it is exposed (e.g. to {@link #nodeConnected}).
+     * @param listener            completed on the calling thread or by the {@link ConnectionValidator}; in production the
+     *                            {@link ConnectionValidator} will complete the listener on the generic thread pool (see
+     *                            {@link TransportService#connectionValidator}). If successful, completed with a {@link Releasable} which
+     *                            will release this connection (and close it if no other references to it are held).
      */
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              ConnectionValidator connectionValidator,
-                              ActionListener<Void> listener) throws ConnectTransportException {
+    public void connectToNode(
+        DiscoveryNode node,
+        @Nullable ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        ActionListener<Releasable> listener
+    ) throws ConnectTransportException {
+        connectToNodeOrRetry(node, connectionProfile, connectionValidator, 0, listener);
+    }
+
+    /**
+     * Connects to the given node, or acquires another reference to an existing connection to the given node if a connection already exists.
+     * If a connection already exists but has been completely released (so it's in the process of closing) then this method will wait for
+     * the close to complete and then try again (up to 10 times).
+     */
+    private void connectToNodeOrRetry(
+        DiscoveryNode node,
+        @Nullable ConnectionProfile connectionProfile,
+        ConnectionValidator connectionValidator,
+        int previousFailureCount,
+        ActionListener<Releasable> listener
+    ) throws ConnectTransportException {
+
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
         if (node == null) {
             listener.onFailure(new ConnectTransportException(null, "can't connect to a null node"));
@@ -90,75 +118,116 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        if (connectedNodes.containsKey(node)) {
+        final ActionListener<Transport.Connection> acquiringListener = listener.delegateFailure((delegate, connection) -> {
+            if (connection.tryIncRef()) {
+                delegate.onResponse(Releasables.releaseOnce(connection::decRef));
+                return;
+            }
+
+            // We found a connection that's registered but already fully released, so it'll be removed soon by its close listener. Bad luck,
+            // let's wait for it to be removed and then try again.
+            final int failureCount = previousFailureCount + 1;
+            if (failureCount < 10) {
+                logger.trace("concurrent connect/disconnect for [{}] ([{}] failures), will try again", node, failureCount);
+                connection.addRemovedListener(listener.delegateFailure((retryDelegate, ignored) -> connectToNodeOrRetry(
+                    node,
+                    connectionProfile,
+                    connectionValidator,
+                    failureCount,
+                    retryDelegate)));
+            } else {
+                // A run of bad luck this long is probably not bad luck after all: something's broken, just give up.
+                logger.warn("failed to connect to [{}] after [{}] attempts, giving up", node.descriptionWithoutAttributes(), failureCount);
+                listener.onFailure(new ConnectTransportException(
+                    node,
+                    "concurrently connecting and disconnecting even after [" + failureCount + "] attempts"));
+            }
+        });
+
+        final Transport.Connection existingConnection = connectedNodes.get(node);
+        if (existingConnection != null) {
             connectingRefCounter.decRef();
-            listener.onResponse(null);
+            acquiringListener.onResponse(existingConnection);
             return;
         }
 
-        final ListenableFuture<Void> currentListener = new ListenableFuture<>();
-        final ListenableFuture<Void> existingListener = pendingConnections.putIfAbsent(node, currentListener);
+        final ListenableFuture<Transport.Connection> currentListener = new ListenableFuture<>();
+        final ListenableFuture<Transport.Connection> existingListener = pendingConnections.putIfAbsent(node, currentListener);
         if (existingListener != null) {
             try {
                 // wait on previous entry to complete connection attempt
-                existingListener.addListener(listener);
+                existingListener.addListener(acquiringListener);
             } finally {
                 connectingRefCounter.decRef();
             }
             return;
         }
 
-        currentListener.addListener(listener);
+        currentListener.addListener(acquiringListener);
 
         // It's possible that a connection completed, and the pendingConnections entry was removed, between the calls to
         // connectedNodes.containsKey and pendingConnections.putIfAbsent above, so we check again to make sure we don't open a redundant
         // extra connection to the node. We could _just_ check here, but checking up front skips the work to mark the connection as pending.
-        if (connectedNodes.containsKey(node)) {
-            ListenableFuture<Void> future = pendingConnections.remove(node);
+        final Transport.Connection existingConnectionRecheck = connectedNodes.get(node);
+        if (existingConnectionRecheck != null) {
+            ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
             assert future == currentListener : "Listener in pending map is different than the expected listener";
             connectingRefCounter.decRef();
-            future.onResponse(null);
+            future.onResponse(existingConnectionRecheck);
             return;
         }
 
         final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
-        internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {
-            connectionValidator.validate(conn, resolvedProfile, ActionListener.wrap(
+        internalOpenConnection(node, resolvedProfile, ActionListener.wrap(
+            conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(
                 ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
                     try {
                         if (connectedNodes.putIfAbsent(node, conn) != null) {
-                            assert false : "redundant conection to " + node;
-                            logger.debug("existing connection to node [{}], closing new redundant connection", node);
+                            assert false : "redundant connection to " + node;
+                            logger.warn("existing connection to node [{}], closing new redundant connection", node);
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
                             logger.debug("connected to node [{}]", node);
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                final Transport.Connection finalConnection = conn;
                                 conn.addCloseListener(ActionListener.wrap(() -> {
-                                    logger.trace("unregistering {} after connection close and marking as disconnected", node);
-                                    connectedNodes.remove(node, finalConnection);
+                                    connectedNodes.remove(node, conn);
                                     connectionListener.onNodeDisconnected(node, conn);
+                                    conn.onRemoved();
+                                }));
+
+                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                    if (connectingRefCounter.hasReferences() == false) {
+                                        logger.trace("connection manager shut down, closing transport connection to [{}]", node);
+                                    } else if (conn.hasReferences()) {
+                                        logger.info("transport connection to [{}] closed by remote", node.descriptionWithoutAttributes());
+                                        // In production code we only close connections via ref-counting, so this message confirms that a
+                                        // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
+                                        // node leaves the cluster with "reason: disconnected" but without this message being logged then
+                                        // that's a bug.
+                                    } else {
+                                        logger.debug("closing unused transport connection to [{}]", node);
+                                    }
                                 }));
                             }
                         }
                     } finally {
-                        ListenableFuture<Void> future = pendingConnections.remove(node);
+                        ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
                         assert future == currentListener : "Listener in pending map is different than the expected listener";
                         releaseOnce.run();
-                        future.onResponse(null);
+                        future.onResponse(conn);
                     }
                 }, e -> {
                     assert Transports.assertNotTransportThread("connection validator failure");
                     IOUtils.closeWhileHandlingException(conn);
-                    failConnectionListeners(node, releaseOnce, e, currentListener);
-                }));
-        }, e -> {
-            assert Transports.assertNotTransportThread("internalOpenConnection failure");
-            failConnectionListeners(node, releaseOnce, e, currentListener);
-        }));
+                    failConnectionListener(node, releaseOnce, e, currentListener);
+                }), conn::decRef)),
+            e -> {
+                assert Transports.assertNotTransportThread("internalOpenConnection failure");
+                failConnectionListener(node, releaseOnce, e, currentListener);
+            }));
     }
 
     /**
@@ -265,8 +334,13 @@ public class ClusterConnectionManager implements ConnectionManager {
         }));
     }
 
-    private void failConnectionListeners(DiscoveryNode node, RunOnce releaseOnce, Exception e, ListenableFuture<Void> expectedListener) {
-        ListenableFuture<Void> future = pendingConnections.remove(node);
+    private void failConnectionListener(
+        DiscoveryNode node,
+        RunOnce releaseOnce,
+        Exception e,
+        ListenableFuture<Transport.Connection> expectedListener
+    ) {
+        ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
         releaseOnce.run();
         if (future != null) {
             assert future == expectedListener : "Listener in pending map is different than the expected listener";

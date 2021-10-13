@@ -2,6 +2,7 @@
   "template": {
     "settings": {
       "index": {
+        "hidden" : true,
         "lifecycle": {
           "name": ".deprecation-indexing-ilm-policy"
         },

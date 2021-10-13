@@ -56,7 +56,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 parent,
                 cardinality,
                 metadata) -> {
-                DEPRECATION_LOGGER.deprecate(
+                DEPRECATION_LOGGER.critical(
                     DeprecationCategory.AGGREGATIONS,
                     "date-histogram-boolean",
                     "Running DateHistogram aggregations on [boolean] fields is deprecated"

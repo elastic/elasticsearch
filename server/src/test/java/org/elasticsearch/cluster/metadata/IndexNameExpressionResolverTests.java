@@ -1981,16 +1981,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new Feature(
                     "ml",
                     "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index"))),
+                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index"))),
                 "stack-component",
                 new Feature("stack-component",
                     "stack component",
                     List.of(
                         new SystemIndexDescriptor(
-                            ".external-sys-idx",
+                            ".external-sys-idx*",
                             "external",
                             Type.EXTERNAL_UNMANAGED,
                             List.of("stack-component", "other")
@@ -2373,7 +2373,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index2, false)
                 .put(justAnIndex, false)
                 .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
-                    List.of(index1.getIndex(), index2.getIndex()), 2, Collections.emptyMap(), true, false))).build();
+                    List.of(index1.getIndex(), index2.getIndex()), 2, Collections.emptyMap(), true, false, false))).build();
 
         Index[] result = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.strictExpandHidden(), true, "logs-*");
         assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), justAnIndex.getIndex() ));
@@ -2481,10 +2481,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(
             Map.of("ml",
                 new Feature("ml", "ml indices",
-                    List.of(new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
+                    List.of(new SystemIndexDescriptor(".ml-meta*", "ml meta"), new SystemIndexDescriptor(".ml-stuff*", "other ml"))
                 ),
                 "watcher",
-                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches", "watches index")))
+                new Feature("watcher", "watcher indices", List.of(new SystemIndexDescriptor(".watches*", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);

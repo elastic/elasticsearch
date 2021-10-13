@@ -186,7 +186,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.cluster.metadata.DataStream.DATASTREAM_LEAF_READERS_SORTER;
+import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -406,6 +406,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Sort getIndexSort() {
         return indexSortSupplier.get();
+    }
+
+    /**
+     * Returns if this shard is a part of datastream
+     * @return {@code true} if this shard is a part of datastream, {@code false} otherwise
+     */
+    public boolean isDataStreamIndex() {
+        return isDataStreamIndex;
     }
 
     public ShardGetService getService() {
@@ -2054,6 +2062,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Counts the number of operations in the range of the given sequence numbers.
+     *
+     * @param source    the source of the request
+     * @param fromSeqNo the start sequence number (inclusive)
+     * @param toSeqNo   the end sequence number (inclusive)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     */
+    public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
+        return getEngine().countChanges(source, fromSeqNo, toSeqNo);
+    }
+
+    /**
      * Creates a new changes snapshot for reading operations whose seq_no are between {@code fromSeqNo}(inclusive)
      * and {@code toSeqNo}(inclusive). The caller has to close the returned snapshot after finishing the reading.
      *
@@ -2063,15 +2083,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param requiredFullRange if {@code true} then {@link Translog.Snapshot#next()} will throw {@link IllegalStateException}
      *                          if any operation between {@code fromSeqNo} and {@code toSeqNo} is missing.
      *                          This parameter should be only enabled when the entire requesting range is below the global checkpoint.
-     * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
+     * @param singleConsumer    true if the snapshot is accessed by only the thread that creates the snapshot. In this case, the
+     *                          snapshot can enable some optimizations to improve the performance.
+     * @param accessStats       true if the stats of the snapshot is accessed via {@link Translog.Snapshot#totalOperations()}
      */
-    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
-                                                long toSeqNo, boolean requiredFullRange, boolean singleConsumer) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer);
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo, long toSeqNo,
+                                                boolean requiredFullRange, boolean singleConsumer,
+                                                boolean accessStats) throws IOException {
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
     }
 
-    public List<Segment> segments(boolean verbose) {
-        return getEngine().segments(verbose);
+    public List<Segment> segments() {
+        return getEngine().segments();
     }
 
     public String getHistoryUUID() {
@@ -2890,6 +2913,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
+        final boolean isTimeseriesIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
         return new EngineConfig(
                 shardId,
                 threadPool,
@@ -2913,7 +2937,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
                 snapshotCommitSupplier,
-                isDataStreamIndex ? DATASTREAM_LEAF_READERS_SORTER : null);
+                isTimeseriesIndex ? TIMESERIES_LEAF_READERS_SORTER : null);
     }
 
     /**
@@ -3671,5 +3695,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {
         return retentionLeaseSyncer;
+    }
+
+    @Override
+    public String toString() {
+        return "IndexShard(shardRouting=" + shardRouting + ")";
     }
 }

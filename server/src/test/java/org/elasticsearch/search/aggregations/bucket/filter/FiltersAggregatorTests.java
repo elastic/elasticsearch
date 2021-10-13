@@ -544,7 +544,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         context.bigArrays(),
                         getMockScriptService(),
                         b -> {},
-                        PipelineTree.EMPTY
+                        PipelineTree.EMPTY,
+                        () -> false
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;
@@ -1054,7 +1055,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             null,
             Map.of(),
             null,
-            false
+            false,
+            null
         );
         docValuesFieldExistsTestCase(
             new ExistsQueryBuilder("f"),
@@ -1076,7 +1078,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 null,
                 Map.of(),
                 null,
-                false
+                false,
+                null
             )
         );
     }

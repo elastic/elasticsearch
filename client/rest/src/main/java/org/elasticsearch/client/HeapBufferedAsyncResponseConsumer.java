@@ -65,8 +65,8 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
     }
 
     @Override
-    protected void onResponseReceived(HttpResponse response) throws HttpException, IOException {
-        this.response = response;
+    protected void onResponseReceived(HttpResponse httpResponse) throws HttpException, IOException {
+        this.response = httpResponse;
     }
 
     @Override

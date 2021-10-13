@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -430,9 +430,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
         CountDownLatch latch = new CountDownLatch(1);
-        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterApplyListener() {
+        clusterApplierService.onNewClusterState("test", () -> newState, new ActionListener<>() {
             @Override
-            public void onSuccess() {
+            public void onResponse(Void ignored) {
                 latch.countDown();
             }
 
@@ -457,7 +457,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.availableShardPath(new ShardId(index, shard));
+        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private void assertShardDeleted(final String server, final Index index, final int shard) throws Exception {

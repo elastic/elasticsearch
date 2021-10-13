@@ -21,6 +21,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -56,7 +57,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     }
 
     @Override
-    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
+    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener) {
         transportService.getThreadPool().generic().execute(new ActionRunnable<>(listener) {
             private final AbstractRunnable thisConnectionAttempt = this;
 
@@ -94,9 +95,9 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     } else {
                                         transportService.connectToNode(remoteNode, new ActionListener<>() {
                                             @Override
-                                            public void onResponse(Void ignored) {
+                                            public void onResponse(Releasable connectionReleasable) {
                                                 logger.trace("[{}] completed full connection with [{}]", thisConnectionAttempt, remoteNode);
-                                                listener.onResponse(remoteNode);
+                                                listener.onResponse(new ProbeConnectionResult(remoteNode, connectionReleasable));
                                             }
 
                                             @Override

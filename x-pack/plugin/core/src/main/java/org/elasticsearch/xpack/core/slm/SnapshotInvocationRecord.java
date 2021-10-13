@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -64,11 +63,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
 
     public SnapshotInvocationRecord(StreamInput in) throws IOException {
         this.snapshotName = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            this.snapshotStartTimestamp = in.readOptionalVLong();
-        } else {
-            this.snapshotStartTimestamp = null;
-        }
+        this.snapshotStartTimestamp = in.readOptionalVLong();
         this.snapshotFinishTimestamp = in.readVLong();
         this.details = in.readOptionalString();
     }
@@ -93,9 +88,7 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotName);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalVLong(snapshotStartTimestamp);
-        }
+        out.writeOptionalVLong(snapshotStartTimestamp);
         out.writeVLong(snapshotFinishTimestamp);
         out.writeOptionalString(details);
     }

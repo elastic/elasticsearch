@@ -70,19 +70,20 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -103,6 +104,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Matchers.any;
@@ -323,10 +325,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"-index10", "-index20", "+index30"});
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
+        List<String> indices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
                 .getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index20", "+index30"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
     }
 
@@ -335,7 +337,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(request.indices()).thenReturn(new String[]{"index*"});
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
         assertThat(
             exception,
@@ -360,7 +362,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
 
         assertThat(
@@ -379,7 +381,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index20"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -395,7 +397,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index11", "-index21"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -406,7 +408,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index21", "-does_not_exist"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -418,7 +420,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index1*", "--index11"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -430,7 +432,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices =
                 resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index11", "--index11", "-index20"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -448,7 +450,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"-does_not_exist"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
@@ -459,7 +461,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -479,7 +481,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -490,7 +492,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -501,7 +503,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo", "foofoo-closed"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -512,7 +514,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"foofoobar", "foofoo", "foofoo-closed"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -523,7 +525,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -534,7 +536,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"foofoobar", "foofoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -545,7 +547,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -556,7 +558,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo", "bar-closed"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -576,7 +578,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "foobarfoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -596,7 +598,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar", "bar-closed", "foobarfoo"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
@@ -620,7 +622,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"missing", "bar", "barbaz"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -631,7 +633,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), randomBoolean(), randomBoolean()));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] replacedIndices = new String[]{"bar"};
-        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(indices, hasSize(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
@@ -657,7 +659,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"bar", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), equalTo(expectedIndices));
@@ -668,7 +670,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, false));
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
         String[] expectedIndices = new String[]{"bar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), equalTo(expectedIndices));
@@ -765,7 +767,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
         //the union of all indices and aliases gets returned, missing is not an existing index/alias but that doesn't make any difference
         String[] expectedIndices = new String[]{"alias1", "alias2", "foo", "foofoo", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo", "foofoo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("alias1"));
@@ -781,7 +783,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME)).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
         String[] expectedIndices = new String[]{"foo-alias", "alias2", "foofoo", "bar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
@@ -841,7 +843,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all indices and aliases gets returned
         String[] expectedIndices = new String[]{"foo", "foofoobar", "foofoo", "barbaz"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
@@ -857,7 +859,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all indices and aliases gets returned, doesn't matter is some of them don't exist
         String[] expectedIndices = new String[]{"foo", "foofoobar", "missing_index", "missing_alias"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foo"));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar"));
@@ -873,7 +875,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //union of all resolved indices and aliases gets returned, based on what user is authorized for
         String[] expectedIndices = new String[]{"foofoobar", "foofoo", "bar", "barbaz"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced within each single action
         assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
@@ -961,7 +963,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all indices and aliases gets returned
         String[] expectedIndices = new String[]{"alias1", "foo", "foofoo"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
@@ -973,7 +975,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         String[] expectedIndices = new String[]{"alias1", "foofoo"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
@@ -988,7 +990,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all indices and aliases gets returned, missing is not an existing index/alias but that doesn't make any difference
         String[] expectedIndices = new String[]{"alias2", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
@@ -1020,7 +1022,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         String[] expectedIndices = new String[]{"alias2", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("missing"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
@@ -1035,7 +1037,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
         String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoo-closed", "foofoobar", "foobarfoo"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
         assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "foofoo-closed"));
@@ -1051,7 +1053,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
         String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar", "foobarfoo"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
         assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo"));
@@ -1067,7 +1069,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
         String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar", "foobarfoo", "bar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
         assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "foofoo", "bar"));
@@ -1126,7 +1128,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
         //the union of all resolved indices and aliases gets returned
         String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo", "alias1"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         String[] replacedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
         //_all gets replaced with all indices that user is authorized for
@@ -1344,7 +1346,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             RefreshRequest request = new RefreshRequest("*");
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             String[] expectedIndices = new String[]{"bar", "foofoobar", "foobarfoo", "foofoo"};
-            assertThat(indices.size(), equalTo(expectedIndices.length));
+            assertThat(indices, hasSize(expectedIndices.length));
             assertThat(indices, hasItems(expectedIndices));
             assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
         }
@@ -1352,7 +1354,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             DeleteIndexRequest request = new DeleteIndexRequest("*");
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
             String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoo", "foofoo-closed"};
-            assertThat(indices.size(), equalTo(expectedIndices.length));
+            assertThat(indices, hasSize(expectedIndices.length));
             assertThat(indices, hasItems(expectedIndices));
             assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
         }
@@ -1417,8 +1419,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testUnauthorizedDateMathExpressionStrict() {
-        String expectedIndex = "datetime-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
-            new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+        String expectedIndex = "datetime-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(
+            ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
@@ -1440,7 +1442,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), expandIndicesOpen, randomBoolean()));
         }
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
-        assertThat(indices.size(), equalTo(1));
+        assertThat(indices, hasSize(1));
         assertThat(request.indices()[0], equalTo(dateTimeIndex));
     }
 
@@ -1459,8 +1461,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testMissingDateMathExpressionStrict() {
-        String expectedIndex = "foobar-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
-            new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+        String expectedIndex = "foobar-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(
+            ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
@@ -1479,7 +1481,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal();
         //the union of all indices and aliases gets returned
         String[] expectedIndices = new String[]{"<datetime-{now/M}>", "foo", "foofoo"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasSize(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("<datetime-{now/M}>"));

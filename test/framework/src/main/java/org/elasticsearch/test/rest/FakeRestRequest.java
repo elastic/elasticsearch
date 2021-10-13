@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -126,12 +126,12 @@ public class FakeRestRequest extends RestRequest {
         }
     }
 
-    private static class FakeHttpChannel implements HttpChannel {
+    public static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
         private final ListenableActionFuture<Void> closeFuture = new ListenableActionFuture<>();
 
-        private FakeHttpChannel(InetSocketAddress remoteAddress) {
+        public FakeHttpChannel(InetSocketAddress remoteAddress) {
             this.remoteAddress = remoteAddress;
         }
 

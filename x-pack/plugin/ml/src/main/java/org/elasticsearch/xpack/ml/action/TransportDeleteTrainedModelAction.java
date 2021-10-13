@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -102,6 +103,13 @@ public class TransportDeleteTrainedModelAction
                     modelAlias));
                 return;
             }
+        }
+        if (TrainedModelAllocationMetadata.fromState(state).isAllocated(request.getId())) {
+            listener.onFailure(new ElasticsearchStatusException(
+                "Cannot delete model [{}] as it is currently deployed",
+                RestStatus.CONFLICT,
+                id));
+            return;
         }
 
         ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(

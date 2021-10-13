@@ -20,11 +20,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
@@ -189,7 +189,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             // support first line with \n
             if (restApiVersion == RestApiVersion.V_7 && nextMarker == 0) {
-                deprecationLogger.compatibleApiWarning("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
+                deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
                 from = nextMarker + 1;
                 continue;
             }
@@ -250,7 +250,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             ignoreThrottled = value;
                         } else if(restApiVersion == RestApiVersion.V_7 &&
                             ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                            deprecationLogger.compatibleApiWarning("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                            deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }

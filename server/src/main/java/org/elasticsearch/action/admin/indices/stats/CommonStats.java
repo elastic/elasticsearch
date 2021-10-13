@@ -14,9 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -258,9 +258,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            shards = in.readOptionalWriteable(ShardCountStats::new);
-        }
+        shards = in.readOptionalWriteable(ShardCountStats::new);
     }
 
     @Override
@@ -284,9 +282,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalWriteable(shards);
-        }
+        out.writeOptionalWriteable(shards);
     }
 
     public void add(CommonStats stats) {

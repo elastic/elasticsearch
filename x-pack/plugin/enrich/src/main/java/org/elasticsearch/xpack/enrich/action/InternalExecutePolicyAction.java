@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
@@ -115,10 +115,13 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 if (request.isWaitForCompletion()) {
                     listener = ActionListener.wrap(result -> actionListener.onResponse(new Response(result)), actionListener::onFailure);
                 } else {
-                    listener = ActionListener.wrap(
-                        result -> LOGGER.debug("successfully executed policy [{}]", request.getName()),
-                        e -> LOGGER.error("failed to execute policy [" + request.getName() + "]", e)
-                    );
+                    listener = ActionListener.wrap(result -> LOGGER.debug("successfully executed policy [{}]", request.getName()), e -> {
+                        if (e instanceof TaskCancelledException) {
+                            LOGGER.info(e.getMessage());
+                        } else {
+                            LOGGER.error("failed to execute policy [" + request.getName() + "]", e);
+                        }
+                    });
                 }
                 policyExecutor.runPolicyLocally(task, request.getName(), ActionListener.wrap(result -> {
                     taskManager.unregister(task);
@@ -163,8 +166,6 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 .filter(discoNode -> discoNode.getId().equals(discoNodes.getMasterNodeId()) == false)
                 // filter out dedicated master nodes
                 .filter(discoNode -> discoNode.getRoles().equals(Set.of(DiscoveryNodeRole.MASTER_ROLE)) == false)
-                // Filter out nodes that don't have this action yet
-                .filter(discoNode -> discoNode.getVersion().onOrAfter(Version.V_7_15_0))
                 .toArray(DiscoveryNode[]::new);
             if (nodes.length == 0) {
                 throw new IllegalStateException("no suitable node was found to perform enrich policy execution");

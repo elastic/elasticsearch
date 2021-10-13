@@ -303,8 +303,8 @@ setup:
 ---
 "Composite aggregations":
   - skip:
-      version: " - 7.99.99"
-      reason: "TODO: unsigned_long support for composite aggs was fixed in 7.11"
+      version: " - 7.10.99"
+      reason: "unsigned_long support for composite aggs was fixed in 7.11"
 
   - do:
       search:

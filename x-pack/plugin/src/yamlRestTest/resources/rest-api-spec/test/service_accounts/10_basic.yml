@@ -108,7 +108,7 @@ teardown:
   - match: { "nodes_credentials._nodes.failed": 0 }
   - is_true: nodes_credentials.file_tokens.token1
   - is_true: nodes_credentials.file_tokens.token1.nodes
-  - match: { "nodes_credentials.file_tokens.token1.nodes.0" : "/(yamlRestTest-0|yamlRestCompatTest-0)/" }
+  - match: { "nodes_credentials.file_tokens.token1.nodes.0" : "/yamlRestTest.*-0/" }
 
   - do:
       security.clear_cached_service_tokens:

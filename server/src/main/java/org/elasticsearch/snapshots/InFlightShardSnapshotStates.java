@@ -33,20 +33,23 @@ import java.util.Set;
  */
 public final class InFlightShardSnapshotStates {
 
+    private static final InFlightShardSnapshotStates EMPTY = new InFlightShardSnapshotStates(Map.of(), Map.of());
+
     /**
      * Compute information about all shard ids that currently have in-flight state for the given repository.
      *
-     * @param repoName  repository name
-     * @param snapshots snapshots in progress
-     * @return in flight shard states for all snapshot operation running for the given repository name
+     * @param snapshots snapshots in progress for a single repository
+     * @return in flight shard states for all snapshot operations
      */
-    public static InFlightShardSnapshotStates forRepo(String repoName, List<SnapshotsInProgress.Entry> snapshots) {
+    public static InFlightShardSnapshotStates forEntries(List<SnapshotsInProgress.Entry> snapshots) {
+        if (snapshots.isEmpty()) {
+            return EMPTY;
+        }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
+        assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
+            : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
-            if (runningSnapshot.repository().equals(repoName) == false) {
-                continue;
-            }
             for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
                 .shardsByRepoShardId()) {
                 final RepositoryShardId sid = shard.key;

@@ -25,6 +25,7 @@ public class Constants {
         "cluster:admin/data_frame/start",
         "cluster:admin/data_frame/stop",
         "cluster:admin/data_frame/update",
+        "cluster:admin/deprecation/cache/reset",
         "cluster:admin/ilm/_move/post",
         "cluster:admin/ilm/delete",
         "cluster:admin/ilm/get",
@@ -45,6 +46,8 @@ public class Constants {
         "cluster:admin/logstash/pipeline/get",
         "cluster:admin/logstash/pipeline/put",
         "cluster:admin/migrate_to_data_tiers",
+        "cluster:admin/migration/get_system_feature",
+        "cluster:admin/migration/post_system_feature",
         "cluster:admin/nodes/reload_secure_settings",
         "cluster:admin/persistent/completion",
         "cluster:admin/persistent/remove",
@@ -162,6 +165,8 @@ public class Constants {
         "cluster:admin/xpack/ml/job/validate/detector",
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
+        "cluster:admin/xpack/ml/trained_models/part/put",
+        "cluster:admin/xpack/ml/trained_models/vocabulary/put",
         "cluster:admin/xpack/ml/upgrade_mode",
         "cluster:admin/xpack/monitoring/bulk",
         "cluster:admin/xpack/monitoring/migrate/alerts",
@@ -460,7 +465,6 @@ public class Constants {
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info",
         "internal:admin/xpack/searchable_snapshots/frozen_cache_info[n]",
         "internal:cluster/nodes/indices/shard/store",
-        "internal:gateway/local/meta_state",
         "internal:gateway/local/started_shards"
     );
 }

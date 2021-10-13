@@ -69,9 +69,10 @@ public class DanglingIndicesStateTests extends ESTestCase {
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, uuid);
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
-            Path path = env.resolveIndexFolder(uuid);
-            if (Files.exists(path)) {
-                Files.move(path, path.resolveSibling("invalidUUID"), StandardCopyOption.ATOMIC_MOVE);
+            for (Path path : env.resolveIndexFolder(uuid)) {
+                if (Files.exists(path)) {
+                    Files.move(path, path.resolveSibling("invalidUUID"), StandardCopyOption.ATOMIC_MOVE);
+                }
             }
 
             final IllegalStateException e = expectThrows(IllegalStateException.class, danglingState::getDanglingIndices);

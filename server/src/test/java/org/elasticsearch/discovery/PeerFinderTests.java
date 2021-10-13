@@ -99,7 +99,7 @@ public class PeerFinderTests extends ESTestCase {
         }
 
         @Override
-        public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
+        public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener) {
             assert localNode.getAddress().equals(transportAddress) == false : "should not probe local node";
 
             final boolean isNotInFlight = inFlightConnectionAttempts.add(transportAddress);
@@ -124,7 +124,11 @@ public class PeerFinderTests extends ESTestCase {
                                 disconnectedNodes.remove(discoveryNode);
                                 connectedNodes.add(discoveryNode);
                                 assertTrue(inFlightConnectionAttempts.remove(transportAddress));
-                                listener.onResponse(discoveryNode);
+                                listener.onResponse(new ProbeConnectionResult(discoveryNode, () -> {
+                                    if (connectedNodes.remove(discoveryNode)) {
+                                        disconnectedNodes.add(discoveryNode);
+                                    }
+                                }));
                                 return;
                             } else {
                                 listener.onFailure(new ElasticsearchException("non-master node " + discoveryNode));
@@ -232,6 +236,7 @@ public class PeerFinderTests extends ESTestCase {
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
         deterministicTaskQueue.runAllRunnableTasks();
+        assertThat(connectedNodes, empty());
     }
 
     public void testAddsReachableNodesFromUnicastHostsList() {
@@ -350,6 +355,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         peerFinder.deactivate(localNode);
+        assertThat(connectedNodes, empty());
 
         providedAddresses.clear();
         peerFinder.activate(lastAcceptedNodes);
@@ -467,6 +473,7 @@ public class PeerFinderTests extends ESTestCase {
         final long term = randomNonNegativeLong();
         peerFinder.setCurrentTerm(term);
         peerFinder.deactivate(masterNode);
+        assertThat(connectedNodes, empty());
 
         final PeersResponse expectedResponse = new PeersResponse(Optional.of(masterNode), Collections.emptyList(), term);
         final PeersResponse peersResponse = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));

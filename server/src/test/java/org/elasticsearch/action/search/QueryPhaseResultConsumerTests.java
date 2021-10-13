@@ -48,16 +48,16 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     @Before
     public void setup() {
         searchPhaseController = new SearchPhaseController(
-            s -> new InternalAggregation.ReduceContextBuilder() {
+            (t, s) -> new InternalAggregation.ReduceContextBuilder() {
                 @Override
                 public InternalAggregation.ReduceContext forPartialReduction() {
                     return InternalAggregation.ReduceContext.forPartialReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY, t);
                 }
 
                 public InternalAggregation.ReduceContext forFinalReduction() {
                     return InternalAggregation.ReduceContext.forFinalReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY, t);
                 };
             });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
@@ -85,7 +85,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchRequest.setBatchedReduceSize(2);
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
         QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, searchProgressListener,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, () -> false, searchProgressListener,
             10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;

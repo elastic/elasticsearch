@@ -124,10 +124,10 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         remoteClusterName = "local-cluster";
         discoveryAddress = getDiscoveryAddress();
 
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<DiscoveryNode>() {
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<ProbeConnectionResult>() {
             @Override
-            public void onResponse(DiscoveryNode discoveryNode) {
-                receivedNode.set(discoveryNode);
+            public void onResponse(ProbeConnectionResult connectResult) {
+                receivedNode.set(connectResult.getDiscoveryNode());
                 completionLatch.countDown();
             }
 
@@ -223,12 +223,12 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         return randomBoolean() ? remoteNode.getAddress() : buildNewFakeTransportAddress();
     }
 
-    private static class FailureListener implements ActionListener<DiscoveryNode> {
+    private static class FailureListener implements ActionListener<ProbeConnectionResult> {
         final CountDownLatch completionLatch = new CountDownLatch(1);
 
         @Override
-        public void onResponse(DiscoveryNode discoveryNode) {
-            fail(discoveryNode.toString());
+        public void onResponse(ProbeConnectionResult connectResult) {
+            fail(connectResult.getDiscoveryNode().toString());
         }
 
         @Override

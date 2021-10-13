@@ -36,5 +36,5 @@ expiration.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> the API key that can be used to authenticate to Elasticsearch.
+<1> the API key credentials that can be used to authenticate to Elasticsearch.
 <2> expiration if the API keys expire

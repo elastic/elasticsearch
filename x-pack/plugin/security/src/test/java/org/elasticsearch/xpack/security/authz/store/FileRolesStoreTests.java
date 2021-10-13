@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -157,7 +157,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.privilege(), notNullValue());
         assertTrue(Operations.sameLanguage(group.privilege().getAutomaton(),
                 MinimizationOperations.minimize(Operations.union(IndexPrivilege.READ.getAutomaton(), IndexPrivilege.WRITE.getAutomaton()),
-                        Operations.DEFAULT_MAX_DETERMINIZED_STATES)));
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)));
 
         descriptor = roles.get("role4");
         assertNull(descriptor);

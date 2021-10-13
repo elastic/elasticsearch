@@ -32,6 +32,7 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();
         policy.setForceMergeDeletesPctAllowed(42);
         assertEquals(42, policy.forcedMergePolicy.getForceMergeDeletesPctAllowed(), 0);
+        assertEquals(42, policy.regularMergePolicy.getForceMergeDeletesPctAllowed(), 0);
     }
 
     public void testSetFloorSegmentMB() {
@@ -45,12 +46,6 @@ public class EsTieredMergePolicyTests extends ESTestCase {
         EsTieredMergePolicy policy = new EsTieredMergePolicy();
         policy.setMaxMergeAtOnce(42);
         assertEquals(42, policy.regularMergePolicy.getMaxMergeAtOnce());
-    }
-
-    public void testSetMaxMergeAtOnceExplicit() {
-        EsTieredMergePolicy policy = new EsTieredMergePolicy();
-        policy.setMaxMergeAtOnceExplicit(42);
-        assertEquals(42, policy.forcedMergePolicy.getMaxMergeAtOnceExplicit());
     }
 
     public void testSetSegmentsPerTier() {

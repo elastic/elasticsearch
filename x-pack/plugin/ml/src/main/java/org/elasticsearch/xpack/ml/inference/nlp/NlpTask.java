@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -56,6 +56,8 @@ public class NlpTask {
 
         Request buildRequest(List<String> inputs, String requestId) throws IOException;
 
+        Request buildRequest(TokenizationResult tokenizationResult, String requestId) throws IOException;
+
         static void writePaddedTokens(String fieldName,
                                       TokenizationResult tokenization,
                                       int padToken,
@@ -97,10 +99,6 @@ public class NlpTask {
         InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult);
     }
 
-    public interface ResultProcessorFactory {
-        ResultProcessor build(TokenizationResult tokenizationResult);
-    }
-
     public interface Processor {
         /**
          * Validate the task input string.
@@ -110,8 +108,8 @@ public class NlpTask {
          */
         void validateInputs(List<String> inputs);
 
-        RequestBuilder getRequestBuilder();
-        ResultProcessor getResultProcessor();
+        RequestBuilder getRequestBuilder(NlpConfig config);
+        ResultProcessor getResultProcessor(NlpConfig config);
     }
 
     public static String extractInput(TrainedModelInput input, Map<String, Object> doc) {

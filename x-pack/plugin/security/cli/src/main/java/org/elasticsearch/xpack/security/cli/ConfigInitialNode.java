@@ -100,16 +100,21 @@ public class ConfigInitialNode extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // Silently skipping security auto configuration because node considered as restarting.
-        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
-            terminal.println(expectedNoopVerbosityLevel(),
+        for (Path dataPath : env.dataFiles()) {
+            // TODO: Files.list leaks a file handle because the stream is not closed
+            // this effectively doesn't matter since config is run in a separate, short lived, process
+            // but it should be fixed...
+            if (Files.isDirectory(dataPath) && Files.list(dataPath).findAny().isPresent()) {
+                terminal.println(expectedNoopVerbosityLevel(),
                     "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
-            terminal.println(expectedNoopVerbosityLevel(),
+                terminal.println(expectedNoopVerbosityLevel(),
                     "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
-                            "clusters only.");
-            if (options.has(strictOption)) {
-                throw new UserException(ExitCodes.NOOP, null);
-            } else {
-                return; // silent error because we wish the node to start as usual (skip auto config) during a restart
+                        "clusters only.");
+                if (options.has(strictOption)) {
+                    throw new UserException(ExitCodes.NOOP, null);
+                } else {
+                    return; // silent error because we wish the node to start as usual (skip auto config) during a restart
+                }
             }
         }
         // preflight checks for the files that are going to be changed

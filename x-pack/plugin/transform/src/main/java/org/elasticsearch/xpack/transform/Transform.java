@@ -168,8 +168,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestGetTransformStatsAction(),
             new RestPreviewTransformAction(),
             new RestUpdateTransformAction(),
-            new RestCatTransformAction()
-            new RestUpgradeTransformsAction(),
+            new RestCatTransformAction(),
+            new RestUpgradeTransformsAction()
         );
     }
 

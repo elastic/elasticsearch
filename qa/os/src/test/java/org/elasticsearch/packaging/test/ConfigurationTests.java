@@ -18,6 +18,7 @@ import org.junit.Before;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeFalse;
 
 public class ConfigurationTests extends PackagingTestCase {

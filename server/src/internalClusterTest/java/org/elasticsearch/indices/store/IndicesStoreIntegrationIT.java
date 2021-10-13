@@ -452,7 +452,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     private Path indexDirectory(String server, Index index) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.indexPath(index);
+        final Path[] paths = env.indexPaths(index);
+        assert paths.length == 1;
+        return paths[0];
     }
 
     private Path shardDirectory(String server, Index index, int shard) {

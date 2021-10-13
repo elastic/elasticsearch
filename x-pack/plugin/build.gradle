@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
@@ -18,7 +19,8 @@ dependencies {
 
 // let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
-GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
+int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
+GradleUtils.extendSourceSet(project, "test", "yamlRestTestV${compatVersion}Compat")
 
 restResources {
   restApi {

@@ -208,18 +208,18 @@ public class IndexShardTests extends IndexShardTestCase {
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
             ShardStateMetadata state1 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state1, env.availableShardPath(id));
-            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPath(id));
+            write(state1, env.availableShardPaths(id));
+            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state2 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state2, env.availableShardPath(id));
-            shardStateMetadata = load(logger, env.availableShardPath(id));
+            write(state2, env.availableShardPaths(id));
+            shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state3 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state3, env.availableShardPath(id));
-            shardStateMetadata = load(logger, env.availableShardPath(id));
+            write(state3, env.availableShardPaths(id));
+            shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state3);
             assertEquals("fooUUID", state3.indexUUID);
         }

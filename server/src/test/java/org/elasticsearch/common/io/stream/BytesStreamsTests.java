@@ -299,7 +299,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalDouble(1.2);
         out.writeZoneId(ZoneId.of("CET"));
         out.writeOptionalZoneId(ZoneId.systemDefault());
-        out.writeOptionalTimeZone(null);
         out.writeGenericValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(123456), ZoneId.of("America/Los_Angeles")));
         final OffsetTime offsetNow = OffsetTime.now(randomZone());
         out.writeGenericValue(offsetNow);
@@ -334,7 +333,6 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
         assertEquals(ZoneId.of("CET"), in.readZoneId());
         assertEquals(ZoneId.systemDefault(), in.readOptionalZoneId());
-        assertNull(in.readOptionalTimeZone());
         Object dt = in.readGenericValue();
         assertThat(dt, instanceOf(ZonedDateTime.class));
         ZonedDateTime zdt = (ZonedDateTime)dt;

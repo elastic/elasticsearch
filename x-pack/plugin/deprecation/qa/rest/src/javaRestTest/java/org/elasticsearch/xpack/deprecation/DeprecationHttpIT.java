@@ -67,7 +67,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     @Before
     public void assertIndexingIsEnabled() throws Exception {
-        configureWriteDeprecationLogsToIndex(true);
 
         // make sure the deprecation logs indexing is enabled
         Response response = client().performRequest(new Request("GET", "/_cluster/settings?include_defaults=true&flat_settings=true"));
@@ -75,8 +74,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
         ObjectMapper mapper = new ObjectMapper();
         final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
 
-        final boolean transientValue = jsonNode.at("/transient/cluster.deprecation_indexing.enabled").asBoolean();
-        assertTrue(transientValue);
+        final boolean defaultValue = jsonNode.at("/defaults/cluster.deprecation_indexing.enabled").asBoolean();
+        assertTrue(defaultValue);
 
         // assert index does not exist, which will prevent previous tests to interfere
         assertBusy(() -> {
@@ -350,8 +349,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     public void testDisableDeprecationLogIndexing() throws Exception {
-
-        configureWriteDeprecationLogsToIndex(true);
         final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDisableDeprecationLogIndexing");
         assertOK(client().performRequest(deprecatedRequest));
         configureWriteDeprecationLogsToIndex(false);

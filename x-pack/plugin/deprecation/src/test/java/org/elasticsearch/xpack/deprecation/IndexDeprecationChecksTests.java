@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -653,5 +654,21 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             String.format(Locale.ROOT, warningTemplate, IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()) };
 
         assertWarnings(expectedWarnings);
+    }
+
+    public void testFrozenIndex() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                false,
+                null
+            )
+        ));
     }
 }

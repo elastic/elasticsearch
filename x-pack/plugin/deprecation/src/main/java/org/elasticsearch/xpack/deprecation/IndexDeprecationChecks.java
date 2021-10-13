@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
@@ -419,5 +420,22 @@ public class IndexDeprecationChecks {
             String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
+    }
+
+    static DeprecationIssue frozenIndexSettingCheck(IndexMetadata indexMetadata) {
+        Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings());
+        if (Boolean.TRUE.equals(isIndexFrozen)) {
+            String indexName = indexMetadata.getIndex().getName();
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "index [" + indexName +
+                    "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                false,
+                null
+            );
+        }
+        return null;
     }
 }

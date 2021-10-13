@@ -261,9 +261,6 @@ tasks.named('splitPackagesAudit').configure {
     // but this should be fixed in Lucene 9
     'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
 
-    // Joda should own its own packages! This should be a simple move.
-    'org.joda.time.format.StrictISODateTimeFormat',
-
     // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
     'org.elasticsearch.cli.CommandLoggingConfigurator',
     'org.elasticsearch.cli.EnvironmentAwareCommand',

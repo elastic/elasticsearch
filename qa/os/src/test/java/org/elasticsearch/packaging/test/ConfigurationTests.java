@@ -19,7 +19,6 @@ import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 public class ConfigurationTests extends PackagingTestCase {
 
@@ -36,7 +35,7 @@ public class ConfigurationTests extends PackagingTestCase {
         Shell.Result result = sh.run(
             installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
         );
-        assumeTrue(result.isSuccess());
+        assertThat(result.isSuccess(), is(true));
     }
 
     public void test60HostnameSubstitution() throws Exception {

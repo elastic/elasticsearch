@@ -218,7 +218,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion;
                 }
             } else {
-                snapshotVersion = randomBoolean() ? null : Version.fromId(Integer.MAX_VALUE);
+                snapshotVersion = Version.fromId(Integer.MAX_VALUE);
                 luceneVersion = org.apache.lucene.util.Version.parse("255.255.255");
             }
 

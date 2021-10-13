@@ -12,16 +12,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,7 +34,7 @@ public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null);
+    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -63,7 +62,7 @@ public class TransformConfigUpdate implements Writeable {
         PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), TransformField.METADATA);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
@@ -191,7 +190,7 @@ public class TransformConfigUpdate implements Writeable {
             out.writeOptionalWriteable(settings);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(metadata);
+            out.writeMapWithConsistentOrder(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
@@ -296,13 +295,8 @@ public class TransformConfigUpdate implements Writeable {
             builder.setSettings(settingsBuilder.build());
         }
         if (metadata != null) {
-            // metadata are partially updateable, that means we only overwrite changed metadata but keep others
-            Map<String, Object> metadataBuilder = new HashMap<>();
-            if (config.getMetadata() != null) {
-                metadataBuilder.putAll(config.getMetadata());
-            }
-            metadataBuilder.putAll(metadata);
-            builder.setMetadata(metadataBuilder);
+            // Unlike with settings, we fully replace the old metadata with the new metadata
+            builder.setMetadata(metadata);
         }
         if (retentionPolicyConfig != null) {
             builder.setRetentionPolicyConfig(retentionPolicyConfig);

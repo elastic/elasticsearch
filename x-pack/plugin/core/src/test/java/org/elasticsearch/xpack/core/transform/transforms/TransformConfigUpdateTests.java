@@ -30,9 +30,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigT
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomRetentionPolicyConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomSyncConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class TransformConfigUpdateTests extends AbstractWireSerializingTransformTestCase<TransformConfigUpdate> {
 
@@ -116,7 +114,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
         SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true);
-        Map<String, Object> metadata = Map.of("foo", 123, "bar", 456);
+        Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
         update = new TransformConfigUpdate(
             sourceConfig,
@@ -125,7 +123,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             syncConfig,
             newDescription,
             settings,
-            metadata,
+            newMetadata,
             retentionPolicyConfig
         );
 
@@ -140,7 +138,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getDescription(), equalTo(newDescription));
         assertThat(updatedConfig.getSettings(), equalTo(settings));
         // We only check for the existence of new entries. The map can also contain the old (random) entries.
-        assertThat(updatedConfig.getMetadata(), allOf(hasEntry("foo", 123), hasEntry("bar", 456)));
+        assertThat(updatedConfig.getMetadata(), equalTo(newMetadata));
         assertThat(updatedConfig.getRetentionPolicyConfig(), equalTo(retentionPolicyConfig));
         assertThat(updatedConfig.getHeaders(), equalTo(headers));
         assertThat(updatedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -222,8 +220,8 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, newMetadata, null);
         TransformConfig updatedConfig = update.apply(config);
 
-        // for metadata we allow partial updates, so changing 1 metadata should not overwrite the other
-        assertThat(updatedConfig.getMetadata(), equalTo(Map.of("foo", 123, "bar", 789, "baz", 1000)));
+        // For metadata we apply full replace rather than partial update, so "foo" disappears.
+        assertThat(updatedConfig.getMetadata(), equalTo(Map.of("bar", 789, "baz", 1000)));
     }
 
     public void testApplyWithSyncChange() {

@@ -371,9 +371,9 @@ setup:
             }
           }
   - match: { id: "updating-airline-transform" }
-  - match: { _meta.foo: 123 }
-  - match: { _meta.bar: "some bar note" }  # the value type has changed from int to string
-  - is_false: _meta.baz.a1  # baz.a1 disappears because field overwriting is not recursive!
+  - is_false: _meta.foo  # "foo" disappeared as the metadata update is implemented as full replace
+  - match: { _meta.bar: "some bar note" }  # "bar" value type has changed from int to string
+  - is_false: _meta.baz.a1  # "baz.a1" disappeared as the metadata update is implemented as full replace
   - match: { _meta.baz.a2: 222 }
   - match: { _meta.baz.a3: 333 }
 
@@ -382,7 +382,7 @@ setup:
         transform_id: "updating-airline-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "updating-airline-transform" }
-  - match: { transforms.0._meta.foo: 123 }
+  - is_false: transforms.0._meta.foo
   - match: { transforms.0._meta.bar: "some bar note" }
   - is_false: transforms.0._meta.baz.a1
   - match: { transforms.0._meta.baz.a2: 222 }

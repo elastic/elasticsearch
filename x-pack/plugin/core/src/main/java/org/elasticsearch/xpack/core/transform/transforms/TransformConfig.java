@@ -181,7 +181,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), Function.LATEST.getParseField());
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), TransformField.METADATA);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
         parser.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
@@ -447,7 +447,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             settings.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(metadata);
+            out.writeMapWithConsistentOrder(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);

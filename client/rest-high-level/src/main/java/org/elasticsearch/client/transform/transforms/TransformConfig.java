@@ -112,7 +112,7 @@ public class TransformConfig implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p), LATEST_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), SETTINGS);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), METADATA);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),

@@ -127,10 +127,6 @@ public class LagDetector {
         return Collections.unmodifiableSet(appliedStateTrackersByNode.keySet());
     }
 
-    public static boolean isDebugEnabled() {
-        return logger.isDebugEnabled();
-    }
-
     private class NodeAppliedStateTracker {
         private final DiscoveryNode discoveryNode;
         private final AtomicLong appliedVersion = new AtomicLong();

@@ -88,7 +88,13 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * A method used to signal that the system indices owned by this plugin are about to be upgraded.
      *
      * This method will typically be called once, before any changes are made to the system indices owned by this plugin. However, if there
-     * is a master failover during the upgrade process, this method may be called
+     * is a master failover at exactly the wrong time during the upgrade process, this may be called more than once, though this should be
+     * very rare.
+     *
+     * This method can also store metadata to be passed to
+     * {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)} when it is called; see the
+     * {@code listener} parameter for details.
+     *
      * @param clusterService The cluster service.
      * @param client A {@link org.elasticsearch.client.ParentTaskAssigningClient} with the parent task set to the upgrade task. Does not set
      *               the origin header, so implementors of this method will likely want to wrap it in an

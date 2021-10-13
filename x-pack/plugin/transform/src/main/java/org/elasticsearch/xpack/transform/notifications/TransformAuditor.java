@@ -80,6 +80,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                         new ComposableIndexTemplate.Builder().template(TransformInternalIndex.getAuditIndexTemplate())
                             .version((long) Version.CURRENT.id)
                             .indexPatterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
+                            .priority(Long.MAX_VALUE)
                             .build()
                     );
                     return request;

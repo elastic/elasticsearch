@@ -9,7 +9,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
@@ -31,7 +30,6 @@ import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +38,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;

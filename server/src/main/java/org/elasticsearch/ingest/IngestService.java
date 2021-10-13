@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -60,6 +61,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -312,18 +314,30 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         if (defaultPipelineIndices.size() > 0 || finalPipelineIndices.size() > 0) {
-            throw new IllegalArgumentException(
-                "pipeline ["
-                    + pipeline
-                    + "] cannot be deleted because it is the default pipeline for "
-                    + defaultPipelineIndices.size()
-                    + " indices including ["
-                    + defaultPipelineIndices.stream().limit(3).collect(Collectors.joining(","))
-                    + "] and the final pipeline for "
-                    + finalPipelineIndices.size()
-                    + " indices including ["
-                    + finalPipelineIndices.stream().limit(3).collect(Collectors.joining(","))
-                    + "]"
+            throw new IllegalArgumentException(String.format(
+                Locale.ROOT,
+                "pipeline [%s] cannot be deleted because it is %s%s%s",
+                    pipeline,
+                    defaultPipelineIndices.size() > 0
+                        ? String.format(
+                            Locale.ROOT,
+                            "the default pipeline for %s index(es) including [%s]",
+                            defaultPipelineIndices.size(),
+                            defaultPipelineIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                          )
+                        : Strings.EMPTY,
+                    defaultPipelineIndices.size() > 0 && finalPipelineIndices.size() > 0
+                        ? " and "
+                        : Strings.EMPTY,
+                    finalPipelineIndices.size() > 0
+                        ? String.format(
+                            Locale.ROOT,
+                            "the final pipeline for %s index(es) including [%s]",
+                            finalPipelineIndices.size(),
+                            finalPipelineIndices.stream().limit(3).sorted().collect(Collectors.joining(","))
+                          )
+                        : Strings.EMPTY
+                )
             );
         }
     }

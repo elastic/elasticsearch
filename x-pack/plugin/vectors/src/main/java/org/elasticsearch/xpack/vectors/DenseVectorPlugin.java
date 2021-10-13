@@ -19,11 +19,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class Vectors extends Plugin implements MapperPlugin {
+public class DenseVectorPlugin extends Plugin implements MapperPlugin {
 
-    public static final String NAME = "vectors";
-
-    public Vectors() { }
+    public DenseVectorPlugin() { }
 
     public Collection<Module> createGuiceModules() {
         return Collections.emptyList();

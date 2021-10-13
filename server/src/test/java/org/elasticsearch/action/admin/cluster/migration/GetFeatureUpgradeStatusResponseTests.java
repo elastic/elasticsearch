@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.migration;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -31,7 +33,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     protected GetFeatureUpgradeStatusResponse createTestInstance() {
         return new GetFeatureUpgradeStatusResponse(
             randomList(8, GetFeatureUpgradeStatusResponseTests::createFeatureStatus),
-            randomAlphaOfLengthBetween(4, 16)
+            randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())
         );
     }
 
@@ -41,13 +43,14 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
             randomList(8,
                 () -> randomValueOtherThanMany(instance.getFeatureUpgradeStatuses()::contains,
                     GetFeatureUpgradeStatusResponseTests::createFeatureStatus)),
-            randomValueOtherThan(instance.getUpgradeStatus(), () -> randomAlphaOfLengthBetween(4, 16))
-        );
+            randomValueOtherThan(instance.getUpgradeStatus(), () ->
+                randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values())));
+
     }
 
     /** If constructor is called with null for a list, we just use an empty list */
     public void testConstructorHandlesNullLists() {
-        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, "status");
+        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, UPGRADE_NEEDED);
         assertThat(response.getFeatureUpgradeStatuses(), notNullValue());
         assertThat(response.getFeatureUpgradeStatuses(), equalTo(Collections.emptyList()));
     }
@@ -55,8 +58,8 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus createFeatureStatus() {
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
-            randomAlphaOfLengthBetween(5, 9),
-            randomAlphaOfLengthBetween(4, 16),
+            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
             randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexVersion)
         );
     }
@@ -64,7 +67,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.IndexVersion getIndexVersion() {
         return new GetFeatureUpgradeStatusResponse.IndexVersion(
             randomAlphaOfLengthBetween(3, 20),
-            randomAlphaOfLengthBetween(5, 9)
+            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())
         );
     }
 }

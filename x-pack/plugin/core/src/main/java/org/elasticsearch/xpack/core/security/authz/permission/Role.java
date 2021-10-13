@@ -72,6 +72,10 @@ public class Role {
         return runAs;
     }
 
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return indices.hasFieldOrDocumentLevelSecurity();
+    }
+
     public static Builder builder(String... names) {
         return new Builder(names);
     }

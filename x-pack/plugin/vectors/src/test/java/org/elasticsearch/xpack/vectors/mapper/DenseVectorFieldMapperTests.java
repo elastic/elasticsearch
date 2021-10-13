@@ -19,7 +19,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.vectors.Vectors;
+import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,7 +34,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new Vectors());
+        return Collections.singletonList(new DenseVectorPlugin());
     }
 
     @Override

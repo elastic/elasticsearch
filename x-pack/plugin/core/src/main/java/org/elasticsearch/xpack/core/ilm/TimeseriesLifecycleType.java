@@ -124,14 +124,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
-        AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
-        if (allocateAction != null) {
-            if (definesAllocationRules(allocateAction)) {
-                // we won't automatically migrate the data if an allocate action that defines any allocation rule is present
-                return false;
-            }
-        }
-
         // searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
         if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
             return false;

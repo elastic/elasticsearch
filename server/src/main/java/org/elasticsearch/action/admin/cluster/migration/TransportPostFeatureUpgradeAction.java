@@ -27,9 +27,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
@@ -75,22 +77,32 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<PostFeatureUpgradeResponse> listener
     ) throws Exception {
-        List<PostFeatureUpgradeResponse.Feature> features = new ArrayList<>();
-        features.add(new PostFeatureUpgradeResponse.Feature("security"));
+        List<PostFeatureUpgradeResponse.Feature> featuresToMigrate = systemIndices.getFeatures()
+            .values()
+            .stream()
+            .map(feature -> getFeatureUpgradeStatus(state, feature))
+            .filter(status -> status.getUpgradeStatus().equals(GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED))
+            .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getFeatureName)
+            .map(PostFeatureUpgradeResponse.Feature::new)
+            .sorted(Comparator.comparing(PostFeatureUpgradeResponse.Feature::getFeatureName)) // consistent ordering to simplify testing
+            .collect(Collectors.toList());
 
-        persistentTasksService.sendStartRequest(
-            SYSTEM_INDEX_UPGRADE_TASK_NAME,
-            SYSTEM_INDEX_UPGRADE_TASK_NAME,
-            new SystemIndexMigrationTaskParams(),
-            ActionListener.wrap(startedTask -> {
-                // GWB> Fix this call!!!
-                listener.onResponse(new PostFeatureUpgradeResponse(true, null, null, null));
-            }, ex -> {
-                logger.error("failed to start system index upgrade task", ex);
+        if (featuresToMigrate.isEmpty() == false) {
+            persistentTasksService.sendStartRequest(
+                SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                new SystemIndexMigrationTaskParams(),
+                ActionListener.wrap(startedTask -> {
+                    listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
+                }, ex -> {
+                    logger.error("failed to start system index upgrade task", ex);
 
-                listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
-            })
-        );
+                    listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
+                })
+            );
+        } else {
+            listener.onResponse(new PostFeatureUpgradeResponse(false, null, "No system indices require migration", null));
+        }
     }
 
     @Override

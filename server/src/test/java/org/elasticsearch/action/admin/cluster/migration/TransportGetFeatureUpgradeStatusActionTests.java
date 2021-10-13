@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +34,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus status =
             TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus(
                 CLUSTER_STATE,
-                Map.entry("test-feature", FEATURE));
+                FEATURE);
 
         assertThat(status.getUpgradeStatus(), equalTo(NO_UPGRADE_NEEDED));
         assertThat(status.getFeatureName(), equalTo("test-feature"));

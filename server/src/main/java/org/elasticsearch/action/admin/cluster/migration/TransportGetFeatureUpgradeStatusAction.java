@@ -28,8 +28,8 @@ import org.elasticsearch.upgrades.SystemIndexMigrationResult;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskState;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,10 +81,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     ) throws Exception {
 
         List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures()
-            .entrySet()
+            .values()
             .stream()
-            .sorted(Map.Entry.comparingByKey())
-            .map(entry -> getFeatureUpgradeStatus(state, entry))
+            .sorted(Comparator.comparing(SystemIndices.Feature::getName))
+            .map(feature -> getFeatureUpgradeStatus(state, feature))
             .collect(Collectors.toList());
 
         GetFeatureUpgradeStatusResponse.UpgradeStatus status = features.stream()
@@ -98,14 +98,11 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
     }
 
-    // visible for testing
     static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
         ClusterState state,
-        Map.Entry<String, SystemIndices.Feature> entry
+        SystemIndices.Feature feature
     ) {
-
-        String featureName = entry.getKey();
-        SystemIndices.Feature feature = entry.getValue();
+        String featureName = feature.getName();
 
         final String currentFeature = Optional.ofNullable(
             state.metadata().<PersistentTasksCustomMetadata>custom(PersistentTasksCustomMetadata.TYPE)

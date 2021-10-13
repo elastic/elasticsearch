@@ -167,7 +167,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                         IndexAbstraction ia = lookup.get(index.getName());
                         if (ia != null
                             && ia.getParentDataStream() != null
-                            && ia.getParentDataStream().getWriteIndex().equals(index.getName())) {
+                            && ia.getParentDataStream().getWriteIndex().equals(index)) {
                             writeIndices.add(index.getName());
                         }
                     }

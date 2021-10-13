@@ -36,8 +36,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -163,9 +163,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertOK(migrateDeploymentResponse);
 
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
             containsInAnyOrder(policy));
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
             containsInAnyOrder(index, indexWithDataWarmRouting));
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
             is(templateName));
@@ -270,9 +270,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         // response should contain the correct "to migrate" entities
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_ILM_POLICIES.getPreferredName()),
             containsInAnyOrder(policy));
-        assertThat((ArrayList<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
+        assertThat((List<String>) migrateResponseAsMap.get(MigrateToDataTiersResponse.MIGRATED_INDICES.getPreferredName()),
             containsInAnyOrder(index, indexWithDataWarmRouting));
         assertThat(migrateResponseAsMap.get(MigrateToDataTiersResponse.REMOVED_LEGACY_TEMPLATE.getPreferredName()),
             is(templateName));

@@ -30,9 +30,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 
 /**
- * Keeps track of the databases locally available to a node:
- * 1) User provided databases from the ES_HOME/config/ingest-geoip directory. This directory is monitored
- *    and files updates are picked up and may cause databases being loaded or removed at runtime.
+ * Keeps track of user provided databases in the ES_HOME/config/ingest-geoip directory.
+ * This directory is monitored and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
 final class LocalDatabases implements Closeable {
 

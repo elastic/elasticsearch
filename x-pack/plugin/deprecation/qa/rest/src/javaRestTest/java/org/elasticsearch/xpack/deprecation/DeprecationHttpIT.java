@@ -651,7 +651,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
         final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
+        request.setJsonEntity("{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
         final Response response = client().performRequest(request);
         assertOK(response);
     }

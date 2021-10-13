@@ -56,7 +56,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             } else {
                 client().admin().cluster()
                     .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, negativeShardsPerNode).build())
+                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, negativeShardsPerNode).build())
                     .get();
             }
             fail("should not be able to set negative shards per node");
@@ -338,9 +338,9 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             } else {
                 response = client().admin().cluster()
                     .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
+                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
                     .get();
-                assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+                assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
             }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());

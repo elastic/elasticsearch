@@ -191,10 +191,6 @@ public class TimeSeriesCounter {
         }
 
         int total = 0;
-        // handle the current bucket
-        if (start <= latestTimeStamp && end >= currentEpochStart) {
-
-        }
         if (end >= currentEpochStart) {
             if (currentEpochTimeSeries != null) {
                 total += currentEpochTimeSeries.count(currentEpochStart, end);

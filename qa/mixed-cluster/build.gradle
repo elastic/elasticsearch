@@ -31,6 +31,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
       numberOfNodes = 4
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      if (bwcVersion.onOrAfter('7.10.0')) {
+        setting 'cluster.deprecation_indexing.enabled', 'false'
+      }
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {

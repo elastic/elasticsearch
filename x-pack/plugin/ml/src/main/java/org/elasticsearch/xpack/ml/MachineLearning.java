@@ -1495,10 +1495,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
-        Client client,
+        Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         logger.info("Starting machine learning feature reset");
+        OriginSettingClient client = new OriginSettingClient(unwrappedClient, ML_ORIGIN);
 
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 

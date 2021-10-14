@@ -584,7 +584,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         Settings.builder()
                             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                             .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
-                            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
+                            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                             .build(),
                         null
                     ),

@@ -327,7 +327,9 @@ public class Node implements Closeable {
                 );
             }
 
-            if (Environment.dataPathUsesList(tmpSettings)) {
+            if (initialEnvironment.dataFiles().length > 1) {
+                throw new IllegalArgumentException("Multiple [path.data] values found. Specify a single data path.");
+            } else if (Environment.dataPathUsesList(tmpSettings)) {
                 throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
             }
 

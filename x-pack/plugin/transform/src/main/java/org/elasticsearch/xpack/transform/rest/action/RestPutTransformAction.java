@@ -31,7 +31,7 @@ public class RestPutTransformAction extends BaseRestHandler {
      * arbitrary size. Such transform configs of an arbitrary size could be a problem upon fetch so it's better to prevent them on Put and
      * Update actions.
      */
-    static final ByteSizeValue MAX_REQUEST_SIZE = ByteSizeValue.ofBytes(5);
+    static final ByteSizeValue MAX_REQUEST_SIZE = ByteSizeValue.ofMb(5);
 
     @Override
     public List<Route> routes() {

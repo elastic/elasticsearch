@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -112,7 +111,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     }
 
     @Override
-    protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         TransformNodes.warnIfNoTransformNodes(state);
 

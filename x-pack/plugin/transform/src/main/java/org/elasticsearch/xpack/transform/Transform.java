@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -186,11 +186,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     /**
      * Setting whether transform (the coordinator task) can run on this node.
      */
-    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
-        "node.transform",
-        settings ->
-            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings)),
+    private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting("node.transform", settings ->
+    // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+    Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings)),
         Property.Deprecated,
         Property.NodeScope
     );
@@ -205,8 +203,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
             return super.isEnabledByDefault(settings) &&
-                // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
-                (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
         }
 
     };
@@ -300,13 +298,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             return emptyList();
         }
 
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settings,
-            TASK_THREAD_POOL_NAME,
-            4,
-            4,
-            "transform.task_thread_pool"
-        );
+        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool");
 
         return Collections.singletonList(indexing);
     }
@@ -351,8 +343,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             try {
                 // Template upgraders are only ever called on the master nodes, so we can use the current node version as the compatibility
                 // version here because we can be sure that this node, if elected master, will be compatible with itself.
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX,
-                    TransformInternalIndex.getAuditIndexTemplateMetadata(Version.CURRENT));
+                templates.put(
+                    TransformInternalIndexConstants.AUDIT_INDEX,
+                    TransformInternalIndex.getAuditIndexTemplateMetadata(Version.CURRENT)
+                );
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
             }
@@ -436,7 +430,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         }
     }
 
-    @Override public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+    @Override
+    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
         return Collections.singletonList(new AssociatedIndexDescriptor(AUDIT_INDEX_PATTERN, "Audit index"));
     }
 

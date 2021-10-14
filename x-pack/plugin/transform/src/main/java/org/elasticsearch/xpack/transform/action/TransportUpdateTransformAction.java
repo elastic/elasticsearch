@@ -56,6 +56,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
     private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
@@ -115,6 +116,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             ThreadPool.Names.SAME
         );
 
+        this.settings = settings;
         this.licenseState = licenseState;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();

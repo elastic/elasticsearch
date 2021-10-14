@@ -746,6 +746,16 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * @return the max issued or seen seqNo for this Engine
+     */
+    public abstract long getMaxSeqNo();
+
+    /**
+     * @return the processed local checkpoint for this Engine
+     */
+    public abstract long getProcessedLocalCheckpoint();
+
+    /**
      * @return the persisted local checkpoint for this Engine
      */
     public abstract long getPersistedLocalCheckpoint();

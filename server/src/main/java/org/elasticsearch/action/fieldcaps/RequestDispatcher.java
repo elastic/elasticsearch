@@ -10,11 +10,11 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,7 +93,7 @@ final class RequestDispatcher {
                 clusterService.operationRouting().searchShards(clusterState, new String[]{index}, null, null, null, null);
             final IndexSelector indexResult = new IndexSelector(shardIts);
             if (indexResult.nodeToShards.isEmpty()) {
-                onIndexFailure.accept(index, new ElasticsearchException("index [{}] has no active shard copy", index));
+                onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
             } else {
                 this.indices.put(index, indexResult);
             }

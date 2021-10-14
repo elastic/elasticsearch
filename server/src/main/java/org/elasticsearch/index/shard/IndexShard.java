@@ -1741,6 +1741,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void onNewEngine(Engine newEngine) {
         assert Thread.holdsLock(engineMutex);
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
+        refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
+        refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
     }
 
     /**
@@ -3547,6 +3549,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             // we're not yet ready for reads, just ignore refresh cycles
             listener.accept(false);
+        }
+    }
+
+    /**
+     * Add a listener for refreshes.
+     *
+     * @param checkpoint the seqNo checkpoint to listen for
+     * @param listener for the refresh.
+     */
+    public void addRefreshListener(long checkpoint, ActionListener<Void> listener) {
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under postRecoveryMutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (postRecoveryMutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(checkpoint, listener);
+        } else {
+            // we're not yet ready for reads, fail to notify client
+            listener.onFailure(new IllegalIndexShardStateException(shardId, state, "Read not allowed on IndexShard"));
         }
     }
 

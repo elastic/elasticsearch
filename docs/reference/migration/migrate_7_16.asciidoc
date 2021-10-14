@@ -118,7 +118,7 @@ as it will no longer be recognized in the next major release.
 [[breaking_716_settings_deprecations]]
 ==== Settings deprecations
 
-[[deprecate-transient-cluster-settings]]
+[[transient-cluster-settings]]
 .Transient cluster settings are now deprecated.
 [%collapsible]
 ====

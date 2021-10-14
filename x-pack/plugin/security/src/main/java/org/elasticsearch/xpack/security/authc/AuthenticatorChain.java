@@ -72,7 +72,13 @@ class AuthenticatorChain {
     }
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
-        assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
+        if (context.getDefaultOrderedRealmList().isEmpty()) {
+            // this happens when the license state changes between the call to authenticate and the actual invocation
+            // to get the realm list
+            logger.debug("No realms available, failing authentication");
+            listener.onResponse(null);
+            return;
+        }
         final Authentication authentication;
         try {
             authentication = lookForExistingAuthentication(context);

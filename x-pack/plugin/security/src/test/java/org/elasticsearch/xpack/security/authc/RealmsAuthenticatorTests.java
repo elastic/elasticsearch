@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
-import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -74,8 +73,8 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(realm2.toString()).thenReturn("realm2/realm2");
         realm3 = mock(Realm.class);
         when(realm3.toString()).thenReturn("realm3/realm3");
-        when(realms.getActiveRealms()).thenReturn(List.of(realm1, realm2));
-        when(realms.getUnlicensedRealms()).thenReturn(List.of(realm3));
+        when(realms.getActiveRealms()).thenReturn(org.elasticsearch.core.List.of(realm1, realm2));
+        when(realms.getUnlicensedRealms()).thenReturn(org.elasticsearch.core.List.of(realm3));
 
         request = randomBoolean() ?
             mock(AuthenticationService.AuditableRestRequest.class) :

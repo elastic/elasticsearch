@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -79,8 +78,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(oAuth2TokenAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(apiKeyAuthenticator.canBeFollowedByNullTokenHandler()).thenReturn(true);
         when(realmsAuthenticator.canBeFollowedByNullTokenHandler()).thenCallRealMethod();
-        when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
-        when(realms.getUnlicensedRealms()).thenReturn(List.of());
+        when(realms.getActiveRealms()).thenReturn(org.elasticsearch.core.List.of(mock(Realm.class)));
+        when(realms.getUnlicensedRealms()).thenReturn(org.elasticsearch.core.List.of());
         final User user = new User(randomAlphaOfLength(8));
         authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);

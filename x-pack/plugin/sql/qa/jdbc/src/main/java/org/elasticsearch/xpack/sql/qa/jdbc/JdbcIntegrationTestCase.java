@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.EsDataSource;
 import org.junit.After;
 
@@ -22,13 +22,8 @@ import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
@@ -131,22 +126,10 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
      */
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.put(JdbcTestUtils.JDBC_TIMEZONE, randomKnownTimeZone());
+        connectionProperties.put(JdbcTestUtils.JDBC_TIMEZONE, randomZone().getId());
         // in the tests, don't be lenient towards multi values
         connectionProperties.put("field.multi.value.leniency", "false");
         return connectionProperties;
-    }
-
-    public static String randomKnownTimeZone() {
-        // We use system default timezone for the connection that is selected randomly by TestRuleSetupAndRestoreClassEnv
-        // from all available JDK timezones. While Joda and JDK are generally in sync, some timezones might not be known
-        // to the current version of Joda and in this case the test might fail. To avoid that, we specify a timezone
-        // known for both Joda and JDK
-        Set<String> timeZones = new HashSet<>(JODA_TIMEZONE_IDS);
-        timeZones.retainAll(JAVA_TIMEZONE_IDS);
-        List<String> ids = new ArrayList<>(timeZones);
-        Collections.sort(ids);
-        return randomFrom(ids);
     }
 
     private static Map<String, Object> searchStats() throws IOException {

@@ -450,14 +450,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     /**
-     * Randomly updates persistent or transient settings of the given metadata
+     * Updates persistent cluster settings of the given metadata
      */
     private Metadata randomMetadataSettings(Metadata metadata) {
-        if (randomBoolean()) {
-            return Metadata.builder(metadata).persistentSettings(randomSettings(metadata.persistentSettings())).build();
-        } else {
-            return Metadata.builder(metadata).transientSettings(randomSettings(metadata.transientSettings())).build();
-        }
+        return Metadata.builder(metadata).persistentSettings(randomSettings(metadata.persistentSettings())).build();
     }
 
     /**

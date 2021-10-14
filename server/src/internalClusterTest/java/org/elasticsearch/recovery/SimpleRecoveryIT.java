@@ -29,7 +29,7 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
     }
 
     protected Settings recoverySettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
+        return Settings.EMPTY;
     }
 
     @Override

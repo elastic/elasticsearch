@@ -21,4 +21,6 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 
 public class ESLZ4Decompressor {
     public static final LZ4FastDecompressor INSTANCE = LZ4Factory.safeInstance().fastDecompressor();
+
+    public static final boolean JAVA9_INSTANCE = false;
 }

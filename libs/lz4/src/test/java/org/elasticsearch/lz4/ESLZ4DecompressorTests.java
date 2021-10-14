@@ -13,12 +13,18 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class ESLZ4DecompressorTests extends ESTestCase {
+
+    public void testJava9VersionIsUsed() {
+        boolean isAtLeastJava9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
+        assertEquals(isAtLeastJava9, ESLZ4Decompressor.JAVA9_INSTANCE);
+    }
 
     public void testDecompressRealisticUnicode() {
         for (int i = 0; i < 15; ++i) {

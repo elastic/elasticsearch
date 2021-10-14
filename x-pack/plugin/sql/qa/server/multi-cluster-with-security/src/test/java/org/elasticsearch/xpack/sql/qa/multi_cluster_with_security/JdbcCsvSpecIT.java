@@ -49,8 +49,10 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
         for (int i = 0; i < query.length();) {
             int j = query.substring(i).toUpperCase(Locale.ROOT).indexOf(EXTRACT_FN_NAME);
             j = j >= 0 ? i + j : query.length();
-            sb.append(query.substring(i, j).replaceAll("(?i)(FROM)(\\s+)(\\w+|\"[^\"]+\")",
-                "$1$2" + buildRemoteIndexName(REMOTE_CLUSTER_NAME, "$3")));
+            sb.append(
+                query.substring(i, j)
+                    .replaceAll("(?i)(FROM)(\\s+)(\\w+|\"[^\"]+\")", "$1$2" + buildRemoteIndexName(REMOTE_CLUSTER_NAME, "$3"))
+            );
             boolean inString = false, escaping = false;
             char stringDelim = 0, crrChar;
             for (int k = query.indexOf('(', j + EXTRACT_FN_NAME.length()); k >= 0 && k < query.length(); k++) {
@@ -91,20 +93,19 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
 
     @Override
     public Connection esJdbc() throws SQLException {
-         Connection connection = esJdbc(connectionProperties());
-         if (FROM_QUALIFIED.matcher(csvTestCase().query).matches() == false) {
-             connection.setCatalog(REMOTE_CLUSTER_NAME);
-         }
-         return connection;
+        Connection connection = esJdbc(connectionProperties());
+        if (FROM_QUALIFIED.matcher(csvTestCase().query).matches() == false) {
+            connection.setCatalog(REMOTE_CLUSTER_NAME);
+        }
+        return connection;
     }
 
-        @Override
+    @Override
     public boolean isEnabled() {
         return super.isEnabled() &&
-            // skip single-cluster tests that'd need a CLUSTER clause to work in multi-cluster mode.
+        // skip single-cluster tests that'd need a CLUSTER clause to work in multi-cluster mode.
             (DESCRIBE_OR_SHOW.matcher(csvTestCase().query).matches() == false || fileName.startsWith("multi-cluster"));
     }
-
 
     @Override
     protected int fetchSize() {

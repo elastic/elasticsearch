@@ -19,6 +19,9 @@ setup:
                 dims: 3
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 15
 
 ---
 "Indexing of Dense vectors should error when dims don't match defined in the mapping":

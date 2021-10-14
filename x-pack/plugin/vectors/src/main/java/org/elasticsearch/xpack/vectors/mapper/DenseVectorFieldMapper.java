@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.VectorFieldMapper;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -47,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends FieldMapper {
+public class DenseVectorFieldMapper extends VectorFieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
@@ -73,6 +74,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
         private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
                 "similarity", false, m -> toType(m).similarity, null, VectorSimilarity.class);
+        private final Parameter<IndexOptions> indexOptions = new Parameter<>("index_options", false, () -> null,
+            (n, c, o) -> VectorFieldMapper.parseVectorIndexOptions(n, o), m -> toType(m).indexOptions);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final Version indexVersionCreated;
@@ -84,11 +87,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexed.requiresParameters(similarity);
             this.similarity.setSerializerCheck((id, ic, v) -> v != null);
             this.similarity.requiresParameters(indexed);
+            this.indexOptions.requiresParameters(indexed);
+            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(dims, indexed, similarity, meta);
+            return List.of(dims, indexed, similarity, indexOptions, meta);
         }
 
         @Override
@@ -102,7 +107,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 similarity.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build());
+                copyTo.build(),
+                indexOptions.getValue());
         }
     }
 
@@ -187,10 +193,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final VectorSimilarity similarity;
     private final Version indexCreatedVersion;
 
-    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
-                                   boolean indexed, VectorSimilarity similarity,
-                                   Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims, boolean indexed,
+                                   VectorSimilarity similarity, Version indexCreatedVersion, MultiFields multiFields,
+                                   CopyTo copyTo, VectorFieldMapper.IndexOptions indexOptions) {
+        super(simpleName, mappedFieldType, multiFields, copyTo, indexOptions);
         this.dims = dims;
         this.indexed = indexed;
         this.similarity = similarity;

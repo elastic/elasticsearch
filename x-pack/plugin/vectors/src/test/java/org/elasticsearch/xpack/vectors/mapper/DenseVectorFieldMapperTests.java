@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.IndexableField;
@@ -16,6 +19,9 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.PerFieldMappingCodec;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -35,15 +41,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DenseVectorFieldMapperTests extends MapperTestCase {
     private final boolean indexed;
+    private final boolean indexOptionsSet;
 
     public DenseVectorFieldMapperTests() {
         this.indexed = randomBoolean();
+        this.indexOptionsSet = randomBoolean();
     }
 
     @Override
@@ -56,6 +66,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         b.field("type", "dense_vector").field("dims", 4);
         if (indexed) {
             b.field("index", true).field("similarity", "dot_product");
+            if (indexOptionsSet) {
+                b.startObject("index_options");
+                b.field("type", "hnsw");
+                b.field("m", 5);
+                b.field("ef_construction", 50);
+                b.endObject();
+            }
         }
     }
 
@@ -86,6 +103,21 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "dense_vector")
                 .field("dims", 4)
                 .field("index", false)));
+        checker.registerConflictCheck("index_options",
+            fieldMapping(b -> b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("index", true)
+                .field("similarity", "dot_product")
+                .startObject("index_options")
+                    .field("m", 5)
+                    .field("ef_construction", 80)
+                .endObject()),
+            fieldMapping(b -> b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("index", true)
+                .field("similarity", "dot_product")
+                .startObject("index_options")
+                .endObject()));
     }
 
     @Override
@@ -203,6 +235,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .field("dims", 3)
                 .field("similarity", "l2_norm"))));
         assertThat(e.getMessage(), containsString("Field [similarity] requires field [index] to be configured"));
+
+        e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b
+                .field("type", "dense_vector")
+                .field("dims", 3)
+                .startObject("index_options")
+                .endObject())));
+        assertThat(e.getMessage(), containsString("Field [index_options] requires field [index] to be configured"));
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -287,5 +327,28 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
+    }
+
+    protected void mappingWithCustomIndexOptions(XContentBuilder b, int m, int efConstruction) throws IOException {
+        b.field("type", "dense_vector");
+        b.field("dims", 4);
+        b.field("index", true);
+        b.field("similarity", "dot_product");
+        b.startObject("index_options");
+            b.field("m", m) ;
+            b.field("ef_construction", efConstruction);
+        b.endObject();
+    }
+
+    public void testKnnVectorsFormat() throws IOException {
+        int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
+        int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        MapperService mapperService = createMapperService(fieldMapping(b -> mappingWithCustomIndexOptions(b, m, efConstruction)));
+        CodecService codecService = new CodecService(mapperService);
+        Codec codec = codecService.codec("default");
+        assertThat(codec, instanceOf(PerFieldMappingCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMappingCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(knnVectorsFormat, instanceOf(Lucene90HnswVectorsFormat.class));
+        //TODO: add more assertions once LUCENE-10178 is implemented
     }
 }

@@ -18,6 +18,10 @@ setup:
                 dims: 5
                 index: true
                 similarity: dot_product
+                index_options:
+                  type: hnsw
+                  m: 15
+                  ef_construction: 80
   - do:
       index:
         index: test-index

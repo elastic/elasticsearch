@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -85,7 +86,7 @@ public class IdFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(Collections.singletonList(id), valueFetcher.fetchValues(lookup.source()));
+            assertEquals(Collections.singletonList(id), valueFetcher.fetchValues(lookup.source(), List.of()));
         });
     }
 }

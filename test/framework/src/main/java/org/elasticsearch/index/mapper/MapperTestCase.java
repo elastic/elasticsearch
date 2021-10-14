@@ -22,7 +22,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;

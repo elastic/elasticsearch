@@ -211,7 +211,7 @@ teardown:
           mappings:
             properties:
               time:
-                type: date
+                type: date_nanos
               user:
                 type: keyword
               stars:

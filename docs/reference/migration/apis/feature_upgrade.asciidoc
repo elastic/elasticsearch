@@ -143,6 +143,7 @@ Example response:
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[skip: can't actually upgrade system indices in these tests]
 
 This tells us that the security index is being upgraded. To check the
 overall status of the upgrade, call the endpoint with GET.

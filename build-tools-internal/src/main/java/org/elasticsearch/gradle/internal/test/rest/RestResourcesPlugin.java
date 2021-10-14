@@ -11,8 +11,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
@@ -89,12 +89,11 @@ public class RestResourcesPlugin implements Plugin<Project> {
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
         // core
-        Dependency restTestdependency = project.getDependencies()
-                .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
+        Dependency restTestdependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
         project.getDependencies().add(testConfig.getName(), restTestdependency);
         // x-pack
         Dependency restXPackTestdependency = project.getDependencies()
-                .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
+            .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
         project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
 
         project.getConfigurations().create("restTests");
@@ -115,8 +114,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
 
         // api
         Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
-        Dependency restSpecDependency = project.getDependencies()
-                .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
+        Dependency restSpecDependency = project.getDependencies().project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
         project.getDependencies().add(specConfig.getName(), restSpecDependency);
         project.getConfigurations().create("restSpecs");
 

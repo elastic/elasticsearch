@@ -108,9 +108,8 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     }
 
     public static void fill(byte[] page, int from, int to, float value) {
-        for (int i = from; i < to; i++) {
-            VH_PLATFORM_NATIVE_FLOAT.set(page, i << 2, value);
-        }
+        VH_PLATFORM_NATIVE_FLOAT.set(page, from << 2, value);
+        fillBySelfCopy(page, from << 2, to << 2, Float.BYTES);
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

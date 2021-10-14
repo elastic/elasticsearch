@@ -16,7 +16,6 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
 
 /**
@@ -28,16 +27,6 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
-
-    static final byte[] NEGATIVE_INFINITY_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
-    static final byte[] POSITIVE_INFINITY_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
-
-    static {
-        for (int i = 0; i < DOUBLE_PAGE_SIZE; i++) {
-            VH_PLATFORM_NATIVE_DOUBLE.set(NEGATIVE_INFINITY_VALUE_FILL, i << 3, Double.NEGATIVE_INFINITY);
-            VH_PLATFORM_NATIVE_DOUBLE.set(POSITIVE_INFINITY_VALUE_FILL, i << 3, Double.POSITIVE_INFINITY);
-        }
-    }
 
     private byte[][] pages;
 
@@ -119,15 +108,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     }
 
     public static void fill(byte[] page, int from, int to, double value) {
-        if (value == Double.NEGATIVE_INFINITY) {
-            System.arraycopy(NEGATIVE_INFINITY_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
-        } else if (value == Double.POSITIVE_INFINITY) {
-            System.arraycopy(POSITIVE_INFINITY_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
-        } else {
-            for (int i = from; i < to; i++) {
-                VH_PLATFORM_NATIVE_DOUBLE.set(page, i << 3, value);
-            }
-        }
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, from << 3, value);
+        fillBySelfCopy(page, from << 3, to << 3, Double.BYTES);
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

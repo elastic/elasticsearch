@@ -134,4 +134,15 @@ abstract class AbstractBigArray extends AbstractArray {
         }
     }
 
+    /**
+     * Fills an array with a value by copying it to itself, increasing copy ranges in each iteration
+     */
+    protected static final void fillBySelfCopy(byte[] page, int fromBytes, int toBytes, int initialCopyBytes) {
+        for (int pos = fromBytes + initialCopyBytes; pos < toBytes;) {
+            int nextPos = Math.min(fromBytes + ((pos - fromBytes) << 1), toBytes);
+            System.arraycopy(page, fromBytes, page, pos, nextPos - pos);
+            pos = nextPos;
+        }
+    }
+
 }

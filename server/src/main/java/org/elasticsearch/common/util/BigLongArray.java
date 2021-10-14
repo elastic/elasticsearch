@@ -16,7 +16,6 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
 
 /**
@@ -28,16 +27,6 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
-
-    static final byte[] MIN_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
-    static final byte[] MAX_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
-
-    static {
-        for (int i = 0; i < LONG_PAGE_SIZE; i++) {
-            VH_PLATFORM_NATIVE_LONG.set(MIN_VALUE_FILL, i << 3, Long.MIN_VALUE);
-            VH_PLATFORM_NATIVE_LONG.set(MAX_VALUE_FILL, i << 3, Long.MAX_VALUE);
-        }
-    }
 
     private byte[][] pages;
 
@@ -122,17 +111,8 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     }
 
     public static void fill(byte[] page, int from, int to, long value) {
-        if (value == 0L) {
-            Arrays.fill(page, from << 3, to << 3, (byte) 0);
-        } else if (value == Long.MIN_VALUE) {
-            System.arraycopy(MIN_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
-        } else if (value == Long.MAX_VALUE) {
-            System.arraycopy(MAX_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
-        } else {
-            for (int i = from; i < to; i++) {
-                VH_PLATFORM_NATIVE_LONG.set(page, i << 3, value);
-            }
-        }
+        VH_PLATFORM_NATIVE_LONG.set(page, from << 3, value);
+        fillBySelfCopy(page, from << 3, to << 3, Long.BYTES);
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

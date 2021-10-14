@@ -88,7 +88,7 @@ setup:
               order: desc
               type: number
               script:
-                source: "field('ul').as(Field.BigInteger).getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+                source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.hits.0.sort: [1.8446744073709552E19] }
   - match: { hits.hits.1.sort: [1.8446744073709552E19] }
@@ -142,7 +142,7 @@ setup:
               filter:
                script:
                  script:
-                   source: "field('ul').as(Field.BigInteger).getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
+                   source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
           sort: [ { ul: asc } ]
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "4" }
@@ -172,34 +172,6 @@ setup:
                     source: "doc['ul'].value.doubleValue() > 9E18"
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }
-  - do:
-      search:
-        index: test1
-        body:
-          query:
-            bool:
-              filter:
-                script:
-                  script:
-                    source: "field('ul').as(Field.BigInteger).as(Field.UnsignedLong).getDouble(-2.2d) > 9E18"
-          sort: [ { ul: asc } ]
-  - match: { hits.total.value: 4 }
-  - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.2._id: "4" }
-  - match: { hits.hits.3._id: "5" }
-  - do:
-      search:
-        index: test1
-        body:
-          query:
-            bool:
-              filter:
-                script:
-                  script:
-                    source: "field('ul').as(Field.BigInteger).as(Field.UnsignedLong).getLong(-2L) > 9E18"
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._id: "2" }
 
   - do:
       search:
@@ -224,7 +196,7 @@ setup:
             script_score:
               query: {match_all: {}}
               script:
-                source: "field('ul').as(Field.BigInteger).getValue(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+                source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.total.value: 5 }
   - do:

@@ -144,7 +144,7 @@ public class SearchTransportService {
                 if (counter.countDown()) {
                     final CanMatchResponse.ResponseOrFailure[] responses =
                         new CanMatchResponse.ResponseOrFailure[shardSearchRequests.size()];
-                    for (int i = 0; i < results.length(); i++) {
+                    for (int i = 0; i < responses.length; i++) {
                         responses[i] = results.get(i);
                     }
                     final CanMatchResponse response = new CanMatchResponse(Arrays.asList(responses));

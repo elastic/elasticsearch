@@ -95,7 +95,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(
-            "{\"transient\": {" +
+            "{\"persistent\": {" +
                 "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" +
                 "}}");
         client().performRequest(adjustLoggingLevels);

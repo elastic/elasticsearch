@@ -1629,7 +1629,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings settings = value ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build() :
             Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build()  ;
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(settings).setTransientSettings(settings).get());
+            .setPersistentSettings(settings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {

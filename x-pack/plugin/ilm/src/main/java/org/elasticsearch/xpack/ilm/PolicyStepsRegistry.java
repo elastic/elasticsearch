@@ -91,8 +91,7 @@ public class PolicyStepsRegistry {
         return stepMap;
     }
 
-    public void update(ClusterState clusterState) {
-        final IndexLifecycleMetadata meta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+    public void update(IndexLifecycleMetadata meta) {
         assert meta != null : "IndexLifecycleMetadata cannot be null when updating the policy steps registry";
 
         DiffableUtils.MapDiff<String, LifecyclePolicyMetadata, Map<String, LifecyclePolicyMetadata>> mapDiff =

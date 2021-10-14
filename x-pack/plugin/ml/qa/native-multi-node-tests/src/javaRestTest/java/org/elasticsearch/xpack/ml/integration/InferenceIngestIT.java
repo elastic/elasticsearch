@@ -65,7 +65,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference\" : \"TRACE\"\n" +
             "    }" +
             "}");
@@ -84,7 +84,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference\" : null\n" +
             "    }" +
             "}");

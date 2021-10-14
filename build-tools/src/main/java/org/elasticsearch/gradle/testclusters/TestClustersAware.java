@@ -27,8 +27,8 @@ public interface TestClustersAware extends Task {
         }
 
         cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
-        cluster.getNodes().all(node -> node.getDistributions().stream()
-                .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
+        cluster.getNodes()
+            .all(node -> node.getDistributions().stream().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
         cluster.getNodes().all(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }

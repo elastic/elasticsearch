@@ -43,7 +43,7 @@ public class RewritePlugin implements Plugin<Project> {
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
         rewriteConf.getResolutionStrategy().eachDependency(details -> {
             ModuleVersionSelector requested = details.getRequested();
-            if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() ||  requested.getVersion() == null) {
+            if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() || requested.getVersion() == null) {
                 details.useVersion(extension.getRewriteVersion());
             }
         });
@@ -52,7 +52,7 @@ public class RewritePlugin implements Plugin<Project> {
         rewriteTask.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
-            javaPluginExtension.getSourceSets().all( sourceSet -> {
+            javaPluginExtension.getSourceSets().all(sourceSet -> {
                 rewriteTask.getSourceFiles().from(sourceSet.getAllSource());
                 rewriteTask.getDependencyFiles().from(sourceSet.getCompileClasspath());
             });

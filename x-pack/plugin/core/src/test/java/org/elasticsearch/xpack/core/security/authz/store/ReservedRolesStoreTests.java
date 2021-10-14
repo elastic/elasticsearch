@@ -717,6 +717,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Arrays.asList(
             "metrics-endpoint.metadata_current_default",
+            ".metrics-endpoint.metadata_current_default",
             ".metrics-endpoint.metadata_united_default"
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);

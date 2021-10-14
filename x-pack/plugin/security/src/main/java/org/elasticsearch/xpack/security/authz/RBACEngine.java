@@ -641,6 +641,13 @@ public class RBACEngine implements AuthorizationEngine {
         return (RBACAuthorizationInfo) authorizationInfo;
     }
 
+    public static Role maybeGetRBACEngineRole(AuthorizationInfo authorizationInfo) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            return ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        }
+        return null;
+    }
+
     private static boolean checkChangePasswordAction(Authentication authentication) {
         // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
         // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username

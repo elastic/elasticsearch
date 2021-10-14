@@ -54,6 +54,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
@@ -87,6 +88,7 @@ public final class DatabaseRegistry implements Closeable {
     private Path geoipTmpDirectory;
     private final LocalDatabases localDatabases;
     private final Consumer<Runnable> genericExecutor;
+    private IngestService ingestService;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
 
@@ -150,14 +152,15 @@ public final class DatabaseRegistry implements Closeable {
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
         ingestService.addIngestClusterStateListener(this::checkDatabases);
+        this.ingestService = ingestService;
     }
 
-    public DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {
+    public DatabaseReaderLazyLoader getDatabase(String name) {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
             DatabaseReaderLazyLoader instance =
-                databases.getOrDefault(name, localDatabases.getDatabase(name, fallbackUsingDefaultDatabases));
+                databases.getOrDefault(name, localDatabases.getDatabase(name));
             if (instance == null || instance.preLookup()) {
                 return instance;
             }
@@ -167,7 +170,7 @@ public final class DatabaseRegistry implements Closeable {
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
-        List<DatabaseReaderLazyLoader> all = new ArrayList<>(localDatabases.getAllDatabases());
+        List<DatabaseReaderLazyLoader> all = new ArrayList<>(localDatabases.getConfigDatabases().values());
         this.databases.forEach((key, value) -> all.add(value));
         return all;
     }
@@ -313,6 +316,22 @@ public final class DatabaseRegistry implements Closeable {
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
+            } else {
+                // Loaded a database for the first time, so reload pipelines for which a database was not available:
+                Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
+                var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
+                if (ids.isEmpty() == false) {
+                    for (var id : ids) {
+                        try {
+                            ingestService.reloadPipeline(id);
+                            LOGGER.debug("successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
+                                id, databaseFileName);
+                        } catch (Exception e) {
+                            LOGGER.debug((Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to reload pipeline [{}] after downloading of database [{}]", id, databaseFileName), e);
+                        }
+                    }
+                }
             }
             LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
         } catch (Exception e) {
@@ -382,6 +401,10 @@ public final class DatabaseRegistry implements Closeable {
 
     public Set<String> getAvailableDatabases() {
         return Set.copyOf(databases.keySet());
+    }
+
+    public Set<String> getConfigDatabases() {
+        return localDatabases.getConfigDatabases().keySet();
     }
 
     public Set<String> getFilesInTemp() {

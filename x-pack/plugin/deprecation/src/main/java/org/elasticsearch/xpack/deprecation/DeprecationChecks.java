@@ -41,7 +41,8 @@ public class DeprecationChecks {
         IndexDeprecationChecks::oldIndicesCheck,
         IndexDeprecationChecks::translogRetentionSettingCheck,
         IndexDeprecationChecks::checkIndexDataPath,
-        IndexDeprecationChecks::storeTypeSettingCheck
+        IndexDeprecationChecks::storeTypeSettingCheck,
+        IndexDeprecationChecks::frozenIndexSettingCheck
     );
 
     /**

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +36,7 @@ public class ShardSearchFailureTests extends ESTestCase {
             String indexName = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null;
             searchShardTarget = new SearchShardTarget(nodeId,
-                    new ShardId(new Index(indexName, indexUuid), randomInt()), clusterAlias, OriginalIndices.NONE);
+                    new ShardId(new Index(indexName, indexUuid), randomInt()), clusterAlias);
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -91,7 +90,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null, OriginalIndices.NONE));
+                new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), null));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"shard\":123,"
@@ -109,7 +108,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testToXContentWithClusterAlias() throws IOException {
         ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(0, 0, "some message", null),
-            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1", OriginalIndices.NONE));
+            new SearchShardTarget("nodeId", new ShardId(new Index("indexName", "indexUuid"), 123), "cluster1"));
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
             "{\"shard\":123,"

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
@@ -40,8 +39,6 @@ import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -126,7 +123,7 @@ public class PackageTests extends PackagingTestCase {
 
         startElasticsearch();
 
-        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
         stopElasticsearch();
@@ -288,7 +285,7 @@ public class PackageTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 

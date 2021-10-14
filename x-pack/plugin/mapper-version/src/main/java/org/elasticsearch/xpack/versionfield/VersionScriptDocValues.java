@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.Field;
-import org.elasticsearch.script.field.VersionField;
 
 import java.io.IOException;
 
@@ -57,10 +55,5 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
     @Override
     public int size() {
         return count;
-    }
-
-    @Override
-    public Field<String> toField(String fieldName) {
-        return new VersionField(fieldName, this);
     }
 }

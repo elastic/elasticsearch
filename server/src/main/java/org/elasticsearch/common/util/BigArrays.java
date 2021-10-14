@@ -181,7 +181,7 @@ public class BigArrays {
         @Override
         public int increment(long index, int inc) {
             assert indexIsInt(index);
-            final int ret = (int) intPlatformNative.get(array, (int) index);
+            final int ret = (int) intPlatformNative.get(array, (int) index << 2);
             intPlatformNative.set(array, (int) index << 2, ret + inc);
             return ret;
         }

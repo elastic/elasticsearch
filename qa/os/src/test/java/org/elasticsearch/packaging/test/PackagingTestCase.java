@@ -87,10 +87,11 @@ import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 

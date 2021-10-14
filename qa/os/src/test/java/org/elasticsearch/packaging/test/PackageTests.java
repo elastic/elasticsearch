@@ -124,7 +124,7 @@ public class PackageTests extends PackagingTestCase {
 
         startElasticsearch();
 
-        final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
+        final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
         stopElasticsearch();

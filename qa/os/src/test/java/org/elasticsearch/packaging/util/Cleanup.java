@@ -32,7 +32,7 @@ public class Cleanup {
         "/etc/elasticsearch/elasticsearch.keystore",
         "/etc/elasticsearch",
         "/var/lib/elasticsearch",
-        "/var/log/elasticsearchprivate static ",
+        "/var/log/elasticsearch",
         "/etc/default/elasticsearch",
         "/etc/sysconfig/elasticsearch",
         "/var/run/elasticsearch",

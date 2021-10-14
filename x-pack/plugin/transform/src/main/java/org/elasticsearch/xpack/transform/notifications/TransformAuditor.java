@@ -70,7 +70,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
                     return request;
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Failure creatig transform notification index", e);
+                    throw new ElasticsearchException("Failure creating transform notification index", e);
                 }
             },
             () -> {
@@ -86,7 +86,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                     );
                     return request;
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Failure creatig transform notification index", e);
+                    throw new ElasticsearchException("Failure creating transform notification index", e);
                 }
             },
             nodeName,

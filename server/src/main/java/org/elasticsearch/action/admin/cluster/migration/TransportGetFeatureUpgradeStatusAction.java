@@ -47,6 +47,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusRequest,
     GetFeatureUpgradeStatusResponse> {
 
+    private static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
+
     private final SystemIndices systemIndices;
 
     @Inject
@@ -121,7 +123,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         GetFeatureUpgradeStatusResponse.UpgradeStatus initialStatus;
         if (featureName.equals(currentFeature)) {
             initialStatus = IN_PROGRESS;
-        } else if (minimumVersion.before(Version.V_7_0_0)) {
+        } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_VERSION)) {
             initialStatus = UPGRADE_NEEDED;
         } else {
             initialStatus = NO_UPGRADE_NEEDED;

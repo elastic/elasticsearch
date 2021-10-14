@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -199,11 +200,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertNotNull(fields.get("_doc_count"));
         assertEquals(100, ((Integer) fields.get("_doc_count").getValue()).intValue());
 
-        // The _type field was deprecated in 7.x and is not supported in 8.0. So the behavior
-        // should be the same as if the field didn't exist.
-        fields = fetchFields(mapperService, source, "_type");
-        assertTrue(fields.isEmpty());
-
         String docId = randomAlphaOfLength(12);
         String routing = randomAlphaOfLength(12);
         long version = randomLongBetween(1, 100);
@@ -242,6 +238,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
         for (String fieldname : org.elasticsearch.core.List.of(
+            TypeFieldMapper.NAME,
             SeqNoFieldMapper.NAME,
             SourceFieldMapper.NAME,
             FieldNamesFieldMapper.NAME

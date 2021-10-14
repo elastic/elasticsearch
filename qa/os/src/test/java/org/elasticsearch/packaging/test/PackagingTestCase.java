@@ -494,8 +494,8 @@ public abstract class PackagingTestCase extends Assert {
     public String makeRequest(String request) throws Exception {
         return ServerUtils.makeRequest(
             Request.Get(request),
-            fileSuperuserForInstallation.v1(),
-            fileSuperuserForInstallation.v2(),
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v1() : null,
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v2() : null,
             ServerUtils.getCaCert(installation)
         );
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,6 +47,7 @@ import java.util.Map;
 public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpgradeTransformsAction.class);
+    private final XPackLicenseState licenseState;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -58,6 +60,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
+        XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
@@ -69,6 +72,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             transportService,
             actionFilters,
             clusterService,
+            licenseState,
             threadPool,
             indexNameExpressionResolver,
             transformServices,
@@ -82,6 +86,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
+        XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
@@ -101,6 +106,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.settings = settings;
+        this.licenseState = licenseState;
 
         this.client = client;
         this.auditor = transformServices.getAuditor();
@@ -173,6 +179,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             update.setHeaders(config.getHeaders());
 
             TransformUpdater.updateTransform(
+                licenseState,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,

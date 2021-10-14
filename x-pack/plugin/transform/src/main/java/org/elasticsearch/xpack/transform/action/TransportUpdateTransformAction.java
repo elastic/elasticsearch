@@ -160,6 +160,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         // We don't want the update to complete if the config changed between GET and INDEX
         transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
             TransformUpdater.updateTransform(
+                licenseState,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,

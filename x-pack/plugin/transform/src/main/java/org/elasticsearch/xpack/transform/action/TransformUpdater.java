@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -94,6 +94,7 @@ public class TransformUpdater {
      */
 
     public static void updateTransform(
+        XPackLicenseState licenseState,
         SecurityContext securityContext,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
@@ -175,7 +176,7 @@ public class TransformUpdater {
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (checkAccess && XPackSettings.SECURITY_ENABLED.get(settings) && deferValidation == false) {
+        if (checkAccess && licenseState.isSecurityEnabled() && deferValidation == false) {
             TransformPrivilegeChecker.checkPrivileges(
                 "update",
                 securityContext,

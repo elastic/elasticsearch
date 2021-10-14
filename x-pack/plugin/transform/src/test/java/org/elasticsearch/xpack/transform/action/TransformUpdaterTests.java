@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
@@ -50,6 +51,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.mockito.Mockito.mock;
+
 public class TransformUpdaterTests extends ESTestCase {
 
     private static final String USER_NAME = "bob";
@@ -62,7 +65,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private Client client;
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-
+    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private static class MyMockClient extends NoOpClient {
 
         MyMockClient(String testName) {
@@ -115,6 +118,7 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
+                licenseState,
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
@@ -147,6 +151,7 @@ public class TransformUpdaterTests extends ESTestCase {
 
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
+                licenseState,
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
@@ -215,6 +220,7 @@ public class TransformUpdaterTests extends ESTestCase {
         TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
+                licenseState,
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,
@@ -275,6 +281,7 @@ public class TransformUpdaterTests extends ESTestCase {
 
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
+                licenseState,
                 securityContext,
                 indexNameExpressionResolver,
                 ClusterState.EMPTY_STATE,

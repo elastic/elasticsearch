@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
@@ -56,7 +56,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     public void testIsNoop() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             TransformConfig config = randomTransformConfig();
-            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null);
+            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
             assertTrue("null update is not noop", update.isNoop(config));
             update = new TransformConfigUpdate(
                 config.getSource(),

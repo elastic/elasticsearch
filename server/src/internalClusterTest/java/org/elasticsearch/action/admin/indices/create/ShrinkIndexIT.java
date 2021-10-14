@@ -39,7 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -255,7 +255,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"
         )).get();
 
@@ -321,7 +321,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
 
         // clean up
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String)null
         )).get();
     }
@@ -496,7 +496,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"
         )).get();
 
@@ -537,7 +537,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         });
 
         // clean up
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(
             EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String)null
         )).get();
     }

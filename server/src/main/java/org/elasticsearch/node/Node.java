@@ -80,7 +80,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -496,7 +496,7 @@ public class Node implements Closeable {
                 .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
                 .collect(Collectors.toMap(
                     SystemIndexPlugin::getFeatureName,
-                    plugin -> SystemIndices.pluginToFeature(plugin, settings)
+                    plugin -> SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();

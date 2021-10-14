@@ -12,7 +12,7 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Consumer;

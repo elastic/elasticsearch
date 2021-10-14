@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;

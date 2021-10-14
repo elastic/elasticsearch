@@ -15,7 +15,7 @@ import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;

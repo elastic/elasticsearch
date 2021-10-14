@@ -153,7 +153,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
             IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
             IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
-            IndexDeprecationChecks::checkGeoShapeMappings
+            IndexDeprecationChecks::checkGeoShapeMappings,
+            IndexDeprecationChecks::frozenIndexSettingCheck
         ));
 
     /**

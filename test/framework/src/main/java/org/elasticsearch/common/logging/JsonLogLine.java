@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.util.List;
 

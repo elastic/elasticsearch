@@ -20,8 +20,12 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-import java.lang.invoke.VarHandle;
 import java.util.Arrays;
+
+import static org.elasticsearch.common.util.BigDoubleArray.VH_PLATFORM_NATIVE_DOUBLE;
+import static org.elasticsearch.common.util.BigFloatArray.VH_PLATFORM_NATIVE_FLOAT;
+import static org.elasticsearch.common.util.BigIntArray.VH_PLATFORM_NATIVE_INT;
+import static org.elasticsearch.common.util.BigLongArray.VH_PLATFORM_NATIVE_LONG;
 
 /** Utility class to work with arrays. */
 public class BigArrays {
@@ -150,8 +154,6 @@ public class BigArrays {
 
     private static class ByteArrayAsIntArrayWrapper extends AbstractArrayWrapper implements IntArray {
 
-        private static final VarHandle intPlatformNative = BigIntArray.intPlatformNative;
-
         final byte[] array;
 
         ByteArrayAsIntArrayWrapper(BigArrays bigArrays, byte[] array, long size, Recycler.V<?> releasable, boolean clearOnResize) {
@@ -167,22 +169,22 @@ public class BigArrays {
         @Override
         public int get(long index) {
             assert indexIsInt(index);
-            return (int) intPlatformNative.get(array, (int) index << 2);
+            return (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
         }
 
         @Override
         public int set(long index, int value) {
             assert indexIsInt(index);
-            final int ret = (int) intPlatformNative.get(array, (int) index << 2);
-            intPlatformNative.set(array, (int) index << 2, value);
+            final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
             return ret;
         }
 
         @Override
         public int increment(long index, int inc) {
             assert indexIsInt(index);
-            final int ret = (int) intPlatformNative.get(array, (int) index << 2);
-            intPlatformNative.set(array, (int) index << 2, ret + inc);
+            final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, ret + inc);
             return ret;
         }
 
@@ -202,8 +204,6 @@ public class BigArrays {
 
     private static class ByteArrayAsLongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
-        private static final VarHandle longPlatformNative = BigLongArray.longPlatformNative;
-
         private final byte[] array;
 
         ByteArrayAsLongArrayWrapper(BigArrays bigArrays, byte[] array, long size, Recycler.V<?> releasable, boolean clearOnResize) {
@@ -219,22 +219,22 @@ public class BigArrays {
         @Override
         public long get(long index) {
             assert indexIsInt(index);
-            return (long) longPlatformNative.get(array, (int) index << 3);
+            return (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
         }
 
         @Override
         public long set(long index, long value) {
             assert indexIsInt(index);
-            final long ret = (long) longPlatformNative.get(array, (int) index << 3);
-            longPlatformNative.set(array, (int) index << 3, value);
+            final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
             return ret;
         }
 
         @Override
         public long increment(long index, long inc) {
             assert indexIsInt(index);
-            final long ret = (long) longPlatformNative.get(array, (int) index << 3);
-            longPlatformNative.set(array, (int) index << 3, ret + inc);
+            final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, ret + inc);
             return ret;
         }
 
@@ -254,8 +254,6 @@ public class BigArrays {
 
     private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
 
-        private static final VarHandle doublePlatformNative = BigDoubleArray.doublePlatformNative;
-
         private final byte[] array;
 
         ByteArrayAsDoubleArrayWrapper(BigArrays bigArrays, byte[] array, long size, Recycler.V<?> releasable, boolean clearOnResize) {
@@ -271,22 +269,22 @@ public class BigArrays {
         @Override
         public double get(long index) {
             assert indexIsInt(index);
-            return (double) doublePlatformNative.get(array, (int) index << 3);
+            return (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
         }
 
         @Override
         public double set(long index, double value) {
             assert indexIsInt(index);
-            final double ret = (double) doublePlatformNative.get(array, (int) index << 3);
-            doublePlatformNative.set(array, (int) index << 3, value);
+            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, value);
             return ret;
         }
 
         @Override
         public double increment(long index, double inc) {
             assert indexIsInt(index);
-            final double ret = (double) doublePlatformNative.get(array, (int) index << 3);
-            doublePlatformNative.set(array, (int) index << 3, ret + inc);
+            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, ret + inc);
             return ret;
         }
 
@@ -306,8 +304,6 @@ public class BigArrays {
 
     private static class ByteArrayAsFloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
 
-        private static final VarHandle floatPlatformNative = BigFloatArray.floatPlatformNative;
-
         private final byte[] array;
 
         ByteArrayAsFloatArrayWrapper(BigArrays bigArrays, byte[] array, long size, Recycler.V<?> releasable, boolean clearOnResize) {
@@ -323,22 +319,22 @@ public class BigArrays {
         @Override
         public float get(long index) {
             assert indexIsInt(index);
-            return (float) floatPlatformNative.get(array, (int) index << 2);
+            return (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
         }
 
         @Override
         public float set(long index, float value) {
             assert indexIsInt(index);
-            final float ret = (float) floatPlatformNative.get(array, (int) index << 2);
-            floatPlatformNative.set(array, (int) index << 2, value);
+            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
+            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, value);
             return ret;
         }
 
         @Override
         public float increment(long index, float inc) {
             assert indexIsInt(index);
-            final float ret = (float) floatPlatformNative.get(array, (int) index << 2);
-            floatPlatformNative.set(array, (int) index << 2, ret + inc);
+            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
+            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret + inc);
             return ret;
         }
 

@@ -27,7 +27,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    static final VarHandle longPlatformNative = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    static final VarHandle VH_PLATFORM_NATIVE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
     static final byte[] ZERO_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] MIN_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
@@ -35,9 +35,9 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     static {
         for (int i = 0; i < LONG_PAGE_SIZE; i++) {
-            longPlatformNative.set(ZERO_VALUE_FILL, i << 3, 0L);
-            longPlatformNative.set(MIN_VALUE_FILL, i << 3, Long.MIN_VALUE);
-            longPlatformNative.set(MAX_VALUE_FILL, i << 3, Long.MAX_VALUE);
+            VH_PLATFORM_NATIVE_LONG.set(ZERO_VALUE_FILL, i << 3, 0L);
+            VH_PLATFORM_NATIVE_LONG.set(MIN_VALUE_FILL, i << 3, Long.MIN_VALUE);
+            VH_PLATFORM_NATIVE_LONG.set(MAX_VALUE_FILL, i << 3, Long.MAX_VALUE);
         }
     }
 
@@ -57,7 +57,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     public long get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (long) longPlatformNative.get(pages[pageIndex], indexInPage << 3);
+        return (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
@@ -65,8 +65,8 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final long ret = (long) longPlatformNative.get(page, indexInPage << 3);
-        longPlatformNative.set(page, indexInPage << 3, value);
+        final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3);
+        VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
         return ret;
     }
 
@@ -75,8 +75,8 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final long newVal = (long) longPlatformNative.get(page, indexInPage << 3) + inc;
-        longPlatformNative.set(page, indexInPage << 3, newVal);
+        final long newVal = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3) + inc;
+        VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, newVal);
         return newVal;
     }
 
@@ -132,7 +132,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
             System.arraycopy(MAX_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
         } else {
             for (int i = from; i < to; i++) {
-                longPlatformNative.set(page, i << 3, value);
+                VH_PLATFORM_NATIVE_LONG.set(page, i << 3, value);
             }
         }
     }

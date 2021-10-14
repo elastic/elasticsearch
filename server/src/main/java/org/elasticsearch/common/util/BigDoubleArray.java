@@ -27,15 +27,15 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    static final VarHandle doublePlatformNative = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+    static final VarHandle VH_PLATFORM_NATIVE_DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
     static final byte[] NEGATIVE_INFINITY_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] POSITIVE_INFINITY_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
 
     static {
         for (int i = 0; i < DOUBLE_PAGE_SIZE; i++) {
-            doublePlatformNative.set(NEGATIVE_INFINITY_VALUE_FILL, i << 3, Double.NEGATIVE_INFINITY);
-            doublePlatformNative.set(POSITIVE_INFINITY_VALUE_FILL, i << 3, Double.POSITIVE_INFINITY);
+            VH_PLATFORM_NATIVE_DOUBLE.set(NEGATIVE_INFINITY_VALUE_FILL, i << 3, Double.NEGATIVE_INFINITY);
+            VH_PLATFORM_NATIVE_DOUBLE.set(POSITIVE_INFINITY_VALUE_FILL, i << 3, Double.POSITIVE_INFINITY);
         }
     }
 
@@ -55,7 +55,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     public double get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (double) doublePlatformNative.get(pages[pageIndex], indexInPage << 3);
+        return (double) VH_PLATFORM_NATIVE_DOUBLE.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
@@ -63,8 +63,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final double ret = (double) doublePlatformNative.get(page, indexInPage << 3);
-        doublePlatformNative.set(page, indexInPage << 3, value);
+        final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(page, indexInPage << 3);
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, indexInPage << 3, value);
         return ret;
     }
 
@@ -73,8 +73,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final double newVal = (double) doublePlatformNative.get(page, indexInPage << 3) + inc;
-        doublePlatformNative.set(page, indexInPage << 3, newVal);
+        final double newVal = (double) VH_PLATFORM_NATIVE_DOUBLE.get(page, indexInPage << 3) + inc;
+        VH_PLATFORM_NATIVE_DOUBLE.set(page, indexInPage << 3, newVal);
         return newVal;
     }
 
@@ -125,7 +125,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
             System.arraycopy(POSITIVE_INFINITY_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
         } else {
             for (int i = from; i < to; i++) {
-                doublePlatformNative.set(page, i << 3, value);
+                VH_PLATFORM_NATIVE_DOUBLE.set(page, i << 3, value);
             }
         }
     }

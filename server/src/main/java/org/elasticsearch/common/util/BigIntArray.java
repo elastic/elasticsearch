@@ -27,7 +27,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    static final VarHandle intPlatformNative = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
     static final byte[] ZERO_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] MIN_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
@@ -35,9 +35,9 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     static {
         for (int i = 0; i < INT_PAGE_SIZE; i++) {
-            intPlatformNative.set(ZERO_VALUE_FILL, i << 2, 0);
-            intPlatformNative.set(MIN_VALUE_FILL, i << 2, Integer.MIN_VALUE);
-            intPlatformNative.set(MAX_VALUE_FILL, i << 2, Integer.MAX_VALUE);
+            VH_PLATFORM_NATIVE_INT.set(ZERO_VALUE_FILL, i << 2, 0);
+            VH_PLATFORM_NATIVE_INT.set(MIN_VALUE_FILL, i << 2, Integer.MIN_VALUE);
+            VH_PLATFORM_NATIVE_INT.set(MAX_VALUE_FILL, i << 2, Integer.MAX_VALUE);
         }
     }
 
@@ -57,7 +57,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     public int get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (int) intPlatformNative.get(pages[pageIndex], indexInPage << 2);
+        return (int) VH_PLATFORM_NATIVE_INT.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
@@ -65,8 +65,8 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final int ret = (int) intPlatformNative.get(page, indexInPage << 2);
-        intPlatformNative.set(page, indexInPage << 2, value);
+        final int ret = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2);
+        VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, value);
         return ret;
     }
 
@@ -75,8 +75,8 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final int newVal = (int) intPlatformNative.get(page, indexInPage << 2) + inc;
-        intPlatformNative.set(page, indexInPage << 2, newVal);
+        final int newVal = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2) + inc;
+        VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, newVal);
         return newVal;
     }
 
@@ -107,7 +107,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             System.arraycopy(MAX_VALUE_FILL, 0, page, from << 2, (to - from) << 2);
         } else {
             for (int i = from; i < to; i++) {
-                intPlatformNative.set(page, i << 2, value);
+                VH_PLATFORM_NATIVE_INT.set(page, i << 2, value);
             }
         }
     }

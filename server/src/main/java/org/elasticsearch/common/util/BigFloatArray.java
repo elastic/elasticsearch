@@ -26,7 +26,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    static final VarHandle floatPlatformNative = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
+    static final VarHandle VH_PLATFORM_NATIVE_FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
 
     private byte[][] pages;
 
@@ -45,8 +45,8 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final float ret = (float) floatPlatformNative.get(page, indexInPage << 2);
-        floatPlatformNative.set(page, indexInPage << 2, value);
+        final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(page, indexInPage << 2);
+        VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, value);
         return ret;
     }
 
@@ -55,8 +55,8 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final byte[] page = pages[pageIndex];
-        final float newVal = (float) floatPlatformNative.get(page, indexInPage << 2) + inc;
-        floatPlatformNative.set(page, indexInPage << 2, newVal);
+        final float newVal = (float) VH_PLATFORM_NATIVE_FLOAT.get(page, indexInPage << 2) + inc;
+        VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, newVal);
         return newVal;
     }
 
@@ -64,7 +64,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     public float get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        return (float) floatPlatformNative.get(pages[pageIndex], indexInPage << 2);
+        return (float) VH_PLATFORM_NATIVE_FLOAT.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
@@ -109,7 +109,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
 
     public static void fill(byte[] page, int from, int to, float value) {
         for (int i = from; i < to; i++) {
-            floatPlatformNative.set(page, i << 2, value);
+            VH_PLATFORM_NATIVE_FLOAT.set(page, i << 2, value);
         }
     }
 

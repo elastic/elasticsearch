@@ -64,6 +64,7 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:28.2-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "joda-time:joda-time:2.10.10"
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:9.3.1"

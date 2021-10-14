@@ -19,15 +19,11 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Set;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,6 +32,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,10 +42,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
@@ -724,12 +721,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // compare index and search time stored fields
             assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
         });
-    }
-
-    private BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft
-            .fielddataBuilder("test", lookupSource)
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     public final void testNullInput() throws Exception {

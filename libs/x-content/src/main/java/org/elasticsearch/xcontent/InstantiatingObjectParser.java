@@ -112,9 +112,15 @@ public class InstantiatingObjectParser<Value, Context>
                         throw new IllegalArgumentException("More then one public constructor with @ParserConstructor annotation exist in " +
                             "the class " + valueClass.getName());
                     }
-                    if (c.getParameterCount() < neededArguments || c.getParameterCount() > neededArguments + 1 ) {
-                        throw new IllegalArgumentException("Annotated constructor doesn't have " + neededArguments +
-                            " arguments in the class " + valueClass.getName());
+                    if (c.getParameterCount() < neededArguments || c.getParameterCount() > neededArguments + 1) {
+                        throw new IllegalArgumentException(
+                            "Annotated constructor doesn't have "
+                                + neededArguments
+                                + " or "
+                                + (neededArguments + 1)
+                                + " arguments in the class "
+                                + valueClass.getName()
+                        );
                     }
                     constructor = c;
                 }

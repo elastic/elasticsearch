@@ -214,8 +214,10 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         InstantiatingObjectParser.Builder<Annotations, Void> builder = InstantiatingObjectParser.builder("foo", Annotations.class);
         builder.declareInt(constructorArg(), new ParseField("a"));
         builder.declareString(constructorArg(), new ParseField("b"));
+        builder.declareInt(constructorArg(), new ParseField("c"));
+        builder.declareString(constructorArg(), new ParseField("d"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 arguments in the class"));
+        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 4 or 5 arguments in the class"));
     }
 
     public void testDoubleDeclarationThrowsException() throws IOException {
@@ -309,9 +311,8 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         );
         builder.declareInt(constructorArg(), new ParseField("a"));
         builder.declareString(constructorArg(), new ParseField("b"));
-        builder.declareString(constructorArg(), new ParseField("c"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 arguments in the class"));
+        assertThat(e.getMessage(), containsString("Annotated constructor doesn't have 2 or 3 arguments in the class"));
     }
 
 }

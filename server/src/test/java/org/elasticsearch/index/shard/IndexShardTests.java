@@ -2695,7 +2695,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
             shard.addRefreshListener(10, listener);
-            expectThrows(IllegalStateException.class, listener::actionGet);
+            expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);

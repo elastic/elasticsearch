@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -19,6 +21,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
@@ -55,7 +58,32 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(
-            parser -> RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize, true)
+            parser -> RestSearchAction.parseSearchRequest(
+                searchRequest,
+                request,
+                parser,
+                client.getNamedWriteableRegistry(),
+                setSize,
+                (restRequest, sr) -> {
+                    String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
+                    final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+                    for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+                        waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
+                    }
+                    String[] indices1 = Strings.splitStringByCommaToArray(request.param("index"));
+                    if (indices1.length > 1) {
+                        throw new IllegalArgumentException(
+                            "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
+                        );
+                    }
+                    sr.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));
+                    final TimeValue waitForCheckpointsTimeout = request.paramAsTime(
+                        "wait_for_checkpoints_timeout",
+                        TimeValue.timeValueSeconds(30)
+                    );
+                    sr.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
+                }
+            )
         );
 
         return channel -> {

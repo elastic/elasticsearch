@@ -8,8 +8,10 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -39,7 +41,12 @@ public class ConfigurationTests extends PackagingTestCase {
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
-                final String nameResponse = makeRequest("https://localhost:9200/_cat/nodes?h=name").strip();
+                final String nameResponse = ServerUtils.makeRequest(
+                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                    "test_superuser",
+                    "test_superuser_password",
+                    ServerUtils.getCaCert(confPath)
+                ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
             Platforms.onWindows(() -> sh.chown(confPath));

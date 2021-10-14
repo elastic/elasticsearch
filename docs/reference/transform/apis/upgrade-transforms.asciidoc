@@ -8,7 +8,7 @@
 <titleabbrev>Upgrade {transform}</titleabbrev>
 ++++
 
-Upgrades all {transform}s.
+Upgrades all {transforms}.
 
 [[upgrade-transforms-request]]
 == {api-request-title}
@@ -29,16 +29,29 @@ Requires the following privileges:
 [[upgrade-transforms-desc]]
 == {api-description-title}
 
-This API upgrades all existing {transform}s.
+This API upgrades all existing {transforms} that are necessary to upgrade. As 
+part of the process the {transforms} are rewritten into the latest format 
+including internal data structures that store state and checkpoints. The process 
+also frees up resources by cleaning up previous versions.
+
+If a step in the upgrade fails, it doesn't proceed and an error is returned that 
+informs about the underlying issues. It might be necessary to manually resolve 
+the problems. After resolving the problems, the upgrade can be re-run again. A 
+summary is returned at the end of the process.
+
 
 [[upgrade-transforms-query-parms]]
 == {api-query-parms-title}
 
 `dry_run`::
-  (Optional, Boolean) When `true`, only checks for updates but does not execute them.
+  (Optional, Boolean) When `true`, only checks for updates but does not execute 
+  them. Defaults to `false`.
+
 
 [[upgrade-transforms-example]]
 == {api-examples-title}
+
+To upgrade the {transforms}, perform the following API call:
 
 [source,console]
 --------------------------------------------------
@@ -46,7 +59,7 @@ POST _transform/_upgrade
 --------------------------------------------------
 // TEST[setup:simple_kibana_continuous_pivot]
 
-When all {transform}s are upgraded, you receive a summary:
+When all {transforms} are upgraded, you receive a summary:
 
 [source,console-result]
 ----

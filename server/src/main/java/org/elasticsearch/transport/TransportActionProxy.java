@@ -63,13 +63,6 @@ public final class TransportActionProxy {
         }
     }
 
-    interface ResendingContext {
-        String getAction();
-        TransportRequest wrappedRequest();
-        DiscoveryNode targetNode();
-        TransportRequestOptions options();
-    }
-
     private static class ProxyResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
         private final Writeable.Reader<T> reader;

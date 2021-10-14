@@ -35,8 +35,10 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
 
-  // This project tests that licensing is enforced, therefore
-  // we don't add any license on purpose
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.security.enabled', 'false'
+
+  // This project tests that enterprise licensing is enforced,
+  // therefore we use a basic license
+  setting 'xpack.license.self_generated.type', 'basic'
 }

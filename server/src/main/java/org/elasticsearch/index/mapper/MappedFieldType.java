@@ -172,6 +172,13 @@ public abstract class MappedFieldType {
         return false;
     }
 
+    /**
+     * @return metric type or null if the field is not a metric field
+     */
+    public TimeSeriesParams.MetricType getMetricType() {
+        return null;
+    }
+
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable

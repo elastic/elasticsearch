@@ -45,6 +45,7 @@ import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -53,6 +54,7 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -99,7 +101,6 @@ import static org.junit.Assume.assumeTrue;
 @ThreadLeakFilters(defaultFilters = true, filters = { HttpClientThreadsFilter.class })
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
-    private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
 
     @BeforeClass
@@ -122,16 +123,17 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test010Install() {
+    public void test010Install() throws Exception {
         verifyContainerInstallation(installation);
+        verifySecurityAutoConfigured(installation);
     }
 
     /**
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
-        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), USERNAME, "wrong_password", null);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        final int statusCode = makeRequestAsElastic("wrong_password");
         assertThat(statusCode, equalTo(401));
     }
 
@@ -325,7 +327,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
     public void test042KeystorePermissionsAreCorrect() {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         assertThat(installation.config("elasticsearch.keystore"), file(p660));
     }
@@ -335,11 +337,11 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test050BasicApiTests() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
+        runElasticsearchTestsAsElastic(PASSWORD);
     }
 
     /**
@@ -347,7 +349,11 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test070BindMountCustomPathConfAndJvmOptions() throws Exception {
         copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("elasticsearch.keystore"), tempDir.resolve("elasticsearch.keystore"));
         copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
+        final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
+        copyFromContainer(autoConfigurationDir, tempDir.resolve(autoConfigurationDirName));
 
         // we have to disable Log4j from using JMX lest it will hit a security
         // manager exception before we have configured logging; this will fail
@@ -359,7 +365,9 @@ public class DockerTests extends PackagingTestCase {
         Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
         // These permissions are necessary to run the tests under Vagrant
         Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.keystore"), p644);
         Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve(autoConfigurationDirName), p750);
 
         // Restart the container
         runContainer(
@@ -369,9 +377,9 @@ public class DockerTests extends PackagingTestCase {
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD).get("nodes");
+        final JsonNode nodes = getJson("/_nodes", "elastic", PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -397,10 +405,9 @@ public class DockerTests extends PackagingTestCase {
                 distribution(),
                 builder().volume(tempEsDataDir.toAbsolutePath(), installation.data).envVar("ELASTIC_PASSWORD", PASSWORD)
             );
+            waitForElasticsearch(installation, "elastic", PASSWORD);
 
-            waitForElasticsearch(installation, USERNAME, PASSWORD);
-
-            final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD);
+            final JsonNode nodes = getJson("/_nodes", "elastic", PASSWORD, ServerUtils.getCaCert(installation));
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
@@ -434,7 +441,11 @@ public class DockerTests extends PackagingTestCase {
 
         copyFromContainer(installation.config("elasticsearch.yml"), tempEsConfigDir);
         copyFromContainer(installation.config("jvm.options"), tempEsConfigDir);
+        copyFromContainer(installation.config("elasticsearch.keystore"), tempEsConfigDir);
         copyFromContainer(installation.config("log4j2.properties"), tempEsConfigDir);
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
+        final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
+        copyFromContainer(autoConfigurationDir, tempEsConfigDir.resolve(autoConfigurationDirName));
 
         chownWithPrivilegeEscalation(tempEsConfigDir, "501:501");
         chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
@@ -450,7 +461,10 @@ public class DockerTests extends PackagingTestCase {
                 .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        rmDirWithPrivilegeEscalation(tempEsConfigDir);
+        rmDirWithPrivilegeEscalation(tempEsDataDir);
+        rmDirWithPrivilegeEscalation(tempEsLogsDir);
     }
 
     /**
@@ -461,7 +475,7 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container
         runContainer(distribution(), builder().extraArgs("--group-add 0").uid(501, 501).envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
     }
 
     /**
@@ -488,7 +502,7 @@ public class DockerTests extends PackagingTestCase {
 
         // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
-            waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+            waitForElasticsearch(installation, "elastic", "hunter2");
         } catch (Exception e) {
             throw new AssertionError(
                 "Failed to check whether Elasticsearch had started. This could be because "
@@ -498,7 +512,12 @@ public class DockerTests extends PackagingTestCase {
         }
 
         // Also check that an unauthenticated call fails
-        final int statusCode = Request.Get("http://localhost:9200/_nodes").execute().returnResponse().getStatusLine().getStatusCode();
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
         assertThat("Expected server to require authentication", statusCode, equalTo(401));
     }
 
@@ -633,7 +652,7 @@ public class DockerTests extends PackagingTestCase {
         installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", "hunter2"));
 
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
-        waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+        waitForElasticsearch(installation, "elastic", "hunter2");
 
         sh.getEnv().put("http.host", "this.is.not.valid");
 
@@ -860,7 +879,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
     public void test120DockerLogsIncludeElasticsearchLogs() {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
         assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
@@ -873,16 +892,12 @@ public class DockerTests extends PackagingTestCase {
     public void test121CanUseStackLoggingConfig() {
         runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
-
-        assertThat(
-            "Container logs should be formatted using the stack config",
-            stdout.get(stdout.size() - 1),
-            matchesPattern("^\\[\\d\\d\\d\\d-.*")
-        );
+        // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
+        assertThat("Container logs should be formatted using the stack config", stdout.get(10), matchesPattern("^\\[\\d\\d\\d\\d-.*"));
         assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
     }
 
@@ -892,12 +907,12 @@ public class DockerTests extends PackagingTestCase {
     public void test122CanUseDockerLoggingConfig() {
         runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "console").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
-
-        assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
+        // We select to look for a line near the beginning so that we don't stumble upon the stdout printing of auto-configured credentials
+        assertThat("Container logs should be formatted using the docker config", stdout.get(10), startsWith("{\""));
         assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
     }
 
@@ -916,12 +931,12 @@ public class DockerTests extends PackagingTestCase {
     public void test124CanRestartContainerWithStackLoggingConfig() {
         runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         restartContainer();
 
         // If something went wrong running Elasticsearch the second time, this will fail.
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
     }
 
     /**
@@ -957,9 +972,9 @@ public class DockerTests extends PackagingTestCase {
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final JsonNode nodes = getJson("/_nodes/stats/os", USERNAME, PASSWORD).get("nodes");
+        final JsonNode nodes = getJson("/_nodes/stats/os", "elastic", PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
 
         final String nodeId = nodes.fieldNames().next();
 
@@ -992,7 +1007,8 @@ public class DockerTests extends PackagingTestCase {
             distribution(),
             builder().memory("942m").volume(jvmOptionsPath, containerJvmOptionsPath).envVar("ELASTIC_PASSWORD", PASSWORD)
         );
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         // Grab the container output and find the line where it print the JVM arguments. This will
         // let us see what the automatic heap sizing calculated.

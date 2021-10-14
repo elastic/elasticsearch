@@ -24,8 +24,7 @@ import org.gradle.api.tasks.bundling.Zip;
  */
 public class RestTestUtil {
 
-    private RestTestUtil() {
-    }
+    private RestTestUtil() {}
 
     /**
      * Creates a {@link RestIntegTestTask} task with the source set of the same name
@@ -42,9 +41,7 @@ public class RestTestUtil {
         return project.getTasks().register(taskName, RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
-            project.getPlugins().withType(JavaPlugin.class, t ->
-                testTask.mustRunAfter(project.getTasks().named("test"))
-            );
+            project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
 
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());

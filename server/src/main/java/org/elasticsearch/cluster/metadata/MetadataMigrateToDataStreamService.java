@@ -24,7 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
@@ -151,7 +151,7 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
-    // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
+    // hides the index, optionally removes the alias, and adds timestamp field mapper
     static void prepareBackingIndex(
         Metadata.Builder b,
         IndexMetadata im,
@@ -165,7 +165,7 @@ public class MetadataMigrateToDataStreamService {
 
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
-        mapperService.merge("_doc", Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)),
+        mapperService.merge("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("enabled", true)),
             MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();
 

@@ -42,7 +42,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
@@ -572,7 +572,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
             root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
-            MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
+            MetadataFieldMapper dtfm = getTimestampFieldMapper();
             Mapping mapping = new Mapping(
                 root.build(MapperBuilderContext.ROOT),
                 new MetadataFieldMapper[] {dtfm},
@@ -769,11 +769,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .build();
     }
 
-    private static MetadataFieldMapper getDataStreamTimestampFieldMapper() {
+    private static MetadataFieldMapper getTimestampFieldMapper() {
         Map<String, Object> fieldsMapping = new HashMap<>();
-        fieldsMapping.put("type", DataStreamTimestampFieldMapper.NAME);
+        fieldsMapping.put("type", TimestampFieldMapper.NAME);
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
-        return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
+        return TimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
     }
 }

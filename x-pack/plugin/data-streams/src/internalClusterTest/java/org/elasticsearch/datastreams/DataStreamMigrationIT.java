@@ -201,7 +201,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
             () -> client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get()
         );
 
-        assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "data stream timestamp field [@timestamp] does not exist"));
+        assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "timestamp field [@timestamp] does not exist"));
     }
 
     public void testMigrationWithoutWriteIndex() throws Exception {

@@ -385,8 +385,8 @@ public final class MappingLookup {
      * Only indices that are a part of a data-stream have this meta-field enabled.
      * @return {@code true} if contains an enabled data-stream's timestamp meta-field, {@code false} otherwise.
      */
-    public boolean isDataStreamTimestampFieldEnabled() {
-        DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
+    public boolean isTimestampFieldEnabled() {
+        TimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(TimestampFieldMapper.class);
         return dtfm != null && dtfm.isEnabled();
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -264,12 +264,12 @@ public class MetadataCreateDataStreamService {
     }
 
     public static void validateTimestampFieldMapping(MappingLookup mappingLookup) throws IOException {
-        MetadataFieldMapper fieldMapper = (MetadataFieldMapper) mappingLookup.getMapper(DataStreamTimestampFieldMapper.NAME);
-        assert fieldMapper != null : DataStreamTimestampFieldMapper.NAME + " meta field mapper must exist";
+        MetadataFieldMapper fieldMapper = (MetadataFieldMapper) mappingLookup.getMapper(TimestampFieldMapper.NAME);
+        assert fieldMapper != null : TimestampFieldMapper.NAME + " meta field mapper must exist";
         // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
         // that would be a bug.
-        if (mappingLookup.isDataStreamTimestampFieldEnabled() == false) {
-            throw new IllegalStateException("[" + DataStreamTimestampFieldMapper.NAME + "] meta field has been disabled");
+        if (mappingLookup.isTimestampFieldEnabled() == false) {
+            throw new IllegalStateException("[" + TimestampFieldMapper.NAME + "] meta field has been disabled");
         }
         // Sanity check (this validation logic should already have been executed when merging mappings):
         fieldMapper.validate(mappingLookup);

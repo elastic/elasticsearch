@@ -51,7 +51,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
         String mapping2 = generateMapping("@timestamp2", "date");
         e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping2)));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] does not exist"));
+        assertThat(e.getMessage(), equalTo("timestamp field [@timestamp] does not exist"));
     }
 
     public void testValidateTimestampFieldMappingInvalidFieldType() {
@@ -59,7 +59,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping)));
         assertThat(
             e.getMessage(),
-            equalTo("data stream timestamp field [@timestamp] is of type [keyword], " + "but [date,date_nanos] is expected")
+            equalTo("timestamp field [@timestamp] is of type [keyword], " + "but [date,date_nanos] is expected")
         );
     }
 

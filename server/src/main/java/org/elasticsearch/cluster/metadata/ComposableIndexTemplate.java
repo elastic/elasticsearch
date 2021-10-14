@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -301,7 +301,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
          */
         public Map<String, Object> getDataStreamMappingSnippet() {
             // _data_stream_timestamp meta fields default to @timestamp:
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)));
+            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(TimestampFieldMapper.NAME, Map.of("enabled", true)));
         }
 
         public boolean isHidden() {

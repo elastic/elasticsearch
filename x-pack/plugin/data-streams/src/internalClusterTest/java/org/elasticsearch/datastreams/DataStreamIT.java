@@ -534,7 +534,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getCause().getCause().getMessage(),
-            equalTo("data stream timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
+            equalTo("timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
         );
     }
 
@@ -1265,7 +1265,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create").source("{}", XContentType.JSON);
         Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
+        assertThat(e.getCause().getMessage(), equalTo("timestamp field [@timestamp] is missing"));
     }
 
     public void testMultipleTimestampValuesInDocument() throws Exception {
@@ -1277,7 +1277,7 @@ public class DataStreamIT extends ESIntegTestCase {
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
         Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
+        assertThat(e.getCause().getMessage(), equalTo("timestamp field [@timestamp] encountered multiple values"));
     }
 
     public void testMixedAutoCreate() throws Exception {

@@ -36,6 +36,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.LogMergePolicy;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -172,6 +173,8 @@ import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
@@ -6196,6 +6199,93 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(engine.isClosed.get());
         } finally {
             IndexWriterMaxDocsChanger.restoreMaxDocs();
+        }
+    }
+
+    public void testCurrentVersionIsCommitted() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config =
+                config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+
+            store.createEmpty();
+            final String translogUUID = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUUID);
+
+            try (InternalEngine engine = createEngine(config)) {
+                engine.flush(true, true);
+                Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                assertThat(userData, hasKey(ES_VERSION));
+                assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+            }
+        }
+    }
+
+    public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final int maxSeqNo = 40;
+        final List<Long> seqNos = LongStream.rangeClosed(1, maxSeqNo).boxed().collect(Collectors.toList());
+        Collections.shuffle(seqNos, random());
+        try (Store store = createStore()) {
+            EngineConfig config =
+                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+
+            try (InternalEngine engine = createEngine(config)) {
+                for (Long seqNo : seqNos) {
+                    ParsedDocument doc = testParsedDocument(Long.toString(seqNo),
+                        null,
+                        testDocument(),
+                        new BytesArray("{}"),
+                        null
+                    );
+                    Engine.Index index = new Engine.Index(newUid(doc),
+                        doc,
+                        seqNo,
+                        0,
+                        1,
+                        null,
+                        REPLICA,
+                        System.nanoTime(),
+                        -1,
+                        false,
+                        UNASSIGNED_SEQ_NO,
+                        0
+                    );
+                    engine.index(index);
+                    engine.flush();
+                }
+                globalCheckpoint.set(1);
+                engine.syncTranslog();
+            }
+
+            // Create a new commit with an old ES_VERSION value to ensure that this gets
+            // overwritten in store.trimUnsafeCommits
+            SegmentInfos committedSegmentsInfo = store.readLastCommittedSegmentsInfo();
+            IndexWriterConfig indexWriterConfig = indexWriterConfigWithNoMerging(null)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                .setCommitOnClose(false)
+                .setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+            try(IndexWriter indexWriter = new IndexWriter(store.directory(), indexWriterConfig)) {
+                Map<String, String> commitUserDataWithOlderVersion = new HashMap<>(committedSegmentsInfo.userData);
+                commitUserDataWithOlderVersion.put(ES_VERSION, Version.V_7_0_0.toString());
+                indexWriter.setLiveCommitData(commitUserDataWithOlderVersion.entrySet());
+                indexWriter.commit();
+            }
+
+            Map<String, String> userDataBeforeTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
+            assertThat(userDataBeforeTrimUnsafeCommits, hasKey(ES_VERSION));
+            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.V_7_0_0.toString())));
+
+            store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
+
+            Map<String, String> userDataAfterTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
+            assertThat(userDataAfterTrimUnsafeCommits, hasKey(ES_VERSION));
+            assertThat(userDataAfterTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
         }
     }
 }

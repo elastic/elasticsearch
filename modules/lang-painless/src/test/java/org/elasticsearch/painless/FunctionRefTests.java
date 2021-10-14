@@ -199,9 +199,9 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testQualifiedClassMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("List l = [2, 1]; l.sort(org.joda.time.BogusDateTime::bogus); return l.get(0);", false);
+            exec("List l = [2, 1]; l.sort(org.package.BogusClass::bogus); return l.get(0);", false);
         });
-        assertEquals("variable [org.joda.time.BogusDateTime] is not defined", e.getMessage());
+        assertEquals("variable [org.package.BogusClass] is not defined", e.getMessage());
     }
 
     public void testNotFunctionalInterface() {

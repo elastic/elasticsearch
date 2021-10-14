@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -75,13 +76,13 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         setRequest.persistentSettings(map);
 
         ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::putSettings,
-                highLevelClient().cluster()::putSettingsAsync);
+            highLevelClient().cluster()::putSettingsAsync);
 
         assertAcked(setResponse);
         assertThat(setResponse.getTransientSettings().get(transientSettingKey), notNullValue());
         assertThat(setResponse.getTransientSettings().get(persistentSettingKey), nullValue());
         assertThat(setResponse.getTransientSettings().get(transientSettingKey),
-                equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
+            equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
         assertThat(setResponse.getPersistentSettings().get(transientSettingKey), nullValue());
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), notNullValue());
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), equalTo(persistentSettingValue));
@@ -97,7 +98,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
         ClusterUpdateSettingsResponse resetResponse = execute(resetRequest, highLevelClient().cluster()::putSettings,
-                highLevelClient().cluster()::putSettingsAsync);
+            highLevelClient().cluster()::putSettingsAsync);
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
         assertThat(resetResponse.getPersistentSettings().get(persistentSettingKey), equalTo(null));
@@ -111,17 +112,28 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(persistentResetValue, equalTo(null));
     }
 
-    public void testClusterUpdateSettingNonExistent() {
+    public void testClusterUpdateTransientSettingNonExistent() {
+        testClusterUpdateSettingNonExistent((settings, request) -> request.transientSettings(settings), "transient");
+    }
+
+    public void testClusterUpdatePersistentSettingNonExistent() {
+        testClusterUpdateSettingNonExistent((settings, request) -> request.persistentSettings(settings), "persistent");
+    }
+
+    private void testClusterUpdateSettingNonExistent(
+        final BiConsumer<Settings.Builder, ClusterUpdateSettingsRequest> consumer,
+        String label) {
         String setting = "no_idea_what_you_are_talking_about";
         int value = 10;
         ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
-        clusterUpdateSettingsRequest.transientSettings(Settings.builder().put(setting, value).build());
+        consumer.accept(Settings.builder().put(setting, value), clusterUpdateSettingsRequest);
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(clusterUpdateSettingsRequest,
-                highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
+            highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
-                "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
+            "Elasticsearch exception [type=illegal_argument_exception, reason="
+                + label + " setting [" + setting + "], not recognized]"));
     }
 
     public void testClusterGetSettings() throws IOException {
@@ -183,7 +195,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
         logger.info("Shard stats\n{}", EntityUtils.toString(
-                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
+            client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
@@ -204,7 +216,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
         logger.info("Shard stats\n{}", EntityUtils.toString(
-                client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
+            client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
         assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(2));
         for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
@@ -225,7 +237,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getInitializingShards(), equalTo(0));
         assertThat(response.getUnassignedShards(), equalTo(2));
     }
-
 
     public void testClusterHealthYellowSpecificIndex() throws IOException {
         createIndex("index", Settings.EMPTY);
@@ -317,19 +328,19 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         ClusterGetSettingsResponse settingsResponse = highLevelClient().cluster().getSettings(settingsRequest, RequestOptions.DEFAULT);
 
         List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
-                .getConcreteSettingForNamespace(clusterAlias)
-                .get(settingsResponse.getTransientSettings());
+            .getConcreteSettingForNamespace(clusterAlias)
+            .get(settingsResponse.getPersistentSettings());
         int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER
-                .get(settingsResponse.getTransientSettings());
+            .get(settingsResponse.getPersistentSettings());
         TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING
-                .get(settingsResponse.getTransientSettings());
+            .get(settingsResponse.getPersistentSettings());
         boolean skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
-                .getConcreteSettingForNamespace(clusterAlias)
-                .get(settingsResponse.getTransientSettings());
+            .getConcreteSettingForNamespace(clusterAlias)
+            .get(settingsResponse.getPersistentSettings());
 
         RemoteInfoRequest request = new RemoteInfoRequest();
         RemoteInfoResponse response = execute(request, highLevelClient().cluster()::remoteInfo,
-                highLevelClient().cluster()::remoteInfoAsync);
+            highLevelClient().cluster()::remoteInfoAsync);
 
         assertThat(response, notNullValue());
         assertThat(response.getInfos().size(), equalTo(1));

@@ -20,6 +20,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -391,6 +392,10 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
             // commit the new history id
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+            final String commitESVersion = userData.get(Engine.ES_VERSION);
+            if (commitESVersion == null || Version.fromString(commitESVersion).onOrBefore(Version.CURRENT)) {
+                userData.put(Engine.ES_VERSION, Version.CURRENT.toString());
+            }
 
             indexWriter.setLiveCommitData(userData.entrySet());
             indexWriter.commit();

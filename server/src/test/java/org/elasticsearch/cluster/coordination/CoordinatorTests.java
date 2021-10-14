@@ -43,6 +43,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -1777,6 +1778,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(reason="testing debug logging of LagDetector", value="org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();
@@ -1804,6 +1806,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     "node [" + brokenNode + "] is lagging at cluster state version [*], " +
                         "although publication of cluster state version [*] completed [*] ago"));
 
+                mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "hot threads from lagging node",
+                    LagDetector.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "hot threads from node [" +
+                        brokenNode.getLocalNode().descriptionWithoutAttributes() +
+                        "] lagging at version [*] despite commit of cluster state version [*]:\nHot threads at*"));
+
                 // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
                 // health checks
                 brokenNode.blackhole();
@@ -1822,7 +1832,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     });
                 cluster.getAnyLeader().submitValue(randomLong());
                 cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
-                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY,
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY
+                        + 2 * DEFAULT_DELAY_VARIABILITY,
                     "waiting for messages to be emitted");
 
                 mockLogAppender.assertAllExpectationsMatched();

@@ -190,7 +190,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_PASSWORD));
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");

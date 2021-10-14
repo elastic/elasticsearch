@@ -41,12 +41,7 @@ public class ConfigurationTests extends PackagingTestCase {
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
-                final String nameResponse = ServerUtils.makeRequest(
-                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
-                    "test_superuser",
-                    "test_superuser_password",
-                    ServerUtils.getCaCert(confPath)
-                ).strip();
+                final String nameResponse = makeRequest("https://localhost:9200/_cat/nodes?h=name").strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
             Platforms.onWindows(() -> sh.chown(confPath));

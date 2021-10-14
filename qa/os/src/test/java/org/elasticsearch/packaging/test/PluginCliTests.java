@@ -28,8 +28,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     private static final String EXAMPLE_PLUGIN_NAME = "custom-settings";
     private static final Path EXAMPLE_PLUGIN_ZIP;
-    private static String superuser = "test_superuser";
-    private static String superuserPassword = "test_superuser";
+
     static {
         // re-read before each test so the plugin path can be manipulated within tests
         EXAMPLE_PLUGIN_ZIP = Paths.get(System.getProperty("tests.example-plugin", "/dummy/path"));

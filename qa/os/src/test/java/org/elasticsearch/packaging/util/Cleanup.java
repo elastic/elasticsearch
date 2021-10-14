@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -41,6 +42,9 @@ public class Cleanup {
         "/usr/lib/tmpfiles.d/elasticsearch.conf",
         "/usr/lib/sysctl.d/elasticsearch.conf"
     );
+
+    // todo
+    private static final List<String> ELASTICSEARCH_FILES_WINDOWS = Collections.emptyList();
 
     public static void cleanEverything() throws Exception {
         final Shell sh = new Shell();
@@ -71,9 +75,10 @@ public class Cleanup {
         // delete files that may still exist
 
         lsGlob(getRootTempDir(), "elasticsearch*").forEach(Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm);
+        final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
         Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
-        ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(rm);
+        filesToDelete.stream().map(Paths::get).filter(Files::exists).forEach(rm);
     }
 
     private static void purgePackagesLinux() {

@@ -29,5 +29,4 @@ public final class DnRoleMapperSettings {
     public static Collection<? extends Setting.AffixSetting<?>> getSettings(String realmType) {
         return Arrays.asList(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.apply(realmType), ROLE_MAPPING_FILE_SETTING.apply(realmType));
     }
-
 }

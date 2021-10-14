@@ -415,6 +415,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
+            // we load them all here otherwise we can't access secure settings since they are closed once the checks are
+            // fetched
+
             Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks.set(Collections.emptyList());
@@ -529,6 +532,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(reservedRealm);
 
         securityIndex.get().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
+
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);

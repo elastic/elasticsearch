@@ -55,8 +55,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_CORRUPTED_KEYSTORE = "Keystore has been corrupted or tampered with";
     public static final String ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED = "ERROR: Keystore is not password-protected";
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
-    private static final String USERNAME = "elastic";
-    private static final String PASSWORD = "nothunter2";
+    private static final String ELASTIC_PASSWORD = "nothunter2";
     private static final String FILE_REALM_SUPERUSER = "test-user";
     private static final String FILE_REALM_SUPERUSER_PASSWORD = "test-user-password";
     private static final String KEYSTORE_PASSWORD = "keystore-password";
@@ -68,16 +67,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
         // Add a user for tests to use.
-        Shell.Result result = sh.run(
-            installation.executables().usersTool
-                + " useradd "
-                + FILE_REALM_SUPERUSER
-                + " -p "
-                + FILE_REALM_SUPERUSER_PASSWORD
-                + " -r "
-                + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        // TODO: Possibly capture autoconfigured password from running the node the first time
+        setFileSuperuser(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
@@ -93,17 +84,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
-        // Add a user for tests to use.
-        Shell.Result result = sh.run(
-            installation.executables().usersTool
-                + " useradd "
-                + FILE_REALM_SUPERUSER
-                + " -p "
-                + FILE_REALM_SUPERUSER_PASSWORD
-                + " -r "
-                + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
@@ -142,7 +123,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, false));
-        ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -165,7 +146,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         awaitElasticsearchStartup(runElasticsearchStartCommand(KEYSTORE_PASSWORD, true, true));
-        ServerUtils.runElasticsearchTests(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -253,12 +234,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // restart ES with password and mounted config dir containing password protected keystore
         runContainer(
             distribution(),
-            builder().envVar("KEYSTORE_PASSWORD", KEYSTORE_PASSWORD)
-                .envVar("ELASTIC_PASSWORD", PASSWORD)
-                .volume(localConfigDir.resolve("config"), installation.config)
+            builder().volume(localConfigDir.resolve("config"), installation.config)
+                .envVar("KEYSTORE_PASSWORD", KEYSTORE_PASSWORD)
+                .envVar("ELASTIC_PASSWORD", ELASTIC_PASSWORD)
         );
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+        waitForElasticsearch(installation, "elastic", ELASTIC_PASSWORD);
+        runElasticsearchTestsAsElastic(ELASTIC_PASSWORD);
     }
 
     /**
@@ -285,11 +266,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 builder().volume(localConfigDir.resolve("config"), installation.config)
                     .volume(tempDir, "/run/secrets")
                     .envVar("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
-                    .envVar("ELASTIC_PASSWORD", PASSWORD)
+                    .envVar("ELASTIC_PASSWORD", ELASTIC_PASSWORD)
             );
 
-            waitForElasticsearch(installation, USERNAME, PASSWORD);
-            ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+            waitForElasticsearch(installation, "elastic", ELASTIC_PASSWORD);
+            runElasticsearchTestsAsElastic(ELASTIC_PASSWORD);
         } finally {
             if (tempDir != null) {
                 rm(tempDir);

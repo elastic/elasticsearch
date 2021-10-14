@@ -488,9 +488,8 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(installation));
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
-        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password, null));
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        waitForElasticsearch(installation, username, password, null);
     }
 
     /**
@@ -499,11 +498,8 @@ public class Docker {
      * @param installation the installation to check
      * @param username the username to authenticate with
      * @param password the password to authenticate with
+     * @param caCert the CA cert to trust
      */
-    public static void waitForElasticsearch(Installation installation, String username, String password) {
-        waitForElasticsearch(installation, username, password, null);
-    }
-
     public static void waitForElasticsearch(Installation installation, String username, String password, Path caCert) {
         try {
             withLogging(() -> ServerUtils.waitForElasticsearch("green", null, installation, username, password, caCert));
@@ -559,13 +555,13 @@ public class Docker {
     }
 
     /**
-     * Fetches the resource from the specified {@code path} on {@code http://localhost:9200}, using
+     * Fetches the resource from the specified {@code path} on {@code http(s)://localhost:9200}, using
      * the supplied authentication credentials.
      *
      * @param path the path to fetch
      * @param user the user to authenticate with
      * @param password the password to authenticate with
-     * @param caCert the CA cert to trust
+     * @param caCert CA cert to trust, if non-null use the https URL
      * @return a parsed JSON response
      * @throws Exception if something goes wrong
      */

@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,7 +36,6 @@ import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -52,16 +52,10 @@ public class ArchiveTests extends PackagingTestCase {
         assumeTrue("only archives", distribution.isArchive());
     }
 
-    private static String superuser = "test_superuser";
-    private static String superuserPassword = "test_superuser";
-
     public void test10Install() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
-        Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser("test_superuser", "test_superuser_password");
         // See https://bugs.openjdk.java.net/browse/JDK-8267701. In short, when generating PKCS#12 keystores in JDK 12 and later
         // the MAC algorithm used for integrity protection is incompatible with any previous JDK version. This affects us as we generate
         // PKCS12 keystores on startup ( with the bundled JDK ) but we also need to run certain tests with a JDK other than the bundled
@@ -136,8 +130,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
-        // On Windows, the archive is unzipped by `jenkins` but tests run as Administrator. Chown the config dir to Administrator so that
-        // we don't trigger false negatives for the auto-configuration process
+        // auto-config requires that the archive owner and the process user be the same,
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         ServerUtils.addSettingToExistingConfiguration(installation, "discovery.seed_hosts", "[\"127.0.0.1:9300\"]");
@@ -150,6 +143,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
         startElasticsearch();
@@ -161,6 +155,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");
         startElasticsearch();
@@ -172,6 +167,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.http.ssl.enabled", "false");
         startElasticsearch();
@@ -183,30 +179,53 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
-        assumeTrue("selectively mute to see if the rest of them work", distribution.platform != Distribution.Platform.WINDOWS);
-        Path tempDir = createTempDir("custom-config");
-        Path tempConf = tempDir.resolve("elasticsearch");
-        FileUtils.copyDirectory(installation.config, tempConf);
         Platforms.onWindows(() -> {
-            sh.chown(tempDir, installation.getOwner());
-            sh.run("attrib +r " + tempConf + "/*.* /s");
+            // auto-config requires that the archive owner and the process user be the same
+            sh.chown(installation.config, installation.getOwner());
+            // prevent modifications to the config directory
+            sh.run(
+                String.format(
+                    Locale.ROOT,
+                    "$ACL = Get-ACL -Path '%s'; "
+                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
+                        + "$ACL.SetAccessRule($AccessRule); "
+                        + "$ACL | Set-Acl -Path '%s';",
+                    installation.config,
+                    installation.getOwner(),
+                    installation.config
+                )
+            );
         });
-        Platforms.onLinux(() -> { sh.run("chmod -w " + tempConf); });
-        sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
-        startElasticsearch();
-        verifySecurityNotAutoConfigured(installation);
-        stopElasticsearch();
-        sh.getEnv().remove("ES_PATH_CONF");
-        Platforms.onLinux(() -> sh.run("chmod +w " + tempConf));
-        Platforms.onWindows(() -> {
-            sh.run("attrib -r " + tempConf + "/*.* /s");
-            sh.chown(tempDir);
-        });
-        FileUtils.rm(tempDir);
-        FileUtils.rm(installation.data);
+        Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
+        try {
+            startElasticsearch();
+            verifySecurityNotAutoConfigured(installation);
+            // the node still starts, with Security enabled, but without TLS auto-configured (so only authentication)
+            runElasticsearchTests();
+            stopElasticsearch();
+        } finally {
+            Platforms.onWindows(() -> {
+                sh.run(
+                    String.format(
+                        Locale.ROOT,
+                        "$ACL = Get-ACL -Path '%s'; "
+                            + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
+                            + "$ACL.RemoveAccessRule($AccessRule); "
+                            + "$ACL | Set-Acl -Path '%s';",
+                        installation.config,
+                        installation.getOwner(),
+                        installation.config
+                    )
+                );
+                sh.chown(installation.config);
+            });
+            Platforms.onLinux(() -> { sh.run("chmod u+w " + installation.config); });
+            FileUtils.rm(installation.data);
+        }
     }
 
     public void test50AutoConfigurationFailsWhenCertificatesNotGenerated() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
@@ -252,7 +271,7 @@ public class ArchiveTests extends PackagingTestCase {
         );
     }
 
-    public void test52AutoConfiguration() throws Exception {
+    public void test52AutoConfigurationOnWindows() throws Exception {
         assumeTrue(
             "run this in place of test51AutoConfigurationWithPasswordProtectedKeystore on windows",
             distribution.platform == Distribution.Platform.WINDOWS
@@ -268,10 +287,8 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test60StartAndStop() throws Exception {
         startElasticsearch();
-
         assertThat(installation.logs.resolve("gc.log"), fileExists());
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
-
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -286,7 +303,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
 
         String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
@@ -313,7 +330,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(runResult.stderr, containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
 
         // if the JDK started with the bundled JDK then we know that JAVA_HOME was ignored
@@ -337,7 +354,7 @@ public class ArchiveTests extends PackagingTestCase {
             });
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
 
             String systemJavaHome1 = sh.getEnv().get("ES_JAVA_HOME");
@@ -358,7 +375,7 @@ public class ArchiveTests extends PackagingTestCase {
 
                 // verify ES can start, stop and run plugin list
                 startElasticsearch();
-                ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+                runElasticsearchTests();
                 stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
@@ -383,7 +400,7 @@ public class ArchiveTests extends PackagingTestCase {
 
                 // verify ES can start, stop and run plugin list
                 startElasticsearch();
-                ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+                runElasticsearchTests();
                 stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
@@ -401,7 +418,7 @@ public class ArchiveTests extends PackagingTestCase {
         sh.getEnv().put("ES_JAVA_HOME", "");
 
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
@@ -411,15 +428,13 @@ public class ArchiveTests extends PackagingTestCase {
      * This test purposefully ignores the existence of the Windows POSIX sub-system.
      */
     public void test66InstallUnderPosix() throws Exception {
-        assumeTrue("Only run this test on Unix-like systems", Platforms.WINDOWS == false);
         sh.getEnv().put("POSIXLY_CORRECT", "1");
         startElasticsearch();
-        ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         stopElasticsearch();
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
-
         withCustomConfig(tempConf -> {
             setHeap("512m", tempConf);
             final List<String> jvmOptions = List.of("-Dlog4j2.disable.jmx=true");
@@ -428,11 +443,11 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
+            final String nodesResponse = ServerUtils.makeRequest(
                 Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
+                "test_superuser",
+                "test_superuser_password",
+                ServerUtils.getCaCert(tempConf)
             );
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
@@ -449,12 +464,7 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
             stopElasticsearch();
@@ -477,12 +487,7 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
@@ -499,7 +504,7 @@ public class ArchiveTests extends PackagingTestCase {
             append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);
@@ -511,12 +516,7 @@ public class ArchiveTests extends PackagingTestCase {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
             stopElasticsearch();

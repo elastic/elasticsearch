@@ -12,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
@@ -30,7 +32,7 @@ public class Cleanup {
         "/etc/elasticsearch/elasticsearch.keystore",
         "/etc/elasticsearch",
         "/var/lib/elasticsearch",
-        "/var/log/elasticsearch",
+        "/var/log/elasticsearchprivate static ",
         "/etc/default/elasticsearch",
         "/etc/sysconfig/elasticsearch",
         "/var/run/elasticsearch",
@@ -65,27 +67,13 @@ public class Cleanup {
             sh.runIgnoreExitCode("userdel elasticsearch");
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
-        Platforms.onWindows(() -> {
-            sh.runIgnoreExitCode("Get-ChildItem -Path C:\\tmp -Filter elasticsearch* | " +
-                "Select-Object fullname, LastAccessTime, LastWriteTime, CreationTime, @{N='Owner';E={$_.GetAccessControl().Owner}} ");
-            sh.runIgnoreExitCode("whoami");
-            sh.runIgnoreExitCode(
-                "@(Get-ChildItem -Path "
-                    + getRootTempDir()
-                    + " -Filter elasticsearch* | "
-                    + "Get-ChildItem -Recurse -Force ) "
-                    + "+ (Get-ChildItem -Path "
-                    + getRootTempDir()
-                    + " -Filter elasticsearch* -Directory) | "
-                    + "sort pspath -Descending -unique | "
-                    + "Remove-Item -Force -Recurse"
-            );
+        // when we run es as a role user on windows, add the equivalent here
+        // delete files that may still exist
 
-        });
-        Platforms.onLinux(() -> {
-            lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
-            ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(FileUtils::rm);
-        });
+        lsGlob(getRootTempDir(), "elasticsearch*").forEach(Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm);
+        // windows needs leniency due to asinine releasing of file locking async from a process exiting
+        Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;
+        ELASTICSEARCH_FILES_LINUX.stream().map(Paths::get).filter(Files::exists).forEach(rm);
     }
 
     private static void purgePackagesLinux() {

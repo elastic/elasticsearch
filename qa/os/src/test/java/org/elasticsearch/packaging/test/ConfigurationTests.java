@@ -12,19 +12,13 @@ import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 public class ConfigurationTests extends PackagingTestCase {
-
-    private static String superuser = "test_superuser";
-    private static String superuserPassword = "test_superuser";
 
     @Before
     public void filterDistros() {
@@ -33,13 +27,10 @@ public class ConfigurationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
-        Shell.Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
-    public void test60HostnameSubstitution() throws Exception {
+    public void test20HostnameSubstitution() throws Exception {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
@@ -47,15 +38,18 @@ public class ConfigurationTests extends PackagingTestCase {
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
+            // security auto-config requires that the archive owner and the node process user be the same
+            Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
-                final String nameResponse = makeRequest(
+                final String nameResponse = ServerUtils.makeRequest(
                     Request.Get("https://localhost:9200/_cat/nodes?h=name"),
-                    superuser,
-                    superuserPassword,
+                    "test_superuser",
+                    "test_superuser_password",
                     ServerUtils.getCaCert(confPath)
                 ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
+            Platforms.onWindows(() -> sh.chown(confPath));
         });
     }
 }

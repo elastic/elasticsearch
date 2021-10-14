@@ -8,10 +8,8 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
-import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
@@ -41,8 +39,6 @@ import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -58,18 +54,12 @@ public class PackageTests extends PackagingTestCase {
         assumeTrue("rpm or deb", distribution.isPackage());
     }
 
-    private static String superuser = "test_superuser";
-    private static String superuserPassword = "test_superuser";
-
     public void test10InstallPackage() throws Exception {
         assertRemoved(distribution());
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
-        Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -93,7 +83,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
-            runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             Files.write(installation.envFile, originalEnvFile);
@@ -120,7 +110,7 @@ public class PackageTests extends PackagingTestCase {
 
         try {
             startElasticsearch();
-            runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             if (Files.exists(Paths.get(backupPath))) {
@@ -134,12 +124,7 @@ public class PackageTests extends PackagingTestCase {
 
         startElasticsearch();
 
-        final String nodesResponse = makeRequest(
-            Request.Get("https://localhost:9200/_nodes"),
-            superuser,
-            superuserPassword,
-            ServerUtils.getCaCert(installation)
-        );
+        final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
         stopElasticsearch();
@@ -157,7 +142,7 @@ public class PackageTests extends PackagingTestCase {
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
         assertPathsExist(installation.logs.resolve("elasticsearch_server.json"));
 
-        runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+        runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
     }
@@ -241,13 +226,11 @@ public class PackageTests extends PackagingTestCase {
             install();
             assertInstalled(distribution());
             // Recreate file realm users that have been deleted in earlier tests
-            Result result = sh.run(
-                installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-            );
-            assumeTrue(result.isSuccess());
+            setFileSuperuser("test_superuser", "test_superuser_password");
+
             startElasticsearch();
             restartElasticsearch(sh, installation);
-            runElasticsearchTests(superuser, superuserPassword, ServerUtils.getCaCert(installation));
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             cleanup();
@@ -304,22 +287,14 @@ public class PackageTests extends PackagingTestCase {
         assertPathsExist(installation.envFile);
         stopElasticsearch();
         // Recreate file realm users that have been deleted in earlier tests
-        Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser("test_superuser", "test_superuser_password");
 
         withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(
-                Request.Get("https://localhost:9200/_nodes"),
-                superuser,
-                superuserPassword,
-                ServerUtils.getCaCert(installation)
-            );
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 

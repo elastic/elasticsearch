@@ -54,7 +54,7 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "15";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
@@ -319,7 +319,7 @@ public class Archives {
                     + "$processInfo.FileName = '"
                     + bin.elasticsearch
                     + "'; "
-                    + "$processInfo.Arguments = '-p "
+                    + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
                     + "'; "
                     + powerShellProcessUserSetup
@@ -365,6 +365,7 @@ public class Archives {
                 command.add("echo '" + keystorePassword + "' |");
             }
             command.add(bin.elasticsearch.toString());
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
             return sh.runIgnoreExitCode(String.join(" ", command));
@@ -394,8 +395,8 @@ public class Archives {
             // Clear the asynchronous event handlers
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
-                    + "Unregister-EventSubscriber -Force"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
+                    + "Unregister-Event -Force"
             );
         });
         if (Files.exists(pidFile)) {

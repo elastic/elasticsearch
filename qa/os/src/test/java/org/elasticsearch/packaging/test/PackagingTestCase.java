@@ -15,11 +15,13 @@ import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 
+import org.apache.http.client.fluent.Request;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -28,6 +30,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.docker.Docker;
 import org.elasticsearch.packaging.util.docker.DockerFileMatcher;
@@ -65,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -85,6 +89,8 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -131,6 +137,7 @@ public abstract class PackagingTestCase extends Assert {
 
     // the current installation of the distribution being tested
     protected static Installation installation;
+    protected static Tuple<String, String> fileSuperuserForInstallation;
 
     private static boolean failed;
 
@@ -255,6 +262,7 @@ public abstract class PackagingTestCase extends Assert {
 
     protected static void cleanup() throws Exception {
         installation = null;
+        fileSuperuserForInstallation = null;
         cleanEverything();
     }
 
@@ -449,8 +457,8 @@ public abstract class PackagingTestCase extends Assert {
             sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
-                    + "Unregister-EventSubscriber -Force"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
+                    + "Unregister-Event -Force"
             );
             assertThat(FileUtils.slurp(Archives.getPowershellErrorPath(installation)), anyOf(stringMatchers));
 
@@ -459,6 +467,50 @@ public abstract class PackagingTestCase extends Assert {
             // Otherwise, error should be on shell stderr
             assertThat(result.stderr, anyOf(stringMatchers));
         }
+    }
+
+    public void setFileSuperuser(String username, String password) {
+        assertThat(installation, Matchers.not(Matchers.nullValue()));
+        assertThat(fileSuperuserForInstallation, Matchers.nullValue());
+        Shell.Result result = sh.run(
+            installation.executables().usersTool + " useradd " + username + " -p " + password + " -r " + "superuser"
+        );
+        assertThat(result.isSuccess(), is(true));
+        fileSuperuserForInstallation = new Tuple<>(username, password);
+    }
+
+    public void runElasticsearchTestsAsElastic(String elasticPassword) throws Exception {
+        ServerUtils.runElasticsearchTests("elastic", elasticPassword, ServerUtils.getCaCert(installation));
+    }
+
+    public void runElasticsearchTests() throws Exception {
+        ServerUtils.runElasticsearchTests(
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v1() : null,
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v2() : null,
+            ServerUtils.getCaCert(installation)
+        );
+    }
+
+    public String makeRequest(String request) throws Exception {
+        return ServerUtils.makeRequest(
+            Request.Get(request),
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v1() : null,
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v2() : null,
+            ServerUtils.getCaCert(installation)
+        );
+    }
+
+    public String makeRequestAsElastic(String request, String elasticPassword) throws Exception {
+        return ServerUtils.makeRequest(Request.Get(request), "elastic", elasticPassword, ServerUtils.getCaCert(installation));
+    }
+
+    public int makeRequestAsElastic(String elasticPassword) throws Exception {
+        return ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            "elastic",
+            elasticPassword,
+            ServerUtils.getCaCert(installation)
+        );
     }
 
     public static Path getRootTempDir() {
@@ -498,7 +550,8 @@ public abstract class PackagingTestCase extends Assert {
         Path tempConf = tempDir.resolve("elasticsearch");
         FileUtils.copyDirectory(installation.config, tempConf);
 
-        Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
+        // this is what install does
+        sh.chown(tempDir);
 
         if (distribution.isPackage()) {
             Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"), StandardCopyOption.COPY_ATTRIBUTES);// backup
@@ -528,6 +581,17 @@ public abstract class PackagingTestCase extends Assert {
             sh.getEnv().remove("ES_PATH_CONF");
         }
         IOUtils.rm(tempDir);
+    }
+
+    public void withCustomConfigOwner(String tempOwner, Predicate<Distribution.Platform> predicate, CheckedRunnable<Exception> action)
+        throws Exception {
+        if (predicate.test(installation.distribution.platform)) {
+            sh.chown(installation.config, tempOwner);
+            action.run();
+            sh.chown(installation.config);
+        } else {
+            action.run();
+        }
     }
 
     /**
@@ -591,6 +655,11 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    /**
+     * Validates that the installation {@code es} has been auto-configured. This applies to archives and docker only,
+     * packages have nuances that justify their own version.
+     * @param es the {@link Installation} to check
+     */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
         Optional<String> autoConfigDirName = getAutoConfigDirName(es);
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
@@ -658,6 +727,11 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    /**
+     * Validates that the installation {@code es} has not been auto-configured. This applies to archives and docker only,
+     * packages have nuances that justify their own version.
+     * @param es the {@link Installation} to check
+     */
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         if (es.distribution.isPackage()) {
@@ -667,10 +741,11 @@ public abstract class PackagingTestCase extends Assert {
             );
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(
-            configLines,
-            Matchers.not(hasItem("# have been automatically generated in order to configure Security.               #"))
-        );
+        assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
+        Path caCert = ServerUtils.getCaCert(installation);
+        if (caCert != null) {
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config_initial_node")));
+        }
     }
 
     public static Optional<String> getAutoConfigDirName(Installation es) {

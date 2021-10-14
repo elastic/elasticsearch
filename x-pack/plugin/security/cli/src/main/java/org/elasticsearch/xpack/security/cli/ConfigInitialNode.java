@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.GeneralName;
@@ -36,7 +37,6 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -62,6 +62,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Stream;
+import javax.security.auth.x500.X500Principal;
 
 /**
  * Configures a new cluster node, by appending to the elasticsearch.yml, so that it forms a single node cluster with
@@ -103,19 +105,17 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // Silently skipping security auto configuration because node considered as restarting.
-        if (Files.isDirectory(env.dataFile()) && Files.list(env.dataFile()).findAny().isPresent()) {
-            terminal.println(
-                Terminal.Verbosity.VERBOSE,
-                "Skipping security auto configuration because it appears that the node is not starting up for the first time."
-            );
-            terminal.println(
-                Terminal.Verbosity.VERBOSE,
-                "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new "
-                    + "clusters only."
-            );
-            // we wish the node to start as usual during a restart
-            // but still the exit code should indicate that this has not been run
-            throw new UserException(ExitCodes.NOOP, null);
+        for (Path dataPath : env.dataFiles()) {
+            if (Files.isDirectory(dataPath) && false == isDirEmpty(dataPath)) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                    "Skipping security auto configuration because it appears that the node is not starting up for the first time.");
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                    "The node might already be part of a cluster and this auto setup utility is designed to configure Security for new " +
+                        "clusters only.");
+                // we wish the node to start as usual during a restart
+                // but still the exit code should indicate that this has not been run
+                throw new UserException(ExitCodes.NOOP, null);
+            }
         }
 
         // pre-flight checks for the files that are going to be changed
@@ -649,6 +649,13 @@ public final class ConfigInitialNode extends EnvironmentAwareCommand {
             }
         } finally {
             Files.deleteIfExists(tmpPath);
+        }
+    }
+
+    private static boolean isDirEmpty(Path path) throws IOException {
+        // Files.list MUST always be used in a try-with-resource construct in order to release the dir file handler
+        try (Stream<Path> dirContentsStream = Files.list(path)) {
+            return false == dirContentsStream.findAny().isPresent();
         }
     }
 }

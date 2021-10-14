@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.test.PackagingTestCase.AwaitsFix;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -20,7 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
@@ -61,10 +59,7 @@ public class PluginCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
-        Shell.Result result = sh.run(
-            installation.executables().usersTool + " useradd " + superuser + " -p " + superuserPassword + " -r " + "superuser"
-        );
-        assumeTrue(result.isSuccess());
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
     public void test20SymlinkPluginsDir() throws Exception {
@@ -81,21 +76,11 @@ public class PluginCliTests extends PackagingTestCase {
         String protocol = distribution.isPackage() ? "http" : "https";
         assertWithExamplePlugin(installResult -> {
             assertWhileRunning(() -> {
-                final String pluginsResponse = makeRequest(
-                    Request.Get(protocol + "://localhost:9200/_cat/plugins?h=component"),
-                    superuser,
-                    superuserPassword,
-                    ServerUtils.getCaCert(installation)
-                ).strip();
+                final String pluginsResponse = makeRequest(protocol + "://localhost:9200/_cat/plugins?h=component").strip();
                 assertThat(pluginsResponse, equalTo(EXAMPLE_PLUGIN_NAME));
 
                 String settingsPath = "_cluster/settings?include_defaults&filter_path=defaults.custom.simple";
-                final String settingsResponse = makeRequest(
-                    Request.Get(protocol + "://localhost:9200/" + settingsPath),
-                    superuser,
-                    superuserPassword,
-                    ServerUtils.getCaCert(installation)
-                ).strip();
+                final String settingsResponse = makeRequest(protocol + "://localhost:9200/" + settingsPath).strip();
                 assertThat(settingsResponse, equalTo("{\"defaults\":{\"custom\":{\"simple\":\"foo\"}}}"));
             });
         });

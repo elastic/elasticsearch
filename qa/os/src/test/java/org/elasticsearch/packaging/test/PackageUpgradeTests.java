@@ -19,7 +19,6 @@ import java.nio.file.Paths;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 
 public class PackageUpgradeTests extends PackagingTestCase {
@@ -48,25 +47,25 @@ public class PackageUpgradeTests extends PackagingTestCase {
         startElasticsearch();
 
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Put("http://localhost:9200/library")
                 .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Put("http://localhost:9200/library2")
                 .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
 
         // add some docs
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON)
         );
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON)
         );
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Post("http://localhost:9200/library2/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON)
         );
@@ -90,16 +89,17 @@ public class PackageUpgradeTests extends PackagingTestCase {
         ServerUtils.disableSecurityFeatures(installation);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }
 
     private void assertDocsExist() throws Exception {
-        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
+        String response1 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
         assertThat(response1, containsString("Elasticsearch"));
-        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
+        String response2 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
         assertThat(response2, containsString("World"));
-        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
+        String response3 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
         assertThat(response3, containsString("Darkness"));
     }
 }

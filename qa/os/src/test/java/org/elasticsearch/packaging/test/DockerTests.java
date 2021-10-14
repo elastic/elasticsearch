@@ -93,7 +93,6 @@ import static org.junit.Assume.assumeTrue;
  */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
-    private static final String USERNAME = "elastic";
     private static final String PASSWORD = "nothunter2";
 
     @BeforeClass
@@ -125,13 +124,8 @@ public class DockerTests extends PackagingTestCase {
      * Check that security is enabled
      */
     public void test011SecurityEnabledStatus() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
-        final int statusCode = ServerUtils.makeRequestAndGetStatus(
-            Request.Get("https://localhost:9200"),
-            USERNAME,
-            "wrong_password",
-            ServerUtils.getCaCert(installation)
-        );
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        final int statusCode = makeRequestAsElastic("wrong_password");
         assertThat(statusCode, equalTo(401));
     }
 
@@ -226,7 +220,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
     public void test042KeystorePermissionsAreCorrect() {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         assertThat(installation.config("elasticsearch.keystore"), file(p660));
     }
@@ -236,11 +230,11 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test050BasicApiTests() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
-        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+        runElasticsearchTestsAsElastic(PASSWORD);
     }
 
     /**
@@ -276,9 +270,9 @@ public class DockerTests extends PackagingTestCase {
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
+        final JsonNode nodes = getJson("/_nodes", "elastic", PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -304,9 +298,9 @@ public class DockerTests extends PackagingTestCase {
                 distribution(),
                 builder().volume(tempEsDataDir.toAbsolutePath(), installation.data).envVar("ELASTIC_PASSWORD", PASSWORD)
             );
-            waitForElasticsearch(installation, USERNAME, PASSWORD);
+            waitForElasticsearch(installation, "elastic", PASSWORD);
 
-            final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD, ServerUtils.getCaCert(installation));
+            final JsonNode nodes = getJson("/_nodes", "elastic", PASSWORD, ServerUtils.getCaCert(installation));
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
@@ -360,7 +354,7 @@ public class DockerTests extends PackagingTestCase {
                 .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
         rmDirWithPrivilegeEscalation(tempEsConfigDir);
         rmDirWithPrivilegeEscalation(tempEsDataDir);
         rmDirWithPrivilegeEscalation(tempEsLogsDir);
@@ -374,7 +368,7 @@ public class DockerTests extends PackagingTestCase {
         // Restart the container
         runContainer(distribution(), builder().extraArgs("--group-add 0").uid(501, 501).envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
     }
 
     /**
@@ -778,7 +772,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
     public void test120DockerLogsIncludeElasticsearchLogs() {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
         final Result containerLogs = getContainerLogs();
 
         assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
@@ -791,7 +785,7 @@ public class DockerTests extends PackagingTestCase {
     public void test121CanUseStackLoggingConfig() {
         runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
@@ -806,7 +800,7 @@ public class DockerTests extends PackagingTestCase {
     public void test122CanUseDockerLoggingConfig() {
         runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "console").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
@@ -830,12 +824,12 @@ public class DockerTests extends PackagingTestCase {
     public void test124CanRestartContainerWithStackLoggingConfig() {
         runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("ELASTIC_PASSWORD", PASSWORD));
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         restartContainer();
 
         // If something went wrong running Elasticsearch the second time, this will fail.
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
     }
 
     /**
@@ -871,9 +865,9 @@ public class DockerTests extends PackagingTestCase {
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final JsonNode nodes = getJson("/_nodes/stats/os", USERNAME, PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
+        final JsonNode nodes = getJson("/_nodes/stats/os", "elastic", PASSWORD, ServerUtils.getCaCert(installation)).get("nodes");
 
         final String nodeId = nodes.fieldNames().next();
 
@@ -907,7 +901,7 @@ public class DockerTests extends PackagingTestCase {
             builder().memory("942m").volume(jvmOptionsPath, containerJvmOptionsPath).envVar("ELASTIC_PASSWORD", PASSWORD)
         );
 
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         // Grab the container output and find the line where it print the JVM arguments. This will
         // let us see what the automatic heap sizing calculated.

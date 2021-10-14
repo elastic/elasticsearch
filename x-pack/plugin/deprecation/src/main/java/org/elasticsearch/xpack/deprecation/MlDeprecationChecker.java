@@ -66,7 +66,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
                 details.append(String.format(
                     Locale.ROOT,
                     " The model snapshot's latest record timestamp is [%s]",
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(modelSnapshot.getLatestRecordTimeStamp().getTime())
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(modelSnapshot.getLatestRecordTimeStamp().toInstant())
                 ));
             }
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.CRITICAL,

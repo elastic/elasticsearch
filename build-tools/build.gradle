@@ -15,6 +15,7 @@ plugins {
     id 'elasticsearch.build-tools'
     id 'elasticsearch.eclipse'
     id 'elasticsearch.versions'
+    id 'elasticsearch.formatting'
 }
 
 description = "The elasticsearch build tools"

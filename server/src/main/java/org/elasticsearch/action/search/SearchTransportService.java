@@ -55,6 +55,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,11 +143,12 @@ public class SearchTransportService {
             final CountDown counter = new CountDown(shardSearchRequests.size());
             final Runnable maybeFinish = () -> {
                 if (counter.countDown()) {
-                    final List<CanMatchResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
+                    final CanMatchResponse.ResponseOrFailure[] responses =
+                        new CanMatchResponse.ResponseOrFailure[shardSearchRequests.size()];
                     for (int i = 0; i < results.length(); i++) {
-                        responses.set(i, results.get(i));
+                        responses[i] = results.get(i);
                     }
-                    final CanMatchResponse response = new CanMatchResponse(responses);
+                    final CanMatchResponse response = new CanMatchResponse(Arrays.asList(responses));
                     listener.onResponse(response);
                 }
             };

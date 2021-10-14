@@ -266,6 +266,12 @@ public class ServerUtils {
         }
     }
 
+    public static void disableDeprecationLogIndexing(Installation installation) throws IOException {
+        List<String> yaml = Collections.singletonList("cluster.deprecation_indexing.enabled: false");
+        Path yml = installation.config("elasticsearch.yml");
+        Files.write(yml, yaml, CREATE, APPEND);
+    }
+
     public static void enableGeoIpDownloader(Installation installation) throws IOException {
         Path yml = installation.config("elasticsearch.yml");
         List<String> lines;

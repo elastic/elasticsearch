@@ -141,7 +141,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
                     .filter(BulkItemResponse::isFailed)
                     .map(r -> r.getId() + " " + r.getFailureMessage() )
                     .collect(Collectors.toList());
-                logger.info("Bulk write of deprecation logs encountered some failures: [{}]", failures);
+                logger.error("Bulk write of deprecation logs encountered some failures: [{}]", failures);
             }
         }
 

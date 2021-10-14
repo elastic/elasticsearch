@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -101,6 +102,10 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             return shardRequestIndex;
         }
 
+        public OriginalIndices getOriginalIndices() {
+            return originalIndices;
+        }
+
         public ShardId shardId() {
             return shardId;
         }
@@ -125,7 +130,8 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         this.numberOfShards = numberOfShards;
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
-        indices = shards.stream().map(Shard::shardId).map(ShardId::getIndexName).distinct().toArray(String[]::new);
+        indices = shards.stream().map(Shard::getOriginalIndices).map(OriginalIndices::indices).flatMap(Arrays::stream).distinct()
+            .toArray(String[]::new);
     }
 
     public CanMatchRequest(StreamInput in) throws IOException {
@@ -139,7 +145,8 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
         shards = in.readList(Shard::new);
-        indices = shards.stream().map(Shard::shardId).map(ShardId::getIndexName).distinct().toArray(String[]::new);
+        indices = shards.stream().map(Shard::getOriginalIndices).map(OriginalIndices::indices).flatMap(Arrays::stream).distinct()
+            .toArray(String[]::new);
     }
 
     @Override

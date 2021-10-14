@@ -290,7 +290,9 @@ public final class DateFieldMapper extends FieldMapper {
                 return null;
             }
             try {
-                return fieldType.parse(nullValue.getValue());
+                final String fieldName = fieldType.name();
+                final String indexName = "null value... but what index?";//context.indexSettings().getIndex().getName();
+                return fieldType.parseWithDeprecation(nullValue.getValue(), fieldName, nullValue.getValue());
             } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
@@ -307,6 +309,7 @@ public final class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(MapperBuilderContext context) {
             DateFieldType ft = new DateFieldType(context.buildFullName(name()), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), scriptValues(), meta.getValue());
+
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
@@ -378,13 +381,22 @@ public final class DateFieldMapper extends FieldMapper {
 
         // Visible for testing.
         public long parse(String value) {
-            final Instant instant = DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant();
+            final Instant instant = getInstant(value);
+            return resolution.convert(instant);
+        }
+
+        public long parseWithDeprecation(String value, String fieldName, String indexName) {
+            final Instant instant = getInstant(value);
             if (resolution == Resolution.MILLISECONDS && instant.getNano() % 1000000 != 0) {
                 DEPRECATION_LOGGER.warn(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
-                    "You are attempting to store a date field with nanosecond resolution on a date field. " +
-                        "The nanosecond part was lost. Use date_nanos field type.");
+                    "You are attempting to store a nanosecond resolution on a field {} of type date on index {}. " +
+                        "The nanosecond part was lost. Use date_nanos field type.", fieldName, indexName);
             }
             return resolution.convert(instant);
+        }
+
+        private Instant getInstant(String value) {
+            return DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant();
         }
 
         /**
@@ -706,7 +718,9 @@ public final class DateFieldMapper extends FieldMapper {
             timestamp = nullValue;
         } else {
             try {
-                timestamp = fieldType().parse(dateAsString);
+                final String fieldName = fieldType().name();
+                final String indexName = context.indexSettings().getIndex().getName();
+                timestamp = fieldType().parseWithDeprecation(dateAsString, fieldName, indexName);
             } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());

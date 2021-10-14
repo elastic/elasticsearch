@@ -2847,9 +2847,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     document.clear();
                     addToDocument(id, document, fields);
                     indexWriter.addDocument(document);
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
                     id++;
                 }
                 if (forceMerge) {

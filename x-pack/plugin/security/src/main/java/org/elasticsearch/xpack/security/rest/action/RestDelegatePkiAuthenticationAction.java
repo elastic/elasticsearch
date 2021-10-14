@@ -55,7 +55,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+        } else if (Security.PKI_REALM_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", PkiRealmSettings.TYPE);

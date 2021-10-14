@@ -142,12 +142,12 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUpTransformsAndLogAudits() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().transform()
+            adminHighLevelClient().transform()
                 .stopTransform(new StopTransformRequest(transformId, Boolean.TRUE, null, false), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
+            adminHighLevelClient().transform().deleteTransform(new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
         transformsToClean = new ArrayList<>();

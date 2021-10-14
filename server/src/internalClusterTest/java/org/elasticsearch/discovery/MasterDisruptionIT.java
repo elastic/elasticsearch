@@ -213,7 +213,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
+                .setPersistentSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
         networkDisruption.startDisrupting();
@@ -245,7 +245,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
         ensureGreen();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put("indices.mapping.dynamic_timeout", "1ms")));
 
         ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());

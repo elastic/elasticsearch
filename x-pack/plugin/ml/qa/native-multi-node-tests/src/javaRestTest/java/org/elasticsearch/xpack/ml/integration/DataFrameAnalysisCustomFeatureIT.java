@@ -77,7 +77,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     public void setupLogging() {
         client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
                 .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG"))
             .get();
@@ -88,7 +88,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         cleanUp();
         client().admin().cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
                 .putNull("logger.org.elasticsearch.xpack.core.ml.inference"))
             .get();

@@ -114,7 +114,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
+            "{\"persistent\": {\"xpack.transform.num_transform_failure_retries\": \""
                 + 0
                 + "\","
                 + "\"logger.org.elasticsearch.action.bulk\": \"info\","

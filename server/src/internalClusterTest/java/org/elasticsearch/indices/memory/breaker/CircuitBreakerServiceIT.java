@@ -81,7 +81,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING).forEach(s -> resetSettings.putNull(s.getKey()));
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings));
     }
 
     @Before
@@ -138,7 +138,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
                 .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -192,7 +192,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
                 .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -226,7 +226,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
                 .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
@@ -260,7 +260,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
                 .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(100, 1000);
@@ -309,14 +309,14 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         Settings insane = Settings.builder()
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
             .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(insane).get();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(insane).get();
 
         // calls updates settings to reset everything to default, checking that the request
         // is not blocked by the above inflight circuit breaker
         reset();
 
         assertThat(client().admin().cluster().prepareState().get()
-            .getState().metadata().transientSettings().get(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()),
+            .getState().metadata().persistentSettings().get(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()),
             nullValue());
 
     }
@@ -367,7 +367,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
             .build();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(limitSettings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(limitSettings));
 
         // can either fail directly with an exception or the response contains exceptions (depending on client)
         try {

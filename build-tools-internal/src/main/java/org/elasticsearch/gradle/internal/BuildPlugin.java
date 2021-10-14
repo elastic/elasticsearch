@@ -21,8 +21,9 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.initialization.layout.BuildLayout;
 
-import javax.inject.Inject;
 import java.io.File;
+
+import javax.inject.Inject;
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -37,7 +38,7 @@ public class BuildPlugin implements Plugin<Project> {
     private final ProjectLayout projectLayout;
 
     @Inject
-    BuildPlugin(BuildLayout buildLayout, ObjectFactory objectFactory, ProviderFactory providerFactory, ProjectLayout projectLayout){
+    BuildPlugin(BuildLayout buildLayout, ObjectFactory objectFactory, ProviderFactory providerFactory, ProjectLayout projectLayout) {
         this.buildLayout = buildLayout;
         this.objectFactory = objectFactory;
         this.providerFactory = providerFactory;
@@ -61,7 +62,6 @@ public class BuildPlugin implements Plugin<Project> {
         InternalPrecommitTasks.create(project, true);
         configureLicenseAndNotice(project);
     }
-
 
     public void configureLicenseAndNotice(final Project project) {
         final ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);

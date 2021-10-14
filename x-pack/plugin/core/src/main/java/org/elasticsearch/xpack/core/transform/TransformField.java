@@ -69,10 +69,6 @@ public final class TransformField {
     public static final String REST_BASE_PATH_TRANSFORMS = "/_transform/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
 
-    // deprecated REST API, to be removed for 8.0.0
-    public static final String REST_BASE_PATH_TRANSFORMS_DEPRECATED = "/_data_frame/transforms/";
-    public static final String REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED = REST_BASE_PATH_TRANSFORMS_DEPRECATED + "{id}/";
-
     public static final String TRANSFORM_ID = "transform_id";
 
     // note: this is used to match tasks

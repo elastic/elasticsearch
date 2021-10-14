@@ -13,7 +13,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -23,6 +22,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -47,7 +48,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
             // TODO: should we check is DLS/FLS feature allowed here
             if (supports(indicesRequest)) {
-                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+                var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
                 final IndicesAccessControl indicesAccessControl
                     = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();

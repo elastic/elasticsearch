@@ -16,7 +16,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -24,6 +23,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 /**
  * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
@@ -51,7 +52,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
             // TODO replace if condition with assertion
             if (indexAccessControl != null) {
-                var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+                var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {

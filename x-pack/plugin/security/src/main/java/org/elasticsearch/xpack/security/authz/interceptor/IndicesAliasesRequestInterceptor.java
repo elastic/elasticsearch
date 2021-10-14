@@ -13,7 +13,6 @@ import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -32,6 +31,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public final class IndicesAliasesRequestInterceptor implements RequestInterceptor {
 
@@ -51,9 +51,8 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                           ActionListener<Void> listener) {
         if (requestInfo.getRequest() instanceof IndicesAliasesRequest) {
             final IndicesAliasesRequest request = (IndicesAliasesRequest) requestInfo.getRequest();
-            final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
-            var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+            var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
             IndicesAccessControl indicesAccessControl =
                 threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {

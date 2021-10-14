@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplate
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+
 public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> {
 
     private static final Logger logger = LogManager.getLogger(DlsFlsRequestCacheDifferentiator.class);
@@ -41,7 +43,7 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
 
     @Override
     public void accept(ShardSearchRequest request, StreamOutput out) throws IOException {
-        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS));
+        var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
         final SecurityContext securityContext = securityContextHolder.get();
         final IndicesAccessControl indicesAccessControl =
             securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

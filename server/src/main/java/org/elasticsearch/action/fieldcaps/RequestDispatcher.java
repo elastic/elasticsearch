@@ -140,11 +140,10 @@ final class RequestDispatcher {
         }
         for (String failedIndex : failedIndices) {
             final IndexSelector indexSelector = indexSelectors.remove(failedIndex);
-            if (indexSelector != null) {
-                final Exception failure = indexSelector.getFailure();
-                if (failure != null) {
-                    onIndexFailure.accept(failedIndex, failure);
-                }
+            assert indexSelector != null;
+            final Exception failure = indexSelector.getFailure();
+            if (failure != null) {
+                onIndexFailure.accept(failedIndex, failure);
             }
         }
         if (nodeToSelectedShards.isEmpty()) {

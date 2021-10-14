@@ -30,3 +30,8 @@ restResources {
         include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
     }
 }
+
+testClusters.configureEach {
+    module xpackModule('core')
+    module xpackModule('shutdown')
+}

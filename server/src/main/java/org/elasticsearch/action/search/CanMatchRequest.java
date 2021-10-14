@@ -8,7 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,7 +35,7 @@ import java.util.stream.Collectors;
 /**
  * Node-level request used during can-match phase
  */
-public class CanMatchRequest extends TransportRequest {
+public class CanMatchRequest extends TransportRequest implements IndicesRequest {
 
     private final SearchSourceBuilder source;
     private final List<Shard> shards;
@@ -45,6 +47,7 @@ public class CanMatchRequest extends TransportRequest {
     private final long nowInMillis;
     @Nullable
     private final String clusterAlias;
+    private final String[] indices;
 
     public static class Shard implements Writeable {
         private final OriginalIndices originalIndices;
@@ -122,6 +125,7 @@ public class CanMatchRequest extends TransportRequest {
         this.numberOfShards = numberOfShards;
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
+        indices = shards.stream().map(Shard::shardId).map(ShardId::getIndexName).distinct().toArray(String[]::new);
     }
 
     public CanMatchRequest(StreamInput in) throws IOException {
@@ -135,6 +139,7 @@ public class CanMatchRequest extends TransportRequest {
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
         shards = in.readList(Shard::new);
+        indices = shards.stream().map(Shard::shardId).map(ShardId::getIndexName).distinct().toArray(String[]::new);
     }
 
     @Override
@@ -167,6 +172,16 @@ public class CanMatchRequest extends TransportRequest {
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;
+    }
+
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return shards.isEmpty() ? null : shards.iterator().next().originalIndices.indicesOptions();
     }
 
     @Override

@@ -13,6 +13,8 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_716_monitoring_changes>>
 
+* <<breaking_716_settings_deprecations>>
+
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 

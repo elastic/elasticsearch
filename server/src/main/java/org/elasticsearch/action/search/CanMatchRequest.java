@@ -49,9 +49,10 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
     @Nullable
     private final String clusterAlias;
     private final String[] indices;
+    private final IndicesOptions indicesOptions;
 
     public static class Shard implements Writeable {
-        private final OriginalIndices originalIndices;
+        private final String[] indices;
         private final ShardId shardId;
         private final int shardRequestIndex;
         private final AliasFilter aliasFilter;
@@ -59,14 +60,14 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         private final ShardSearchContextId readerId;
         private final TimeValue keepAlive;
 
-        public Shard(OriginalIndices originalIndices,
+        public Shard(String[] indices,
                      ShardId shardId,
                      int shardRequestIndex,
                      AliasFilter aliasFilter,
                      float indexBoost,
                      ShardSearchContextId readerId,
                      TimeValue keepAlive) {
-            this.originalIndices = originalIndices;
+            this.indices = indices;
             this.shardId = shardId;
             this.shardRequestIndex = shardRequestIndex;
             this.aliasFilter = aliasFilter;
@@ -77,7 +78,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         }
 
         public Shard(StreamInput in) throws IOException {
-            originalIndices = OriginalIndices.readOriginalIndices(in);
+            indices = in.readStringArray();
             shardId = new ShardId(in);
             shardRequestIndex = in.readVInt();
             aliasFilter = new AliasFilter(in);
@@ -89,7 +90,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
+            out.writeStringArray(indices);
             shardId.writeTo(out);
             out.writeVInt(shardRequestIndex);
             aliasFilter.writeTo(out);
@@ -102,8 +103,8 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             return shardRequestIndex;
         }
 
-        public OriginalIndices getOriginalIndices() {
-            return originalIndices;
+        public String[] getOriginalIndices() {
+            return indices;
         }
 
         public ShardId shardId() {
@@ -113,12 +114,14 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
 
     public CanMatchRequest(
         SearchRequest searchRequest,
+        IndicesOptions indicesOptions,
         List<Shard> shards,
         int numberOfShards,
         long nowInMillis,
         @Nullable String clusterAlias
         ) {
         this.source = searchRequest.source();
+        this.indicesOptions = indicesOptions;
         this.shards = new ArrayList<>(shards);
         this.searchType = searchRequest.searchType();
         this.requestCache = searchRequest.requestCache();
@@ -130,13 +133,14 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         this.numberOfShards = numberOfShards;
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
-        indices = shards.stream().map(Shard::getOriginalIndices).map(OriginalIndices::indices).flatMap(Arrays::stream).distinct()
+        indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct()
             .toArray(String[]::new);
     }
 
     public CanMatchRequest(StreamInput in) throws IOException {
         super(in);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         searchType = SearchType.fromId(in.readByte());
         scroll = in.readOptionalWriteable(Scroll::new);
         requestCache = in.readOptionalBoolean();
@@ -145,7 +149,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
         shards = in.readList(Shard::new);
-        indices = shards.stream().map(Shard::getOriginalIndices).map(OriginalIndices::indices).flatMap(Arrays::stream).distinct()
+        indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct()
             .toArray(String[]::new);
     }
 
@@ -153,6 +157,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(source);
+        indicesOptions.writeIndicesOptions(out);
         out.writeByte(searchType.id());
         out.writeOptionalWriteable(scroll);
         out.writeOptionalBoolean(requestCache);
@@ -173,7 +178,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
 
     public ShardSearchRequest createShardSearchRequest(Shard r) {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-            r.originalIndices, r.shardId, r.shardRequestIndex, numberOfShards, searchType,
+            new OriginalIndices(r.indices, indicesOptions), r.shardId, r.shardRequestIndex, numberOfShards, searchType,
             source, requestCache, r.aliasFilter, r.indexBoost, allowPartialSearchResults, scroll,
             nowInMillis, clusterAlias, r.readerId, r.keepAlive
         );
@@ -188,7 +193,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
 
     @Override
     public IndicesOptions indicesOptions() {
-        return shards.isEmpty() ? null : shards.iterator().next().originalIndices.indicesOptions();
+        return indicesOptions;
     }
 
     @Override

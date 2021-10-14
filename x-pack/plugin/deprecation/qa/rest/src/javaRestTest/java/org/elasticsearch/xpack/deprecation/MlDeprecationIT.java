@@ -27,9 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;

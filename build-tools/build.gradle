@@ -21,8 +21,8 @@ description = "The elasticsearch build tools"
 
 group = "org.elasticsearch.gradle"
 version = versions.getProperty("elasticsearch")
-targetCompatibility = versions.get("minimumRuntimeJava")
-sourceCompatibility = versions.get("minimumRuntimeJava")
+targetCompatibility = 11
+sourceCompatibility = 11
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes

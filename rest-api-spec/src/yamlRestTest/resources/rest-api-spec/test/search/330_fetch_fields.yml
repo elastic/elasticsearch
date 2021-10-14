@@ -1058,7 +1058,9 @@ test fetching metadata fields:
       search:
         index: test
         body:
-          fields: [ "_id" ]
+          fields: [ "_id", "_index", "_version" ]
 
-  - length: { hits.hits.0.fields : 1 }
+  - length: { hits.hits.0.fields : 3 }
   - match: { hits.hits.0.fields._id.0: "1" }
+  - match: { hits.hits.0.fields._index.0: "test" }
+  - match: { hits.hits.0.fields._version.0: 1 }

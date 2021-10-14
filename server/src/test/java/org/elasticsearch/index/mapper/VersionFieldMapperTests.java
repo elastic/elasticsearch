@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -19,51 +21,56 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
 
-public class IndexFieldMapperTests extends MapperServiceTestCase {
+public class VersionFieldMapperTests extends MapperServiceTestCase {
 
-    public void testDefaultDisabledIndexMapper() throws Exception {
+    public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
-        assertThat(doc.rootDoc().get("_index"), nullValue());
-        assertThat(doc.rootDoc().get("field"), equalTo("value"));
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("_version", 1))));
+
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [_version] is a metadata field and cannot be added inside a document"));
     }
 
-    public void testIndexNotConfigurable() {
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> createMapperService(topMapping(b -> b.startObject("_index").endObject())));
-        assertThat(e.getMessage(), containsString("_index is not configurable"));
+    public void testDefaults() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument document = mapper.parse(source(b -> b.field("field", "value")));
+        IndexableField[] fields = document.rootDoc().getFields(VersionFieldMapper.NAME);
+        assertEquals(1, fields.length);
+        assertEquals(IndexOptions.NONE, fields[0].fieldType().indexOptions());
+        assertEquals(DocValuesType.NUMERIC, fields[0].fieldType().docValuesType());
     }
 
     public void testFetchFieldValue() throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword"))
         );
-        String index = randomAlphaOfLength(12);
+        long version = randomLongBetween(1, 1000);
         withLuceneIndex(mapperService, iw -> {
-            SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", Map.of());
-            iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
+            ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(b -> b.field("field", "value")));
+            parsedDoc.version().setLongValue(version);
+            iw.addDocument(parsedDoc.rootDoc());
         }, iw -> {
-            IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
+            VersionFieldMapper.VersionFieldType ft = (VersionFieldMapper.VersionFieldType) mapperService.fieldType("_version");
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             when(searchExecutionContext.getForField(ft)).thenReturn(
-                ft.fielddataBuilder(index, () -> lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                ft.fielddataBuilder("test", () -> lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
             );
-            when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index(index, "indexUUid"));
             ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
+            assertEquals(List.of(version), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
         });
     }
+
+
 
 }

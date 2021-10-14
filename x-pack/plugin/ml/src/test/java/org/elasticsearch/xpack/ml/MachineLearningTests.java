@@ -41,6 +41,7 @@ import static org.mockito.Mockito.when;
 
 public class MachineLearningTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testPrePostSystemIndexUpgrade_givenNotInUpgradeMode() {
         ThreadPool threadpool = new TestThreadPool("test");
         ClusterService clusterService = mock(ClusterService.class);
@@ -48,7 +49,6 @@ public class MachineLearningTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadpool);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;

@@ -115,6 +115,15 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
+     * Checks if the current {@link SnapshotDeletionsInProgress} contains the given {@link SnapshotId}
+     *
+     * @param snapshotId the snapshot id
+     */
+    public boolean contains(SnapshotId snapshotId) {
+        return getEntries().stream().anyMatch(entry -> entry.getSnapshots().contains(snapshotId));
+    }
+
+    /**
      * Returns {@code true} if there are snapshot deletions in progress in the cluster,
      * returns {@code false} otherwise.
      */

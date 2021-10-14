@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInPending;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -2505,7 +2506,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
         updatedDeletionsInProgress = changedDeletions ? SnapshotDeletionsInProgress.of(deletionEntries) : null;
-        return SnapshotsService.updateWithSnapshots(state, updatedSnapshotsInProgress, updatedDeletionsInProgress);
+        final SnapshotDeletionsInPending pendingDeletions = state.custom(SnapshotDeletionsInPending.TYPE);
+        return SnapshotsService.updateWithSnapshots(state, updatedSnapshotsInProgress, updatedDeletionsInProgress, pendingDeletions);
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {

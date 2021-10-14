@@ -350,6 +350,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
                                 ensureRepositoryNotInUse(currentState, repositoryMetadata.name());
                                 ensureNoSearchableSnapshotsIndicesInUse(currentState, repositoryMetadata);
+                                // TODO should we prevent the deletion of repositories that have snapshots pending deletions or should
+                                // we just log a warning and rely on SnapshotDeletionsPending to catch up if the repo comes back
                                 deletedRepositories.add(repositoryMetadata.name());
                                 changed = true;
                             } else {

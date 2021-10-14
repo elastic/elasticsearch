@@ -19,6 +19,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.SnapshotDeletionsInPending;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -83,7 +86,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSearchableSnapshots.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), LocalStateSearchableSnapshots.class);
     }
 
     @Override
@@ -332,6 +335,24 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
             }
+        });
+    }
+
+    protected void awaitNoMoreSnapshotsDeletions() throws Exception {
+        final String master = internalCluster().getMasterName();
+        awaitClusterState(logger, master, state -> {
+            final SnapshotDeletionsInProgress deletions = state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+            if (deletions.hasDeletionsInProgress()) {
+                return false;
+            }
+            final SnapshotDeletionsInPending pendingDeletions = state.custom(
+                SnapshotDeletionsInPending.TYPE,
+                SnapshotDeletionsInPending.EMPTY
+            );
+            if (pendingDeletions.isEmpty() == false) {
+                return false;
+            }
+            return true;
         });
     }
 }

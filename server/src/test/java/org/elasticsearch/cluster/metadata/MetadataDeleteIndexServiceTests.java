@@ -9,16 +9,20 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotDeletionsInPending;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -38,8 +42,14 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -157,6 +167,107 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +
             dataStreamName + "] and cannot be deleted"));
+    }
+
+    public void testDeleteIndexWithSnapshotDeletion() {
+        final boolean deleteSnapshot = randomBoolean();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(Settings.builder()
+                .put("index.version.created", VersionUtils.randomVersion(random()))
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, "repo_name")
+                .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, randomBoolean() ? null : "repo_uuid")
+                .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, "snap_name")
+                .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY, "snap_uuid")
+                .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, deleteSnapshot)
+                .build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder()
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE,
+                    new RepositoriesMetadata(
+                        List.of(new RepositoryMetadata("repo_name", "fs", Settings.EMPTY).withUuid("repo_uuid")))))
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
+            .build();
+
+        final ClusterState updatedState = service.deleteIndices(initialState, Set.of(indexMetadata.getIndex()));
+        assertThat(updatedState.metadata().getIndices().get("test"), nullValue());
+        assertThat(updatedState.blocks().indices().get("test"), nullValue());
+        assertThat(updatedState.routingTable().index("test"), nullValue());
+
+        final SnapshotDeletionsInPending updatedPendingDeletions = updatedState.custom(SnapshotDeletionsInPending.TYPE);
+        if (deleteSnapshot) {
+            assertThat(updatedPendingDeletions, notNullValue());
+            assertThat(updatedPendingDeletions.isEmpty(), equalTo(false));
+            assertThat(updatedPendingDeletions.contains(new SnapshotId("snap_name", "snap_uuid")), equalTo(true));
+        } else {
+            assertThat(updatedPendingDeletions, nullValue());
+        }
+    }
+
+    public void testDeleteMultipleIndicesWithSnapshotDeletion() {
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), "fs", Settings.EMPTY);
+        if (randomBoolean()) {
+            repositoryMetadata = repositoryMetadata.withUuid(UUIDs.randomBase64UUID());
+        }
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repositoryMetadata)));
+        final RoutingTable.Builder routingBuilder = RoutingTable.builder();
+
+        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        final Set<Index> indices = new HashSet<>();
+
+        final int nbIndices = randomIntBetween(2, 10);
+        for (int i = 0; i < nbIndices; i++) {
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put("index.version.created", VersionUtils.randomVersion(random()))
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, true)
+                .put(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, repositoryMetadata.name())
+                .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, snapshotId.getName())
+                .put(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY, snapshotId.getUUID());
+            if (randomBoolean()) {
+                indexSettingsBuilder.put(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, repositoryMetadata.uuid());
+            }
+            IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10) + i)
+                .settings(indexSettingsBuilder.build())
+                .numberOfShards(randomIntBetween(1, 3))
+                .numberOfReplicas(randomInt(1))
+                .build();
+            metadataBuilder.put(indexMetadata, false);
+            routingBuilder.addAsNew(indexMetadata);
+            indices.add(indexMetadata.getIndex());
+        }
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .routingTable(routingBuilder.build())
+            .metadata(metadataBuilder)
+            .build();
+
+        SnapshotDeletionsInPending pendingDeletions =
+            clusterState.custom(SnapshotDeletionsInPending.TYPE, SnapshotDeletionsInPending.EMPTY);
+        while (indices.size() > 0) {
+            assertThat(pendingDeletions.isEmpty(), equalTo(true));
+
+            List<Index> indicesToDelete = randomSubsetOf(randomIntBetween(1, Math.max(1, indices.size() - 1)), indices);
+            clusterState = service.deleteIndices(clusterState, Set.copyOf(indicesToDelete));
+            indicesToDelete.forEach(indices::remove);
+
+            for (Index deletedIndex : indicesToDelete) {
+                assertThat(clusterState.metadata().index(deletedIndex), nullValue());
+                assertThat(clusterState.routingTable().index(deletedIndex), nullValue());
+            }
+
+            pendingDeletions = clusterState.custom(SnapshotDeletionsInPending.TYPE, SnapshotDeletionsInPending.EMPTY);
+        }
+
+        assertThat(pendingDeletions.isEmpty(), equalTo(false));
+        assertThat(pendingDeletions.contains(snapshotId), equalTo(true));
     }
 
     private ClusterState clusterState(String index) {

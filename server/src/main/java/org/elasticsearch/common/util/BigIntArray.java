@@ -29,13 +29,11 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
-    static final byte[] ZERO_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] MIN_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] MAX_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
 
     static {
         for (int i = 0; i < INT_PAGE_SIZE; i++) {
-            VH_PLATFORM_NATIVE_INT.set(ZERO_VALUE_FILL, i << 2, 0);
             VH_PLATFORM_NATIVE_INT.set(MIN_VALUE_FILL, i << 2, Integer.MIN_VALUE);
             VH_PLATFORM_NATIVE_INT.set(MAX_VALUE_FILL, i << 2, Integer.MAX_VALUE);
         }
@@ -100,7 +98,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
 
     public static void fill(byte[] page, int from, int to, int value) {
         if (value == 0) {
-            System.arraycopy(ZERO_VALUE_FILL, 0, page, from << 2, (to - from) << 2);
+            Arrays.fill(page, from << 2, to << 2, (byte) 0);
         } else if (value == Integer.MIN_VALUE) {
             System.arraycopy(MIN_VALUE_FILL, 0, page, from << 2, (to - from) << 2);
         } else if (value == Integer.MAX_VALUE) {

@@ -29,13 +29,11 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     static final VarHandle VH_PLATFORM_NATIVE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
-    static final byte[] ZERO_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] MIN_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
     static final byte[] MAX_VALUE_FILL = new byte[BYTE_PAGE_SIZE];
 
     static {
         for (int i = 0; i < LONG_PAGE_SIZE; i++) {
-            VH_PLATFORM_NATIVE_LONG.set(ZERO_VALUE_FILL, i << 3, 0L);
             VH_PLATFORM_NATIVE_LONG.set(MIN_VALUE_FILL, i << 3, Long.MIN_VALUE);
             VH_PLATFORM_NATIVE_LONG.set(MAX_VALUE_FILL, i << 3, Long.MAX_VALUE);
         }
@@ -125,7 +123,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     public static void fill(byte[] page, int from, int to, long value) {
         if (value == 0L) {
-            System.arraycopy(ZERO_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
+            Arrays.fill(page, from << 3, to << 3, (byte) 0);
         } else if (value == Long.MIN_VALUE) {
             System.arraycopy(MIN_VALUE_FILL, 0, page, from << 3, (to - from) << 3);
         } else if (value == Long.MAX_VALUE) {

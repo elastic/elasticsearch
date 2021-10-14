@@ -104,6 +104,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
 
         public static void denyRecoveryFromSnapshot(CheckedRunnable<Exception> runnable) throws Exception {
+            assert recoveryFromSnapshotAllowed.get();
+
             recoveryFromSnapshotAllowed.set(false);
 
             try {

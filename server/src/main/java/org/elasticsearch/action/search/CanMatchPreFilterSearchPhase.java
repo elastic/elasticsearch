@@ -149,7 +149,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
-            final CanMatchRequest canMatchRequest = new CanMatchRequest(searchShardIterator.getOriginalIndices(), request,
+            final CanMatchRequest canMatchRequest = new CanMatchRequest(request,
                 Collections.emptyList(), getNumShards(), timeProvider.getAbsoluteStartMillis(), searchShardIterator.getClusterAlias());
             final ShardSearchRequest request = canMatchRequest.createShardSearchRequest(buildShardLevelRequest(searchShardIterator));
             boolean canMatch = true;
@@ -369,10 +369,8 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         final List<CanMatchRequest.Shard> shardLevelRequests =
             entry.getValue().stream().map(this::buildShardLevelRequest).collect(Collectors.toCollection(ArrayList::new));
         assert entry.getValue().stream().allMatch(Objects::nonNull);
-        assert entry.getValue().stream().allMatch(ssi -> ssi.getOriginalIndices() != null);
-        assert entry.getValue().stream().allMatch(ssi -> ssi.getOriginalIndices().equals(first.getOriginalIndices()));
         assert entry.getValue().stream().allMatch(ssi -> Objects.equals(ssi.getClusterAlias(), first.getClusterAlias()));
-        return new CanMatchRequest(first.getOriginalIndices(), request,
+        return new CanMatchRequest(request,
             shardLevelRequests, getNumShards(), timeProvider.getAbsoluteStartMillis(), first.getClusterAlias());
     }
 
@@ -393,7 +391,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        return new CanMatchRequest.Shard(shardIt.shardId(),
+        return new CanMatchRequest.Shard(shardIt.getOriginalIndices(), shardIt.shardId(),
             shardItIndexMap.get(shardIt), filter, indexBoost, shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
     }
 

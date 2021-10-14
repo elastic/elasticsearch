@@ -78,7 +78,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for Machine Learning and Transform templates to be created by the {@link MetadataUpgrader}
+     * Waits for Machine Learning templates to be created by the {@link MetadataUpgrader}
      */
     private void waitForTemplates() {
         if (installTemplates()) {

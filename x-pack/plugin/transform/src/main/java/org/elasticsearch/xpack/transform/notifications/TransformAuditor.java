@@ -46,7 +46,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             TransformInternalIndexConstants.AUDIT_INDEX,
             Version.V_7_16_0,
             () -> {
-                // legacy template implementation, to be removed
+                // legacy template implementation, to be removed in 8.x
                 try {
                     IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata();
 

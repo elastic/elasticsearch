@@ -9,7 +9,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -58,7 +57,7 @@ public class RankEvalResponseTests extends ESTestCase {
             new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
             new SearchPhaseExecutionException("search", "all shards failed",
                     new ShardSearchFailure[] { new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null, OriginalIndices.NONE)) }),
+                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)) }),
             new ElasticsearchException("Parsing failed",
                     new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))) };
 
@@ -169,7 +168,7 @@ public class RankEvalResponseTests extends ESTestCase {
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
         SearchHit hit = new SearchHit(docId, docId + "", Collections.emptyMap(), Collections.emptyMap());
-        hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
+        hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
     }

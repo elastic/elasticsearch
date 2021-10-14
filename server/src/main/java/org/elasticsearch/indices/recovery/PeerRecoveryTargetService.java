@@ -495,6 +495,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
+
     private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
                                                         final String action, final RecoveryTransportRequest request) {
         return createOrFinishListener(recoveryRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +26,6 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     private final Text nodeId;
     private final ShardId shardId;
-    //original indices are only needed in the coordinating node throughout the search request execution.
-    //no need to serialize them as part of SearchShardTarget.
-    private final transient OriginalIndices originalIndices;
     private final String clusterAlias;
 
     public SearchShardTarget(StreamInput in) throws IOException {
@@ -39,14 +35,12 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
             nodeId = null;
         }
         shardId = new ShardId(in);
-        this.originalIndices = null;
         clusterAlias = in.readOptionalString();
     }
 
-    public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias, OriginalIndices originalIndices) {
+    public SearchShardTarget(String nodeId, ShardId shardId, @Nullable String clusterAlias) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
         this.shardId = shardId;
-        this.originalIndices = originalIndices;
         this.clusterAlias = clusterAlias;
     }
 
@@ -65,10 +59,6 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
 
     public ShardId getShardId() {
         return shardId;
-    }
-
-    public OriginalIndices getOriginalIndices() {
-        return originalIndices;
     }
 
     @Nullable

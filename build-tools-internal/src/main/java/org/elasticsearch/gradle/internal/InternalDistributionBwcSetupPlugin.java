@@ -22,12 +22,13 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
@@ -243,7 +244,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                 public void execute(Task task) {
                     if (expectedOutputFile.exists() == false) {
                         throw new InvalidUserDataException(
-                                "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
+                            "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
                         );
                     }
                 }

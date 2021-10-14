@@ -751,13 +751,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
             msgBuilder.append("] with latest_record_timestamp [");
             Date snapshotLatestRecordTimestamp = modelSnapshot.getLatestRecordTimeStamp();
             msgBuilder.append(snapshotLatestRecordTimestamp == null ? "N/A" :
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(
-                            snapshotLatestRecordTimestamp.getTime()));
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(snapshotLatestRecordTimestamp.toInstant()));
         }
         msgBuilder.append("], job latest_record_timestamp [");
         Date jobLatestRecordTimestamp = autodetectParams.dataCounts().getLatestRecordTimeStamp();
         msgBuilder.append(jobLatestRecordTimestamp == null ? "N/A"
-                : XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(jobLatestRecordTimestamp.getTime()));
+                : XContentElasticsearchExtension.DEFAULT_FORMATTER.format(jobLatestRecordTimestamp.toInstant()));
         msgBuilder.append("]");
         String msg = msgBuilder.toString();
         logger.info("[{}] {}", jobId, msg);

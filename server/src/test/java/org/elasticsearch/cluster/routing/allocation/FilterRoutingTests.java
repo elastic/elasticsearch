@@ -32,6 +32,7 @@ import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -180,7 +181,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> rerouting");
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -189,7 +190,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> make sure shards are only allocated on tag1 with value1 and value2");
-        final List<ShardRouting> startedShards = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
+        final List<ShardRouting> startedShards = shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));
         for (ShardRouting startedShard : startedShards) {
             assertThat(startedShard.currentNodeId(), Matchers.anyOf(equalTo("node1"), equalTo("node2")));
@@ -283,7 +284,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> rerouting");
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -292,7 +293,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> make sure shards are only allocated on tag1 with value1 and value2");
-        List<ShardRouting> startedShards = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));
         for (ShardRouting startedShard : startedShards) {
             assertThat(startedShard.currentNodeId(), Matchers.anyOf(equalTo("node1"), equalTo("node2")));
@@ -307,14 +308,14 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).metadata(updatedMetadata).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(2));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(2));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(2));
 
         logger.info("--> finish relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        startedShards = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
+        startedShards = shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(startedShards.size(), equalTo(4));
         for (ShardRouting startedShard : startedShards) {
             assertThat(startedShard.currentNodeId(), Matchers.anyOf(equalTo("node1"), equalTo("node4")));
@@ -350,7 +351,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> make sure all shards are started");
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(4));
 
         logger.info("--> disable allocation for node1 and reroute");
         strategy = createAllocationService(Settings.builder()

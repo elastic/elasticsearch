@@ -28,9 +28,7 @@ public class LicenseIsEnforcedDuringSnapshotBasedRecoveryIT extends AbstractSnap
 
     @Override
     protected Settings repositorySettings() {
-        return Settings.builder()
-            .put("location", System.getProperty("tests.path.repo"))
-            .build();
+        return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
     }
 
     @Override

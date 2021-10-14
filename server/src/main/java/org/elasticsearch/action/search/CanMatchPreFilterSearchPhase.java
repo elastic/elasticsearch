@@ -150,28 +150,25 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
             final CanMatchRequest canMatchRequest = new CanMatchRequest(searchShardIterator.getOriginalIndices(), request,
-                Collections.singletonList(buildShardLevelRequest(searchShardIterator)), getNumShards(),
-                timeProvider.getAbsoluteStartMillis(), searchShardIterator.getClusterAlias());
-            List<ShardSearchRequest> shardSearchRequests = canMatchRequest.createShardSearchRequests();
-            for (ShardSearchRequest request : shardSearchRequests) {
-                boolean canMatch = true;
-                CoordinatorRewriteContext coordinatorRewriteContext =
-                    coordinatorRewriteContextProvider.getCoordinatorRewriteContext(request.shardId().getIndex());
-                if (coordinatorRewriteContext != null) {
-                    try {
-                        canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
-                    } catch (Exception e) {
-                        // treat as if shard is still a potential match
-                    }
+                Collections.emptyList(), getNumShards(), timeProvider.getAbsoluteStartMillis(), searchShardIterator.getClusterAlias());
+            final ShardSearchRequest request = canMatchRequest.createShardSearchRequest(buildShardLevelRequest(searchShardIterator));
+            boolean canMatch = true;
+            CoordinatorRewriteContext coordinatorRewriteContext =
+                coordinatorRewriteContextProvider.getCoordinatorRewriteContext(request.shardId().getIndex());
+            if (coordinatorRewriteContext != null) {
+                try {
+                    canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
+                } catch (Exception e) {
+                    // treat as if shard is still a potential match
                 }
-                if (canMatch) {
-                    matchedShardLevelRequests.add(searchShardIterator);
-                } else {
-                    CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
-                    result.setShardIndex(request.shardRequestIndex());
-                    results.consumeResult(result, () -> {
-                    });
-                }
+            }
+            if (canMatch) {
+                matchedShardLevelRequests.add(searchShardIterator);
+            } else {
+                CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
+                result.setShardIndex(request.shardRequestIndex());
+                results.consumeResult(result, () -> {
+                });
             }
         }
 
@@ -297,7 +294,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             failedResponses.set(idx, null);
             results.consumeResult(response, () -> {
                 if (countDown.countDown()) {
-                    finishPhase();
+                    finishRound();
                 }
             });
         }
@@ -306,11 +303,11 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             failedResponses.set(idx, e);
             results.consumeShardFailure(idx);
             if (countDown.countDown()) {
-                finishPhase();
+                finishRound();
             }
         }
 
-        private void finishPhase() {
+        private void finishRound() {
             List<SearchShardIterator> remainingShards = new ArrayList<>();
             for (SearchShardIterator ssi : shards) {
                 int shardIndex = shardItIndexMap.get(ssi);
@@ -320,7 +317,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 }
             }
             if (remainingShards.isEmpty()) {
-                CanMatchPreFilterSearchPhase.this.finishPhase();
+                finishPhase();
             } else {
                 // trigger another round, forcing execution
                 executor.execute(new Round(new GroupShardsIterator<>(remainingShards)) {

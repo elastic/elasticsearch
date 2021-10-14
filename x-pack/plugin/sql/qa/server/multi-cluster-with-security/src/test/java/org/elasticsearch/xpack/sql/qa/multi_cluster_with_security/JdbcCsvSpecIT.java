@@ -11,9 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvSpecTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
@@ -24,6 +27,9 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster"; // gradle defined
     public static final String EXTRACT_FN_NAME = "EXTRACT";
 
+    private static final Pattern DESCRIBE_OR_SHOW = Pattern.compile("(?i)\\s*(DESCRIBE|SHOW).*");
+    private static final Pattern FROM_QUALIFIED = Pattern.compile("(?i)FROM\\w+" + REMOTE_CLUSTER_NAME + ":");
+
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> list = new ArrayList<>();
@@ -33,7 +39,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     }
 
     public JdbcCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
-        super(fileName, groupName, testName, lineNumber, qualifyFromClause(testCase));
+        super(fileName, groupName, testName, lineNumber, randomBoolean() ? qualifyFromClause(testCase) : testCase);
     }
 
     // qualify the query FROM clause with the cluster name, but (crudely) skip `EXTRACT(a FROM b)` calls.
@@ -84,10 +90,19 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     }
 
     @Override
+    public Connection esJdbc() throws SQLException {
+         Connection connection = esJdbc(connectionProperties());
+         if (FROM_QUALIFIED.matcher(csvTestCase().query).matches() == false) {
+             connection.setCatalog(REMOTE_CLUSTER_NAME);
+         }
+         return connection;
+    }
+
+        @Override
     public boolean isEnabled() {
         return super.isEnabled() &&
             // skip single-cluster tests that'd need a CLUSTER clause to work in multi-cluster mode.
-            (csvTestCase().query.matches("(?i)\\s*(DESCRIBE|SHOW).*") == false || fileName.startsWith("multi-cluster"));
+            (DESCRIBE_OR_SHOW.matcher(csvTestCase().query).matches() == false || fileName.startsWith("multi-cluster"));
     }
 
 

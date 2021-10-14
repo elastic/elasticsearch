@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -35,6 +34,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class SqlSession implements Session {
@@ -143,8 +143,9 @@ public class SqlSession implements Session {
             TableIdentifier table = tableInfo.id();
 
             String cluster = table.cluster();
+            cluster = hasText(cluster) ? cluster : configuration.catalog();
 
-            String indexPattern = Strings.hasText(cluster) && cluster.equals(configuration.clusterName()) == false ?
+            String indexPattern = hasText(cluster) && cluster.equals(configuration.clusterName()) == false ?
                 buildRemoteIndexName(cluster, table.index()) : table.index();
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();

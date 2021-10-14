@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -83,6 +84,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
 
         public RequestObjectBuilder timeZone(String timeZone) {
             request.append(field(TIME_ZONE_NAME, timeZone));
+            return this;
+        }
+
+        public RequestObjectBuilder catalog(String catalog) {
+            request.append(field(CATALOG_NAME, catalog));
             return this;
         }
 

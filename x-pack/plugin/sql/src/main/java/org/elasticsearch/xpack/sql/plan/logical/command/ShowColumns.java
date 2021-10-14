@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
@@ -29,6 +28,7 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class ShowColumns extends Command {
@@ -71,8 +71,9 @@ public class ShowColumns extends Command {
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
         String cluster = session.indexResolver().clusterName();
+        String cat = hasText(catalog) ? catalog : session.configuration().catalog();
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
-        idx = Strings.hasText(catalog) && catalog.equals(cluster) == false ? buildRemoteIndexName(catalog, idx) : idx;
+        idx = hasText(cat) && cat.equals(cluster) == false ? buildRemoteIndexName(cat, idx) : idx;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
         session.indexResolver().resolveAsMergedMapping(idx, withFrozen, emptyMap(), ActionListener.wrap(

@@ -231,7 +231,7 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     private int executeCommandInOdbcModeAndCountRows(String sql) {
-        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT,
+        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, null, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT, null, null, Mode.ODBC, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
@@ -256,7 +256,7 @@ public class SysColumnsTests extends ESTestCase {
 
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Mode mode, Consumer<SchemaRowSet> consumer,
                                 Map<String, EsField> mapping) {
-        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT, null, null, mode, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 

@@ -312,7 +312,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     "invalid [" + table + "] resolution to [" + indexResolution + "]");
             }
             LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
-            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, table.toString());
+            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, indexResolution.get().toString());
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.source(), sa, plan.alias());

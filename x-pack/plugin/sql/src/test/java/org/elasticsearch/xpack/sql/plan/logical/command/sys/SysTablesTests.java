@@ -59,7 +59,7 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo alias = new IndexInfo(CLUSTER_NAME, "alias", IndexType.ALIAS);
     private final IndexInfo frozen = new IndexInfo(CLUSTER_NAME, "frozen", IndexType.FROZEN_INDEX);
 
-    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null, false, true);
 
     //

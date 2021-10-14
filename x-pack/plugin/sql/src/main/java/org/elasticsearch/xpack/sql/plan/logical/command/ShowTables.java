@@ -21,6 +21,7 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.Strings.hasText;
 
 public class ShowTables extends Command {
 
@@ -61,6 +62,7 @@ public class ShowTables extends Command {
     @Override
     public final void execute(SqlSession session, ActionListener<Page> listener) {
         String cat = catalogPattern != null ? catalogPattern.asIndexNameWildcard() : catalog;
+        cat = hasText(cat) ? cat : session.configuration().catalog();
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 

@@ -43,17 +43,6 @@ GET /_snapshot/my_repository/my_snapshot
 `monitor_snapshot`, `create_snapshot`, or `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[get-snapshot-api-desc]]
-==== {api-description-title}
-
-Use the get snapshot API to return information about one or more snapshots, including:
-
-* Start and end time values
-* Version of {es} that created the snapshot
-* List of included indices
-* Current state of the snapshot
-* List of failures that occurred during the snapshot
-
 [[get-snapshot-api-path-params]]
 ==== {api-path-parms-title}
 

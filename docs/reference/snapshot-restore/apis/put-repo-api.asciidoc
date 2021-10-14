@@ -36,18 +36,6 @@ writeable. Ensure there aren't any <<cluster-read-only,cluster blocks>> that
 prevent write access.
 // end::put-repo-api-prereqs[]
 
-[[put-snapshot-repo-api-desc]]
-==== {api-description-title}
-
-A snapshot repository must be registered before you can perform
-<<snapshot-restore,snapshot and restore>> operations. You can use the put
-snapshot repository API to register new repositories and update existing ones.
-See <<snapshots-register-repository>>.
-
-TIP: Because snapshot formats can change between major versions of
-{es}, we recommend registering a new snapshot repository for each major version.
-See <<snapshot-restore-version-compatibility>>.
-
 [[put-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
 

@@ -46,7 +46,7 @@ impact to your storage overhead. See <<how-snapshots-work>>.
 See <<snapshots-shard-allocation>>.
 
 * Taking a snapshot doesn't block indexing or other requests. However, the
-snapshot may not include changes made after the snapshot process starts.
+snapshot won't include changes made after the snapshot process starts.
 
 * You can take multiple snapshots at the same time. The
 <<snapshot-max-concurrent-ops,`snapshot.max_concurrent_operations`>> cluster

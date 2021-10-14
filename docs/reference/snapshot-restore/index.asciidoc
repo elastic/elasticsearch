@@ -72,10 +72,12 @@ repository.
 === Snapshots and shard allocation
 
 A snapshot copies segments from an index's primary shards. These shards must be
-available to successfully take a snapshot. If a primary shard is initializing or
-relocating when a snapshot starts, the snapshot will attempt to wait for the
-shard to become available. If the shard doesn't become available, the snapshot
-attempt fails.
+available to successfully take a snapshot.
+
+When you start a snapshot, {es} immediately starts copying the segments of any
+available primary shards. If a shard is starting or relocating, {es} will wait
+for these processes to complete before copying the shard's segments. If one or
+more primary shards aren't available, the snapshot attempt fails.
 
 Once a snapshot begins copying a shard's segments, {es} won't move the shard to
 another node, even if rebalancing or shard allocation settings would typically
@@ -86,10 +88,9 @@ copying the shard's data.
 [[snapshot-start-stop-times]]
 === Snapshot start and stop times
 
-A snapshot doesn't represent a cluster at a precise point in time. Some primary
-shards may be available when others aren't. Instead, each snapshot includes a
-start and end time. The snapshot represents a view of the cluster's data between
-these two times.
+A snapshot doesn't represent a cluster at a precise point in time.Instead, each
+snapshot includes a start and end time. The snapshot represents a view of the
+cluster's data between these two times.
 
 [discrete]
 [[snapshot-restore-version-compatibility]]

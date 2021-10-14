@@ -37,6 +37,7 @@ import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
@@ -90,7 +91,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
-        for (ShardRouting shardRouting : clusterState.getRoutingNodes().shardsWithState(INITIALIZING)) {
+        for (ShardRouting shardRouting : shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }
     }
@@ -140,7 +141,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                                 .add(node1)
                                 .add(node2)).build(), strategy);
 
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED), empty());
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED), empty());
     }
 
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {

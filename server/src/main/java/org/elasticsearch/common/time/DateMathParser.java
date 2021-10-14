@@ -13,7 +13,9 @@ import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
- * An abstraction over date math parsing to allow different implementation for joda and java time.
+ * An abstraction over date math parsing.
+ *
+ * Note: This can now be collapsed together with {@link JavaDateMathParser} since Joda is removed.
  */
 public interface DateMathParser {
 

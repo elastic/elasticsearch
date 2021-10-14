@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -582,6 +581,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String FIELDS = "fields";
+        static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
         static final String SORT = "sort";
         static final String MATCHED_QUERIES = "matched_queries";
@@ -666,7 +666,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
                 if (field.getValues().size() > 0) {
-                    field.toXContent(builder, params);
+                    field.getValidValuesWriter().toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+        //ignored field values
+        if (documentFields.isEmpty() == false &&
+            // omit ignored_field_values all together if there are none
+            documentFields.values().stream().anyMatch(df -> df.getIgnoredValues().size() > 0)) {
+            builder.startObject(Fields.IGNORED_FIELD_VALUES);
+            for (DocumentField field : documentFields.values()) {
+                if (field.getIgnoredValues().size() > 0) {
+                    field.getIgnoredValuesWriter().toXContent(builder, params);
                 }
             }
             builder.endObject();
@@ -787,7 +799,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
             assert shardId.getIndexName().equals(index);
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias, OriginalIndices.NONE));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias));
         } else {
             //these fields get set anyways when setting the shard target,
             //but we set them explicitly when we don't have enough info to rebuild the shard target

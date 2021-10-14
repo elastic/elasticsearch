@@ -743,7 +743,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * @return the max issued seqNo for this Engine
+     * @return the max issued or seen seqNo for this Engine
      */
     public abstract long getMaxSeqNo();
 

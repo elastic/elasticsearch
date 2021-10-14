@@ -19,8 +19,9 @@ without prior notice.
 
 The fleet search API supports the optional parameter `wait_for_checkpoints`. This parameter
 is a list of sequence number checkpoints. When this parameter is present, the search will
-only be executed on local shards when the relevant sequence number checkpoint is visible for
-search after a refresh. The checkpoints are indexed by shard.
+only be executed on local shards after the all operations up to and including the provided
+sequence number checkpoint are visible for search. Indexed operations become visible after a
+refresh. The checkpoints are indexed by shard.
 
 If a timeout occurs before the the checkpoint has been refreshed into Elasticsearch,
 the search request will timeout.
@@ -52,8 +53,6 @@ A single index. Index aliases are not supported.
 [role="child_attributes"]
 [[fleet-search-api-query-parms]]
 ==== {api-query-parms-title}
-
-This API supports all the same <<search-search-api-query-params,query params>> as the normal search api.
 
 `wait_for_checkpoints`::
 (Optional, list) A comma separated list of checkpoints. When configured, the search API will

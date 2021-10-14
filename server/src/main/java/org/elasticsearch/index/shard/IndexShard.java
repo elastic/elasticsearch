@@ -3566,7 +3566,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             refreshListeners.addOrNotify(checkpoint, listener);
         } else {
             // we're not yet ready for reads, fail to notify client
-            listener.onFailure(new IllegalStateException("Read not allowed on IndexShard"));
+            listener.onFailure(new IllegalIndexShardStateException(shardId, state, "Read not allowed on IndexShard"));
         }
     }
 

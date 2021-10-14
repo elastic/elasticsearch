@@ -667,7 +667,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteShardIterators.isEmpty() == false) {
                 throw new IllegalArgumentException("Cannot use wait_for_checkpoints parameter with cross-cluster searches.");
             } else {
-                validateWaitForCheckpoint(clusterState, searchRequest, shardIterators);
+                validateWaitForCheckpoint(clusterState, searchRequest, concreteLocalIndices);
             }
         }
 
@@ -845,12 +845,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private static void validateWaitForCheckpoint(ClusterState clusterState, SearchRequest searchRequest,
-                                                  GroupShardsIterator<SearchShardIterator> shardIterators) {
-        HashSet<String> searchedIndices = new HashSet<>();
-        for (SearchShardIterator shardIterator : shardIterators) {
-            searchedIndices.add(shardIterator.shardId().getIndexName());
-        }
+    private static void validateWaitForCheckpoint(ClusterState clusterState, SearchRequest searchRequest, String[] concreteLocalIndices) {
+        HashSet<String> searchedIndices = new HashSet<>(Arrays.asList(concreteLocalIndices));
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
             int checkpointsProvided = waitForCheckpointIndex.getValue().length;
             String index = waitForCheckpointIndex.getKey();

@@ -168,9 +168,9 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     /**
      * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
-     * forces a refresh and calls the listener immediately as well. The checkpoint cannot be greater than the processed local checkpoint.
-     * This method does not respect the forceRefreshes state. It will NEVER force a refresh on the calling thread. Instead, it will simply
-     * add listeners or rejected them if too many listeners are already waiting.
+     * fails the listener immediately. The checkpoint cannot be greater than the processed local checkpoint. This method does not respect
+     * the forceRefreshes state. It will NEVER force a refresh on the calling thread. Instead, it will simply add listeners or rejected
+     * them if too many listeners are already waiting.
      *
      * @param checkpoint the seqNo checkpoint to listen for
      * @param listener for the refresh.
@@ -202,12 +202,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 return false;
             }
         }
-        // No free slot so force a refresh and call the listener in this thread
+        // No free slot so fail the listener
         listener.onFailure(new IllegalStateException("Too many listeners waiting on refresh, wait listener rejected."));
         return true;
     }
 
     private void addCheckpointListener(long checkpoint, ActionListener<Void> listener, List<Tuple<Long, ActionListener<Void>>> listeners) {
+        assert Thread.holdsLock(this);
         ActionListener<Void> contextPreservingListener =
             ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
 
@@ -246,7 +247,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     /**
      * The total number of pending listeners.
      */
-    public int pendingCount() {
+    public synchronized int pendingCount() {
         // No need to synchronize here because we're doing a single volatile read
         List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners = locationRefreshListeners;
         List<Tuple<Long, ActionListener<Void>>> checkpointListeners = checkpointRefreshListeners;

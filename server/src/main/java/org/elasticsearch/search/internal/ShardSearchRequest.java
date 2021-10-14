@@ -167,7 +167,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               long nowInMillis,
                               AliasFilter aliasFilter) {
         this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, null,
-            aliasFilter, 1.0f, true, null, nowInMillis, null, null, null, SequenceNumbers.NO_OPS_PERFORMED, SearchService.NO_TIMEOUT);
+            aliasFilter, 1.0f, true, null, nowInMillis, null, null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SearchService.NO_TIMEOUT);
     }
 
     private ShardSearchRequest(OriginalIndices originalIndices,
@@ -323,9 +323,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         Version.writeVersion(channelVersion, out);
         // TODO: Update after backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        Version waitForCheckpointsVersion = Version.V_8_0_0;
+        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeLong(waitForCheckpoint);
             out.writeTimeValue(waitForCheckpointsTimeout);
+        } else if (waitForCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
+                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
         }
     }
 

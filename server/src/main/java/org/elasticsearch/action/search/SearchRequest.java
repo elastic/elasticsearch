@@ -280,9 +280,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         // TODO: Change after backport
+        Version waitForCheckpointsVersion = Version.V_8_0_0;
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
+        } else if (waitForCheckpoints.isEmpty() == false) {
+            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
+                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
         }
     }
 

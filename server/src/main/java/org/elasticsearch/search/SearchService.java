@@ -59,7 +59,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -441,7 +440,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() {
                 final TimeValue timeout = request.getWaitForCheckpointsTimeout();
                 final long waitForCheckpoint = request.waitForCheckpoint();
-                if (waitForCheckpoint > SequenceNumbers.NO_OPS_PERFORMED) {
+                if (waitForCheckpoint > UNASSIGNED_SEQ_NO) {
                     if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
                         listener.onFailure(
                             new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]")
@@ -454,6 +453,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     final ActionListener<Void> readyListener = new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
+                            // We must check that the sequence number is greater than or equal to the global checkpoint. If it is not,
+                            // it is possible that a stale shard could return uncommitted documents.
                             if (shard.getLastKnownGlobalCheckpoint() < waitForCheckpoint) {
                                 TimeValue gclTimeout = NO_TIMEOUT.equals(timeout) == false ? null : timeout;
                                 shard.addGlobalCheckpointListener(
@@ -490,7 +491,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         public void onFailure(Exception e) {
                             if (isDone.compareAndSet(false, true)) {
                                 Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
-                                if (localTimeoutTask != null && e instanceof ElasticsearchTimeoutException == false) {
+                                if (localTimeoutTask != null) {
                                     localTimeoutTask.cancel();
                                 }
                                 listener.onFailure(e);

@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.codehaus.groovy.runtime.StringGroovyMethods;
+import org.elasticsearch.gradle.util.FileUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
@@ -19,7 +20,6 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-import org.elasticsearch.gradle.util.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;

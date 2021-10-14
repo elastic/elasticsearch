@@ -61,11 +61,6 @@ public class BinaryDenseVectorScriptDocValues extends DenseVectorScriptDocValues
     }
 
     @Override
-    public BytesRef getNonPrimitiveValue() {
-        return value;
-    }
-
-    @Override
     public double dotProduct(float[] queryVector) {
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 

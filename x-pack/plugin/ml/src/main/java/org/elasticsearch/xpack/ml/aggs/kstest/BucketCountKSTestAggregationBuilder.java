@@ -127,7 +127,7 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
             NAME,
             BucketCountKSTestAggregationBuilder::new,
             BucketCountKSTestAggregationBuilder.PARSER
-        );
+        ).addResultReader(InternalKSTestAggregation::new);
     }
 
     @Override

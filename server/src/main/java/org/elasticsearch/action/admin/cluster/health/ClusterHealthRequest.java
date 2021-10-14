@@ -35,6 +35,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
+    private boolean return200ForClusterHealthTimeout;
+
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
@@ -67,6 +69,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
         }
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            return200ForClusterHealthTimeout = in.readBoolean();
+        }
     }
 
     @Override
@@ -96,6 +101,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         out.writeBoolean(waitForNoInitializingShards);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeBoolean(return200ForClusterHealthTimeout);
         }
     }
 
@@ -234,6 +242,14 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     public ClusterHealthRequest waitForEvents(Priority waitForEvents) {
         this.waitForEvents = waitForEvents;
         return this;
+    }
+
+    public boolean isReturn200ForClusterHealthTimeout() {
+        return return200ForClusterHealthTimeout;
+    }
+
+    public void setReturn200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
+        this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
     }
 
     public Priority waitForEvents() {

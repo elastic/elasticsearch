@@ -69,7 +69,7 @@ final class RequestDispatcher {
 
     private final AtomicInteger pendingRequests = new AtomicInteger();
     private final AtomicInteger executionRound = new AtomicInteger();
-    private final Map<String, IndexSelector> indices;
+    private final Map<String, IndexSelector> indexSelectors;
 
     RequestDispatcher(ClusterService clusterService, TransportService transportService, Task parentTask,
                       FieldCapabilitiesRequest fieldCapsRequest, OriginalIndices originalIndices, long nowInMillis,
@@ -87,7 +87,7 @@ final class RequestDispatcher {
         this.onIndexResponse = onIndexResponse;
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
-        this.indices = ConcurrentCollections.newConcurrentMap();
+        this.indexSelectors = ConcurrentCollections.newConcurrentMap();
         for (String index : indices) {
             final GroupShardsIterator<ShardIterator> shardIts =
                 clusterService.operationRouting().searchShards(clusterState, new String[]{index}, null, null, null, null);
@@ -95,7 +95,7 @@ final class RequestDispatcher {
             if (indexResult.nodeToShards.isEmpty()) {
                 onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
             } else {
-                this.indices.put(index, indexResult);
+                this.indexSelectors.put(index, indexResult);
             }
         }
     }
@@ -105,11 +105,11 @@ final class RequestDispatcher {
             @Override
             public void onFailure(Exception e) {
                 // If we get rejected, mark pending indices as failed and complete
-                final List<String> failedIndices = new ArrayList<>(indices.keySet());
+                final List<String> failedIndices = new ArrayList<>(indexSelectors.keySet());
                 for (String failedIndex : failedIndices) {
-                    if (indices.remove(failedIndex) != null) {
-                        onIndexFailure.accept(failedIndex, e);
-                    }
+                    final IndexSelector removed = indexSelectors.remove(failedIndex);
+                    assert removed != null;
+                    onIndexFailure.accept(failedIndex, e);
                 }
                 onComplete.run();
             }
@@ -125,10 +125,10 @@ final class RequestDispatcher {
         final Map<String, List<ShardId>> nodeToSelectedShards = new HashMap<>();
         assert pendingRequests.get() == 0 : "pending requests = " + pendingRequests;
         final List<String> failedIndices = new ArrayList<>();
-        for (Map.Entry<String, IndexSelector> e : indices.entrySet()) {
+        for (Map.Entry<String, IndexSelector> e : indexSelectors.entrySet()) {
             final String index = e.getKey();
-            final IndexSelector indexResult = e.getValue();
-            final List<ShardRouting> selectedShards = indexResult.nextTarget(clusterState.nodes(), hasFilter);
+            final IndexSelector indexSelector = e.getValue();
+            final List<ShardRouting> selectedShards = indexSelector.nextTarget(clusterState.nodes(), hasFilter);
             if (selectedShards.isEmpty()) {
                 failedIndices.add(index);
             } else {
@@ -139,9 +139,9 @@ final class RequestDispatcher {
             }
         }
         for (String failedIndex : failedIndices) {
-            final IndexSelector selector = indices.remove(failedIndex);
-            if (selector != null) {
-                final Exception failure = selector.getFailure();
+            final IndexSelector indexSelector = indexSelectors.remove(failedIndex);
+            if (indexSelector != null) {
+                final Exception failure = indexSelector.getFailure();
                 if (failure != null) {
                     onIndexFailure.accept(failedIndex, failure);
                 }
@@ -213,21 +213,21 @@ final class RequestDispatcher {
     private void onRequestResponse(List<ShardId> shardIds, FieldCapabilitiesNodeResponse nodeResponse) {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
-                if (indices.remove(indexResponse.getIndexName()) != null) {
+                if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
                     onIndexResponse.accept(indexResponse);
                 }
             }
         }
         for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
-            final IndexSelector indexSelector = indices.get(unmatchedShardId.getIndexName());
+            final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
             if (indexSelector != null) {
                 indexSelector.addUnmatchedShardId(unmatchedShardId);
             }
         }
         for (Map.Entry<ShardId, Exception> e : nodeResponse.getFailures().entrySet()) {
-            final IndexSelector indexResult = indices.get(e.getKey().getIndexName());
-            if (indexResult != null) {
-                indexResult.setFailure(e.getKey(), e.getValue());
+            final IndexSelector indexSelector = indexSelectors.get(e.getKey().getIndexName());
+            if (indexSelector != null) {
+                indexSelector.setFailure(e.getKey(), e.getValue());
             }
         }
         afterRequestsCompleted(shardIds.size());
@@ -235,9 +235,9 @@ final class RequestDispatcher {
 
     private void onRequestFailure(List<ShardId> shardIds, Exception e) {
         for (ShardId shardId : shardIds) {
-            final IndexSelector indexResult = indices.get(shardId.getIndexName());
-            if (indexResult != null) {
-                indexResult.setFailure(shardId, e);
+            final IndexSelector indexSelector = indexSelectors.get(shardId.getIndexName());
+            if (indexSelector != null) {
+                indexSelector.setFailure(shardId, e);
             }
         }
         afterRequestsCompleted(shardIds.size());

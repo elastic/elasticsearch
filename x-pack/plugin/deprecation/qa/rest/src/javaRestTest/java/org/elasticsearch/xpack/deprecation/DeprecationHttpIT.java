@@ -14,6 +14,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79038")
 public class DeprecationHttpIT extends ESRestTestCase {
 
     /**
@@ -67,7 +69,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     @Before
     public void assertIndexingIsEnabled() throws Exception {
-        configureWriteDeprecationLogsToIndex(true);
 
         // make sure the deprecation logs indexing is enabled
         Response response = client().performRequest(new Request("GET", "/_cluster/settings?include_defaults=true&flat_settings=true"));
@@ -75,8 +76,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
         ObjectMapper mapper = new ObjectMapper();
         final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
 
-        final boolean transientValue = jsonNode.at("/transient/cluster.deprecation_indexing.enabled").asBoolean();
-        assertTrue(transientValue);
+        final boolean defaultValue = jsonNode.at("/defaults/cluster.deprecation_indexing.enabled").asBoolean();
+        assertTrue(defaultValue);
 
         // assert index does not exist, which will prevent previous tests to interfere
         assertBusy(() -> {
@@ -350,8 +351,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     public void testDisableDeprecationLogIndexing() throws Exception {
-
-        configureWriteDeprecationLogsToIndex(true);
         final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDisableDeprecationLogIndexing");
         assertOK(client().performRequest(deprecatedRequest));
         configureWriteDeprecationLogsToIndex(false);
@@ -652,7 +651,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
         final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
+        request.setJsonEntity("{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
         final Response response = client().performRequest(request);
         assertOK(response);
     }

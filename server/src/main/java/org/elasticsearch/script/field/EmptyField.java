@@ -14,10 +14,17 @@ import java.util.List;
 /**
  * Script field with no mapping, always returns {@code defaultValue}.
  */
-public class EmptyField<T> extends Field<T> {
+public class EmptyField<T> implements Field<T> {
+
+    private final String name;
 
     public EmptyField(String name) {
-        super(name, null);
+        this.name = name;
+    }
+
+    @Override
+    public String getName() {
+        return name;
     }
 
     @Override
@@ -26,14 +33,13 @@ public class EmptyField<T> extends Field<T> {
     }
 
     @Override
-    public List<T> getValues() {
-        return Collections.emptyList();
+    public int size() {
+        return 0;
     }
 
     @Override
-    public <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
-        // new object created to ensure EmptyField<CT>
-        return new EmptyField<>(name);
+    public List<T> getValues() {
+        return Collections.emptyList();
     }
 
     @Override
@@ -42,12 +48,7 @@ public class EmptyField<T> extends Field<T> {
     }
 
     @Override
-    public double getDouble(double defaultValue) {
-        return defaultValue;
-    }
-
-    @Override
-    public long getLong(long defaultValue) {
+    public T getValue(int index, T defaultValue) {
         return defaultValue;
     }
 }

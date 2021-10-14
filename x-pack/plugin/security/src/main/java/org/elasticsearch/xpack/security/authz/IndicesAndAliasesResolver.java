@@ -325,8 +325,8 @@ class IndicesAndAliasesResolver {
                             return true;
                         } else {
                             assert alias.getType() == IndexAbstraction.Type.ALIAS;
-                            String writeIndex = alias.getWriteIndex().getName();
-                            return writeIndex != null && writeIndex.equals(concreteIndexName);
+                            Index writeIndex = alias.getWriteIndex();
+                            return writeIndex != null && writeIndex.getName().equals(concreteIndexName);
                         }
                     })
                     .findFirst();

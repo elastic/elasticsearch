@@ -11,7 +11,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -82,7 +81,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     }
 
     NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request,
-                                                           List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> nodeSettingsChecks) {
+                                                           List<BiFunction<Settings, PluginsAndModules,
+                                                               DeprecationIssue>> nodeSettingsChecks) {
         Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(nodeSettingsChecks,
             (c) -> c.apply(filteredSettings, pluginsService.info()));

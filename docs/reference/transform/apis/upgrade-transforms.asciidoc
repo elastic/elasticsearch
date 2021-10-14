@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
 [[upgrade-transforms]]
-= Upgrade {transform} API
+= Upgrade {transforms} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Upgrade {transform}</titleabbrev>
+<titleabbrev>Upgrade {transforms}</titleabbrev>
 ++++
 
 Upgrades all {transforms}.
@@ -29,15 +29,15 @@ Requires the following privileges:
 [[upgrade-transforms-desc]]
 == {api-description-title}
 
-This API upgrades all existing {transforms} that are necessary to upgrade. As 
-part of the process the {transforms} are rewritten into the latest format 
-including internal data structures that store state and checkpoints. The process 
-also frees up resources by cleaning up previous versions.
+This API upgrades all existing {transforms} that are necessary to be upgraded. 
+The {transforms} are rewritten into the latest format including internal data 
+structures that store state and checkpoints. Resources are also freed up by 
+cleaning up previous versions.
 
-If a step in the upgrade fails, it doesn't proceed and an error is returned that 
+If an upgrade step fails, the upgrade stops, and an error is returned that 
 informs about the underlying issues. It might be necessary to manually resolve 
-the problems. After resolving the problems, the upgrade can be re-run again. A 
-summary is returned at the end of the process.
+the problems then the process can be re-run again. A summary is returned when 
+the upgrade is finished.
 
 
 [[upgrade-transforms-query-parms]]

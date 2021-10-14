@@ -20,14 +20,16 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesNodeRequest> {
 
     @Override
     protected FieldCapabilitiesNodeRequest createTestInstance() {
-        ShardId[] randomShards = randomShardIds(randomIntBetween(1, 5));
+        List<ShardId> randomShards = randomShardIds(randomIntBetween(1, 5));
         String[] randomFields = randomFields(randomIntBetween(1, 20));
         OriginalIndices originalIndices = randomOriginalIndices(randomIntBetween(0, 20));
 
@@ -41,10 +43,10 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
         return new FieldCapabilitiesNodeRequest(randomShards, randomFields, originalIndices, indexFilter, nowInMillis, runtimeFields);
     }
 
-    private ShardId[] randomShardIds(int numShards) {
-        ShardId[] randomShards = new ShardId[numShards];
+    private List<ShardId> randomShardIds(int numShards) {
+        List<ShardId> randomShards = new ArrayList<>(numShards);
         for (int i = 0; i < numShards; i++) {
-            randomShards[i] = new ShardId("index", randomAlphaOfLength(10), i);
+            randomShards.add(new ShardId("index", randomAlphaOfLength(10), i));
         }
         return randomShards;
     }
@@ -81,7 +83,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
     protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) throws IOException {
         switch (random().nextInt(5)) {
             case 0:
-                ShardId[] shardIds = randomShardIds(instance.shardIds().length + 1);
+                List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(shardIds, instance.fields(), instance.originalIndices(),
                     instance.indexFilter(), instance.nowInMillis(), instance.runtimeFields());
             case 1:

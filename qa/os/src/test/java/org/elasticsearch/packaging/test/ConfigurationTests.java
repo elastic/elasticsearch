@@ -8,10 +8,8 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;

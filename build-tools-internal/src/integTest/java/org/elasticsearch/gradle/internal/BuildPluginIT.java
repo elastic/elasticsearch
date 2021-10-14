@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.junit.Rule;

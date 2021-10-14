@@ -1,0 +1,18 @@
+[discrete]
+[[breaking_80_logging_changes]]
+==== Logging changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.Elasticsearch JSON logs to comply with ECS
+[%collapsible]
+====
+*Details* +
+* Make Elasticsearch JSON logs ECS compliant {es-pull}47105[#47105] (issue: {es-issue}46119[#46119])
+
+*Impact* +
+If you have a custom tooling around ES JSON logs, you need to consider updating it.
+====
+// end::notable-breaking-changes[]

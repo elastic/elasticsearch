@@ -7,6 +7,8 @@
 
 package org.elasticsearch.license;
 
+import org.mockito.Mockito;
+
 import java.util.function.LongSupplier;
 
 /** A license state that may be mocked by testing because the internal methods are made public */
@@ -30,4 +32,11 @@ public class MockLicenseState extends XPackLicenseState {
     public void disableUsageTracking(LicensedFeature feature, String contextName) {
         super.disableUsageTracking(feature, contextName);
     }
+
+    public static MockLicenseState createMock() {
+        MockLicenseState mock = Mockito.mock(MockLicenseState.class);
+        Mockito.when(mock.copyCurrentLicenseState()).thenReturn(mock);
+        return mock;
+    }
+
 }

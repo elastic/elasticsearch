@@ -101,9 +101,6 @@ Response:
 <2> when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
 <3> the list of the top buckets, the meaning of `top` being defined by the <<search-aggregations-bucket-terms-aggregation-order,order>>
 
-By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
-change this default behaviour by setting the `size` parameter.
-
 [[search-aggregations-bucket-terms-aggregation-types]]
 The `field` can be <<keyword>>, <<number>>, <<ip, `ip`>>, <<boolean, `boolean`>>,
 or <<binary, `binary`>>.
@@ -117,59 +114,63 @@ memory usage.
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
-The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
-default, the node coordinating the search process will request each shard to provide its own top `size` term buckets
-and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
-This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
-(it could be that the term counts are slightly off and it could even be that a term that should have been in the top
-size buckets was not returned).
+By default the `terms` agg returns the ten buckets with the most documents but
+you can change that count the `size` parameter to return more buckets up to
+<<search-settings-max-buckets,max_buckets>> which defaults to 65,536. So if
+there aren't many unique terms it quite viable to return all of them with the
+`terms` aggregation. Read on about sorting if you are fine picking the "best"
+terms or have a look at the
+<<search-aggregations-bucket-composite-aggregation,Composite>> aggregation if
+you'd like to be able to page through all terms.
 
-NOTE: If you want to retrieve **all** terms or all combinations of terms in a nested `terms` aggregation
-      you should use the <<search-aggregations-bucket-composite-aggregation,Composite>> aggregation which
-      allows to paginate over all possible terms rather than setting a size greater than the cardinality of the field in the
-      `terms` aggregation. The `terms` aggregation is meant to return the `top` terms and does not allow pagination.
-
+[[search-aggregations-bucket-terms-aggregation-shard-size]]
 ==== Shard Size
 
-The higher the requested `size` is, the more accurate the results will be, but also, the more expensive it will be to
-compute the final results (both due to bigger priority queues that are managed on a shard level and due to bigger data
-transfers between the nodes and the client).
+It'd be reasonable to assume that `terms` picks the top terms by asking each
+shard to pick the top `size` terms and return them then we'd just combine them.
+But what if there's a bucket that has many documents on one shard but is just
+outside the `size` on all the others? If each shard only returned `size` buckets
+then we'd only return part of the bucket. Which'd be pretty terrible.
 
-The `shard_size` parameter can be used to minimize the extra work that comes with bigger requested `size`. When defined,
-it will determine how many terms the coordinating node will request from each shard. Once all the shards responded, the
-coordinating node will then reduce them to a final result which will be based on the `size` parameter - this way,
-one can increase the accuracy of the returned terms and avoid the overhead of streaming a big list of buckets back to
-the client.
+We try to avoid this problem by having each shard return `shard_size` buckets
+which defaults to `(size * 1.5 + 10)`. So, for a `terms` agg with the default
+size of `10` each shard will return the top `25` buckets. This helps, but
+it's still quite possible to return partial buckets, it just takes buckets with
+more disparate per-shard sizes.
 
+You can absolutely bump `shard_size` when you need to increase the accuracy of
+the selection of top buckets. It is much cheaper to increase the `shard_size`
+than it is to increase the `size`. It still takes more bytes over the wire and
+waiting in memory on the coordinating node. But do it if you need it.
+
+IMPORTANT: See the note in <<search-aggregations-bucket-terms-aggregation-order>>
+           if you are sorting by anything other than document count.
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.
 
-
-The default `shard_size` is `(size * 1.5 + 10)`.
-
 [[terms-agg-doc-count-error]]
 ==== Document count error
 
-`doc_count` values for a `terms` aggregation may be approximate. As a result,
-any sub-aggregations on the `terms` aggregation may also be approximate.
-
-To calculate `doc_count` values, each shard provides its own top terms and
-document counts. The aggregation combines these shard-level results to calculate
-its final `doc_count` values. To measure the accuracy of `doc_count` values, the
-aggregation results include the following properties:
-
-`sum_other_doc_count`::
-(integer) The total document count for any terms not included in the results.
-
-`doc_count_error_upper_bound`::
-(integer) The highest possible document count for any single term not included
-in the results. If `0`, `doc_count` values are accurate.
+`sum_other_doc_count` is the number of documents that didn't make it into the
+the top `size` buckets. If this is greater than `0` you can be sure that the
+`terms` agg had to throw away some buckets, either because they didn't fit into
+`size` on the coordinating node or they didn't fit into `shard_size` on the
+data node.
 
 ==== Per bucket document count error
 
-To get the `doc_count_error_upper_bound` for each term, set
-`show_term_doc_count_error` to `true`:
+If you set the `show_term_doc_count_error` parameter to `true` the `terms`
+aggregation will include `doc_count_error_upper_bound` which is an upper bound
+to the error on the `doc_count` returned by each shard. It's pretty much the
+sum of the size of the largest bucket on each shard that didn't fit into
+`shard_size`.
+
+In more concrete terms, imagine there is one bucket that is very large on one
+shard and just outside the `shard_size` on all the other shards. In that case
+the `terms` agg will return the bucket because it is large, but it'll be missing
+data from many documents on the shards where it didn't make the cut.
+`doc_count_error_upper_bound` is the maximum number of missing documents.
 
 [source,console,id=terms-aggregation-doc-count-error-example]
 --------------------------------------------------
@@ -189,10 +190,6 @@ GET /_search
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 
-This shows an error value for each term returned by the aggregation which represents the 'worst case' error in the document count
-and can be useful when deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for
-the last term returned by all shards which did not return the term.
-
 These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is
 ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard
 does not return a particular term which appears in the results from another shard, it must not have that term in its index. When the
@@ -202,19 +199,21 @@ determined and is given a value of -1 to indicate this.
 [[search-aggregations-bucket-terms-aggregation-order]]
 ==== Order
 
-The order of the buckets can be customized by setting the `order` parameter. By default, the buckets are ordered by
-their `doc_count` descending. It is possible to change this behaviour as documented below:
+By default, the buckets are ordered by their `doc_count` descending but you can
+order by the term itself (`_key`) or to the value of a sub-aggregation. And you
+can flip from descending to ascending order.
 
-WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
-<<terms-agg-doc-count-error,error>> on document counts.
-It is fine when a single shard is queried, or when the field that is being aggregated was used
-as a routing key at index time: in these cases results will be accurate since shards have disjoint
-values. However otherwise, errors are unbounded. One particular case that could still be useful
-is sorting by <<search-aggregations-metrics-min-aggregation,`min`>> or
-<<search-aggregations-metrics-max-aggregation,`max`>> aggregation: counts will not be accurate
-but at least the top buckets will be correctly picked.
+WARNING: Danger! Danger! Remember how the terms agg picks the top
+<<search-aggregations-bucket-terms-aggregation-shard-size, `shard_size`>>
+buckets on the data node? Well all of that works really well for something like
+doc count descending. A very well for `_key` in either direction. But for doc
+count ascending it's frankly *terrible*. That basically throws out all of the
+buckets with the most data on every shard. It's likely that a bucket with few
+documents on one shard could have more on another but that it wouldn't fit into
+`shard_size`. This is so bad that we've created a whole separate
+<<search-aggregations-bucket-rare-terms-aggregation>> aggregation.
 
-Ordering the buckets by their doc `_count` in an ascending manner:
+If you really must, this is how you sort on doc count ascending:
 
 [source,console,id=terms-aggregation-count-example]
 --------------------------------------------------
@@ -247,6 +246,13 @@ GET /_search
   }
 }
 --------------------------------------------------
+
+WARNING: There is also danger in sorting on the value of a sub-aggregation but
+how much danger depends on what the sub-aggregation is doing. Sorting on, say,
+`max` descending is fairly similar to sorting on `doc_count` descending and
+fairly safe. Sorting on `max` ascending is likely to cause tons of errors for
+the same reason sorting on doc count ascending does. See the warning above for
+more on why that's trouble.
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 

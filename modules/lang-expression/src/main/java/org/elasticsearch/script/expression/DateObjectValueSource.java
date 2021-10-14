@@ -22,7 +22,7 @@ import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.function.ToIntFunction;
 
-/** Extracts a portion of a date field with joda time */
+/** Extracts a portion of a date field with Java time */
 class DateObjectValueSource extends FieldDataValueSource {
 
     final String methodName;

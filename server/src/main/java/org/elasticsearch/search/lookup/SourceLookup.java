@@ -104,14 +104,6 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsMapAndType(source).v2();
     }
 
-    public static Map<String, Object> sourceAsMap(
-        BytesReference source,
-        FilterPath[] include,
-        FilterPath[] exclude
-    ) throws ElasticsearchParseException {
-        return  XContentHelper.convertToMap(source, false, null, include, exclude).v2();
-    }
-
     public void setSegmentAndDocument(
         LeafReaderContext context,
         int docId
@@ -186,13 +178,19 @@ public class SourceLookup implements Map<String, Object> {
         }
         FilterPath[] filterPaths = FilterPath.compile(Set.of(path));
         if (sourceAsBytes != null) {
-            return XContentMapValues.extractRawValues(path, sourceAsMap(sourceAsBytes, filterPaths, null));
+            return XContentMapValues.extractRawValues(
+                path,
+                XContentHelper.convertToMap(sourceAsBytes, false, null, filterPaths, null).v2()
+            );
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
-            return XContentMapValues.extractRawValues(path, sourceAsMap(source, filterPaths, null));
+            return XContentMapValues.extractRawValues(
+                path,
+                XContentHelper.convertToMap(source, false, null, filterPaths, null).v2()
+            );
         } catch (Exception e) {
             throw new ElasticsearchParseException("failed to parse / load source", e);
         }

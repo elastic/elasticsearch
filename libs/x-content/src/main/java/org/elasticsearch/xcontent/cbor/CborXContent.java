@@ -113,11 +113,23 @@ public class CborXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                       DeprecationHandler deprecationHandler, byte[] data, int offset, int length, FilterPath[] includes,
-                                       FilterPath[] excludes) throws IOException {
-        return createParserForCompatibility(xContentRegistry, deprecationHandler, data, offset, length, RestApiVersion.current(), includes,
-            excludes);
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException {
+        return new CborXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            cborFactory.createParser(new ByteArrayInputStream(data, offset, length)),
+            RestApiVersion.current(),
+            includes,
+            excludes
+        );
     }
 
     @Override
@@ -143,20 +155,6 @@ public class CborXContent implements XContent {
             deprecationHandler,
             cborFactory.createParser(new ByteArrayInputStream(data, offset, length)),
             restApiVersion
-        );
-    }
-
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                       byte[] data, int offset, int length, RestApiVersion restApiVersion,
-                                                       FilterPath[] includes, FilterPath[] excludes)
-        throws IOException {
-        return new CborXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            cborFactory.createParser(new ByteArrayInputStream(data, offset, length)),
-            restApiVersion,
-            includes,
-            excludes
         );
     }
 

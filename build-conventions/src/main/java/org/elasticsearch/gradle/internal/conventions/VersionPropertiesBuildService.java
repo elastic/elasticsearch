@@ -22,7 +22,6 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.Properties;
-import java.util.function.Function;
 
 abstract class VersionPropertiesBuildService implements BuildService<VersionPropertiesBuildService.Params>, AutoCloseable {
 
@@ -42,7 +41,7 @@ abstract class VersionPropertiesBuildService implements BuildService<VersionProp
 
     private JavaVersion resolveMinimumJavaVersion(File infoPath) {
         final JavaVersion minimumJavaVersion;
-        File minimumJavaInfoSource = new File(infoPath, "src/main/resources/minimumCompilerVersion");
+        File minimumJavaInfoSource = new File(infoPath, "src/main/resources/minimumRuntimeVersion");
         try {
             String versionString = FileUtils.readFileToString(minimumJavaInfoSource);
             minimumJavaVersion = JavaVersion.toVersion(versionString);

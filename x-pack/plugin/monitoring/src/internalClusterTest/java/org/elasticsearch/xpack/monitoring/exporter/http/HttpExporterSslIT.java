@@ -138,7 +138,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("plaintext", SslVerificationMode.CERTIFICATE);
         final ClusterUpdateSettingsResponse response = future.actionGet();
         assertThat(response, notNullValue());
-        clearTransientSettings("plaintext");
+        clearPersistentSettings("plaintext");
     }
 
     public void testCanAddNewExporterWithSsl() {
@@ -153,13 +153,13 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
             .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .build();
-        updateSettings.transientSettings(settings);
+        updateSettings.persistentSettings(settings);
         final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);
         final ClusterUpdateSettingsResponse response = future.actionGet();
         assertThat(response, notNullValue());
 
         assertExporterExists("_new");
-        clearTransientSettings("_new");
+        clearPersistentSettings("_new");
     }
 
     private void assertExporterExists(String secure) {
@@ -182,17 +182,17 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters." + name + ".host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
             .put("xpack.monitoring.exporters." + name + ".ssl.verification_mode", verificationModeName)
             .build();
-        updateSettings.transientSettings(settings);
+        updateSettings.persistentSettings(settings);
         return client().admin().cluster().updateSettings(updateSettings);
     }
 
-    private void clearTransientSettings(String... names) {
+    private void clearPersistentSettings(String... names) {
         final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
         final Settings.Builder builder = Settings.builder();
         for (String name : names) {
             builder.put("xpack.monitoring.exporters." + name + ".*", (String) null);
         }
-        updateSettings.transientSettings(builder.build());
+        updateSettings.persistentSettings(builder.build());
         client().admin().cluster().updateSettings(updateSettings).actionGet();
     }
 

@@ -36,7 +36,7 @@ public final class StoredValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
+    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
         leafSearchLookup.setDocument(lookup.docId());
         return leafSearchLookup.fields().get(fieldname).getValues();
     }

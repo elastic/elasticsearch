@@ -10,16 +10,19 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -806,7 +809,52 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
+    public void testSerializingMetadataPreservesOrder() throws IOException {
+        String json = "{"
+            + " \"id\" : \""
+            + transformId
+            + "\","
+            + " \"_meta\": {"
+            + "   \"d\": 4,"
+            + "   \"a\": 1,"
+            + "   \"c\": 3,"
+            + "   \"e\": 5,"
+            + "   \"b\": 2"
+            + "},"
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"time\": {"
+            + "     \"date_histogram\": {"
+            + "       \"field\": \"timestamp\","
+            + "       \"fixed_interval\": \"1d\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        // Read TransformConfig from JSON and verify that metadata keys are in the same order as in JSON
+        TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
+        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+
+        // Write TransformConfig to JSON, read it again and verify that metadata keys are still in the same order
+        json = XContentHelper.toXContent(transformConfig, XContentType.JSON, TO_XCONTENT_PARAMS, false).utf8ToString();
+        transformConfig = createTransformConfigFromString(json, transformId, true);
+        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+
+        // Write TransformConfig to wire, read it again and verify that metadata keys are still in the same order
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            transformConfig.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                transformConfig = new TransformConfig(in);
+            }
+        }
+        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
@@ -818,5 +866,4 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         return TransformConfig.fromXContent(parser, id, lenient);
     }
-
 }

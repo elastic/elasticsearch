@@ -394,7 +394,8 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedThreadInfo.getBlockedTime()).thenReturn(2L).thenReturn(0L);
         when(mockedThreadInfo.getWaitedTime()).thenReturn(3L).thenReturn(0L);
 
-        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(mockedThreadInfo, 1L, 4L);
+        HotThreads.ThreadTimeAccumulator info = new HotThreads.ThreadTimeAccumulator(
+            mockedThreadInfo, new TimeValue(10L), 1L, 4L);
 
         assertEquals(1L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.CPU).applyAsLong(info));
         assertEquals(3L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
@@ -555,8 +556,12 @@ public class HotThreadsTests extends ESTestCase {
         ThreadInfo threadOne = makeThreadInfoMocksHelper(mockedMXBean, 1L);
         ThreadInfo threadTwo = makeThreadInfoMocksHelper(mockedMXBean, 2L);
 
-        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(threadOne, 100L, 1000L);
-        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L, 2500L);
+        TimeValue maxTime = new TimeValue(1000L);
+
+        HotThreads.ThreadTimeAccumulator acc = new HotThreads.ThreadTimeAccumulator(
+            threadOne, maxTime, 100L, 1000L);
+        HotThreads.ThreadTimeAccumulator accNext = new HotThreads.ThreadTimeAccumulator(
+            threadOne, maxTime,  250L, 2500L);
         accNext.subtractPrevious(acc);
 
         assertEquals(1500, accNext.getAllocatedBytes());
@@ -564,8 +569,10 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(0, accNext.getWaitedTime());
         assertEquals(1, accNext.getBlockedTime());
 
-        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(threadOne, 250L, 2500L);
-        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(threadOne, 250L, 2500L);
+        HotThreads.ThreadTimeAccumulator accNotMoving = new HotThreads.ThreadTimeAccumulator(
+            threadOne, maxTime, 250L, 2500L);
+        HotThreads.ThreadTimeAccumulator accNotMovingNext = new HotThreads.ThreadTimeAccumulator(
+            threadOne, maxTime, 250L, 2500L);
 
         accNotMovingNext.subtractPrevious(accNotMoving);
 
@@ -574,8 +581,10 @@ public class HotThreadsTests extends ESTestCase {
         assertEquals(0, accNotMovingNext.getWaitedTime());
         assertEquals(0, accNotMovingNext.getBlockedTime());
 
-        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(threadOne, 250L, 2500L);
-        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(threadTwo, 350L, 3500L);
+        HotThreads.ThreadTimeAccumulator accOne = new HotThreads.ThreadTimeAccumulator(
+            threadOne, maxTime, 250L, 2500L);
+        HotThreads.ThreadTimeAccumulator accTwo = new HotThreads.ThreadTimeAccumulator(
+            threadTwo, maxTime, 350L, 3500L);
 
         expectThrows(IllegalStateException.class, () -> accTwo.subtractPrevious(accOne));
     }

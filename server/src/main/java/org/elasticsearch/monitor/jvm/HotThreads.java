@@ -161,7 +161,7 @@ public class HotThreads {
                 continue;
             }
             long allocatedBytes = type == ReportType.MEM ? sunThreadInfo.getThreadAllocatedBytes(threadIds[i]) : 0;
-            result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], cpuTime, allocatedBytes));
+            result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], interval, cpuTime, allocatedBytes));
         }
 
         return result;
@@ -187,6 +187,10 @@ public class HotThreads {
                 return null;
             });
         }
+    }
+
+    private double getTimeSharePercentage(long time) {
+        return (((double) time) / interval.nanos()) * 100;
     }
 
     String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId) throws Exception {
@@ -222,9 +226,8 @@ public class HotThreads {
 
             // Sort by delta CPU time on thread.
             List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
-            final ToLongFunction<ThreadTimeAccumulator> getter = ThreadTimeAccumulator.valueGetterForReportType(type);
 
-            CollectionUtil.introSort(topThreads, Comparator.comparingLong(getter).reversed());
+            CollectionUtil.introSort(topThreads, Comparator.comparingLong(ThreadTimeAccumulator.sortFuncForReportType(type)).reversed());
             topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
             long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
 
@@ -232,7 +235,6 @@ public class HotThreads {
             ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreadIds);
 
             for (int t = 0; t < topThreads.size(); t++) {
-                long timeOrBytes = getter.applyAsLong(topThreads.get(t));
                 String threadName = null;
                 for (ThreadInfo[] info : allInfos) {
                     if (info != null && info[t] != null) {
@@ -248,14 +250,31 @@ public class HotThreads {
                     continue; // thread is not alive yet or died before the first snapshot - ignore it!
                 }
 
-                if (type == ReportType.MEM) {
-                    sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
-                        new ByteSizeValue(timeOrBytes), threadName));
-                } else {
-                    double percent = (((double) timeOrBytes) / interval.nanos()) * 100;
-                    sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                        percent, TimeValue.timeValueNanos(timeOrBytes), interval, type.getTypeValue(), threadName));
+                ThreadTimeAccumulator topThread = topThreads.get(t);
+
+                switch (type) {
+                    case MEM:
+                        sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
+                            new ByteSizeValue(topThread.getAllocatedBytes()), threadName));
+                        break;
+                    case CPU:
+                        long cpuTime = topThread.getCpuTime();
+                        long runnableTime = topThread.getRunnableTime();
+                        double percentCpu = getTimeSharePercentage(cpuTime);
+                        double percentRunnable = getTimeSharePercentage(runnableTime);
+                        sb.append(String.format(Locale.ROOT,
+                            "%n%4.1f%% [cpu=%4.1f%%, other=%4.1f%%] (%s out of %s) %s usage by thread '%s'%n",
+                            percentRunnable, percentCpu, percentRunnable - percentCpu,
+                            TimeValue.timeValueNanos(runnableTime), interval, type.getTypeValue(), threadName));
+                        break;
+                    default:
+                        long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
+                        double percent = getTimeSharePercentage(time);
+                        sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                            percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
+                        break;
                 }
+
                 // for each snapshot (2nd array index) find later snapshot for same thread with max number of
                 // identical StackTraceElements (starting from end of each)
                 boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -320,18 +339,20 @@ public class HotThreads {
 
     static class ThreadTimeAccumulator {
         private final long threadId;
+        private final TimeValue maxTime;
 
         private long cpuTime;
         private long blockedTime;
         private long waitedTime;
         private long allocatedBytes;
 
-        ThreadTimeAccumulator(ThreadInfo info, long cpuTime, long allocatedBytes) {
-            this.blockedTime = info.getBlockedTime();
-            this.waitedTime = info.getWaitedTime();
+        ThreadTimeAccumulator(ThreadInfo info, TimeValue maxTime, long cpuTime, long allocatedBytes) {
+            this.blockedTime = info.getBlockedTime() * 1_000_000; // Convert to nanos to standardize
+            this.waitedTime = info.getWaitedTime() * 1_000_000; // Convert to nanos to standardize
             this.cpuTime = cpuTime;
             this.allocatedBytes = allocatedBytes;
             this.threadId = info.getThreadId();
+            this.maxTime = maxTime;
         }
 
         void subtractPrevious(ThreadTimeAccumulator previous) {
@@ -352,6 +373,10 @@ public class HotThreads {
         // reported timings will be bogus (and likely negative). We cap the reported timings to >= 0 values only.
         public long getCpuTime() {
             return Math.max(cpuTime, 0);
+        }
+
+        public long getRunnableTime() {
+            return maxTime.nanos() - getWaitedTime() - getBlockedTime();
         }
 
         public long getBlockedTime() {
@@ -380,6 +405,18 @@ public class HotThreads {
                     return ThreadTimeAccumulator::getBlockedTime;
                 case MEM:
                     return ThreadTimeAccumulator::getAllocatedBytes;
+            }
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
+        }
+
+        static ToLongFunction<ThreadTimeAccumulator> sortFuncForReportType(ReportType type) {
+            switch (type) {
+                case CPU:
+                    return ThreadTimeAccumulator::getRunnableTime;
+                case WAIT:
+                case BLOCK:
+                case MEM:
+                    return valueGetterForReportType(type);
             }
             throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
         }

@@ -31,17 +31,17 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.plugins.LicenseCheckerPlugin;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.LicenseCheckerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
@@ -58,6 +58,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -90,11 +91,11 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase {
 
-    public static class MockLicenseCheckerPlugin extends Plugin implements LicenseCheckerPlugin {
+    public static class ConfigurableLicenseCheckerPlugin extends Plugin implements LicenseCheckerPlugin {
 
-        public static AtomicBoolean recoveryFromSnapshotAllowed = new AtomicBoolean(true);
+        private static final AtomicBoolean recoveryFromSnapshotAllowed = new AtomicBoolean(true);
 
-        public MockLicenseCheckerPlugin() {
+        public ConfigurableLicenseCheckerPlugin() {
         }
 
         @Override
@@ -102,12 +103,14 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             return recoveryFromSnapshotAllowed.get();
         }
 
-        public static void allowRecoveryFromSnapshot() {
-            recoveryFromSnapshotAllowed.set(true);
-        }
-
-        public static void denyRecoveryFromSnapshot() {
+        public static void denyRecoveryFromSnapshot(CheckedRunnable<Exception> runnable) throws Exception {
             recoveryFromSnapshotAllowed.set(false);
+
+            try {
+                runnable.run();
+            } finally {
+                recoveryFromSnapshotAllowed.set(true);
+            }
         }
     }
 
@@ -122,7 +125,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             TestRepositoryPlugin.class,
             MockTransportService.TestPlugin.class,
             InternalSettingsPlugin.class,
-            MockLicenseCheckerPlugin.class
+            ConfigurableLicenseCheckerPlugin.class
         );
     }
 
@@ -834,13 +837,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     public void testFallbacksToSourceNodeWhenLicenseIsInvalid() throws Exception {
-        MockLicenseCheckerPlugin.denyRecoveryFromSnapshot();
-
-        try {
-            checkRecoveryIsPerformedFromSourceNode();
-        } finally {
-            MockLicenseCheckerPlugin.allowRecoveryFromSnapshot();
-        }
+        ConfigurableLicenseCheckerPlugin.denyRecoveryFromSnapshot(this::checkRecoveryIsPerformedFromSourceNode);
     }
 
     private void checkRecoveryIsPerformedFromSourceNode() throws Exception {
@@ -965,7 +962,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
-    private void assertPeerRecoveryWasSuccessful(RecoveryState recoveryState, String sourceNode, String targetNode) throws Exception {
+    private void assertPeerRecoveryWasSuccessful(RecoveryState recoveryState, String sourceNode, String targetNode) {
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
         assertThat(recoveryState.getRecoverySource(), equalTo(RecoverySource.PeerRecoverySource.INSTANCE));
 

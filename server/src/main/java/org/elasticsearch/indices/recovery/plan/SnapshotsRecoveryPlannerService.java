@@ -18,11 +18,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.LicenseCheckerPlugin;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -35,11 +35,15 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     private final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
 
     private final ShardSnapshotsService shardSnapshotsService;
-    private final BooleanSupplier canUseSnapshotsDuringRecovery;
+    private final LicenseCheckerPlugin licenseCheckerPlugin;
+    private final RecoverySettings recoverySettings;
 
-    public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService, BooleanSupplier canUseSnapshotsDuringRecovery) {
+    public SnapshotsRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService,
+                                           LicenseCheckerPlugin licenseCheckerPlugin,
+                                           RecoverySettings recoverySettings) {
         this.shardSnapshotsService = shardSnapshotsService;
-        this.canUseSnapshotsDuringRecovery = canUseSnapshotsDuringRecovery;
+        this.licenseCheckerPlugin = licenseCheckerPlugin;
+        this.recoverySettings = recoverySettings;
     }
 
     public void computeRecoveryPlan(ShardId shardId,
@@ -69,7 +73,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     }
 
     private boolean canUseSnapshotsDuringRecovery() {
-        return canUseSnapshotsDuringRecovery.getAsBoolean();
+        return licenseCheckerPlugin.isRecoveryFromSnapshotAllowed() && recoverySettings.getUseSnapshotsDuringRecovery();
     }
 
     private ShardRecoveryPlan computeRecoveryPlanWithSnapshots(@Nullable String shardStateIdentifier,

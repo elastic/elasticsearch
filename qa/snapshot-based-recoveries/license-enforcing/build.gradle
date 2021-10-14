@@ -36,7 +36,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 3
 
   // This project tests that licensing is enforced, therefore
-  // we don't add any licesing on purpose
+  // we don't add any license on purpose
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.security.enabled', 'false'
 }

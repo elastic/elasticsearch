@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class LicenseIsEnforcedDuringSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRestTestCase {
@@ -39,6 +40,7 @@ public class LicenseIsEnforcedDuringSnapshotBasedRecoveryIT extends AbstractSnap
         Map<String, Object> responseAsMap = responseAsMap(response);
         List<Map<String, Object>> shardRecoveries = extractValue(responseAsMap, index + ".shards");
         long totalRecoveredFromSnapshot = 0;
+        long totalRecovered = 0;
         for (Map<String, Object> shardRecoveryState : shardRecoveries) {
             String recoveryType = extractValue(shardRecoveryState, "type");
             if (recoveryType.equals("PEER") == false) {
@@ -49,12 +51,15 @@ public class LicenseIsEnforcedDuringSnapshotBasedRecoveryIT extends AbstractSnap
 
             List<Map<String, Object>> fileDetails = extractValue(shardRecoveryState, "index.files.details");
             for (Map<String, Object> fileDetail : fileDetails) {
+                int recoveredFromSource = extractValue(fileDetail, "recovered_in_bytes");
                 int recoveredFromSnapshot = extractValue(fileDetail, "recovered_from_snapshot_in_bytes");
                 assertThat(recoveredFromSnapshot, is(equalTo(0)));
                 totalRecoveredFromSnapshot += recoveredFromSnapshot;
+                totalRecovered += recoveredFromSource;
             }
         }
         assertThat(totalRecoveredFromSnapshot, is(equalTo(0L)));
+        assertThat(totalRecovered, is(greaterThan(0L)));
     }
 
 }

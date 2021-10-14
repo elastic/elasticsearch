@@ -17,6 +17,6 @@ public class MockLicenseCheckerPlugin extends Plugin implements LicenseCheckerPl
 
     @Override
     public boolean isRecoveryFromSnapshotAllowed() {
-        return false;
+        return true;
     }
 }

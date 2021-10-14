@@ -324,7 +324,16 @@ public class NodeTests extends ESTestCase {
     public void testNodeFailsToStartWhenThereAreMultipleLicenseCheckerPluginsLoaded() {
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockLicenseCheckerPlugin.class);
-        expectThrows(RuntimeException.class, () -> new MockNode(baseSettings().build(), plugins));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
+        assertThat(exception.getMessage(), containsString("A single LicenseCheckerPlugin was expected but got:"));
+    }
+
+    public void testNodeFailsToStartWhenThereIsNotALicenseCheckerPluginsLoaded() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(getTestTransportPlugin());
+        plugins.add(MockHttpTransport.TestPlugin.class);
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
+        assertThat(exception.getMessage(), containsString("A single LicenseCheckerPlugin was expected but got: []"));
     }
 
     public static class MockCircuitBreakerPlugin extends Plugin implements CircuitBreakerPlugin {

@@ -37,6 +37,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     setting 'xpack.security.enabled', 'false'
     setting 'http.content_type.required', 'true'
+    if (bwcVersion.onOrAfter('7.10.0')) {
+      setting 'cluster.deprecation_indexing.enabled', 'false'
+    }
   }
 
   String oldVersion = bwcVersion.toString()

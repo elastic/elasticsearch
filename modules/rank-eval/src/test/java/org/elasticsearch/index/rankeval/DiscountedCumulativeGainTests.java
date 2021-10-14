@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -65,7 +64,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
             hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME),
                 Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
@@ -116,7 +115,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             }
             hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME),
                 Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
@@ -174,7 +173,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         for (int i = 0; i < 4; i++) {
             hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME),
                 Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);

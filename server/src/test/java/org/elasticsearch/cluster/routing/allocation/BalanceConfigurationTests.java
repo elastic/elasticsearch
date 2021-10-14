@@ -36,6 +36,7 @@ import org.hamcrest.Matchers;
 
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 
@@ -191,7 +192,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         if (unassigned > 0) {
             // Ensure that if there any unassigned shards, all of their replicas are unassigned as well
             // (i.e. unassigned count is always [replicas] + 1 for each shard unassigned shardId)
-            nodes.shardsWithState(UNASSIGNED).stream().collect(
+            shardsWithState(nodes, UNASSIGNED).stream().collect(
                 Collectors.toMap(
                     ShardRouting::shardId,
                     s -> 1,

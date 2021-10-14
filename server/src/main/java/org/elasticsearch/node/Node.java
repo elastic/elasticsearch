@@ -684,6 +684,7 @@ public class Node implements Closeable {
                 threadPool,
                 bigArrays,
                 transportService,
+                client,
                 namedWriteableRegistry,
                 networkService,
                 clusterService.getMasterService(),

@@ -430,9 +430,6 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testTimezoneParsing() {
-        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
-         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
-         */
         assertParses("2016-11-30T00+01", "strict_date_optional_time");
         assertParses("2016-11-30T00+0100", "strict_date_optional_time");
         assertParses("2016-11-30T00+01:00", "strict_date_optional_time");

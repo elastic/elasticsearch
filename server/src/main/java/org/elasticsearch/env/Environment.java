@@ -40,8 +40,8 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<String> PATH_DATA_SETTING =
-            Setting.simpleString("path.data", Property.NodeScope);
+    public static final Setting<List<String>> PATH_DATA_SETTING =
+            Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<String> PATH_LOGS_SETTING =
             new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> PATH_REPO_SETTING =
@@ -52,7 +52,7 @@ public class Environment {
 
     private final Settings settings;
 
-    private final Path dataFile;
+    private final Path[] dataFiles;
 
     private final Path[] repoFiles;
 
@@ -101,10 +101,14 @@ public class Environment {
 
         pluginsFile = homeFile.resolve("plugins");
 
-        if (PATH_DATA_SETTING.exists(settings)) {
-            dataFile = PathUtils.get(PATH_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
+        List<String> dataPaths = PATH_DATA_SETTING.get(settings);
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
+            }
         } else {
-            dataFile = homeFile.resolve("data");
+            dataFiles = new Path[]{homeFile.resolve("data")};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
@@ -140,7 +144,12 @@ public class Environment {
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.put(PATH_DATA_SETTING.getKey(), dataFile.toString());
+            if (dataFiles.length == 1) {
+                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0].toString());
+            } else {
+                finalSettings.putList(PATH_DATA_SETTING.getKey(),
+                    Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
+            }
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
@@ -171,7 +180,7 @@ public class Environment {
      * The data location.
      */
     public Path[] dataFiles() {
-        return new Path[] { dataFile };
+        return dataFiles;
     }
 
     /**

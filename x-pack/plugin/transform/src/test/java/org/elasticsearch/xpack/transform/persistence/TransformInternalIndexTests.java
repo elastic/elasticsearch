@@ -52,7 +52,6 @@ import static org.mockito.Mockito.when;
 public class TransformInternalIndexTests extends ESTestCase {
 
     private ClusterState stateWithLatestVersionedIndex;
-    private ClusterState stateWithLatestAuditIndexTemplate;
 
     public static ClusterState randomTransformClusterState() {
         return randomTransformClusterState(true);
@@ -117,7 +116,6 @@ public class TransformInternalIndexTests extends ESTestCase {
     @Before
     public void setupClusterStates() {
         stateWithLatestVersionedIndex = randomTransformClusterState();
-        stateWithLatestAuditIndexTemplate = randomTransformAuditClusterState();
     }
 
     public void testHaveLatestVersionedIndexTemplate() {

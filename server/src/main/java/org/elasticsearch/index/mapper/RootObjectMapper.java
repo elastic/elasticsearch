@@ -151,7 +151,6 @@ public class RootObjectMapper extends ObjectMapper {
                     iterator.remove();
                 }
             }
-            parserContext.getIndexSettings().getMode().completeMappings(parserContext, builder);
             return builder;
         }
 

@@ -136,7 +136,7 @@ reject @timestamp with wrong type:
       reason: introduced in 8.0.0 to be backported to 7.16.0
 
   - do:
-      catch: /@timestamp must be \[date\] or \[date_nanos\]/
+      catch: /data stream timestamp field \[@timestamp\] is of type keyword, but \[date,date_nanos\] is expected/
       indices.create:
           index: test
           body:

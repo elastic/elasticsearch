@@ -10,11 +10,12 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 
 import java.io.IOException;
@@ -62,9 +63,13 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     public void testAddsTimestamp() throws IOException {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
         DocumentMapper mapper = createMapperService(s, mapping(b -> {})).documentMapper();
-        MappedFieldType timestamp = mapper.mappers().getFieldType("@timestamp");
+        MappedFieldType timestamp = mapper.mappers().getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertThat(timestamp, instanceOf(DateFieldType.class));
         assertThat(((DateFieldType) timestamp).resolution(), equalTo(DateFieldMapper.Resolution.MILLISECONDS));
+
+        Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
+        assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
+        assertTrue(((DataStreamTimestampFieldMapper)timestampField).isEnabled());
     }
 
     public void testTimestampMillis() throws IOException {
@@ -74,6 +79,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         MappedFieldType timestamp = mapper.mappers().getFieldType("@timestamp");
         assertThat(timestamp, instanceOf(DateFieldType.class));
         assertThat(((DateFieldType) timestamp).resolution(), equalTo(DateFieldMapper.Resolution.MILLISECONDS));
+
+        Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
+        assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
+        assertTrue(((DataStreamTimestampFieldMapper)timestampField).isEnabled());
     }
 
     public void testTimestampNanos() throws IOException {
@@ -83,17 +92,25 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         MappedFieldType timestamp = mapper.mappers().getFieldType("@timestamp");
         assertThat(timestamp, instanceOf(DateFieldType.class));
         assertThat(((DateFieldType) timestamp).resolution(), equalTo(DateFieldMapper.Resolution.NANOSECONDS));
+
+        Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
+        assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
+        assertTrue(((DataStreamTimestampFieldMapper)timestampField).isEnabled());
     }
 
     public void testBadTimestamp() throws IOException {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        String type = randomFrom("keyword", "integer", "long", "double", "text");
         Exception e = expectThrows(
-            MapperParsingException.class,
+            IllegalArgumentException.class,
             () -> createMapperService(
                 s,
-                mapping(b -> b.startObject("@timestamp").field("type", randomFrom("keyword", "int", "long", "double", "text")).endObject())
+                mapping(b -> b.startObject("@timestamp").field("type", type).endObject())
             )
         );
-        assertThat(e.getMessage(), equalTo("Failed to parse mapping: @timestamp must be [date] or [date_nanos]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("data stream timestamp field [@timestamp] is of type [" + type + "], but [date,date_nanos] is expected")
+        );
     }
 }

@@ -11,9 +11,11 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 
 import java.util.List;
@@ -33,7 +35,11 @@ public enum IndexMode {
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
 
         @Override
-        public void completeMappings(MappingParserContext context, RootObjectMapper.Builder builder) {}
+        public void completeMappings(
+            MappingParserContext context,
+            Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers,
+            RootObjectMapper.Builder builder
+        ) {}
     },
     TIME_SERIES {
         @Override
@@ -53,12 +59,23 @@ public enum IndexMode {
         }
 
         @Override
-        public void completeMappings(MappingParserContext context, RootObjectMapper.Builder builder) {
-            Optional<Mapper.Builder> timestamp = builder.getBuilder("@timestamp");
+        public void completeMappings(
+            MappingParserContext context,
+            Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers,
+            RootObjectMapper.Builder builder
+        ) {
+            DataStreamTimestampFieldMapper timestampFieldMapper = (DataStreamTimestampFieldMapper) metadataMappers.get(
+                DataStreamTimestampFieldMapper.class
+            );
+            if (timestampFieldMapper == null || false == timestampFieldMapper.isEnabled()) {
+                metadataMappers.put(DataStreamTimestampFieldMapper.class, DataStreamTimestampFieldMapper.ENABLED_INSTANCE);
+            }
+
+            Optional<Mapper.Builder> timestamp = builder.getBuilder(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             if (timestamp.isEmpty()) {
                 builder.add(
                     new DateFieldMapper.Builder(
-                        "@timestamp",
+                        DataStreamTimestampFieldMapper.DEFAULT_PATH,
                         DateFieldMapper.Resolution.MILLISECONDS,
                         DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                         context.scriptCompiler(),
@@ -66,10 +83,6 @@ public enum IndexMode {
                         context.getIndexSettings().getIndexVersionCreated()
                     )
                 );
-                return;
-            }
-            if (false == timestamp.get() instanceof DateFieldMapper.Builder) {
-                throw new IllegalArgumentException("@timestamp must be [date] or [date_nanos]");
             }
         }
     };
@@ -90,5 +103,9 @@ public enum IndexMode {
     /**
      * Validate and/or modify the mappings after after they've been parsed.
      */
-    public abstract void completeMappings(MappingParserContext context, RootObjectMapper.Builder builder);
+    public abstract void completeMappings(
+        MappingParserContext context,
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers,
+        RootObjectMapper.Builder builder
+    );
 }

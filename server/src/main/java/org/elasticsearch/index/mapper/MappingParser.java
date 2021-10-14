@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,8 +94,11 @@ public final class MappingParser {
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper
-            = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+
+        // parserContext.getIndexSettings().getMode().completeMappings(parserContext, mapping);
+
+        RootObjectMapper.Builder rootObjectMapperBuilder
+            = rootObjectTypeParser.parse(type, mapping, parserContext);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
@@ -143,8 +146,10 @@ public final class MappingParser {
         }
         checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
 
+        parserContext.getIndexSettings().getMode().completeMappings(parserContext, metadataMappers, rootObjectMapperBuilder);
+
         return new Mapping(
-            rootObjectMapper,
+            rootObjectMapperBuilder.build(MapperBuilderContext.ROOT),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta);
     }

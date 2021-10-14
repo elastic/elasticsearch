@@ -224,7 +224,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L).loadBestOnDiskState()).getMessage();
         assertThat(message,
-            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
+            allOf(containsString("belongs to a node with ID"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
             Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
     }
@@ -320,7 +320,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
-                    .loadBestOnDiskState();
+                    .loadBestOnDiskState(false);
                 final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
                 writeState(writer, onDiskState.currentTerm, ClusterState.builder(clusterState)
                     .metadata(Metadata.builder(clusterState.metadata()).version(2)

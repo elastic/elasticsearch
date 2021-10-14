@@ -226,12 +226,12 @@ public class ServerUtils {
 
     public static void runElasticsearchTests() throws Exception {
         makeRequest(
-            Request.Post("http://localhost:9200/library/1?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON)
         );
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/2?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON)
         );
 

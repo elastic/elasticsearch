@@ -33,7 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Arrays;
-import java.util.Map;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -139,9 +139,10 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
             }
 
             if (response.hasFailures()) {
-                Map<String, String> failures = Arrays.stream(response.getItems())
+                List<String> failures = Arrays.stream(response.getItems())
                     .filter(BulkItemResponse::isFailed)
-                    .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    .map(r -> r.getId() + " " + r.getFailureMessage() )
+                    .collect(Collectors.toList());
                 logger.error("Bulk write of deprecation logs encountered some failures: [{}]", failures);
             }
         }

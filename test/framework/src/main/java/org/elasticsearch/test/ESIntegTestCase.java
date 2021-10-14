@@ -1840,7 +1840,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoManageMasterNodes(),
             minNumDataNodes, maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-            nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings());
+            nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings(), forceSingleDataPath());
     }
 
     private NodeConfigurationSource getNodeConfigSource() {
@@ -2147,6 +2147,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected boolean forbidPrivateIndexSettings() {
         return true;
+    }
+
+    /**
+     * Override to return true in tests that cannot handle multiple data paths.
+     */
+    protected boolean forceSingleDataPath() {
+        return false;
     }
 
     /**

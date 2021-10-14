@@ -262,6 +262,7 @@ public abstract class PackagingTestCase extends Assert {
 
     protected static void cleanup() throws Exception {
         installation = null;
+        fileSuperuserForInstallation = null;
         cleanEverything();
     }
 
@@ -484,8 +485,8 @@ public abstract class PackagingTestCase extends Assert {
 
     public void runElasticsearchTests() throws Exception {
         ServerUtils.runElasticsearchTests(
-            fileSuperuserForInstallation.v1(),
-            fileSuperuserForInstallation.v2(),
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v1() : null,
+            fileSuperuserForInstallation != null ? fileSuperuserForInstallation.v2() : null,
             ServerUtils.getCaCert(installation)
         );
     }

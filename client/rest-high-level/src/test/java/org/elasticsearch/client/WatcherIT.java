@@ -30,8 +30,8 @@ import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.client.watcher.WatcherStatsResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Map;

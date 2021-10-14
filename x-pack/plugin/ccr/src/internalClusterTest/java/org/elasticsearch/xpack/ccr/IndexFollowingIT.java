@@ -61,8 +61,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -115,7 +115,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.containsString;
@@ -141,7 +141,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         int numberOfReplicas = between(0, 1);
 
         followerClient().admin().cluster().prepareUpdateSettings().setMasterNodeTimeout(TimeValue.MAX_VALUE)
-            .setTransientSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(),
+            .setPersistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(),
                 new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.KB)))
             .get();
 
@@ -858,7 +858,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testLeaderIndexRed() throws Exception {
         try {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+            updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
             assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
             assertAcked(leaderClient().admin().indices().prepareCreate("index1")
                 .setWaitForActiveShards(ActiveShardCount.NONE)
@@ -876,7 +876,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         } finally {
             // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
+            updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
             assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
     }

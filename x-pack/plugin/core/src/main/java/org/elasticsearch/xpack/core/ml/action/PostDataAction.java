@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;

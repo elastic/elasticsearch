@@ -15,10 +15,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;

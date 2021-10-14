@@ -52,8 +52,6 @@ public class XPackLicenseState {
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
         MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
 
-        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
-
         CCR(OperationMode.PLATINUM, true),
 
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
@@ -442,6 +440,10 @@ public class XPackLicenseState {
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
         return checkAgainstStatus(status -> status.active);
+    }
+
+    public String statusDescription() {
+        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
     }
 
     @Deprecated

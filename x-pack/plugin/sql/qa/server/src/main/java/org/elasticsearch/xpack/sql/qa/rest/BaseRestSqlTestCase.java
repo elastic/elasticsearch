@@ -11,9 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 

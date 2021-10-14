@@ -55,7 +55,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -97,7 +99,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         environment =
             TestEnvironment.newEnvironment(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), dataDir)
-                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
 
         // create same directory structure as prod does
         Files.createDirectories(dataDir);
@@ -131,8 +133,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
-            final NodeEnvironment.NodePath dataPath = lock.getNodePath();
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(new Path[] { dataPath.path }, nodeId,
+            final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(dataPaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, clusterState);

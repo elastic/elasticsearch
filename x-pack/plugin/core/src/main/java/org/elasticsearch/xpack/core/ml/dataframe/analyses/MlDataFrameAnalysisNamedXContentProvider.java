@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
 import java.util.Arrays;

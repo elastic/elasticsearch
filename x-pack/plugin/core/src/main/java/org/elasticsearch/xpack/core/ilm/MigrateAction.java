@@ -13,24 +13,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.DataTier.getPreferredTiersConfiguration;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfigurationSettings;
 
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
- * {@link org.elasticsearch.xpack.core.DataTier}s.
+ * {@link DataTier}s.
  */
 public class MigrateAction implements LifecycleAction {
     public static final String NAME = "migrate";
@@ -116,9 +115,7 @@ public class MigrateAction implements LifecycleAction {
                     return false;
                 });
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
-                Settings.builder()
-                    .put(DataTierAllocationDecider.TIER_PREFERENCE, getPreferredTiersConfiguration(targetTier))
-                    .build());
+                getPreferredTiersConfigurationSettings(targetTier));
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {

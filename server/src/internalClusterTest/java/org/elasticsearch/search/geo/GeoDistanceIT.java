@@ -16,8 +16,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.closeTo;
 

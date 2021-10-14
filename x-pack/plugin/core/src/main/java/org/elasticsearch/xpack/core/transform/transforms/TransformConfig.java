@@ -14,13 +14,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
@@ -44,14 +44,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a data frame transform
  */
 public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
 
+    public static final Version CONFIG_VERSION_LAST_CHANGED = Version.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
@@ -556,7 +557,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         // quick check if a rewrite is required, if none found just return the original
         // a failing quick check, does not mean a rewrite is necessary
         if (transformConfig.getVersion() != null
-            && transformConfig.getVersion().onOrAfter(Version.V_7_15_0)
+            && transformConfig.getVersion().onOrAfter(CONFIG_VERSION_LAST_CHANGED)
             && (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null)) {
             return transformConfig;
         }
@@ -605,7 +606,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
 
         // 3. set align_checkpoints to false for transforms < 7.15 to keep BWC
-        if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
+        if (builder.getVersion() != null && builder.getVersion().before(CONFIG_VERSION_LAST_CHANGED)) {
             builder.setSettings(
                 new SettingsConfig(
                     builder.getSettings().getMaxPageSearchSize(),

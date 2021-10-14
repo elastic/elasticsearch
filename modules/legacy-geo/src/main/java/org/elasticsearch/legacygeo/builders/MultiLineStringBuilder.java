@@ -10,12 +10,12 @@ package org.elasticsearch.legacygeo.builders;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;

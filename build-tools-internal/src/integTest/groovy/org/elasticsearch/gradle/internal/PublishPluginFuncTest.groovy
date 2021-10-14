@@ -277,8 +277,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                     
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
+            licenseFile.set(file('license.txt'))
+            noticeFile.set(file('notice.txt'))
             version = "1.0"
             group = 'org.acme'        
         """
@@ -352,8 +352,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
            
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
+            licenseFile.set(file('license.txt'))
+            noticeFile.set(file('notice.txt'))
             version = "2.0"
             group = 'org.acme'        
         """

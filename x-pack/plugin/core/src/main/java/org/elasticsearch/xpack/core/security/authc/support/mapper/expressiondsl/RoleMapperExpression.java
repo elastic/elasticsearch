@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.function.Predicate;
 

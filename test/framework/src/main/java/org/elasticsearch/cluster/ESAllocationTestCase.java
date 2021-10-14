@@ -59,7 +59,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     };
 
     public static MockAllocationService createAllocationService() {
-        return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
+        return createAllocationService(Settings.EMPTY);
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
@@ -128,6 +128,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 
+    protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+    }
+
     protected static DiscoveryNode newNode(String nodeId, Version version) {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, version);
     }
@@ -174,7 +178,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      * @return the cluster state after completing the reroute.
      */
     public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState clusterState) {
-        return startShardsAndReroute(allocationService, clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+        return startShardsAndReroute(allocationService, clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
     }
 
     /**

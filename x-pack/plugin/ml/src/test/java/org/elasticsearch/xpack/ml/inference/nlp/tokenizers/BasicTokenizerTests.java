@@ -98,6 +98,12 @@ public class BasicTokenizerTests extends ESTestCase {
 
         tokens = BasicTokenizer.splitOnPunctuation("!!");
         assertThat(tokens, contains("!", "!"));
+
+        tokens = BasicTokenizer.splitOnPunctuation("elastic’s");
+        assertThat(tokens, contains("elastic", "’", "s"));
+
+        tokens = BasicTokenizer.splitOnPunctuation("elastic‘s");
+        assertThat(tokens, contains("elastic", "‘", "s"));
     }
 
     public void testStripAccents() {

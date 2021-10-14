@@ -30,6 +30,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;

@@ -70,7 +70,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor", "TRACE")
@@ -83,7 +83,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+            .setPersistentSettings(Settings.builder()
                 .putNull("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction")
                 .putNull("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor")
@@ -287,7 +287,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         int maxConcurrentJobAllocations = randomIntBetween(1, 4);
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
+                .setPersistentSettings(Settings.builder()
                         .put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), maxConcurrentJobAllocations))
                 .get();
 

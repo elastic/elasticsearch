@@ -148,8 +148,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             }
 
             CanMatchResponse result = new CanMatchResponse(canMatch, null);
-            result.setSearchShardTarget(shard == null ? new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias(),
-                shardIt.getOriginalIndices()) : shard);
+            result.setSearchShardTarget(shard == null ? new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias()) : shard);
             result.setShardIndex(shardIndex);
             fork(() -> onShardResult(result, shardIt));
         } catch (Exception e) {

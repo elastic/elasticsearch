@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -55,6 +54,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -249,12 +249,17 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 shardSizeInfo,
                 System.nanoTime()
             );
-            List<ShardRouting> candidates = state.getRoutingNodes()
-                .shardsWithState(ShardRoutingState.STARTED)
-                .stream()
-                .filter(shard -> canRemainOnlyHighestTierPreference(shard, allocation) == false)
-                .filter(shard -> canAllocate(shard, allocation) == false)
-                .collect(Collectors.toList());
+
+            List<ShardRouting> candidates = new LinkedList<>();
+            for (RoutingNode routingNode : state.getRoutingNodes()) {
+                for (ShardRouting shard : routingNode) {
+                    if (shard.started()
+                        && canRemainOnlyHighestTierPreference(shard, allocation) == false
+                        && canAllocate(shard, allocation) == false) {
+                        candidates.add(shard);
+                    }
+                }
+            }
 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
             Set<ShardRouting> unmovableShards = candidates.stream()

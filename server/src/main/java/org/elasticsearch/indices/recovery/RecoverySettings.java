@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 
 public class RecoverySettings {
     public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
+    // TODO: update after backport
+    public static final Version SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_8_0_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 

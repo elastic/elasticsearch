@@ -74,7 +74,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                 if (DataStreamMetadata.TYPE.equals(name) || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
                     // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
-                    // therefor even es node commands need to be RestoreModelSnapshotITable to parse it.
+                    // therefor even es node commands need to be able to parse it.
                     return super.parseNamedObject(categoryClass, name, parser, context);
                     // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
                     // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.

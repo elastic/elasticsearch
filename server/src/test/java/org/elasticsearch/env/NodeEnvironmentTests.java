@@ -11,11 +11,11 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -26,6 +26,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -466,6 +468,25 @@ public class NodeEnvironmentTests extends ESTestCase {
         // assert that we fail on shard data even without the metadata dir.
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
         verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+    }
+
+    public void testBlocksDowngradeToVersionWithMultipleNodesInDataPath() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        for (int i = 0; i < 2; i++) { // ensure the file gets created again if missing
+            try (NodeEnvironment env = newNodeEnvironment(settings)) {
+                for (Path dataPath : env.nodeDataPaths()) {
+                    final Path nodesPath = dataPath.resolve("nodes");
+                    assertTrue(Files.isRegularFile(nodesPath));
+                    assertThat(
+                        Files.readString(nodesPath, StandardCharsets.UTF_8),
+                        allOf(
+                            containsString("written by Elasticsearch"),
+                            containsString("prevent a downgrade"),
+                            containsString("data loss")));
+                    Files.delete(nodesPath);
+                }
+            }
+        }
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

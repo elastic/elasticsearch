@@ -38,11 +38,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -870,7 +870,7 @@ public class MetadataIndexTemplateService {
      */
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver
-            .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
+            .resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final List<IndexTemplateMetadata> matchedTemplates = new ArrayList<>();
         for (IndexTemplateMetadata template: metadata.templates().values()) {
@@ -923,7 +923,7 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver
-            .resolveExpression(indexName, new IndexNameExpressionResolver.Context(null, null, null));
+            .resolveExpression(indexName);
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, resolvedIndexName);
         final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
@@ -1417,7 +1417,7 @@ public class MetadataIndexTemplateService {
         int order;
         Integer version;
         List<String> indexPatterns;
-        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        Settings settings = Settings.EMPTY;
         Map<String, String> mappings = new HashMap<>();
         List<Alias> aliases = new ArrayList<>();
 

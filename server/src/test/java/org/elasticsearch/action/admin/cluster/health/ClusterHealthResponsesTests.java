@@ -20,8 +20,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.hamcrest.Matchers;
@@ -48,9 +48,18 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             res.setTimedOut(randomBoolean());
             if (res.isTimedOut()) {
                 assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
+                assertWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
             } else {
                 assertEquals(RestStatus.OK, res.status());
             }
+        }
+    }
+
+    public void testTimeoutReturns200IfOptedIn() {
+        ClusterHealthResponse res = new ClusterHealthResponse(true);
+        for (int i = 0; i < 5; i++) {
+            res.setTimedOut(randomBoolean());
+            assertEquals(RestStatus.OK, res.status());
         }
     }
 

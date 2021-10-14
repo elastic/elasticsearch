@@ -28,8 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -269,7 +269,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             client().prepareSearch("test1").get();
 
             assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
+                    .setPersistentSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)));
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -278,7 +278,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                     + " shards, which is over the limit of " + (numPrimaries1 - 1)));
 
             assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
+                    .setPersistentSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1)));
 
             // no exception
@@ -291,7 +291,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         } finally {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
+                    .setPersistentSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null)));
         }
     }
@@ -364,7 +364,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                 .put("indices.breaker.request.limit", "1b")
                 .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
             final Client client = client();
             assertBusy(() -> {
                 SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("test")
@@ -405,7 +405,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                 .putNull("indices.breaker.request.limit")
                 .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
     }
 

@@ -7,15 +7,15 @@
  */
 package org.elasticsearch.gradle.internal;
 
-import java.io.File;
-
-import javax.inject.Inject;
-
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.file.Chmod;
+
+import java.io.File;
+
+import javax.inject.Inject;
 
 /**
  * Creates an empty directory.

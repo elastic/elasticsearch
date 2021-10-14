@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -363,6 +364,11 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             @Override
             public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ActionListener<Void> listener) {
                 listener.onResponse(null);
+            }
+
+            @Override
+            public ClusterApplierRecordingService.Stats getStats() {
+                return null;
             }
         };
         ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,

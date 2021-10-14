@@ -174,6 +174,7 @@ final class StoreRecovery {
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
+                liveCommitData.put(Engine.ES_VERSION, Version.CURRENT.toString());
                 return liveCommitData.entrySet().iterator();
             });
             writer.commit();

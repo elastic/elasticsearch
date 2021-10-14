@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.email.support;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import javax.activation.FileTypeMap;
 import javax.mail.MessagingException;

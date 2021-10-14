@@ -177,9 +177,9 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap("field", sourceValue));
 
-        assertEquals(Collections.singletonList("value"), fetcher.fetchValues(lookup));
+        assertEquals(Collections.singletonList("value"), fetcher.fetchValues(lookup, new ArrayList<Object>()));
         lookup.setSource(Collections.singletonMap("field", null));
-        assertEquals(Collections.emptyList(), fetcher.fetchValues(lookup));
+        assertEquals(Collections.emptyList(), fetcher.fetchValues(lookup, new ArrayList<Object>()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.valueFetcher(searchExecutionContext, "format"));
         assertEquals("Field [field.key] of type [flattened] doesn't support formats.", e.getMessage());

@@ -14,9 +14,10 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
-import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.Map;
+
+import javax.annotation.Nullable;
 
 /**
  * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section

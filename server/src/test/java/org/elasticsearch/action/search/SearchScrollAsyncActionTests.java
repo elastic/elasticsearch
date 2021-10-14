@@ -9,7 +9,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
@@ -63,7 +62,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                             new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.contextId(), connection.getNode());
                         testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                            new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
+                            new ShardId("test", "_na_", 1), null));
                         searchActionListener.onResponse(testSearchPhaseResult);
                     }).start();
                 }
@@ -154,7 +153,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                             new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.contextId(), connection.getNode());
                         testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                            new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
+                            new ShardId("test", "_na_", 1), null));
                         searchActionListener.onResponse(testSearchPhaseResult);
                     }).start();
                 }
@@ -227,7 +226,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                             new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.contextId(), connection.getNode());
                         testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                            new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
+                            new ShardId("test", "_na_", 1), null));
                         searchActionListener.onResponse(testSearchPhaseResult);
                     }).start();
                 }
@@ -304,7 +303,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                             SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult =
                                 new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.contextId(), connection.getNode());
                             testSearchPhaseResult.setSearchShardTarget(new SearchShardTarget(connection.getNode().getId(),
-                                new ShardId("test", "_na_", 1), null, OriginalIndices.NONE));
+                                new ShardId("test", "_na_", 1), null));
                             searchActionListener.onResponse(testSearchPhaseResult);
                         }
                     }).start();

@@ -192,16 +192,16 @@ public class HeaderWarningTests extends ESTestCase {
 
     public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
-        final String first = HeaderWarning.formatWarning(s);
+        final String first = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, s);
         assertThat(HeaderWarning.extractWarningValueFromWarningHeader(first, false), equalTo(s));
 
         final String withPos = "[context][1:11] Blah blah blah";
-        final String formatted = HeaderWarning.formatWarning(withPos);
+        final String formatted = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, withPos);
         assertThat(HeaderWarning.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
 
         final String withNegativePos = "[context][-1:-1] Blah blah blah";
-        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(HeaderWarning.formatWarning(withNegativePos), true),
-            equalTo("Blah blah blah"));
+        assertThat(HeaderWarning.extractWarningValueFromWarningHeader(HeaderWarning.formatWarning(DeprecationLogger.CRITICAL,
+            withNegativePos), true), equalTo("Blah blah blah"));
     }
 
     public void testEscapeBackslashesAndQuotes() {

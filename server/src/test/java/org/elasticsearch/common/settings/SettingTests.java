@@ -1279,4 +1279,13 @@ public class SettingTests extends ESTestCase {
         deprecatedSettingWarningOnly.checkDeprecation(settings);
         assertSettingDeprecationsAndWarningsIncludingLevel(new Setting<?>[]{ deprecatedSettingWarningOnly });
     }
+
+    public void testDeprecationPropertyValidation() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            Setting.boolSetting(
+                "a.bool.setting",
+                true,
+                Property.Deprecated,
+                Property.DeprecatedWarning));
+    }
 }

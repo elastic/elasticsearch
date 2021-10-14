@@ -174,6 +174,9 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
+            if (propertiesAsSet.contains(Property.Deprecated) && propertiesAsSet.contains(Property.DeprecatedWarning)) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be deprecated at both critical and warning levels");
+            }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
@@ -375,12 +378,12 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
-    public boolean isDeprecated() {
+    private boolean isDeprecated() {
         return properties.contains(Property.Deprecated) || properties.contains(Property.DeprecatedWarning);
     }
 
     private boolean isDeprecatedWarningOnly() {
-        return properties.contains(Property.DeprecatedWarning) && properties.contains(Property.Deprecated) == false;
+        return properties.contains(Property.DeprecatedWarning);
     }
 
     /**

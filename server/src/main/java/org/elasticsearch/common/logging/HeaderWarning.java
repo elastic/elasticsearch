@@ -192,14 +192,11 @@ public class HeaderWarning {
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
      * and appending the RFC 7231 date.
      *
+     * @param level the level of the warning - Level.WARN or DeprecationLogger.CRITICAL
      * @param s the warning string to format
      * @return a warning value formatted according to RFC 7234
      */
-    public static String formatWarning(final String s) {
-        return formatWarning(DeprecationLogger.CRITICAL, s);
-    }
-
-    private static String formatWarning(final Level level, final String s) {
+    public static String formatWarning(final Level level, final String s) {
         // Assume that the common scenario won't have a string to escape and encode.
         int length = WARNING_PREFIX.length() + s.length() + 6;
         final StringBuilder sb = new StringBuilder(length);
@@ -315,10 +312,6 @@ public class HeaderWarning {
             .findFirst()
             .map(t -> t.getHeader(Task.X_OPAQUE_ID))
             .orElse("");
-    }
-
-    public static void addWarning(String message, Object... params) {
-        addWarning(THREAD_CONTEXT, DeprecationLogger.CRITICAL, message, params);
     }
 
     public static void addWarning(Level level, String message, Object... params) {

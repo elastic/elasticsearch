@@ -481,11 +481,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final void assertWarnings(String... expectedWarnings) {
-        assertWarnings(true, expectedWarnings);
-    }
-
-    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
-        assertWarnings(stripXContentPosition, false, expectedWarnings);
+        assertWarnings(true, false, expectedWarnings);
     }
 
     protected final void assertWarnings(boolean stripXContentPosition, boolean includeLevelCheck, String... expectedWarnings) {

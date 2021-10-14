@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ql.util;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 
 import java.util.StringJoiner;
@@ -23,13 +22,10 @@ public class RemoteClusterUtils {
             Tuple.tuple(null, indexName);
     }
 
-    public static String qualifyIndices(String cluster, String indices) {
-        if (cluster == null) {
-            return indices;
-        }
+    public static String qualifyAndJoinIndices(String cluster, String[] indices) {
         StringJoiner sj = new StringJoiner(",");
-        for (String index : Strings.commaDelimitedListToStringArray(indices)) {
-            sj.add(buildRemoteIndexName(cluster,index));
+        for (String index : indices) {
+            sj.add(cluster != null ? buildRemoteIndexName(cluster,index) : index);
         }
         return sj.toString();
     }

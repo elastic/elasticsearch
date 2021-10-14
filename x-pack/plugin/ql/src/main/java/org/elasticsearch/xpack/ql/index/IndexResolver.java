@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyIndices;
+import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyAndJoinIndices;
 import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
 
 public class IndexResolver {
@@ -205,11 +205,12 @@ public class IndexResolver {
         boolean retrieveIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.STANDARD_INDEX);
         boolean retrieveFrozenIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.FROZEN_INDEX);
 
+        String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
         if (retrieveAliases) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest()
                     .local(true)
-                    .aliases(Strings.commaDelimitedListToStringArray(indexWildcard))
+                    .aliases(indexWildcards)
                     .indicesOptions(IndicesOptions.lenientExpandOpen());
 
             client.admin().indices().getAliases(aliasRequest, wrap(aliases -> {
@@ -223,7 +224,7 @@ public class IndexResolver {
                             }
                         }
                     }
-                    resolveIndices(clusterWildcard, indexWildcard, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos,
+                    resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos,
                         listener);
                 },
                 ex -> {
@@ -233,7 +234,7 @@ public class IndexResolver {
 
                     // in both cases, that is allowed and we continue with the indices request
                     if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                        resolveIndices(clusterWildcard, indexWildcard, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos,
+                        resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos,
                             listener);
                     } else {
                         listener.onFailure(ex);
@@ -241,17 +242,17 @@ public class IndexResolver {
                 })
             );
         } else {
-            resolveIndices(clusterWildcard, indexWildcard, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos, listener);
+            resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos, listener);
         }
     }
 
-    private void resolveIndices(String clusterWildcard, String indexWildcard, String javaRegex, boolean retrieveIndices,
+    private void resolveIndices(String clusterWildcard, String[] indexWildcards, String javaRegex, boolean retrieveIndices,
                                 boolean retrieveFrozenIndices, Set<IndexInfo> indexInfos, ActionListener<Set<IndexInfo>> listener) {
         if (retrieveIndices || retrieveFrozenIndices) {
             if (clusterWildcard == null || simpleMatch(clusterWildcard, clusterName)) { // resolve local indices
                 GetIndexRequest indexRequest = new GetIndexRequest()
                     .local(true)
-                    .indices(Strings.commaDelimitedListToStringArray(indexWildcard))
+                    .indices(indexWildcards)
                     .features(Feature.SETTINGS)
                     .includeDefaults(false)
                     .indicesOptions(INDICES_ONLY_OPTIONS);
@@ -270,24 +271,24 @@ public class IndexResolver {
                                     isFrozen ? IndexType.FROZEN_INDEX : IndexType.STANDARD_INDEX));
                             }
                         }
-                        resolveRemoteIndices(clusterWildcard, indexWildcard, javaRegex, retrieveFrozenIndices, indexInfos, listener);
+                        resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, listener);
                     },
                     listener::onFailure)
                 );
             } else {
-                resolveRemoteIndices(clusterWildcard, indexWildcard, javaRegex, retrieveFrozenIndices, indexInfos, listener);
+                resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, listener);
             }
         } else {
             filterResults(javaRegex, indexInfos, listener);
         }
     }
 
-    private void resolveRemoteIndices(String clusterWildcard, String indexWildcard, String javaRegex, boolean retrieveFrozenIndices,
+    private void resolveRemoteIndices(String clusterWildcard, String[] indexWildcards, String javaRegex, boolean retrieveFrozenIndices,
                                          Set<IndexInfo> indexInfos, ActionListener<Set<IndexInfo>> listener) {
         if (hasText(clusterWildcard)) {
             IndicesOptions indicesOptions = retrieveFrozenIndices ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
-            FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(qualifyIndices(clusterWildcard, indexWildcard), indicesOptions,
-                emptyMap());
+            FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(qualifyAndJoinIndices(clusterWildcard, indexWildcards),
+                indicesOptions, emptyMap());
             client.fieldCaps(fieldRequest, wrap(response -> {
                     String[] indices = response.getIndices();
                         if (indices != null) {

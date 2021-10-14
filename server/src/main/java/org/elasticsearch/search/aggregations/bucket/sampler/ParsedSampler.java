@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

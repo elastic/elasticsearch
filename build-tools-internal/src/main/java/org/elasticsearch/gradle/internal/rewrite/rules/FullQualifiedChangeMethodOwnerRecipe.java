@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.rewrite.rules;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.openrewrite.ExecutionContext;
 import org.openrewrite.Option;
 import org.openrewrite.Recipe;
@@ -37,11 +38,7 @@ public class FullQualifiedChangeMethodOwnerRecipe extends Recipe {
     )
     private String originFullQualifiedClassname;
 
-    @Option(
-        displayName = "method name",
-        description = "The name of the method we want to change the origin.",
-        example = "of"
-    )
+    @Option(displayName = "method name", description = "The name of the method we want to change the origin.", example = "of")
     private String originMethod;
 
     @Option(
@@ -103,9 +100,7 @@ public class FullQualifiedChangeMethodOwnerRecipe extends Recipe {
             this.methodMatcher = methodMatcher;
         }
 
-        public Visitor(String originFullQualifiedClassname,
-                       String originMethod,
-                       String targetFullQualifiedClassname) {
+        public Visitor(String originFullQualifiedClassname, String originMethod, String targetFullQualifiedClassname) {
             this.originFullQualifiedClassname = originFullQualifiedClassname;
             this.originMethod = originMethod;
             this.targetFullQualifiedClassname = targetFullQualifiedClassname;

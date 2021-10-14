@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -109,10 +110,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         }
         this.allShardsStarted = allShardsStarted;
         this.primary = primary;
-        this.replicas = Collections.unmodifiableList(replicas);
-        this.activeShards = Collections.unmodifiableList(activeShards);
-        this.assignedShards = Collections.unmodifiableList(assignedShards);
-        this.allInitializingShards = Collections.unmodifiableList(allInitializingShards);
+        this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
+        this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
+        this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
+        this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
         this.allAllocationIds = Collections.unmodifiableSet(allAllocationIds);
     }
 

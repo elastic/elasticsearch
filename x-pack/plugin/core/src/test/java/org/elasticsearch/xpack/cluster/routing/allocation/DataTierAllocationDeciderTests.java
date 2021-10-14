@@ -38,8 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,7 +48,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -312,7 +311,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
+                        .put(DataTier.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -347,7 +346,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, "myindex")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(DataTierAllocationDecider.TIER_PREFERENCE, "data_warm,data_cold")
+                        .put(DataTier.TIER_PREFERENCE, "data_warm,data_cold")
                         .build()))
                 .build())
             .build();
@@ -662,24 +661,32 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testPreferredTierAvailable() {
         DiscoveryNodes nodes = DiscoveryNodes.builder().build();
 
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data", nodes), equalTo(Optional.empty()));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_warm", nodes), equalTo(Optional.empty()));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_warm,data_content", nodes), equalTo(Optional.empty()));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_cold", nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+            DataTier.parseTierList("data"), nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+            DataTier.parseTierList("data_hot,data_warm"), nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+            DataTier.parseTierList("data_warm,data_content"), nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+            DataTier.parseTierList("data_cold"), nodes), equalTo(Optional.empty()));
 
         nodes = DiscoveryNodes.builder()
             .add(WARM_NODE)
             .add(CONTENT_NODE)
             .build();
 
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data", nodes), equalTo(Optional.empty()));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_warm", nodes), equalTo(Optional.of("data_warm")));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_warm,data_content", nodes), equalTo(Optional.of("data_warm")));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_content,data_warm", nodes), equalTo(Optional.of("data_content")));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_content,data_warm", nodes),
-            equalTo(Optional.of("data_content")));
-        assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_cold,data_warm", nodes),
-            equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+                DataTier.parseTierList("data"), nodes), equalTo(Optional.empty()));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+                DataTier.parseTierList("data_hot,data_warm"), nodes), equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+                DataTier.parseTierList("data_warm,data_content"), nodes), equalTo(Optional.of("data_warm")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+                DataTier.parseTierList("data_content,data_warm"), nodes), equalTo(Optional.of("data_content")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+                DataTier.parseTierList("data_hot,data_content,data_warm"), nodes), equalTo(Optional.of("data_content")));
+        assertThat(DataTierAllocationDecider.preferredAvailableTier(
+                DataTier.parseTierList("data_hot,data_cold,data_warm"), nodes), equalTo(Optional.of("data_warm")));
     }
 
     public void testExistedClusterFilters() {
@@ -746,6 +753,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Randomness.shuffle(tierList);
 
         String value = Strings.join(tierList, ",");
+
         Setting<String> setting = randomTierSetting();
         Settings.Builder builder = Settings.builder().put(setting.getKey(), value);
         if (randomBoolean()) {
@@ -767,7 +775,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Setting<String> setting = randomTierSetting();
         Settings.Builder builder = Settings.builder().put(setting.getKey(), DATA_FROZEN);
         builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
-        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+        builder.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
 
@@ -782,14 +790,14 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testDefaultValueForPreference() {
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(Settings.EMPTY), equalTo(""));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(Settings.EMPTY), equalTo(""));
 
         Settings.Builder builder = Settings.builder();
         builder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
-        builder.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+        builder.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         Settings settings = builder.build();
-        assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(settings), equalTo(DATA_FROZEN));
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), equalTo(DATA_FROZEN));
     }
 
     public Setting<String> randomTierSetting() {
@@ -798,7 +806,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
             DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
             DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
-            DataTierAllocationDecider.TIER_PREFERENCE_SETTING);
+            DataTier.TIER_PREFERENCE_SETTING);
     }
 
     private ClusterState prepareState(ClusterState initialState) {

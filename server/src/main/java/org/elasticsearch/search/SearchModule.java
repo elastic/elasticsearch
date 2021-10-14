@@ -11,18 +11,16 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -293,7 +291,7 @@ import static org.elasticsearch.index.query.CommonTermsQueryBuilder.COMMON_TERMS
  */
 public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
-            1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
+        1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
     public static final Setting<Integer> INDICES_MAX_NESTED_DEPTH_SETTING = Setting.intSetting("indices.query.bool.max_nested_depth",
         20, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
@@ -301,7 +299,7 @@ public class SearchModule {
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
-            "moving_avg_model");
+        "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
 
@@ -336,7 +334,6 @@ public class SearchModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
-        registerShapes();
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
@@ -385,137 +382,137 @@ public class SearchModule {
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder.PARSER)
-                .addResultReader(InternalMin::new)
-                .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators), builder);
+            .addResultReader(InternalMin::new)
+            .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder.PARSER)
-                .addResultReader(InternalMax::new)
-                .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators), builder);
+            .addResultReader(InternalMax::new)
+            .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(StatsAggregationBuilder.NAME, StatsAggregationBuilder::new, StatsAggregationBuilder.PARSER)
             .addResultReader(InternalStats::new)
             .setAggregatorRegistrar(StatsAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
             ExtendedStatsAggregationBuilder.PARSER)
-                .addResultReader(InternalExtendedStats::new)
-                .setAggregatorRegistrar(ExtendedStatsAggregationBuilder::registerAggregators), builder);
+            .addResultReader(InternalExtendedStats::new)
+            .setAggregatorRegistrar(ExtendedStatsAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,
-                ValueCountAggregationBuilder.PARSER)
-                    .addResultReader(InternalValueCount::new)
-                    .setAggregatorRegistrar(ValueCountAggregationBuilder::registerAggregators), builder);
+            ValueCountAggregationBuilder.PARSER)
+            .addResultReader(InternalValueCount::new)
+            .setAggregatorRegistrar(ValueCountAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(PercentilesAggregationBuilder.NAME, PercentilesAggregationBuilder::new,
-                PercentilesAggregationBuilder::parse)
-                    .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)
-                    .addResultReader(InternalHDRPercentiles.NAME, InternalHDRPercentiles::new)
-                    .setAggregatorRegistrar(PercentilesAggregationBuilder::registerAggregators), builder);
+            PercentilesAggregationBuilder::parse)
+            .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)
+            .addResultReader(InternalHDRPercentiles.NAME, InternalHDRPercentiles::new)
+            .setAggregatorRegistrar(PercentilesAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(PercentileRanksAggregationBuilder.NAME, PercentileRanksAggregationBuilder::new,
-                PercentileRanksAggregationBuilder::parse)
-                        .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
-                        .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new)
-                        .setAggregatorRegistrar(PercentileRanksAggregationBuilder::registerAggregators), builder);
+            PercentileRanksAggregationBuilder::parse)
+            .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
+            .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new)
+            .setAggregatorRegistrar(PercentileRanksAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
             MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder.PARSER)
-                .addResultReader(InternalMedianAbsoluteDeviation::new)
-                .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators), builder);
+            .addResultReader(InternalMedianAbsoluteDeviation::new)
+            .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
-                CardinalityAggregationBuilder.PARSER).addResultReader(InternalCardinality::new)
+            CardinalityAggregationBuilder.PARSER).addResultReader(InternalCardinality::new)
             .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
-                GlobalAggregationBuilder::parse).addResultReader(InternalGlobal::new), builder);
+            GlobalAggregationBuilder::parse).addResultReader(InternalGlobal::new), builder);
         registerAggregation(new AggregationSpec(MissingAggregationBuilder.NAME, MissingAggregationBuilder::new,
-                MissingAggregationBuilder.PARSER)
-                    .addResultReader(InternalMissing::new)
-                    .setAggregatorRegistrar(MissingAggregationBuilder::registerAggregators), builder);
+            MissingAggregationBuilder.PARSER)
+            .addResultReader(InternalMissing::new)
+            .setAggregatorRegistrar(MissingAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(FilterAggregationBuilder.NAME, FilterAggregationBuilder::new,
-                FilterAggregationBuilder::parse).addResultReader(InternalFilter::new), builder);
+            FilterAggregationBuilder::parse).addResultReader(InternalFilter::new), builder);
         registerAggregation(new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new,
-                FiltersAggregationBuilder::parse).addResultReader(InternalFilters::new), builder);
+            FiltersAggregationBuilder::parse).addResultReader(InternalFilters::new), builder);
         registerAggregation(new AggregationSpec(AdjacencyMatrixAggregationBuilder.NAME, AdjacencyMatrixAggregationBuilder::new,
-                AdjacencyMatrixAggregationBuilder::parse).addResultReader(InternalAdjacencyMatrix::new), builder);
+            AdjacencyMatrixAggregationBuilder::parse).addResultReader(InternalAdjacencyMatrix::new), builder);
         registerAggregation(new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new,
                 SamplerAggregationBuilder::parse)
-                    .addResultReader(InternalSampler.NAME, InternalSampler::new)
-                    .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
+                .addResultReader(InternalSampler.NAME, InternalSampler::new)
+                .addResultReader(UnmappedSampler.NAME, UnmappedSampler::new),
             builder);
         registerAggregation(new AggregationSpec(DiversifiedAggregationBuilder.NAME, DiversifiedAggregationBuilder::new,
                 DiversifiedAggregationBuilder.PARSER).setAggregatorRegistrar(DiversifiedAggregationBuilder::registerAggregators)
-                    /* Reuses result readers from SamplerAggregator*/, builder);
+            /* Reuses result readers from SamplerAggregator*/, builder);
         registerAggregation(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
-                TermsAggregationBuilder.PARSER)
-                    .addResultReader(StringTerms.NAME, StringTerms::new)
-                    .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
-                    .addResultReader(LongTerms.NAME, LongTerms::new)
-                    .addResultReader(DoubleTerms.NAME, DoubleTerms::new)
+            TermsAggregationBuilder.PARSER)
+            .addResultReader(StringTerms.NAME, StringTerms::new)
+            .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
+            .addResultReader(LongTerms.NAME, LongTerms::new)
+            .addResultReader(DoubleTerms.NAME, DoubleTerms::new)
             .setAggregatorRegistrar(TermsAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(RareTermsAggregationBuilder.NAME, RareTermsAggregationBuilder::new,
-                RareTermsAggregationBuilder.PARSER)
-                    .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
-                    .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
-                    .addResultReader(LongRareTerms.NAME, LongRareTerms::new)
-                    .setAggregatorRegistrar(RareTermsAggregationBuilder::registerAggregators), builder);
+            RareTermsAggregationBuilder.PARSER)
+            .addResultReader(StringRareTerms.NAME, StringRareTerms::new)
+            .addResultReader(UnmappedRareTerms.NAME, UnmappedRareTerms::new)
+            .addResultReader(LongRareTerms.NAME, LongRareTerms::new)
+            .setAggregatorRegistrar(RareTermsAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
-                SignificantTermsAggregationBuilder::parse)
-                    .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
-                    .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
-                    .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new)
-                    .setAggregatorRegistrar(SignificantTermsAggregationBuilder::registerAggregators),  builder);
+            SignificantTermsAggregationBuilder::parse)
+            .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
+            .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
+            .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new)
+            .setAggregatorRegistrar(SignificantTermsAggregationBuilder::registerAggregators),  builder);
         registerAggregation(new AggregationSpec(SignificantTextAggregationBuilder.NAME, SignificantTextAggregationBuilder::new,
-                SignificantTextAggregationBuilder::parse), builder);
+            SignificantTextAggregationBuilder::parse), builder);
         registerAggregation(new AggregationSpec(RangeAggregationBuilder.NAME, RangeAggregationBuilder::new,
-                RangeAggregationBuilder.PARSER)
-                    .addResultReader(InternalRange::new)
-                    .setAggregatorRegistrar(RangeAggregationBuilder::registerAggregators), builder);
+            RangeAggregationBuilder.PARSER)
+            .addResultReader(InternalRange::new)
+            .setAggregatorRegistrar(RangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new,
-                DateRangeAggregationBuilder.PARSER)
-                    .addResultReader(InternalDateRange::new)
-                    .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators), builder);
+            DateRangeAggregationBuilder.PARSER)
+            .addResultReader(InternalDateRange::new)
+            .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
-                IpRangeAggregationBuilder.PARSER)
-                    .addResultReader(InternalBinaryRange::new)
-                    .setAggregatorRegistrar(IpRangeAggregationBuilder::registerAggregators), builder);
+            IpRangeAggregationBuilder.PARSER)
+            .addResultReader(InternalBinaryRange::new)
+            .setAggregatorRegistrar(IpRangeAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
-                HistogramAggregationBuilder.PARSER)
-                    .addResultReader(InternalHistogram::new)
-                    .setAggregatorRegistrar(HistogramAggregationBuilder::registerAggregators), builder);
+            HistogramAggregationBuilder.PARSER)
+            .addResultReader(InternalHistogram::new)
+            .setAggregatorRegistrar(HistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
-                DateHistogramAggregationBuilder.PARSER)
-                    .addResultReader(InternalDateHistogram::new)
-                    .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators), builder);
+            DateHistogramAggregationBuilder.PARSER)
+            .addResultReader(InternalDateHistogram::new)
+            .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder.PARSER)
-                    .addResultReader(InternalAutoDateHistogram::new)
-                    .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
+            AutoDateHistogramAggregationBuilder.PARSER)
+            .addResultReader(InternalAutoDateHistogram::new)
+            .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(VariableWidthHistogramAggregationBuilder.NAME,
-                VariableWidthHistogramAggregationBuilder::new,
-                VariableWidthHistogramAggregationBuilder.PARSER)
-                    .addResultReader(InternalVariableWidthHistogram::new)
-                    .setAggregatorRegistrar(VariableWidthHistogramAggregationBuilder::registerAggregators), builder);
+            VariableWidthHistogramAggregationBuilder::new,
+            VariableWidthHistogramAggregationBuilder.PARSER)
+            .addResultReader(InternalVariableWidthHistogram::new)
+            .setAggregatorRegistrar(VariableWidthHistogramAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
-                GeoDistanceAggregationBuilder::parse)
-                    .addResultReader(InternalGeoDistance::new)
-                    .setAggregatorRegistrar(GeoDistanceAggregationBuilder::registerAggregators), builder);
+            GeoDistanceAggregationBuilder::parse)
+            .addResultReader(InternalGeoDistance::new)
+            .setAggregatorRegistrar(GeoDistanceAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,
-                GeoHashGridAggregationBuilder.PARSER)
-                    .addResultReader(InternalGeoHashGrid::new)
-                    .setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators), builder);
+            GeoHashGridAggregationBuilder.PARSER)
+            .addResultReader(InternalGeoHashGrid::new)
+            .setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoTileGridAggregationBuilder.NAME, GeoTileGridAggregationBuilder::new,
-                GeoTileGridAggregationBuilder.PARSER)
-                    .addResultReader(InternalGeoTileGrid::new)
-                    .setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators), builder);
+            GeoTileGridAggregationBuilder.PARSER)
+            .addResultReader(InternalGeoTileGrid::new)
+            .setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new,
-                NestedAggregationBuilder::parse).addResultReader(InternalNested::new), builder);
+            NestedAggregationBuilder::parse).addResultReader(InternalNested::new), builder);
         registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder.NAME, ReverseNestedAggregationBuilder::new,
-                ReverseNestedAggregationBuilder::parse).addResultReader(InternalReverseNested::new), builder);
+            ReverseNestedAggregationBuilder::parse).addResultReader(InternalReverseNested::new), builder);
         registerAggregation(new AggregationSpec(TopHitsAggregationBuilder.NAME, TopHitsAggregationBuilder::new,
-                TopHitsAggregationBuilder::parse).addResultReader(InternalTopHits::new), builder);
+            TopHitsAggregationBuilder::parse).addResultReader(InternalTopHits::new), builder);
         registerAggregation(new AggregationSpec(GeoBoundsAggregationBuilder.NAME, GeoBoundsAggregationBuilder::new,
-                GeoBoundsAggregationBuilder.PARSER)
-                    .addResultReader(InternalGeoBounds::new)
-                    .setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators), builder);
+            GeoBoundsAggregationBuilder.PARSER)
+            .addResultReader(InternalGeoBounds::new)
+            .setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder.NAME, GeoCentroidAggregationBuilder::new,
-                GeoCentroidAggregationBuilder.PARSER)
-                    .addResultReader(InternalGeoCentroid::new)
-                    .setAggregatorRegistrar(GeoCentroidAggregationBuilder::registerAggregators), builder);
+            GeoCentroidAggregationBuilder.PARSER)
+            .addResultReader(InternalGeoCentroid::new)
+            .setAggregatorRegistrar(GeoCentroidAggregationBuilder::registerAggregators), builder);
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
-                ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new), builder);
+            ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new), builder);
         registerAggregation(
             new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
                 .addResultReader(InternalComposite::new)
@@ -539,7 +536,7 @@ public class SearchModule {
             }));
         }
         namedWriteables.add(
-                new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+            new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.getResultReaders().entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
@@ -557,92 +554,92 @@ public class SearchModule {
 
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {
         registerPipelineAggregation(new PipelineAggregationSpec(
-                DerivativePipelineAggregationBuilder.NAME,
-                DerivativePipelineAggregationBuilder::new,
-                DerivativePipelineAggregator::new,
-                DerivativePipelineAggregationBuilder::parse)
-                    .addResultReader(InternalDerivative::new));
+            DerivativePipelineAggregationBuilder.NAME,
+            DerivativePipelineAggregationBuilder::new,
+            DerivativePipelineAggregator::new,
+            DerivativePipelineAggregationBuilder::parse)
+            .addResultReader(InternalDerivative::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                MaxBucketPipelineAggregationBuilder.NAME,
-                MaxBucketPipelineAggregationBuilder::new,
-                MaxBucketPipelineAggregator::new,
-                MaxBucketPipelineAggregationBuilder.PARSER)
-                    // This bucket is used by many pipeline aggreations.
-                    .addResultReader(InternalBucketMetricValue.NAME, InternalBucketMetricValue::new));
+            MaxBucketPipelineAggregationBuilder.NAME,
+            MaxBucketPipelineAggregationBuilder::new,
+            MaxBucketPipelineAggregator::new,
+            MaxBucketPipelineAggregationBuilder.PARSER)
+            // This bucket is used by many pipeline aggreations.
+            .addResultReader(InternalBucketMetricValue.NAME, InternalBucketMetricValue::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 MinBucketPipelineAggregationBuilder.NAME,
                 MinBucketPipelineAggregationBuilder::new,
                 MinBucketPipelineAggregator::new,
                 MinBucketPipelineAggregationBuilder.PARSER)
-                    /* Uses InternalBucketMetricValue */);
+            /* Uses InternalBucketMetricValue */);
         registerPipelineAggregation(new PipelineAggregationSpec(
-                AvgBucketPipelineAggregationBuilder.NAME,
-                AvgBucketPipelineAggregationBuilder::new,
-                AvgBucketPipelineAggregator::new,
-                AvgBucketPipelineAggregationBuilder.PARSER)
-                    // This bucket is used by many pipeline aggreations.
-                    .addResultReader(InternalSimpleValue.NAME, InternalSimpleValue::new));
+            AvgBucketPipelineAggregationBuilder.NAME,
+            AvgBucketPipelineAggregationBuilder::new,
+            AvgBucketPipelineAggregator::new,
+            AvgBucketPipelineAggregationBuilder.PARSER)
+            // This bucket is used by many pipeline aggreations.
+            .addResultReader(InternalSimpleValue.NAME, InternalSimpleValue::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 SumBucketPipelineAggregationBuilder.NAME,
                 SumBucketPipelineAggregationBuilder::new,
                 SumBucketPipelineAggregator::new,
                 SumBucketPipelineAggregationBuilder.PARSER)
-                    /* Uses InternalSimpleValue */);
+            /* Uses InternalSimpleValue */);
         registerPipelineAggregation(new PipelineAggregationSpec(
-                StatsBucketPipelineAggregationBuilder.NAME,
-                StatsBucketPipelineAggregationBuilder::new,
-                StatsBucketPipelineAggregator::new,
-                StatsBucketPipelineAggregationBuilder.PARSER)
-                    .addResultReader(InternalStatsBucket::new));
+            StatsBucketPipelineAggregationBuilder.NAME,
+            StatsBucketPipelineAggregationBuilder::new,
+            StatsBucketPipelineAggregator::new,
+            StatsBucketPipelineAggregationBuilder.PARSER)
+            .addResultReader(InternalStatsBucket::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                ExtendedStatsBucketPipelineAggregationBuilder.NAME,
-                ExtendedStatsBucketPipelineAggregationBuilder::new,
-                ExtendedStatsBucketPipelineAggregator::new,
-                new ExtendedStatsBucketParser())
-                    .addResultReader(InternalExtendedStatsBucket::new));
+            ExtendedStatsBucketPipelineAggregationBuilder.NAME,
+            ExtendedStatsBucketPipelineAggregationBuilder::new,
+            ExtendedStatsBucketPipelineAggregator::new,
+            new ExtendedStatsBucketParser())
+            .addResultReader(InternalExtendedStatsBucket::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                PercentilesBucketPipelineAggregationBuilder.NAME,
-                PercentilesBucketPipelineAggregationBuilder::new,
-                PercentilesBucketPipelineAggregator::new,
-                PercentilesBucketPipelineAggregationBuilder.PARSER)
-                    .addResultReader(InternalPercentilesBucket::new));
+            PercentilesBucketPipelineAggregationBuilder.NAME,
+            PercentilesBucketPipelineAggregationBuilder::new,
+            PercentilesBucketPipelineAggregator::new,
+            PercentilesBucketPipelineAggregationBuilder.PARSER)
+            .addResultReader(InternalPercentilesBucket::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                MovAvgPipelineAggregationBuilder.NAME,
-                MovAvgPipelineAggregationBuilder::new,
-                MovAvgPipelineAggregator::new,
-                (XContentParser parser, String name) ->
-                    MovAvgPipelineAggregationBuilder.parse(movingAverageModelParserRegistry, name, parser)
-                )/* Uses InternalHistogram for buckets */);
+            MovAvgPipelineAggregationBuilder.NAME,
+            MovAvgPipelineAggregationBuilder::new,
+            MovAvgPipelineAggregator::new,
+            (XContentParser parser, String name) ->
+                MovAvgPipelineAggregationBuilder.parse(movingAverageModelParserRegistry, name, parser)
+        )/* Uses InternalHistogram for buckets */);
         registerPipelineAggregation(new PipelineAggregationSpec(
-                CumulativeSumPipelineAggregationBuilder.NAME,
-                CumulativeSumPipelineAggregationBuilder::new,
-                CumulativeSumPipelineAggregator::new,
-                CumulativeSumPipelineAggregationBuilder.PARSER));
+            CumulativeSumPipelineAggregationBuilder.NAME,
+            CumulativeSumPipelineAggregationBuilder::new,
+            CumulativeSumPipelineAggregator::new,
+            CumulativeSumPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                BucketScriptPipelineAggregationBuilder.NAME,
-                BucketScriptPipelineAggregationBuilder::new,
-                BucketScriptPipelineAggregator::new,
-                BucketScriptPipelineAggregationBuilder.PARSER));
+            BucketScriptPipelineAggregationBuilder.NAME,
+            BucketScriptPipelineAggregationBuilder::new,
+            BucketScriptPipelineAggregator::new,
+            BucketScriptPipelineAggregationBuilder.PARSER));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                BucketSelectorPipelineAggregationBuilder.NAME,
-                BucketSelectorPipelineAggregationBuilder::new,
-                BucketSelectorPipelineAggregator::new,
-                BucketSelectorPipelineAggregationBuilder::parse));
+            BucketSelectorPipelineAggregationBuilder.NAME,
+            BucketSelectorPipelineAggregationBuilder::new,
+            BucketSelectorPipelineAggregator::new,
+            BucketSelectorPipelineAggregationBuilder::parse));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                BucketSortPipelineAggregationBuilder.NAME,
-                BucketSortPipelineAggregationBuilder::new,
-                BucketSortPipelineAggregator::new,
-                BucketSortPipelineAggregationBuilder::parse));
+            BucketSortPipelineAggregationBuilder.NAME,
+            BucketSortPipelineAggregationBuilder::new,
+            BucketSortPipelineAggregator::new,
+            BucketSortPipelineAggregationBuilder::parse));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                SerialDiffPipelineAggregationBuilder.NAME,
-                SerialDiffPipelineAggregationBuilder::new,
-                SerialDiffPipelineAggregator::new,
-                SerialDiffPipelineAggregationBuilder::parse));
+            SerialDiffPipelineAggregationBuilder.NAME,
+            SerialDiffPipelineAggregationBuilder::new,
+            SerialDiffPipelineAggregator::new,
+            SerialDiffPipelineAggregationBuilder::parse));
         registerPipelineAggregation(new PipelineAggregationSpec(
-                MovFnPipelineAggregationBuilder.NAME,
-                MovFnPipelineAggregationBuilder::new,
-                MovFnPipelineAggregator::new,
-                MovFnPipelineAggregationBuilder.PARSER));
+            MovFnPipelineAggregationBuilder.NAME,
+            MovFnPipelineAggregationBuilder::new,
+            MovFnPipelineAggregator::new,
+            MovFnPipelineAggregationBuilder.PARSER));
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
@@ -650,23 +647,17 @@ public class SearchModule {
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
         if (false == transportClient) {
             namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(),
-                    (p, c) -> spec.getParser().parse(p, (String) c)));
+                (p, c) -> spec.getParser().parse(p, (String) c)));
         }
         namedWriteables.add(
-                new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+            new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         if (spec.getAggregatorReader() != null) {
             namedWriteables.add(new NamedWriteableRegistry.Entry(
                 PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
         }
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.getResultReaders().entrySet()) {
             namedWriteables
-                    .add(new NamedWriteableRegistry.Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
-        }
-    }
-
-    private void registerShapes() {
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            namedWriteables.addAll(GeoShapeType.getShapeWriteables());
+                .add(new NamedWriteableRegistry.Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
         }
     }
 
@@ -720,9 +711,9 @@ public class SearchModule {
 
     private void registerSuggester(SuggesterSpec<?> suggester) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(
-                SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
+            SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
-                suggester.getParser()));
+            suggester.getParser()));
 
         namedWriteables.add(new NamedWriteableRegistry.Entry(
             Suggest.Suggestion.class, suggester.getName().getPreferredName(), suggester.getSuggestionReader()
@@ -744,18 +735,18 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(
             ScriptScoreFunctionBuilder.class, ScriptScoreFunctionBuilder.NAME,  ScriptScoreFunctionBuilder::new));
         registerScoreFunction(new ScoreFunctionSpec<>(ScriptScoreFunctionBuilder.NAME, ScriptScoreFunctionBuilder::new,
-                ScriptScoreFunctionBuilder::fromXContent));
+            ScriptScoreFunctionBuilder::fromXContent));
 
         registerScoreFunction(
-                new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new, GaussDecayFunctionBuilder.PARSER));
+            new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new, GaussDecayFunctionBuilder.PARSER));
         registerScoreFunction(new ScoreFunctionSpec<>(LinearDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder::new,
-                LinearDecayFunctionBuilder.PARSER));
+            LinearDecayFunctionBuilder.PARSER));
         registerScoreFunction(new ScoreFunctionSpec<>(ExponentialDecayFunctionBuilder.NAME, ExponentialDecayFunctionBuilder::new,
-                ExponentialDecayFunctionBuilder.PARSER));
+            ExponentialDecayFunctionBuilder.PARSER));
         registerScoreFunction(new ScoreFunctionSpec<>(RandomScoreFunctionBuilder.NAME, RandomScoreFunctionBuilder::new,
-                RandomScoreFunctionBuilder::fromXContent));
+            RandomScoreFunctionBuilder::fromXContent));
         registerScoreFunction(new ScoreFunctionSpec<>(FieldValueFactorFunctionBuilder.NAME, FieldValueFactorFunctionBuilder::new,
-                FieldValueFactorFunctionBuilder::fromXContent));
+            FieldValueFactorFunctionBuilder::fromXContent));
 
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
@@ -766,11 +757,11 @@ public class SearchModule {
 
     private void registerScoreFunction(ScoreFunctionSpec<?> scoreFunction) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(
-                ScoreFunctionBuilder.class, scoreFunction.getName().getPreferredName(), scoreFunction.getReader()));
+            ScoreFunctionBuilder.class, scoreFunction.getName().getPreferredName(), scoreFunction.getReader()));
         // TODO remove funky contexts
         namedXContents.add(new NamedXContentRegistry.Entry(
-                ScoreFunctionBuilder.class, scoreFunction.getName(),
-                (XContentParser p, Object c) -> scoreFunction.getParser().fromXContent(p)));
+            ScoreFunctionBuilder.class, scoreFunction.getName(),
+            (XContentParser p, Object c) -> scoreFunction.getParser().fromXContent(p)));
     }
 
     private void registerValueFormats() {
@@ -824,7 +815,7 @@ public class SearchModule {
     private void registerMovingAverageModel(SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser> movAvgModel) {
         movingAverageModelParserRegistry.register(movAvgModel.getParser(), movAvgModel.getName());
         namedWriteables.add(
-                new NamedWriteableRegistry.Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
+            new NamedWriteableRegistry.Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
@@ -864,7 +855,7 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchPhrasePrefixQueryBuilder.NAME, MatchPhrasePrefixQueryBuilder::new,
-                MatchPhrasePrefixQueryBuilder::fromXContent));
+            MatchPhrasePrefixQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MultiMatchQueryBuilder.NAME, MultiMatchQueryBuilder::new, MultiMatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(CombinedFieldsQueryBuilder.NAME, CombinedFieldsQueryBuilder::new,
             CombinedFieldsQueryBuilder::fromXContent));
@@ -885,35 +876,35 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(PrefixQueryBuilder.NAME, PrefixQueryBuilder::new, PrefixQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(WildcardQueryBuilder.NAME, WildcardQueryBuilder::new, WildcardQueryBuilder::fromXContent));
         registerQuery(
-                new QuerySpec<>(ConstantScoreQueryBuilder.NAME, ConstantScoreQueryBuilder::new, ConstantScoreQueryBuilder::fromXContent));
+            new QuerySpec<>(ConstantScoreQueryBuilder.NAME, ConstantScoreQueryBuilder::new, ConstantScoreQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanTermQueryBuilder.NAME, SpanTermQueryBuilder::new, SpanTermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanNotQueryBuilder.NAME, SpanNotQueryBuilder::new, SpanNotQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanWithinQueryBuilder.NAME, SpanWithinQueryBuilder::new, SpanWithinQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanContainingQueryBuilder.NAME, SpanContainingQueryBuilder::new,
-                SpanContainingQueryBuilder::fromXContent));
+            SpanContainingQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(FieldMaskingSpanQueryBuilder.NAME, FieldMaskingSpanQueryBuilder::new,
-                FieldMaskingSpanQueryBuilder::fromXContent));
+            FieldMaskingSpanQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanFirstQueryBuilder.NAME, SpanFirstQueryBuilder::new, SpanFirstQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanNearQueryBuilder.NAME, SpanNearQueryBuilder::new, SpanNearQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanGapQueryBuilder.NAME, SpanGapQueryBuilder::new, SpanGapQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(SpanOrQueryBuilder.NAME, SpanOrQueryBuilder::new, SpanOrQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MoreLikeThisQueryBuilder.NAME, MoreLikeThisQueryBuilder::new,
-                MoreLikeThisQueryBuilder::fromXContent));
+            MoreLikeThisQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(WrapperQueryBuilder.NAME, WrapperQueryBuilder::new, WrapperQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(new ParseField(CommonTermsQueryBuilder.NAME).withAllDeprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG),
-                CommonTermsQueryBuilder::new, CommonTermsQueryBuilder::fromXContent));
+            CommonTermsQueryBuilder::new, CommonTermsQueryBuilder::fromXContent));
         registerQuery(
-                new QuerySpec<>(SpanMultiTermQueryBuilder.NAME, SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent));
+            new QuerySpec<>(SpanMultiTermQueryBuilder.NAME, SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(FunctionScoreQueryBuilder.NAME, FunctionScoreQueryBuilder::new,
-                FunctionScoreQueryBuilder::fromXContent));
+            FunctionScoreQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ScriptScoreQueryBuilder.NAME, ScriptScoreQueryBuilder::new, ScriptScoreQueryBuilder::fromXContent));
         registerQuery(
-                new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent));
+            new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TypeQueryBuilder.NAME, TypeQueryBuilder::new, TypeQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ScriptQueryBuilder.NAME, ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(GeoDistanceQueryBuilder.NAME, GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(GeoBoundingBoxQueryBuilder.NAME, GeoBoundingBoxQueryBuilder::new,
-                GeoBoundingBoxQueryBuilder::fromXContent));
+            GeoBoundingBoxQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(
             (new ParseField(GeoPolygonQueryBuilder.NAME).withAllDeprecated(GeoPolygonQueryBuilder.GEO_POLYGON_DEPRECATION_MSG)),
             GeoPolygonQueryBuilder::new, GeoPolygonQueryBuilder::fromXContent));
@@ -925,10 +916,8 @@ public class SearchModule {
             DistanceFeatureQueryBuilder::fromXContent));
         registerQuery(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
-        }
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
     }
@@ -955,24 +944,24 @@ public class SearchModule {
 
     public static List<NamedWriteableRegistry.Entry> getIntervalsSourceProviderNamedWritables() {
         return unmodifiableList(Arrays.asList(
-                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Match.NAME,
-                        IntervalsSourceProvider.Match::new),
-                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Combine.NAME,
-                        IntervalsSourceProvider.Combine::new),
-                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Disjunction.NAME,
-                        IntervalsSourceProvider.Disjunction::new),
-                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Prefix.NAME,
-                        IntervalsSourceProvider.Prefix::new),
-                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Wildcard.NAME,
-                        IntervalsSourceProvider.Wildcard::new),
-                new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Fuzzy.NAME,
-                        IntervalsSourceProvider.Fuzzy::new)));
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Match.NAME,
+                IntervalsSourceProvider.Match::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Combine.NAME,
+                IntervalsSourceProvider.Combine::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Disjunction.NAME,
+                IntervalsSourceProvider.Disjunction::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Prefix.NAME,
+                IntervalsSourceProvider.Prefix::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Wildcard.NAME,
+                IntervalsSourceProvider.Wildcard::new),
+            new NamedWriteableRegistry.Entry(IntervalsSourceProvider.class, IntervalsSourceProvider.Fuzzy.NAME,
+                IntervalsSourceProvider.Fuzzy::new)));
     }
 
     private void registerQuery(QuerySpec<?> spec) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
-                (p, c) -> spec.getParser().fromXContent(p)));
+            (p, c) -> spec.getParser().fromXContent(p)));
     }
 
     private void registerBoolQuery(ParseField name, Writeable.Reader<QueryBuilder> reader) {

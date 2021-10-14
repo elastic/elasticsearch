@@ -9,11 +9,11 @@
 package org.elasticsearch.gradle.internal.test.rest;
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Project;
 import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -27,15 +27,14 @@ import org.gradle.api.tasks.bundling.Zip;
  */
 public class RestTestUtil {
 
-    private RestTestUtil() {
-    }
+    private RestTestUtil() {}
 
     static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
         // eagerly create the testCluster container so it is easily available for configuration
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
+            .getExtensions()
+            .getByName(TestClustersPlugin.EXTENSION_NAME);
         return testClusters.create(sourceSet.getName());
     }
 
@@ -47,9 +46,7 @@ public class RestTestUtil {
         return project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
-            project.getPlugins().withType(JavaPlugin.class, t ->
-                testTask.mustRunAfter(project.getTasks().named("test"))
-            );
+            project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
 
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());

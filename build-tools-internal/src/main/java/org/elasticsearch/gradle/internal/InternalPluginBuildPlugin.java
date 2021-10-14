@@ -9,19 +9,20 @@
 package org.elasticsearch.gradle.internal;
 
 import groovy.lang.Closure;
+
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
-import org.gradle.api.tasks.bundling.Zip;
-import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.Task;
-import java.io.File;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 
+import java.io.File;
 import java.util.Optional;
 
 public class InternalPluginBuildPlugin implements InternalPlugin {

@@ -11,14 +11,13 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
@@ -51,7 +50,7 @@ public abstract class GradleUtils {
     }
 
     public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
-        tasks.matching(t -> t.getName().equals(name)).configureEach( t-> config.execute(t));
+        tasks.matching(t -> t.getName().equals(name)).configureEach(t -> config.execute(t));
     }
 
     public static <T extends Task> void maybeConfigure(
@@ -204,8 +203,7 @@ public abstract class GradleUtils {
     }
 
     public static boolean isModuleProject(String projectPath) {
-        return projectPath.contains("modules:")
-            || projectPath.startsWith(":x-pack:plugin");
+        return projectPath.contains("modules:") || projectPath.startsWith(":x-pack:plugin");
     }
 
     public static void disableTransitiveDependencies(Configuration config) {

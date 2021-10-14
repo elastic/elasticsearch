@@ -17,8 +17,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
@@ -65,7 +65,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                 Settings.builder().putNull(MonitoringService.ENABLED.getKey())
                                   .putNull("xpack.monitoring.exporters._local.type")
                                   .putNull("xpack.monitoring.exporters._local.enabled")
@@ -97,7 +97,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }
 
             // local exporter is now enabled
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             if (randomBoolean()) {
                 // export some documents now, before starting the monitoring service
@@ -254,7 +254,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      */
     private void checkMonitoringDocs() {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        String customTimeFormat = response.getState().getMetadata().transientSettings()
+        String customTimeFormat = response.getState().getMetadata().persistentSettings()
                 .get("xpack.monitoring.exporters._local.index.name.time_format");
         assertEquals(indexTimeFormat, customTimeFormat);
         if (customTimeFormat == null) {

@@ -26,8 +26,10 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -53,6 +55,10 @@ import java.util.function.Function;
 public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
+
+    public static final Set<String> DEPRECATED_PARAMETERS = new HashSet<>(
+        Arrays.asList("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points_only")
+    );
 
     public static final String CONTENT_TYPE = "geo_shape";
 

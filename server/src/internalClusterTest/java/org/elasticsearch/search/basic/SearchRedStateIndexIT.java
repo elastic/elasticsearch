@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
@@ -98,15 +99,15 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     private void setClusterDefaultAllowPartialResults(boolean allowPartialResults) {
         String key = SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey();
 
-        Settings transientSettings = Settings.builder().put(key, allowPartialResults).build();
+        Settings persistentSettings = Settings.builder().put(key, allowPartialResults).build();
 
         ClusterUpdateSettingsResponse response1 = client().admin().cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(transientSettings)
+                .setPersistentSettings(persistentSettings)
                 .get();
 
         assertAcked(response1);
-        assertEquals(response1.getTransientSettings().getAsBoolean(key, null), allowPartialResults);
+        assertEquals(response1.getPersistentSettings().getAsBoolean(key, null), allowPartialResults);
     }
 
     private void buildRedIndex(int numShards) throws Exception {
@@ -123,8 +124,8 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
 
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            List<ShardRouting> unassigneds = clusterState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED);
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            List<ShardRouting> unassigneds = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
             assertThat(unassigneds.size(), greaterThan(0));
         });
 
@@ -133,6 +134,6 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())));
+            .setPersistentSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())));
     }
 }

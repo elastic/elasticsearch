@@ -11,7 +11,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -55,7 +54,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         if (hasHits) {
             QuerySearchResult queryResult = new QuerySearchResult();
             queryResult.setSearchShardTarget(new SearchShardTarget("node0",
-                new ShardId("index", "index", 0), null, OriginalIndices.NONE));
+                new ShardId("index", "index", 0), null));
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 1.0F), new DocValueFormat[0]);
             addProfiling(profiled, queryResult);
@@ -113,7 +112,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean profiled = randomBoolean();
 
         ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE);
+        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
         QuerySearchResult queryResult = new QuerySearchResult(ctx1, shard1Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -123,7 +122,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult, () -> {});
 
         final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
-        SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE);
+        SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
         queryResult = new QuerySearchResult(ctx2, shard2Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
@@ -181,7 +180,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean profiled = randomBoolean();
 
         final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE);
+        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
         QuerySearchResult queryResult = new QuerySearchResult(ctx, shard1Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -190,7 +189,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         addProfiling(profiled, queryResult);
         results.consumeResult(queryResult, () -> {});
 
-        SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE);
+        SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
         queryResult = new QuerySearchResult(new ShardSearchContextId("", 321), shard2Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
@@ -267,7 +266,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.getRequest(), numHits, exc  -> {});
         SearchShardTarget[] shardTargets = new SearchShardTarget[numHits];
         for (int i = 0; i < numHits; i++) {
-            shardTargets[i] = new SearchShardTarget("node1", new ShardId("test", "na", i), null, OriginalIndices.NONE);
+            shardTargets[i] = new SearchShardTarget("node1", new ShardId("test", "na", i), null);
             QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", i), shardTargets[i], null);
             queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                     new ScoreDoc[] {new ScoreDoc(i+1, i)}), i), new DocValueFormat[0]);
@@ -346,7 +345,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         int resultSetSize = randomIntBetween(2, 10);
         boolean profiled = randomBoolean();
 
-        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE);
+        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
         QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123), shard1Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -355,7 +354,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         addProfiling(profiled, queryResult);
         results.consumeResult(queryResult, () -> {});
 
-        SearchShardTarget shard2Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE);
+        SearchShardTarget shard2Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
         queryResult = new QuerySearchResult(new ShardSearchContextId("", 321), shard2Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);
@@ -411,7 +410,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         boolean profiled = randomBoolean();
 
         final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null, OriginalIndices.NONE);
+        SearchShardTarget shard1Target = new SearchShardTarget("node1", new ShardId("test", "na", 0), null);
         QuerySearchResult queryResult = new QuerySearchResult(ctx1, shard1Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(42, 1.0F)}), 2.0F), new DocValueFormat[0]);
@@ -421,7 +420,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         results.consumeResult(queryResult, () -> {});
 
         final ShardSearchContextId ctx2 = new ShardSearchContextId(UUIDs.base64UUID(), 321);
-        SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null, OriginalIndices.NONE);
+        SearchShardTarget shard2Target = new SearchShardTarget("node2", new ShardId("test", "na", 1), null);
         queryResult = new QuerySearchResult(ctx2, shard2Target, null);
         queryResult.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                 new ScoreDoc[] {new ScoreDoc(84, 2.0F)}), 2.0F), new DocValueFormat[0]);

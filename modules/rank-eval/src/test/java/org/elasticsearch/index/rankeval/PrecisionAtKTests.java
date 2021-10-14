@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -104,7 +103,7 @@ public class PrecisionAtKTests extends ESTestCase {
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
         searchHits[2] = new SearchHit(2, "2", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
-        searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+        searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.metricScore(), 0.00001);
@@ -124,7 +123,7 @@ public class PrecisionAtKTests extends ESTestCase {
         for (int i = 0; i < 5; i++) {
             hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME),
                 Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
@@ -246,7 +245,7 @@ public class PrecisionAtKTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
             hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;
     }

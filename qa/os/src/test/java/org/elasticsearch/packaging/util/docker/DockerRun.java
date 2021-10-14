@@ -134,7 +134,6 @@ public class DockerRun {
             }
         }
 
-
         cmd.addAll(this.extraArgs);
 
         // Image name

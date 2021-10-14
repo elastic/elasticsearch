@@ -16,7 +16,7 @@ In this guide, you’ll learn how to:
 The guide also provides tips for creating dedicated cluster state snapshots.
 
 [discrete]
-[[take-snapshot-prereqs]]
+[[create-snapshot-prereqs]]
 === Prerequisites
 
 include::register-repository.asciidoc[tag=kib-snapshot-prereqs]
@@ -33,7 +33,7 @@ any <<cluster-read-only,cluster blocks>> or <<index-modules-blocks,index
 blocks>> that prevent read access.
 
 [discrete]
-[[take-snapshot-considerations]]
+[[create-snapshot-considerations]]
 === Considerations
 
 * Each snapshot must have a unique name within its repository. Attempts to
@@ -64,7 +64,7 @@ snapshot. If the stream’s original write index is not in the snapshot, the mos
 recent backing index from the snapshot becomes the stream’s write index.
 
 [discrete]
-[[automate-backups-slm]]
+[[automate-snapshots-slm]]
 === Automate snapshots with {slm-init}
 
 {slm-cap} ({slm-init}) is the easiest way to regularly back up a cluster. An
@@ -188,8 +188,8 @@ To take a snapshot without an {slm-init} policy, use the
 
 [source,console]
 ----
-# PUT _snapshot/my_repository/<snapshot-{now/d}>
-PUT _snapshot/my_repository/%3Csnapshot-%7Bnow%2Fd%7D%3E
+# PUT _snapshot/my_repository/<my_snapshot_{now/d}>
+PUT _snapshot/my_repository/%3Cmy_snapshot_%7Bnow%2Fd%7D%3E
 ----
 // TEST[s/3E/3E?wait_for_completion=true/]
 
@@ -200,7 +200,7 @@ background. To block the client until the snapshot finishes, set the
 
 [source,console]
 ----
-PUT _snapshot/my_repository/my-snapshot?wait_for_completion=true
+PUT _snapshot/my_repository/my_snapshot?wait_for_completion=true
 ----
 
 You can also clone an existing snapshot using <<clone-snapshot-api,clone
@@ -228,7 +228,7 @@ GET _snapshot/_status
 
 [discrete]
 [[check-slm-history]]
-==== Check {slm-init} execution history
+==== Check {slm-init} history
 
 Use the <<slm-api-get-policy,get {slm-init} policy API>> to check when an
 {slm-init} policy last successfully started the snapshot process. However,
@@ -251,7 +251,7 @@ GET _slm/stats
 ----
 
 [discrete]
-[[delete-cancel-snapshot]]
+[[delete-snapshot]]
 === Delete or cancel a snapshot
 
 To delete a snapshot in {kib}, go to the **Snapshots** page and click the trash
@@ -284,11 +284,11 @@ data, such as passwords or keys. If so, consider encrypting your file backups.
 === Dedicated cluster state snapshots
 
 By default, a snapshot includes all system indices. Some of these system indices
-contain sensitive data. For example, the `.security-*` syste, indices may
+contain sensitive data. For example, the `.security-*` system indices may
 contain user names and encrypted password hashes.
 
 To better protect this data, consider creating a dedicated repository and
-{slm-init} policy for snapshots of the cluster state. This lets you stictly
+{slm-init} policy for snapshots of the cluster state. This lets you strictly
 limit and audit access to the repository.
 
 For example, the following {slm-init} policy only backs up the cluster state
@@ -303,7 +303,7 @@ PUT _slm/policy/nightly-cluster-state-snapshots
   "repository": "my_secure_repository",
   "config": {
     "include_global_state": true,                 <1>
-    "indices": []                                 <2>
+    "indices": [ "-*" ]                           <2>
   },
   "retention": {
     "expire_after": "30d",

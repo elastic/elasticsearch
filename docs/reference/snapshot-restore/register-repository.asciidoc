@@ -96,7 +96,7 @@ clusters].
 * <<snapshots-source-only-repository>>
 
 [discrete]
-[[on-prem-repo-types]]
+[[self-managed-repo-types]]
 ==== Self-managed repository types
 
 If you run the {es} on your own hardware, you can use the following built-in

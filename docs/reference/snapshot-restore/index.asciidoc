@@ -15,7 +15,7 @@ methods may result in data loss, even if they appear successful.
 // end::backup-warning[]
 
 [discrete]
-[[snapshot-operations]]
+[[snapshot-workflow]]
 == The snapshot workflow
 
 {es} stores snapshots in an off-cluster storage location called a snapshot

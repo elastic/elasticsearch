@@ -22,7 +22,7 @@ image:images/ilm/index-lifecycle-policies.png[]
 
 [TIP]
 To automatically back up your indices and manage snapshots, use
-<<automate-backups-slm,snapshot lifecycle policies>>.
+<<automate-snapshots-slm,snapshot lifecycle policies>>.
 
 * <<overview-index-lifecycle-management>>
 * <<ilm-concepts>>

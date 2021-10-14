@@ -11,7 +11,6 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.packaging.test.PackagingTestCase.AwaitsFix;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
-import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 

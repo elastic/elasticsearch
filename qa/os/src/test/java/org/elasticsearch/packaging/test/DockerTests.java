@@ -238,7 +238,7 @@ public class DockerTests extends PackagingTestCase {
         );
 
         // Since ES is doing the installing, give it a chance to complete
-        waitForElasticsearch(installation, USERNAME, PASSWORD);
+        waitForElasticsearch(installation, "elastic", PASSWORD);
 
         final List<String> actualPlugins = sh.run(installation.executables().pluginTool + " list").stdout.lines()
             .collect(Collectors.toList());

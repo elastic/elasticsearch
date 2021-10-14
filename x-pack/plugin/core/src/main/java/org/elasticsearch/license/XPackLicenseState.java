@@ -442,6 +442,10 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    public String statusDescription() {
+        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
+    }
+
     @Deprecated
     public boolean checkFeature(Feature feature) {
         return feature.feature.check(this);

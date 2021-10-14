@@ -15,11 +15,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +29,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -45,8 +46,10 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 
@@ -68,6 +71,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                         .endObject()
                         .startObject("playlist")
                             .field("type", "text")
+                        .endObject()
+                        .startObject("some_dimension")
+                            .field("type", "keyword")
+                            .field("time_series_dimension", true)
+                        .endObject()
+                        .startObject("some_metric")
+                            .field("type", "long")
+                            .field("time_series_metric", TimeSeriesParams.MetricType.counter)
                         .endObject()
                         .startObject("secret_soundtrack")
                             .field("type", "alias")
@@ -97,6 +108,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                         .endObject()
                         .startObject("new_field")
                             .field("type", "long")
+                        .endObject()
+                        .startObject("some_dimension")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("some_metric")
+                            .field("type", "long")
+                            .field("time_series_metric", TimeSeriesParams.MetricType.gauge)
                         .endObject()
                     .endObject()
                 .endObject()
@@ -283,6 +301,25 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals("keyword", runtimeField.get("keyword").getType());
         assertTrue(runtimeField.get("keyword").isSearchable());
         assertTrue(runtimeField.get("keyword").isAggregatable());
+    }
+
+    public void testFieldMetricsAndDimensions() {
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("some_dimension", "some_metric").get();
+        assertIndices(response, "old_index");
+        assertEquals(2, response.get().size());
+        assertTrue(response.get().containsKey("some_dimension"));
+        assertTrue(response.get().get("some_dimension").get("keyword").isDimension());
+        assertNull(response.get().get("some_dimension").get("keyword").nonDimensionIndices());
+        assertTrue(response.get().containsKey("some_metric"));
+        assertEquals(TimeSeriesParams.MetricType.counter, response.get().get("some_metric").get("long").getMetricType());
+        assertNull(response.get().get("some_metric").get("long").metricConflictsIndices());
+
+        response = client().prepareFieldCaps("old_index", "new_index").setFields("some_dimension", "some_metric").get();
+        assertIndices(response, "old_index", "new_index");
+        assertEquals(2, response.get().size());
+        assertTrue(response.get().containsKey("some_dimension"));
+        assertFalse(response.get().get("some_dimension").get("keyword").isDimension());
+        assertThat(response.get().get("some_dimension").get("keyword").nonDimensionIndices(), array(equalTo("new_index")));
     }
 
     public void testFailures() throws InterruptedException {

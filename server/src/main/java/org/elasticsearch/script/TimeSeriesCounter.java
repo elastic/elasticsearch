@@ -92,9 +92,9 @@ public class TimeSeriesCounter {
             if (gap < -1) {  // Excessive negative gap
                 start(nowSecs);
             } else if (gap == -1) {  // Clamp small negative jitter to current epoch
-                incAccumulator(currentEpochStart);
+                incLatestEpoch();
             } else if (gap == 0) {
-                incAccumulator(nowSecs);
+                incLatestEpoch();
             } else if (gap > epochs.length) { // Initialization or history expired
                 start(nowSecs);
             } else {
@@ -103,7 +103,7 @@ public class TimeSeriesCounter {
                     epochs[(currentEpochIndex + i) % epochs.length] = 0;
                 }
                 incAccumulator(nowSecs);
-                currentEpochStart = epochStartMillis(nowSecs);
+                currentEpochStart = epochStartSeconds(nowSecs);
             }
         } finally {
             if (lock != null) {
@@ -272,14 +272,30 @@ public class TimeSeriesCounter {
     }
 
     /**
-     * increment current epoch accumulator, long adder or nested TimeSeriesCounter
+     * increment current epoch accumulator, if nested, increment at a time, ensuring no erasure
      */
-    protected void incAccumulator(long time) {
+    protected void incAccumulator(long now) {
         if (currentEpochAdder != null) {
             currentEpochAdder.increment();
         } else {
             assert currentEpochTimeSeries != null;
-            currentEpochTimeSeries.inc(time);
+            if (now > currentEpochTimeSeries.currentEpochStart) {
+                currentEpochTimeSeries.inc(now);
+            } else {
+                currentEpochTimeSeries.incAccumulator(now);
+            }
+        }
+    }
+
+    /**
+     * increment current epoch accumulator at the
+     */
+    protected void incLatestEpoch() {
+        if (currentEpochAdder != null) {
+            currentEpochAdder.increment();
+        } else {
+            assert currentEpochTimeSeries != null;
+            currentEpochTimeSeries.incLatestEpoch();
         }
     }
 
@@ -305,24 +321,24 @@ public class TimeSeriesCounter {
     /**
      * Index in the epoch array for the given time
      */
-    protected int epochIndex(long millis) {
-        return (int)((millis / resolutionSecs) % epochs.length);
+    protected int epochIndex(long seconds) {
+        return (int)((seconds / resolutionSecs) % epochs.length);
     }
 
     /**
-     * The beginning of the epoch given by {@code nowMillis}
+     * The beginning of the epoch given by {@code startSeconds}
      */
-    protected long epochStartMillis(long nowMillis) {
-        return (nowMillis / resolutionSecs) * resolutionSecs;
+    protected long epochStartSeconds(long startSeconds) {
+        return (startSeconds / resolutionSecs) * resolutionSecs;
     }
 
     /**
-     * Starts the TimeSeries at {@code nowMillis}
+     * Starts the TimeSeries at {@code startSeconds}
      */
-    protected void start(long nowMillis) {
+    protected void start(long startSeconds) {
         reset();
-        currentEpochStart = epochStartMillis(nowMillis);
-        incAccumulator(nowMillis);
+        currentEpochStart = epochStartSeconds(startSeconds);
+        incAccumulator(startSeconds);
     }
 
     /**
@@ -342,8 +358,8 @@ public class TimeSeriesCounter {
     /**
      * The number of epochs between {@code currentEpochStart} and the given time.  Clamped to the range [Int.MAX, Int.Min].
      */
-    protected int epochsBetween(long nowMillis) {
-        return epochsBetween(currentEpochStart, nowMillis);
+    protected int epochsBetween(long nowSeconds) {
+        return epochsBetween(currentEpochStart, nowSeconds);
     }
 
     /**

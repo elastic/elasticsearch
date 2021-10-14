@@ -200,7 +200,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testMonitoringAckNotBasicToBasic() {
         OperationMode from = randomFrom(STANDARD, GOLD, PLATINUM, TRIAL);
-        assertAckMessages(XPackField.MONITORING, from, BASIC, 2);
+        assertAckMessages(XPackField.MONITORING, from, BASIC, 1);
     }
 
     public void testSqlAckAnyToTrialOrPlatinum() {

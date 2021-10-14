@@ -1091,17 +1091,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 builder.endObject();
                 final BytesReference parsedBytes = BytesReference.bytes(builder);
 
-                Map<String, Object> first = XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2();
-                Map<String, Object> second = XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2();
-                String difference = differenceBetweenMapsIgnoringArrayOrder(
-                    first,
-                    second);
                 assertNull(
                     "cluster state XContent serialization does not match, expected " +
                         XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE) +
                         " but got " +
-                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE)+", difference: "+difference,
-                    difference);
+                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
+                    differenceBetweenMapsIgnoringArrayOrder(
+                        XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
+                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()));
             }
 
             for (IndexMetadata indexMetadata : metadata) {
@@ -1525,7 +1522,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings settings = value ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build() :
             Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build()  ;
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(settings).get());
+            .setPersistentSettings(settings).setTransientSettings(settings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {

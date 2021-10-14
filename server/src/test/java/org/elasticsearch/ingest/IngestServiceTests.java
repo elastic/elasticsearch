@@ -1672,8 +1672,7 @@ public class IngestServiceTests extends ESTestCase {
 
         final Integer version = randomInt();
         var pipelineString = "{\"version\": " + version + ", \"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        request.setVersion(version);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -1699,8 +1698,7 @@ public class IngestServiceTests extends ESTestCase {
             ).build();
 
         final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        request.setVersion(requestedVersion);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -1726,8 +1724,7 @@ public class IngestServiceTests extends ESTestCase {
                 ).build()
             ).build();
 
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
-        request.setVersion(version);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
         assertThat(
             e.getMessage(),
@@ -1754,8 +1751,7 @@ public class IngestServiceTests extends ESTestCase {
 
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
         var updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON);
-        request.setVersion(existingVersion);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
         var updatedState = IngestService.innerPut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
@@ -1776,8 +1772,7 @@ public class IngestServiceTests extends ESTestCase {
             ).build();
 
         var updatedPipelineString = "{\"processors\": []}";
-        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON);
-        request.setVersion(existingVersion);
+        var request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
         var updatedState = IngestService.innerPut(request, clusterState);
 
         var updatedConfig = ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);

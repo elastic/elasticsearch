@@ -27,7 +27,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     private final String id;
     private final BytesReference source;
     private final XContentType xContentType;
-    private Integer version;
+    private final Integer version;
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
@@ -78,10 +78,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     public Integer getVersion() {
         return version;
-    }
-
-    public void setVersion(Integer version) {
-        this.version = version;
     }
 
     @Override

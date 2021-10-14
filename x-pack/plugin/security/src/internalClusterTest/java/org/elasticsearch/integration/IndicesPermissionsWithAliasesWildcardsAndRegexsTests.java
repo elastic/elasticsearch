@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -127,11 +128,13 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testSearchResolveWildcardsRegexs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("field1", "type=text", "field2", "type=text")
+            .addMapping("_doc", "field1", "type=text", "field2", "type=text")
             .addAlias(new Alias("my_alias"))
             .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
+        client().prepareIndex("test", "_doc")
+            .setId("1")
+            .setSource("field1", "value1", "field2", "value2",  "field3", "value3")
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
@@ -191,7 +194,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     }
 
     public void testSearchResolveDataStreams() throws Exception {
-        putComposableIndexTemplate("id1", List.of("test*"));
+        putComposableIndexTemplate("id1", Arrays.asList("test*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("test");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
@@ -203,7 +206,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
         try {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-            client().prepareIndex("test")
+            client().prepareIndex("test", "_doc")
                 .setCreate(true)
                 .setId("1")
                 .setSource(DEFAULT_TIMESTAMP_FIELD, value, "field1", "value1", "field2", "value2", "field3", "value3")

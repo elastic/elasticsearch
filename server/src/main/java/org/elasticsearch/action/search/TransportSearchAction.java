@@ -169,7 +169,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (aliases != null) {
                 finalIndices.addAll(Arrays.asList(aliases));
             }
-            res.put(index.getUUID(), new OriginalIndices(finalIndices.toArray(String[]::new), indicesOptions));
+            res.put(index.getUUID(), new OriginalIndices(finalIndices.toArray(new String[0]), indicesOptions));
         }
         return Collections.unmodifiableMap(res);
     }

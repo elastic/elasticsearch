@@ -130,7 +130,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardMap.put(searchIterators.get(i), i);
         }
         this.shardIndexMap = Collections.unmodifiableMap(shardMap);
-        this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
+        this.shardIterators = searchIterators.toArray(new SearchShardIterator[0]);
 
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.

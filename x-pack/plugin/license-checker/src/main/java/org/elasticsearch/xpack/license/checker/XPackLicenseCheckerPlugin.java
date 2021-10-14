@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.license.checker;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.LicenseCheckerPlugin;
@@ -13,6 +16,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 public class XPackLicenseCheckerPlugin extends Plugin implements LicenseCheckerPlugin {
+    private final Logger logger = LogManager.getLogger(XPackLicenseCheckerPlugin.class);
+
     public static final LicensedFeature.Momentary SNAPSHOT_BASED_RECOVERIES_FEATURE = LicensedFeature.momentary(
         null,
         "snapshot-based-recoveries",
@@ -23,6 +28,13 @@ public class XPackLicenseCheckerPlugin extends Plugin implements LicenseCheckerP
 
     @Override
     public boolean isRecoveryFromSnapshotAllowed() {
+        logger.info(
+            new ParameterizedMessage(
+                "--> is authorized? {}  / {}",
+                SNAPSHOT_BASED_RECOVERIES_FEATURE.check(XPackPlugin.getSharedLicenseState()),
+                XPackPlugin.getSharedLicenseState()
+            )
+        );
         return SNAPSHOT_BASED_RECOVERIES_FEATURE.check(XPackPlugin.getSharedLicenseState());
     }
 }

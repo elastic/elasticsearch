@@ -224,11 +224,9 @@ include::match-enrich-policy-type-ex.asciidoc[]
 [[ingest-enrich-components]]
 ==== Enrich components
 
-The enrich coordinator is a node component that manages
-and performs the searches that are required the do the
-enrichment in the `enrich` processor. It tries to
-bulk execute the searches from all `enrich` processor
-instances in all pipelines into a single multi search.
+The enrich coordinator is an ingest node component that manages and performs the
+searches required to enrich documents. It combines searches from all enrich
+processors in all pipelines into bulk <<search-multi-search,multi-searches>>.
 
 The enrich policy executor is a component that manages
 enrich executions for all enrich policies. An enrich

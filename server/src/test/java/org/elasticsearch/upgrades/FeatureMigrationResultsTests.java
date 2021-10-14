@@ -17,18 +17,18 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class SystemIndexMigrationResultTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+public class FeatureMigrationResultsTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
 
     @Override
-    protected SystemIndexMigrationResult createTestInstance() {
-        return new SystemIndexMigrationResult(randomMap(0, 10, () -> new Tuple<>(randomAlphaOfLength(5), randomFeatureStatus())));
+    protected FeatureMigrationResults createTestInstance() {
+        return new FeatureMigrationResults(randomMap(0, 10, () -> new Tuple<>(randomAlphaOfLength(5), randomFeatureStatus())));
     }
 
-    private FeatureMigrationStatus randomFeatureStatus() {
+    private SingleFeatureMigrationResult randomFeatureStatus() {
         if (randomBoolean()) {
-            return FeatureMigrationStatus.success();
+            return SingleFeatureMigrationResult.success();
         } else {
-            return FeatureMigrationStatus.failure(
+            return SingleFeatureMigrationResult.failure(
                 randomAlphaOfLength(8),
                 new RuntimeException(randomAlphaOfLength(5))
             );
@@ -36,14 +36,14 @@ public class SystemIndexMigrationResultTests extends AbstractDiffableSerializati
     }
 
     @Override
-    protected SystemIndexMigrationResult mutateInstance(Metadata.Custom instance) {
-        int oldSize = ((SystemIndexMigrationResult) instance).getFeatureStatuses().size();
+    protected FeatureMigrationResults mutateInstance(Metadata.Custom instance) {
+        int oldSize = ((FeatureMigrationResults) instance).getFeatureStatuses().size();
         if (oldSize == 0 || randomBoolean()) {
-            return new SystemIndexMigrationResult(
+            return new FeatureMigrationResults(
                 randomMap(oldSize + 1, oldSize + 5, () -> new Tuple<>(randomAlphaOfLength(5), randomFeatureStatus()))
             );
         } else {
-            return new SystemIndexMigrationResult(randomMap(0, oldSize, () -> new Tuple<>(randomAlphaOfLength(5), randomFeatureStatus())));
+            return new FeatureMigrationResults(randomMap(0, oldSize, () -> new Tuple<>(randomAlphaOfLength(5), randomFeatureStatus())));
         }
     }
 
@@ -57,11 +57,11 @@ public class SystemIndexMigrationResultTests extends AbstractDiffableSerializati
 
     @Override
     protected Writeable.Reader<Metadata.Custom> instanceReader() {
-        return SystemIndexMigrationResult::new;
+        return FeatureMigrationResults::new;
     }
 
-    @Override protected SystemIndexMigrationResult doParseInstance(XContentParser parser) throws IOException {
-        return SystemIndexMigrationResult.fromXContent(parser);
+    @Override protected FeatureMigrationResults doParseInstance(XContentParser parser) throws IOException {
+        return FeatureMigrationResults.fromXContent(parser);
     }
 
     @Override protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
@@ -69,6 +69,6 @@ public class SystemIndexMigrationResultTests extends AbstractDiffableSerializati
     }
 
     @Override protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
-        return SystemIndexMigrationResult.ResultsDiff::new;
+        return FeatureMigrationResults.ResultsDiff::new;
     }
 }

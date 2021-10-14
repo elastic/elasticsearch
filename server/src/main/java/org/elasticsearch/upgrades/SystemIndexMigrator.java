@@ -253,7 +253,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         SystemIndexMigrationInfo migrationInfo = currentMigrationInfo();
         MigrationResultsUpdateTask updateTask = MigrationResultsUpdateTask.upsert(
             migrationInfo.getFeatureName(),
-            FeatureMigrationStatus.success(),
+            SingleFeatureMigrationResult.success(),
             ActionListener.wrap(state -> {
                 synchronized (migrationQueue) {
                     assert migrationQueue != null && migrationQueue.isEmpty() == false;
@@ -438,7 +438,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
         MigrationResultsUpdateTask.upsert(
             migrationInfo.getFeatureName(),
-            FeatureMigrationStatus.failure(migrationInfo.getCurrentIndexName(), e),
+            SingleFeatureMigrationResult.failure(migrationInfo.getCurrentIndexName(), e),
             ActionListener.wrap(state -> super.markAsFailed(e), exception -> super.markAsFailed(e))
         ).submit(clusterService);
     }
@@ -467,7 +467,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).removeCustom(SystemIndexMigrationResult.TYPE))
+                    .metadata(Metadata.builder(currentState.metadata()).removeCustom(FeatureMigrationResults.TYPE))
                     .build();
             }
 

@@ -24,9 +24,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Holds the results of migrating a single feature. See also {@link SystemIndexMigrationResult}.
+ * Holds the results of migrating a single feature. See also {@link FeatureMigrationResults}.
  */
-public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationStatus> implements Writeable, ToXContent {
+public class SingleFeatureMigrationResult extends AbstractDiffable<SingleFeatureMigrationResult> implements Writeable, ToXContent {
     private static final String NAME = "feature_migration_status";
     private static final ParseField SUCCESS_FIELD = new ParseField("successful");
     private static final ParseField FAILED_INDEX_NAME_FIELD = new ParseField("failed_index");
@@ -39,9 +39,9 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
     private final Exception exception;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FeatureMigrationStatus, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<SingleFeatureMigrationResult, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new FeatureMigrationStatus((boolean) a[0], (String) a[1], (Exception) a[2])
+        a -> new SingleFeatureMigrationResult((boolean) a[0], (String) a[1], (Exception) a[2])
     );
 
     static {
@@ -54,7 +54,7 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
         );
     }
 
-    private FeatureMigrationStatus(boolean successful, String failedIndexName, Exception exception) {
+    private SingleFeatureMigrationResult(boolean successful, String failedIndexName, Exception exception) {
         this.successful = successful;
         if (successful == false) {
             Objects.requireNonNull(failedIndexName, "failed index name must be present for failed feature migration statuses");
@@ -64,7 +64,7 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
         this.exception = exception;
     }
 
-    FeatureMigrationStatus(StreamInput in) throws IOException {
+    SingleFeatureMigrationResult(StreamInput in) throws IOException {
         this.successful = in.readBoolean();
         if (this.successful == false) {
             this.failedIndexName = in.readString();
@@ -75,15 +75,15 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
         }
     }
 
-    public static FeatureMigrationStatus fromXContent(XContentParser parser) {
+    public static SingleFeatureMigrationResult fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     /**
      * Creates a record indicating that migration succeeded.
      */
-    public static FeatureMigrationStatus success() {
-        return new FeatureMigrationStatus(true, null, null);
+    public static SingleFeatureMigrationResult success() {
+        return new SingleFeatureMigrationResult(true, null, null);
     }
 
     /**
@@ -91,8 +91,8 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
      * @param failedIndexName The name of the specific index whose migration failed.
      * @param exception The exception which caused the migration failure.
      */
-    public static FeatureMigrationStatus failure(String failedIndexName, Exception exception) {
-        return new FeatureMigrationStatus(false, failedIndexName, exception);
+    public static SingleFeatureMigrationResult failure(String failedIndexName, Exception exception) {
+        return new SingleFeatureMigrationResult(false, failedIndexName, exception);
     }
 
     /**
@@ -153,8 +153,8 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if ((o instanceof FeatureMigrationStatus) == false) return false;
-        FeatureMigrationStatus that = (FeatureMigrationStatus) o;
+        if ((o instanceof SingleFeatureMigrationResult) == false) return false;
+        SingleFeatureMigrationResult that = (SingleFeatureMigrationResult) o;
         // Exception is intentionally not checked here
         return successful == that.successful && Objects.equals(failedIndexName, that.failedIndexName);
     }

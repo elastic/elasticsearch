@@ -36,36 +36,36 @@ import java.util.stream.Collectors;
  * Holds the results of the most recent attempt to migrate system indices. Updated by {@link SystemIndexMigrator} as it finishes each
  * feature, or fails.
  */
-public class SystemIndexMigrationResult implements Metadata.Custom {
+public class FeatureMigrationResults implements Metadata.Custom {
     public static final String TYPE = "system_index_migration";
     private static final Version MIGRATION_ADDED_VERSION = Version.V_8_0_0;
 
     private static final ParseField RESULTS_FIELD = new ParseField("results");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SystemIndexMigrationResult, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
-        final Map<String, FeatureMigrationStatus> statuses = ((List<Tuple<String, FeatureMigrationStatus>>) a[0]).stream()
+    public static final ConstructingObjectParser<FeatureMigrationResults, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
+        final Map<String, SingleFeatureMigrationResult> statuses = ((List<Tuple<String, SingleFeatureMigrationResult>>) a[0]).stream()
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        return new SystemIndexMigrationResult(statuses);
+        return new FeatureMigrationResults(statuses);
     });
 
     static {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> new Tuple<>(n, FeatureMigrationStatus.fromXContent(p)),
+            (p, c, n) -> new Tuple<>(n, SingleFeatureMigrationResult.fromXContent(p)),
             v -> { throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported"); },
             RESULTS_FIELD
         );
     }
 
-    private final Map<String, FeatureMigrationStatus> featureStatuses;
+    private final Map<String, SingleFeatureMigrationResult> featureStatuses;
 
-    public SystemIndexMigrationResult(Map<String, FeatureMigrationStatus> featureStatuses) {
+    public FeatureMigrationResults(Map<String, SingleFeatureMigrationResult> featureStatuses) {
         this.featureStatuses = Objects.requireNonNullElse(featureStatuses, new HashMap<>());
     }
 
-    public SystemIndexMigrationResult(StreamInput in) throws IOException {
-        this.featureStatuses = in.readMap(StreamInput::readString, FeatureMigrationStatus::new);
+    public FeatureMigrationResults(StreamInput in) throws IOException {
+        this.featureStatuses = in.readMap(StreamInput::readString, SingleFeatureMigrationResult::new);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
         out.writeMap(
             featureStatuses,
             (StreamOutput outStream, String featureName) -> outStream.writeString(featureName),
-            (StreamOutput outStream, FeatureMigrationStatus featureStatus) -> featureStatus.writeTo(outStream)
+            (StreamOutput outStream, SingleFeatureMigrationResult featureStatus) -> featureStatus.writeTo(outStream)
         );
     }
 
@@ -83,7 +83,7 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
         return builder;
     }
 
-    public static SystemIndexMigrationResult fromXContent(XContentParser parser) {
+    public static FeatureMigrationResults fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -92,22 +92,22 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
      * failed to migrate.
      * @return An unmodifiable map of feature names to migration statuses.
      */
-    public Map<String, FeatureMigrationStatus> getFeatureStatuses() {
+    public Map<String, SingleFeatureMigrationResult> getFeatureStatuses() {
         return Collections.unmodifiableMap(featureStatuses);
     }
 
     /**
-     * Convenience method for updating the results of a migration run. Produces a new {@link SystemIndexMigrationResult} updated with the
+     * Convenience method for updating the results of a migration run. Produces a new {@link FeatureMigrationResults} updated with the
      * given status for the given feature name.
      * @param featureName The feature name to update. If this feature name is already present, its status will be overwritten.
      * @param status The status that should be associated with the given {@code featureName}.
-     * @return A new {@link SystemIndexMigrationResult} with the given status associated with the given feature name. Other entries in the
+     * @return A new {@link FeatureMigrationResults} with the given status associated with the given feature name. Other entries in the
      *         map are unchanged.
      */
-    public SystemIndexMigrationResult withResult(String featureName, FeatureMigrationStatus status) {
-        Map<String, FeatureMigrationStatus> newMap = new HashMap<>(featureStatuses);
+    public FeatureMigrationResults withResult(String featureName, SingleFeatureMigrationResult status) {
+        Map<String, SingleFeatureMigrationResult> newMap = new HashMap<>(featureStatuses);
         newMap.put(featureName, status);
-        return new SystemIndexMigrationResult(newMap);
+        return new FeatureMigrationResults(newMap);
     }
 
     @Override
@@ -133,8 +133,8 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if ((o instanceof SystemIndexMigrationResult) == false) return false;
-        SystemIndexMigrationResult that = (SystemIndexMigrationResult) o;
+        if ((o instanceof FeatureMigrationResults) == false) return false;
+        FeatureMigrationResults that = (FeatureMigrationResults) o;
         return featureStatuses.equals(that.featureStatuses);
     }
 
@@ -145,17 +145,17 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
 
     @Override
     public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
-        return new ResultsDiff((SystemIndexMigrationResult) previousState, this);
+        return new ResultsDiff((FeatureMigrationResults) previousState, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException{
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new ResultsDiff(in);
     }
 
     public static class ResultsDiff implements NamedDiff<Metadata.Custom> {
-        private final Diff<Map<String, FeatureMigrationStatus>> resultsDiff;
+        private final Diff<Map<String, SingleFeatureMigrationResult>> resultsDiff;
 
-        public ResultsDiff(SystemIndexMigrationResult before, SystemIndexMigrationResult after) {
+        public ResultsDiff(FeatureMigrationResults before, FeatureMigrationResults after) {
             this.resultsDiff = DiffableUtils.diff(before.featureStatuses, after.featureStatuses, DiffableUtils.getStringKeySerializer());
         }
 
@@ -163,17 +163,17 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
             this.resultsDiff = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                FeatureMigrationStatus::new,
+                SingleFeatureMigrationResult::new,
                 ResultsDiff::readDiffFrom
             );
         }
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, FeatureMigrationStatus> newResults = new TreeMap<>(
-                resultsDiff.apply(((SystemIndexMigrationResult) part).featureStatuses)
+            TreeMap<String, SingleFeatureMigrationResult> newResults = new TreeMap<>(
+                resultsDiff.apply(((FeatureMigrationResults) part).featureStatuses)
             );
-            return new SystemIndexMigrationResult(newResults);
+            return new FeatureMigrationResults(newResults);
         }
 
         @Override
@@ -186,8 +186,8 @@ public class SystemIndexMigrationResult implements Metadata.Custom {
             resultsDiff.writeTo(out);
         }
 
-        static Diff<FeatureMigrationStatus> readDiffFrom(StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(FeatureMigrationStatus::new, in);
+        static Diff<SingleFeatureMigrationResult> readDiffFrom(StreamInput in) throws IOException {
+            return AbstractDiffable.readDiffFrom(SingleFeatureMigrationResult::new, in);
         }
     }
 

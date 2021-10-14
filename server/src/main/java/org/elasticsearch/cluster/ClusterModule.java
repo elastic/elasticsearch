@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -59,7 +58,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -70,9 +68,9 @@ import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
-import org.elasticsearch.upgrades.SystemIndexMigrationResult;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -140,9 +138,9 @@ public class ClusterModule extends AbstractModule {
         registerMetadataCustom(entries, NodesShutdownMetadata.TYPE, NodesShutdownMetadata::new, NodesShutdownMetadata::readDiffFrom);
         registerMetadataCustom(
             entries,
-            SystemIndexMigrationResult.TYPE,
-            SystemIndexMigrationResult::new,
-            SystemIndexMigrationResult::readDiffFrom
+            FeatureMigrationResults.TYPE,
+            FeatureMigrationResults::new,
+            FeatureMigrationResults::readDiffFrom
         );
 
         // Task Status (not Diffable)

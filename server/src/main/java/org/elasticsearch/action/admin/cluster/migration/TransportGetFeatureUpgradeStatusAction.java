@@ -23,8 +23,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.upgrades.FeatureMigrationStatus;
-import org.elasticsearch.upgrades.SystemIndexMigrationResult;
+import org.elasticsearch.upgrades.FeatureMigrationResults;
+import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskState;
 
 import java.util.Collection;
@@ -141,9 +141,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
     // visible for testing
     static List<GetFeatureUpgradeStatusResponse.IndexInfo> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
-        final FeatureMigrationStatus featureStatus = Optional.ofNullable(
-            (SystemIndexMigrationResult) state.metadata().custom(SystemIndexMigrationResult.TYPE)
-        ).map(SystemIndexMigrationResult::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
+        final SingleFeatureMigrationResult featureStatus = Optional.ofNullable(
+            (FeatureMigrationResults) state.metadata().custom(FeatureMigrationResults.TYPE)
+        ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
         final Exception exception = featureStatus == null ? null : featureStatus.getException();

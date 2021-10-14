@@ -20,16 +20,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import java.util.HashMap;
 
 /**
- * Handles updating the {@link SystemIndexMigrationResult} in the cluster state.
+ * Handles updating the {@link FeatureMigrationResults} in the cluster state.
  */
 public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MigrationResultsUpdateTask.class);
 
     private final String featureName;
-    private final FeatureMigrationStatus status;
+    private final SingleFeatureMigrationResult status;
     private final ActionListener<ClusterState> listener;
 
-    private MigrationResultsUpdateTask(String featureName, FeatureMigrationStatus status, ActionListener<ClusterState> listener) {
+    private MigrationResultsUpdateTask(String featureName, SingleFeatureMigrationResult status, ActionListener<ClusterState> listener) {
         this.featureName = featureName;
         this.status = status;
         this.listener = listener;
@@ -43,7 +43,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
      */
     public static MigrationResultsUpdateTask upsert(
         String featureName,
-        FeatureMigrationStatus status,
+        SingleFeatureMigrationResult status,
         ActionListener<ClusterState> listener
     ) {
         return new MigrationResultsUpdateTask(featureName, status, listener);
@@ -61,13 +61,13 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
-        SystemIndexMigrationResult currentResults = currentState.metadata().custom(SystemIndexMigrationResult.TYPE);
+        FeatureMigrationResults currentResults = currentState.metadata().custom(FeatureMigrationResults.TYPE);
         if (currentResults == null) {
-            currentResults = new SystemIndexMigrationResult(new HashMap<>());
+            currentResults = new FeatureMigrationResults(new HashMap<>());
         }
-        SystemIndexMigrationResult newResults = currentResults.withResult(featureName, status);
+        FeatureMigrationResults newResults = currentResults.withResult(featureName, status);
         final Metadata newMetadata = Metadata.builder(currentState.metadata())
-            .putCustom(SystemIndexMigrationResult.TYPE, newResults)
+            .putCustom(FeatureMigrationResults.TYPE, newResults)
             .build();
         final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
         return newState;

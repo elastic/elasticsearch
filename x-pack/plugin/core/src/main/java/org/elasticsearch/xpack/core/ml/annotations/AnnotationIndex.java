@@ -51,7 +51,7 @@ public class AnnotationIndex {
     // written to the latest index. If we ever switch to another new annotations
     // index then this list should be adjusted to include the previous latest
     // index.
-    static final List<String> OLD_INDEX_NAMES = List.of(".ml-annotations-6");
+    public static final List<String> OLD_INDEX_NAMES = List.of(".ml-annotations-6");
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
@@ -176,7 +176,7 @@ public class AnnotationIndex {
         finalListener.onResponse(false);
     }
 
-    private static String annotationsMapping() {
+    public static String annotationsMapping() {
         return TemplateUtils.loadTemplate(
             "/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
     }

@@ -1,3 +1,89 @@
+[[release-notes-7.15.1]]
+== {es} version 7.15.1
+
+Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
+
+coming::[7.15.1]
+
+[[enhancement-7.15.1]]
+[float]
+=== Enhancements
+
+Search::
+* Fail early if an index request has the wrong type {es-pull}77417[#77417]
+
+Packaging::
+* Use `grep` in Docker regexes instead of `bash` {es-pull}78154[#78154] (issue: {es-issue}77862[#77862])
+
+
+
+[[bug-7.15.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix bug with significant terms background count {es-pull}76730[#76730] (issue: {es-issue}76729[#76729])
+* Fix aggregation memory leak for CCS {es-pull}78404[#78404] (issue: {es-issue}72309[#72309])
+
+Allocation::
+* Match IPv6 addresses without compressed id from settings {es-pull}77404[#77404] (issue: {es-issue}72091[#72091])
+* Change single node disk watermark deprecation to a warning {es-pull}77166[#77166] (issue: {es-issue}73733[#73733])
+
+CompositeAggs::
+* Revert the change to use segment ordinals in composite terms aggregations {es-pull}78848[#78848] (issues: {es-issue}74559[#74559], {es-issue}78836[#78836])
+
+Data streams::
+* Properly handle wildcards in data stream deletion requests {es-pull}78463[#78463] (issue: {es-issue}78422[#78422])
+
+Geo::
+* Make feature factory more resilient to invalid polygons {es-pull}77200[#77200] (issue: {es-issue}77071[#77071])
+* Support for aggregation names with dots in vector tiles {es-pull}77477[#77477] (issue: {es-issue}77361[#77361])
+* Add vector tile endpoint support for source parameters in the body of requests {es-pull}77377[#77377] (issues: {es-issue}77264[#77264], {es-issue}77365[#77365])
+* Change `geo_shape` mapping created before version 6.6.0 to use the legacy mapper {es-pull}77881[#77881] (issue: {es-issue}77857[#77857])
+
+ILM+SLM::
+* Implement `DiffableStringMap's` get and `containsKey` in terms of the wrapped `innerMap` {es-pull}77965[#77965]
+
+Infra/Core::
+* Ensure `sys.` index patterns are transformed before use {es-pull}78492[#78492]
+* `AutoCreate` should work for non-primary system indices {es-pull}77045[#77045] (issue: {es-issue}65970[#65970])
+
+Infra/Node Lifecycle::
+* Ensure Node Shutdown doesn't stall when all nodes in the cluster have a copy of a shard {es-pull}78578[#78578]
+* Handle master failure in `NodeSeenService` {es-pull}77220[#77220] (issue: {es-issue}76689[#76689])
+
+Machine Learning::
+* Fix minor autoscaling edge case check {es-pull}78102[#78102]
+
+Mapping::
+* `NullPointer` fix for field capabilities API {es-pull}76742[#76742] (issue: {es-issue}76716[#76716])
+
+Search::
+* Add support for `QueryString-parsed` wildcard queries on runtime keyword fields {es-pull}76867[#76867] (issue: {es-issue}76838[#76838])
+* Propagate original indices in `NodeTermsEnumRequest` {es-pull}77776[#77776] (issue: {es-issue}77508[#77508])
+* Choose postings format from `FieldMapper` instead of `MappedFieldType` {es-pull}77234[#77234] (issue: {es-issue}77183[#77183])
+
+Snapshot/Restore::
+* Fix issue where snapshot can get stuck if queued after a delete operation where a shard is in a `MISSING` state {es-pull}78587[#78587]
+* Fix `AzureBlobStore#convertStreamToByteBuffer` chunking in Windows {es-pull}78772[#78772]
+
+Stats::
+* Change the name of the shards field in `_node/stats` API to `shard_stats` {es-pull}78531[#78531] (issues: {es-issue}75433[#75433], {es-issue}78311[#78311])
+* Detect when a deserialized Map is immutable before changing it in `IndexDiskUsageStats` (#77219) {es-pull}77390[#77390] (issues: {es-issue}77219[#77219], {es-issue}77327[#77327])
+
+TLS::
+* Fix `issuerDN` for created certificates {es-pull}77828[#77828] (issue: {es-issue}69403[#69403])
+
+
+
+[[upgrade-7.15.1]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade bundled JDK to Java 17 {es-pull}78197[#78197] (issue: {es-issue}78168[#78168])
+
+
 [[release-notes-7.15.0]]
 == {es} version 7.15.0
 

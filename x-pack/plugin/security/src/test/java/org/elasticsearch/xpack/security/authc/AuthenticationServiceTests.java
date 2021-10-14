@@ -52,6 +52,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -216,9 +217,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.ALL_REALMS_FEATURE)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Security.STANDARD_REALMS_FEATURE)).thenReturn(true);
+        for (String realmType : InternalRealms.getConfigurableRealmsTypes()) {
+            final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(realmType);
+            if (feature != null) {
+                when(licenseState.isAllowed(feature)).thenReturn(true);
+            }
+        }
+        when(licenseState.isAllowed(Security.CUSTOM_REALMS_FEATURE)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
@@ -227,9 +233,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
-        realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
-                licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
-                Collections.singletonList(firstRealm)));
+        realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings),
+            Collections.<String, Realm.Factory>emptyMap(),
+            licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
+            Arrays.asList(firstRealm)));
 
         // Needed because this is calculated in the constructor, which means the override doesn't get called correctly
         realms.recomputeActiveRealms();
@@ -396,6 +403,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         verify(realms, atLeastOnce()).recomputeActiveRealms();
         verify(realms, atLeastOnce()).calculateLicensedRealms(any(XPackLicenseState.class));
         verify(realms, atLeastOnce()).getActiveRealms();
+        verify(realms, atLeastOnce()).stopTrackingInactiveRealms(any(XPackLicenseState.class), any());
         // ^^ We don't care how many times these methods are called, we just check it here so that we can verify no more interactions below.
         verifyNoMoreInteractions(realms);
     }
@@ -2130,7 +2138,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                 // This can happen because the realms are recalculated during construction
                 return super.calculateLicensedRealms(licenseState);
             }
-            if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+
+            // Use custom as a placeholder for all non-internal realm
+            if (Security.CUSTOM_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
                 return allRealms;
             } else {
                 return internalRealms;
@@ -2140,6 +2150,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         // Make public for testing
         public void recomputeActiveRealms() {
             super.recomputeActiveRealms();
+        }
+
+        @Override
+        protected void stopTrackingInactiveRealms(XPackLicenseState licenseStateSnapshot, List<Realm> licensedRealms) {
+            // Ignore
         }
     }
 

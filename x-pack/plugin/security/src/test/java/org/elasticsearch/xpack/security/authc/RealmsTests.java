@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -19,6 +23,7 @@ import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -54,6 +59,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -324,6 +330,69 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState).enableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_2");
     }
 
+    public void testRealmsAreDisabledOnLicenseDowngrade() throws Exception {
+        factories.put(LdapRealmSettings.LDAP_TYPE, DummyRealm::new);
+        factories.put(PkiRealmSettings.TYPE, DummyRealm::new);
+
+        Settings settings = Settings.builder()
+            .put("xpack.security.authc.realms.file.file_realm.order", 0)
+            .put("xpack.security.authc.realms.native.native_realm.order", 1)
+            .put("xpack.security.authc.realms.kerberos.kerberos_realm.order", 2)
+            .put("xpack.security.authc.realms.ldap.ldap_realm_1.order", 3)
+            .put("xpack.security.authc.realms.ldap.ldap_realm_2.order", 4)
+            .put("xpack.security.authc.realms.pki.pki_realm.order", 5)
+            .put("xpack.security.authc.realms.type_0.custom_realm_1.order", 6)
+            .put("xpack.security.authc.realms.type_1.custom_realm_2.order", 7)
+            .put("path.home", createTempDir())
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+
+        allowAllRealms();
+
+        final Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getActiveRealms(), hasSize(9)); // 0..7 configured + reserved
+
+        verify(licenseState).enableUsageTracking(Security.KERBEROS_REALM_FEATURE, "kerberos_realm");
+        verify(licenseState).enableUsageTracking(Security.LDAP_REALM_FEATURE, "ldap_realm_1");
+        verify(licenseState).enableUsageTracking(Security.LDAP_REALM_FEATURE, "ldap_realm_2");
+        verify(licenseState).enableUsageTracking(Security.PKI_REALM_FEATURE, "pki_realm");
+        verify(licenseState).enableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_1");
+        verify(licenseState).enableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_2");
+
+        final Logger realmsLogger = LogManager.getLogger(Realms.class);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(realmsLogger, appender);
+        appender.start();
+
+        when(licenseState.statusDescription()).thenReturn("mock license");
+        try {
+            for (String realmId : List.of("kerberos.kerberos_realm", "type_0.custom_realm_1", "type_1.custom_realm_2")) {
+                appender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "Realm [" + realmId + "] disabled",
+                        realmsLogger.getName(),
+                        Level.WARN,
+                        "The [" + realmId + "] realm has been automatically disabled due to a change in license [mock license]"
+                    )
+                );
+            }
+            allowOnlyStandardRealms();
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.removeAppender(realmsLogger, appender);
+        }
+
+        final List<String> unlicensedRealmNames = realms.getUnlicensedRealms().stream().map(r -> r.name()).collect(Collectors.toList());
+        assertThat(unlicensedRealmNames, containsInAnyOrder("kerberos_realm", "custom_realm_1", "custom_realm_2"));
+        assertThat(realms.getActiveRealms(), hasSize(6)); // 9 - 3
+
+        verify(licenseState).disableUsageTracking(Security.KERBEROS_REALM_FEATURE, "kerberos_realm");
+        verify(licenseState).disableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_1");
+        verify(licenseState).disableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_2");
+    }
+
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
@@ -513,6 +582,7 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState, times(2)).isAllowed(Security.LDAP_REALM_FEATURE);
         // Verify that we stopped tracking use for realms which are no longer licensed
         verify(licenseState).disableUsageTracking(Security.LDAP_REALM_FEATURE, "foo");
+        verify(licenseState).statusDescription();
         verifyNoMoreInteractions(licenseState);
 
         assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));

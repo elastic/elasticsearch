@@ -726,6 +726,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 aliases.put(Watch.INDEX, aliasMetadata);
                 when(indexMetadata.getAliases()).thenReturn(aliases.build());
                 indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, List.of(indexMetadata)));
+                when(metadata.index(any(Index.class))).thenReturn(indexMetadata);
             }
 
             when(metadata.getIndicesLookup()).thenReturn(indices);

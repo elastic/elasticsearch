@@ -11,17 +11,16 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.index.shard.ShardId;
@@ -129,7 +128,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
-                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias, OriginalIndices.NONE));
+                new ShardId(new Index(index, randomAlphaOfLengthBetween(5, 10)), randomInt()), clusterAlias));
         }
         return hit;
     }
@@ -215,7 +214,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
     public void testSerializeShardTarget() throws Exception {
         String clusterAlias = randomBoolean() ? null : "cluster_alias";
         SearchShardTarget target = new SearchShardTarget("_node_id", new ShardId(new Index("_index", "_na_"), 0),
-            clusterAlias, OriginalIndices.NONE);
+            clusterAlias);
 
         Map<String, SearchHits> innerHits = new HashMap<>();
         SearchHit innerHit1 = new SearchHit(0, "_id", null, null);

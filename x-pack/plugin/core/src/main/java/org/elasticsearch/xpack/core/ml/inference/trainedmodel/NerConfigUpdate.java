@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 
@@ -87,23 +88,27 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
 
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (resultsField == null || resultsField.equals(originalConfig.getResultsField())) {
-            return originalConfig;
-        }
-
         if (originalConfig instanceof NerConfig == false) {
             throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
+                "Inference config of type [{}] can not be updated with a request of type [{}]",
                 originalConfig.getName(),
                 getName());
         }
-
         NerConfig nerConfig = (NerConfig)originalConfig;
+        if (isNoop(nerConfig)) {
+            return nerConfig;
+        }
+
         return new NerConfig(
             nerConfig.getVocabularyConfig(),
             nerConfig.getTokenization(),
             nerConfig.getClassificationLabels(),
-            resultsField);
+            Optional.ofNullable(resultsField).orElse(nerConfig.getResultsField())
+        );
+    }
+
+    boolean isNoop(NerConfig originalConfig) {
+        return (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()));
     }
 
     @Override

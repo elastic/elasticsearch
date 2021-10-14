@@ -11,9 +11,8 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
@@ -24,15 +23,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -57,8 +56,8 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
@@ -582,6 +581,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
         static final String FIELDS = "fields";
+        static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
         static final String SORT = "sort";
         static final String MATCHED_QUERIES = "matched_queries";
@@ -666,7 +666,19 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : documentFields.values()) {
                 if (field.getValues().size() > 0) {
-                    field.toXContent(builder, params);
+                    field.getValidValuesWriter().toXContent(builder, params);
+                }
+            }
+            builder.endObject();
+        }
+        //ignored field values
+        if (documentFields.isEmpty() == false &&
+            // omit ignored_field_values all together if there are none
+            documentFields.values().stream().anyMatch(df -> df.getIgnoredValues().size() > 0)) {
+            builder.startObject(Fields.IGNORED_FIELD_VALUES);
+            for (DocumentField field : documentFields.values()) {
+                if (field.getIgnoredValues().size() > 0) {
+                    field.getIgnoredValuesWriter().toXContent(builder, params);
                 }
             }
             builder.endObject();
@@ -721,7 +733,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * is that this way we can reuse the parser when parsing xContent from
      * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option} which unfortunately inlines
      * the output of
-     * {@link #toInnerXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)}
+     * {@link #toInnerXContent(XContentBuilder, org.elasticsearch.xcontent.ToXContent.Params)}
      * of the included search hit. The output of the map is used to create the
      * actual SearchHit instance via {@link #createFromMap(Map)}
      */
@@ -787,7 +799,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         String nodeId = get(Fields._NODE, values, null);
         if (shardId != null && nodeId != null) {
             assert shardId.getIndexName().equals(index);
-            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias, OriginalIndices.NONE));
+            searchHit.shard(new SearchShardTarget(nodeId, shardId, clusterAlias));
         } else {
             //these fields get set anyways when setting the shard target,
             //but we set them explicitly when we don't have enough info to rebuild the shard target

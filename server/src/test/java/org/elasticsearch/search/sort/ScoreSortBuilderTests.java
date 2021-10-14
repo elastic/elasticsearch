@@ -10,8 +10,8 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;

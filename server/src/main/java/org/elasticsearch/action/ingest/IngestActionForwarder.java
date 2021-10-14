@@ -53,6 +53,6 @@ public final class IngestActionForwarder implements ClusterStateApplier {
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode.class);
+        ingestNodes = event.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
     }
 }

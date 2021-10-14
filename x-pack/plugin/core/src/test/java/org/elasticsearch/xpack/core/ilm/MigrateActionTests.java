@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -21,14 +21,14 @@ import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
-import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
-import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
-import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
@@ -89,19 +89,19 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
         {
             List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
                 is(DATA_HOT));
         }
         {
             List<Step> steps = action.toSteps(null, WARM_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
                 is(DATA_WARM + "," + DATA_HOT));
         }
         {
             List<Step> steps = action.toSteps(null, COLD_PHASE, nextStepKey);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
-            assertThat(DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
+            assertThat(DataTier.TIER_PREFERENCE_SETTING.get(firstStep.getSettings()),
                 is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
         }
     }

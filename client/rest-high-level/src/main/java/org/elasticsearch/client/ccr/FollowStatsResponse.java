@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 public final class FollowStatsResponse {
 

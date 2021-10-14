@@ -11,7 +11,6 @@ package org.elasticsearch.env;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -19,6 +18,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -95,15 +96,15 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
-    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path, Exception> onNodeStopped) {
+    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path[], Exception> onNodeStopped) {
         internalCluster().startNode();
-        final Path dataPath = internalCluster().getInstance(NodeEnvironment.class).nodeDataPath();
+        final Path[] dataPaths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
         return expectThrows(IllegalStateException.class,
             () -> internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     try {
-                        onNodeStopped.accept(dataPath);
+                        onNodeStopped.accept(dataPaths);
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
@@ -136,7 +137,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         // simulate older data path layout by moving data under "nodes/0" folder
-        final List<Path> dataPaths = List.of(PathUtils.get(Environment.PATH_DATA_SETTING.get(dataPathSettings)));
+        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings)
+            .stream().map(PathUtils::get).collect(Collectors.toList());
         dataPaths.forEach(path -> {
                 final Path nodesPath = path.resolve("nodes");
                 final Path targetPath = nodesPath.resolve("0");

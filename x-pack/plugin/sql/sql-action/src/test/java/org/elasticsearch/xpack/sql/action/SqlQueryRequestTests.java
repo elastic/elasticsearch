@@ -11,10 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -197,7 +197,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     }
 
     /**
-     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)}
+     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, ToXContent.Params)}
      * is not serializing {@link SqlTypedParamValue} according to the request's {@link Mode} and it shouldn't, in fact.
      * For testing purposes, different serializing methods for {@link SqlTypedParamValue} are necessary so that
      * {@link SqlQueryRequest#fromXContent(XContentParser)} populates {@link SqlTypedParamValue#hasExplicitType()}

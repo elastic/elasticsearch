@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.langident;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 

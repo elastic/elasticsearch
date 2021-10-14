@@ -116,8 +116,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         Metadata metadata = metadataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(indexMetadata);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
@@ -264,7 +264,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     public void testNoRebalanceOnPrimaryOverload() {
         Settings.Builder settings = Settings.builder();
         AllocationService strategy = new AllocationService(randomAllocationDeciders(settings.build(),
-                new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
                 new TestGatewayAllocator(), new ShardsAllocator() {
             /*
              *  // this allocator tries to rebuild this scenario where a rebalance is
@@ -344,8 +344,8 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             .settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1);
         metadataBuilder = metadataBuilder.put(indexMeta);
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(indexMetadata);
         }
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();

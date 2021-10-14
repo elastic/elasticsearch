@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
@@ -18,7 +19,8 @@ dependencies {
 
 // let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
-GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
+int compatVersion = VersionProperties.getElasticsearchVersion().getMajor() - 1;
+GradleUtils.extendSourceSet(project, "test", "yamlRestTestV${compatVersion}Compat")
 
 restResources {
   restApi {
@@ -28,23 +30,6 @@ restResources {
 
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
-}
-
-tasks.named("testJar").configure {
-  /*
-   * Stick the license and notice file in the jar. This isn't strictly
-   * needed because we don't publish it but it makes our super-paranoid
-   * tests happy.
-   */
-  metaInf {
-    from(project.licenseFile.parent) {
-      include project.licenseFile.name
-      rename { 'LICENSE.txt' }
-    }
-    from(project.noticeFile.parent) {
-      include project.noticeFile.name
-    }
-  }
 }
 
 // location for keys and certificates
@@ -88,6 +73,14 @@ tasks.withType(RestIntegTestTask).configureEach {
 tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
   dependsOn "copyExtraResources"
+}
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+    systemProperty 'tests.rest.blacklist', [
+            'unsigned_long/50_script_values/Scripted sort values',
+            'unsigned_long/50_script_values/script_score query',
+            'unsigned_long/50_script_values/Script query',
+    ].join(',')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure{ task ->

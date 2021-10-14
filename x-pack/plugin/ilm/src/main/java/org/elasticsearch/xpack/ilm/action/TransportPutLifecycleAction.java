@@ -21,9 +21,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,8 +35,10 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.time.Instant;
 import java.util.List;
@@ -76,56 +79,96 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
         Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
-        List<Phase> phasesDefiningSearchableSnapshot = request.getPolicy().getPhases().values().stream()
-            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
-            .collect(Collectors.toList());
-        if (phasesDefiningSearchableSnapshot.isEmpty() == false) {
-            if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
-                throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
-                    SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
-            }
-        }
+
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
-                new AckedClusterStateUpdateTask(request, listener) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-                        if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
-                            currentMetadata = IndexLifecycleMetadata.EMPTY;
-                        }
-                        LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
-                            .get(request.getPolicy().getName());
-                        long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
-                        SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-                        LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
-                            nextVersion, Instant.now().toEpochMilli());
-                        LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
-                        if (oldPolicy == null) {
-                            logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
-                        } else {
-                            logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
-                        }
-                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
-                        stateBuilder.metadata(Metadata.builder(currentState.getMetadata())
-                                .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
-                        ClusterState nonRefreshedState = stateBuilder.build();
-                        if (oldPolicy == null) {
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    validatePrerequisites(request.getPolicy(), currentState);
+
+                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
+                    IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+                    if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
+                        currentMetadata = IndexLifecycleMetadata.EMPTY;
+                    }
+                    LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
+                        .get(request.getPolicy().getName());
+                    long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
+                    SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
+                    LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(request.getPolicy(), filteredHeaders,
+                        nextVersion, Instant.now().toEpochMilli());
+                    LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
+                    if (oldPolicy == null) {
+                        logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
+                    } else {
+                        logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
+                    }
+                    IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
+                    stateBuilder.metadata(Metadata.builder(currentState.getMetadata())
+                        .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
+                    ClusterState nonRefreshedState = stateBuilder.build();
+                    if (oldPolicy == null) {
+                        return nonRefreshedState;
+                    } else {
+                        try {
+                            return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
+                                oldPolicy.getPolicy(), lifecyclePolicyMetadata, licenseState);
+                        } catch (Exception e) {
+                            logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
+                                oldPolicy.getName()), e);
+                            // Revert to the non-refreshed state
                             return nonRefreshedState;
-                        } else {
-                            try {
-                                return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
-                                    oldPolicy.getPolicy(), lifecyclePolicyMetadata, licenseState);
-                            } catch (Exception e) {
-                                logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
-                                    oldPolicy.getName()), e);
-                                // Revert to the non-refreshed state
-                                return nonRefreshedState;
-                            }
                         }
                     }
-                });
+                }
+            });
+    }
+
+    /**
+     * Validate that the license level is compliant for searchable-snapshots, that any referenced snapshot
+     * repositories exist, and that any referenced SLM policies exist.
+     *
+     * @param policy The lifecycle policy
+     * @param state The cluster state
+     */
+    private void validatePrerequisites(LifecyclePolicy policy, ClusterState state) {
+        List<Phase> phasesWithSearchableSnapshotActions = policy.getPhases().values().stream()
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .collect(Collectors.toList());
+        // check license level for searchable snapshots
+        if (phasesWithSearchableSnapshotActions.isEmpty() == false &&
+            SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+            throw new IllegalArgumentException("policy [" + policy.getName() + "] defines the [" +
+                SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
+        }
+        // make sure any referenced snapshot repositories exist
+        for (Phase phase : phasesWithSearchableSnapshotActions) {
+            SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
+            String repository = action.getSnapshotRepository();
+            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                .repository(repository) == null) {
+                throw new IllegalArgumentException("no such repository [" + repository + "], the snapshot repository " +
+                    "referenced by the [" + SearchableSnapshotAction.NAME + "] action in the [" + phase.getName() + "] phase " +
+                    "must exist before it can be referenced by an ILM policy");
+            }
+        }
+
+        List<Phase> phasesWithWaitForSnapshotActions = policy.getPhases().values().stream()
+            .filter(phase -> phase.getActions().containsKey(WaitForSnapshotAction.NAME))
+            .collect(Collectors.toList());
+        // make sure any referenced snapshot lifecycle policies exist
+        for (Phase phase : phasesWithWaitForSnapshotActions) {
+            WaitForSnapshotAction action = (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME);
+            String slmPolicy = action.getPolicy();
+            if (state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY)
+                .getSnapshotConfigurations().get(slmPolicy) == null) {
+                throw new IllegalArgumentException("no such snapshot lifecycle policy [" + slmPolicy + "], the snapshot lifecycle policy " +
+                    "referenced by the [" + WaitForSnapshotAction.NAME + "] action in the [" + phase.getName() + "] phase " +
+                    "must exist before it can be referenced by an ILM policy");
+            }
+        }
     }
 
     @Override

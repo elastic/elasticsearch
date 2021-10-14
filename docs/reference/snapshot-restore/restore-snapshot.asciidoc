@@ -100,9 +100,10 @@ operation is complete.
 WARNING: If the
 <<action-destructive-requires-name,`action.destructive_requires_name`>> cluster
 setting is `false`, don't use the <<indices-delete-index,delete index API>> to
-target the `*` or `.*` wildcard expression. If you use {es}'s security features,
-this will delete system indices required for authentication. To delete all
-regular indices, use `*,-.*` instead.
+target the `*` or `.*` wildcard pattern. If you use {es}'s security features,
+this will delete system indices required for authentication. Instead, target the
+`*,-.*` wildcard pattern to exclude these system indices and other index names
+that begin with a dot (`.`).
 
 [source,console]
 ----
@@ -118,9 +119,10 @@ By default, a restore request attempts to restore all indices and data
 streams in the snapshot, including system indices. If your cluster already
 contains one or more of these system indices, the request will return an error.
 
-To avoid this error, specify the indices and data streams to restore. To
-exclude system indices, append the `-.*` wildcard pattern. To restore all
-indices and data streams except system indices, use `*,-.*`.
+To avoid this error, specify the indices and data streams to restore. To exclude
+system indices and other index names that begin with a dot (`.`), append the
+`-.*` wildcard pattern. To restore all indices and data streams except dot
+indices, use `*,-.*`.
 
 [source,console]
 ----
@@ -323,8 +325,7 @@ PUT _cluster/settings
 ----
 // TEST[setup:setup-snapshots]
 
-. Delete all existing indices and data streams on the cluster, including all
-system indices.
+. Delete existing indices and data streams on the cluster.
 +
 [source,console]
 ----

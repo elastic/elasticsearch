@@ -42,7 +42,7 @@ public class ReservedRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "reserved", "reserved");
         assertRoles(authenticate, ROLE_NAME);
-        assertApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

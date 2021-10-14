@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.is;
-
 /**
  * Integration Rest Test for testing authentication when all possible realms are configured
  */
@@ -51,7 +49,7 @@ public class NativeRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "native", "native1");
         assertRoles(authenticate, ROLE_NAME);
-        assertApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

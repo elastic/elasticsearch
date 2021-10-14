@@ -58,6 +58,7 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
+        this.requireNonNullApiKeyMetadataAndIdValue(type, metadata);
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -69,8 +70,23 @@ public class Authentication implements ToXContentObject {
             this.lookedUpBy = null;
         }
         this.version = in.getVersion();
-        type = AuthenticationType.values()[in.readVInt()];
-        metadata = in.readMap();
+        this.type = AuthenticationType.values()[in.readVInt()];
+        this.metadata = in.readMap();
+        this.requireNonNullApiKeyMetadataAndIdValue(type, metadata);
+    }
+
+    /**
+     * For ApiKeys, assert metadata map is non-null, and assert value for id key is non-null.
+     * Do not assert value for name key is non-null. Name is mandatory now, but it was not required in older versions.
+     *
+     * @param type     If type=API_KEY, metadata map and id value have always been mandatory.
+     * @param metadata Map of metadata.
+     */
+    private void requireNonNullApiKeyMetadataAndIdValue(AuthenticationType type, Map<String, Object> metadata) {
+        if (AuthenticationType.API_KEY.equals(type)) {
+            Objects.requireNonNull(metadata);
+            Objects.requireNonNull(metadata.get(ApiKeyServiceField.API_KEY_ID_KEY));
+        }
     }
 
     public User getUser() {
@@ -252,12 +268,14 @@ public class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            builder.field("api_key",
-                Map.of(
-                    "id", this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY),
-                    "name", this.metadata.get(ApiKeyServiceField.API_KEY_NAME_KEY)
-                )
-            ); // authentication.api_key={"id":"abc123", "name":"my-api-key"}
+            final Map<String, Object> apiKeyInfoMap;
+            if (this.metadata.containsKey(ApiKeyServiceField.API_KEY_NAME_KEY)) { // Map.of() does not accept nulls, check if name present
+                apiKeyInfoMap = Map.of("id", this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY),
+                    "name", this.metadata.get(ApiKeyServiceField.API_KEY_NAME_KEY));                // newer API KEYs include name
+            } else {
+                apiKeyInfoMap = Map.of("id", this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY)); // older API KEYs lack name
+            }
+            builder.field("api_key", apiKeyInfoMap); // authentication.api_key={"id":"abc123", "name":"my-api-key"}
         }
     }
 

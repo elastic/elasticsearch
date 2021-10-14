@@ -113,21 +113,10 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
         );
     }
 
-    protected void assertApiKeyInfo(Map<String, Object> authenticateResponse, AuthenticationType type) {
-        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}
+    protected void assertNoApiKeyInfo(Map<String, Object> authenticateResponse, AuthenticationType type) {
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
         // If authentication type is other,   authentication.api_key not present.
-        if (AuthenticationType.API_KEY.equals(type)) {
-            assertThat(authenticateResponse.get("api_key"), instanceOf(Map.class)); // implies hasKey()
-            final Map<?, ?> apiKey = (Map<?, ?>) authenticateResponse.get("api_key"); // assert Map<String,Object> below
-            assertThat(apiKey.keySet(), allOf(
-                everyItem(instanceOf(String.class)),      // assert apiKey Map<?,?>      is safe to cast to Map<String,?>
-                containsInAnyOrder("id", "name"))   // assert apiKey Map<String,?> exactly contains these keys (and no others)
-            );
-            assertThat(apiKey.get("id"), allOf(instanceOf(String.class), not(equalTo(""))));
-            assertThat(apiKey.get("name"), allOf(instanceOf(String.class), not(equalTo(""))));
-        } else {
-            assertThat(authenticateResponse, not(hasKey("api_key")));
-        }
+        assertThat(authenticateResponse, not(hasKey("api_key")));
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {

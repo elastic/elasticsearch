@@ -36,7 +36,7 @@ public class FileRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "file", "file0");
         assertRoles(authenticate, ROLE_NAME);
-        assertApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

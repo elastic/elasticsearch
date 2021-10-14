@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
+import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -136,6 +137,12 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
         final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
         final String nodeName = "node_name";
         final Authentication.AuthenticationType authenticationType = randomFrom(Authentication.AuthenticationType.values());
+        if (Authentication.AuthenticationType.API_KEY.equals(authenticationType)) {
+            metadata.put(ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
+            if (randomBoolean()) {
+                metadata.put(ApiKeyServiceField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10));
+            }
+        }
         return new Authentication(
             new User(username, roles, fullName, email, metadata, true),
             new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),

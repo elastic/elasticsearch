@@ -42,7 +42,7 @@ public class PkiRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "pki", "pki4");
         assertRoles(authenticate, new String[0]);
-        assertApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

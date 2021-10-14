@@ -20,10 +20,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
     public void testIsTimeout() {
-        ClusterHealthResponse res = new ClusterHealthResponse();
+        ClusterHealthResponse res = new ClusterHealthResponse(false);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             if (res.isTimedOut()) {
@@ -70,7 +70,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {Metadata.ALL},
-            clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
+            clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime, false);
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));

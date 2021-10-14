@@ -267,4 +267,18 @@ To avoid deprecation warnings, discontinue use of transient settings when modify
 your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
 use only persistent settings.
 ====
+
+[[deprecate-408-status-code-for-cluster-health-timeout]]
+.Returning 408 HTTP status code for the Cluster Health API has been deprecated.
+[%collapsible]
+====
+*Details* +
+The HTTP status code for the case of an internal server timeout will be changed
+from 408 REQUEST_TIMEOUT to 200 OK in 8.0.0. 408 is not an appropriate status code because it
+indicates a client timeout, not an internal server one.
+
+*Impact* +
+To detect a server timeout, check the `timed_out` field of the JSON response. To avoid deprecation warnings,
+set the `return_200_for_cluster_health_timeout` HTTP query parameter to `true` in the Cluster Health API request.
+====
 // end::notable-breaking-changes[]

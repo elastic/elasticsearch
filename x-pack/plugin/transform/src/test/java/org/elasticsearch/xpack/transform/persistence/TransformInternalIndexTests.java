@@ -190,7 +190,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse());
+            listener.onResponse(new ClusterHealthResponse(false));
             return null;
         }).when(clusterClient).health(any(), any());
 
@@ -274,7 +274,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse());
+            listener.onResponse(new ClusterHealthResponse(false));
             return null;
         }).when(clusterClient).health(any(), any());
 

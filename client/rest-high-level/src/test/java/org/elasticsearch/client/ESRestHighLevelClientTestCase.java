@@ -318,8 +318,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(singletonMap("cluster.remote." + remoteClusterName + ".seeds", transportAddress));
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         ClusterUpdateSettingsResponse updateSettingsResponse =
-                restHighLevelClient.cluster().putSettings(updateSettingsRequest, RequestOptions.DEFAULT);
+                restHighLevelClient.cluster().putSettings(updateSettingsRequest, options);
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         assertBusy(() -> {

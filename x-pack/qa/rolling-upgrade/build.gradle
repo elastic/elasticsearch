@@ -54,9 +54,6 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
-    if (bwcVersion.onOrAfter('7.10.0')) {
-      setting 'cluster.deprecation_indexing.enabled', 'false'
-    }
     if (bwcVersion.onOrAfter('7.0.0')) {
       setting 'xpack.security.authc.realms.file.file1.order', '0'
       setting 'xpack.security.authc.realms.native.native1.order', '1'

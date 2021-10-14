@@ -409,6 +409,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
         // We need to translate these settings there as there's no support to do per version config for testclusters yet
+
+        if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+            if (node.getVersion().onOrAfter("7.16.0")) {
+                node.settings.put("cluster.deprecation_indexing.enabled", "false");
+            }
+        }
+
         if (node.getVersion().onOrAfter("7.0.0")) {
             if (node.settings.containsKey("xpack.security.authc.realms.file1.type")) {
                 node.settings.remove("xpack.security.authc.realms.file1.type");

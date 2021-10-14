@@ -43,10 +43,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -60,6 +57,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -67,6 +67,7 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -89,6 +90,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -302,49 +306,65 @@ public class IngestServiceTests extends ESTestCase {
     public void testValidateNotInUse() {
         String pipeline = "pipeline";
         ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
-        int defaultPipelineCount = 0;
-        int finalPipelineCount = 0;
-        int indicesCount = randomIntBetween(5, 10);
-        for (int i = 0; i < indicesCount; i++) {
-            IndexMetadata.Builder builder = IndexMetadata.builder("index" + i).numberOfShards(1).numberOfReplicas(1);
+        int defaultIndicesCount = randomIntBetween(0, 4);
+        List<String> defaultIndices = new ArrayList<>();
+        for (int i = 0; i < defaultIndicesCount; i++) {
+            String indexName = "index" + i;
+            defaultIndices.add(indexName);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
             Settings.Builder settingsBuilder = settings(Version.CURRENT);
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
-                defaultPipelineCount++;
-            }
-
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
-                finalPipelineCount++;
-            }
-
+            settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
             builder.settings(settingsBuilder);
             IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
-            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            indices.put(indexName, indexMetadata);
+        }
+
+        int finalIndicesCount = randomIntBetween(defaultIndicesCount > 0 ? 0 : 1, 4);
+        List<String> finalIndices = new ArrayList<>();
+        for (int i = defaultIndicesCount; i < (finalIndicesCount + defaultIndicesCount); i++) {
+            String indexName = "index" + i;
+            finalIndices.add(indexName);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
+            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
+            builder.settings(settingsBuilder);
+            IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+            indices.put(indexName, indexMetadata);
         }
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> IngestService.validateNotInUse(pipeline, indices.build())
         );
-        assertThat(e.getMessage(), containsString("default pipeline for " + defaultPipelineCount + " indices including"));
-        assertThat(e.getMessage(), containsString("final pipeline for " + finalPipelineCount + " indices including"));
-        if (defaultPipelineCount >= 3) {
-            // assert index limit
-            String content = "default pipeline for " + defaultPipelineCount + " indices including [";
-            int start = e.getMessage().indexOf(content) + content.length();
-            int end = e.getMessage().indexOf("] and the final pipeline");
-            // indices content length, eg: index0,index1,index2
-            assertEquals(end - start, (6 + 1 + 6 + 1 + 6));
+
+        if (defaultIndices.size() > 0) {
+            assertThat(
+                e.getMessage(),
+                containsString(String.format(
+                        Locale.ROOT,
+                        "default pipeline for %s index(es) including [%s]",
+                        defaultIndices.size(),
+                        defaultIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
+                    )
+                )
+            );
         }
 
-        if (finalPipelineCount >= 3) {
-            // assert index limit
-            String content = "final pipeline for " + finalPipelineCount + " indices including [";
-            int start = e.getMessage().indexOf(content) + content.length();
-            int end = e.getMessage().lastIndexOf("]");
-            // indices content length, eg: index0,index1,index2
-            assertEquals(end - start, (6 + 1 + 6 + 1 + 6));
+        if (defaultIndices.size() > 0 && finalIndices.size() > 0) {
+            assertThat(e.getMessage(), containsString(" and "));
+        }
+
+        if (finalIndices.size() > 0) {
+            assertThat(
+                e.getMessage(),
+                containsString(String.format(
+                        Locale.ROOT,
+                        "final pipeline for %s index(es) including [%s]",
+                        finalIndices.size(),
+                        finalIndices.stream().sorted().limit(3).collect(Collectors.joining(","))
+                    )
+                )
+            );
         }
     }
 
@@ -375,6 +395,82 @@ public class IngestServiceTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class));
         assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
+    }
+
+    public void testGetPipelineWithProcessorType() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
+                "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        PutPipelineRequest putRequest2 = new PutPipelineRequest("_id2", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag2\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest2, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> true), containsInAnyOrder("_id1", "_id2"));
+        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> false), emptyIterable());
+        assertThat(ingestService.getPipelineWithProcessorType(WrappingProcessorImpl.class, processor -> true), containsInAnyOrder("_id1"));
+    }
+
+    public void testReloadPipeline() throws Exception {
+        boolean[] externalProperty = new boolean[] {false};
+
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        processorFactories.put("set", (factories, tag, description, config) -> {
+            String field = (String) config.remove("field");
+            String value = (String) config.remove("value");
+            if (externalProperty[0]) {
+                return new FakeProcessor("set", tag, description, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
+            } else {
+                return new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+                        throw new RuntimeException("reload me");
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "set";
+                    }
+                };
+            }
+        });
+
+        IngestService ingestService = createWithProcessors(processorFactories);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+
+        PutPipelineRequest putRequest1 = new PutPipelineRequest("_id1", new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}]}"),
+            XContentType.JSON);
+        clusterState = IngestService.innerPut(putRequest1, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        {
+            Exception[] exceptionHolder = new Exception[1];
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
+            assertThat(exceptionHolder[0], notNullValue());
+            assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
+            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
+        }
+
+        externalProperty[0] = true;
+        ingestService.reloadPipeline("_id1");
+
+        {
+            Exception[] holder = new Exception[1];
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
+            assertThat(holder[0], nullValue());
+            assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
+        }
     }
 
     public void testGetProcessorsInPipelineComplexConditional() throws Exception {
@@ -644,7 +740,7 @@ public class IngestServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> IngestService.innerDelete(deleteRequest, finalClusterState)
             );
-            assertThat(e.getMessage(), containsString("default pipeline for 1 indices including [pipeline-index]"));
+            assertThat(e.getMessage(), containsString("default pipeline for 1 index(es) including [pipeline-index]"));
         }
 
         {
@@ -661,7 +757,7 @@ public class IngestServiceTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> IngestService.innerDelete(deleteRequest, finalClusterState)
             );
-            assertThat(e.getMessage(), containsString("final pipeline for 1 indices including [pipeline-index]"));
+            assertThat(e.getMessage(), containsString("final pipeline for 1 index(es) including [pipeline-index]"));
         }
 
         // Delete pipeline:

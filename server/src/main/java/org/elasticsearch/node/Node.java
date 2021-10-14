@@ -327,9 +327,15 @@ public class Node implements Closeable {
                 );
             }
 
+            if (initialEnvironment.dataFiles().length > 1) {
+                throw new IllegalArgumentException("Multiple [path.data] values found. Specify a single data path.");
+            } else if (Environment.dataPathUsesList(tmpSettings)) {
+                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+            }
+
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                    initialEnvironment.configFile(), initialEnvironment.dataFile(),
+                    initialEnvironment.configFile(), Arrays.toString(initialEnvironment.dataFiles()),
                     initialEnvironment.logsFile(), initialEnvironment.pluginsFile());
             }
 
@@ -434,7 +440,7 @@ public class Node implements Closeable {
                 .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
                 .collect(Collectors.toUnmodifiableMap(
                     SystemIndexPlugin::getFeatureName,
-                    plugin -> SystemIndices.pluginToFeature(plugin, settings)
+                    plugin -> SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
@@ -615,6 +621,7 @@ public class Node implements Closeable {
                 settings,
                 bigArrays,
                 transportService,
+                client,
                 namedWriteableRegistry,
                 networkService,
                 clusterService.getMasterService(),

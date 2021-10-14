@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.core.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -191,6 +194,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -667,6 +671,53 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public String getFeatureName() {
         return "watcher";
+    }
+
+    @Override
+    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
+        boolean manuallyStopped = Optional.ofNullable(clusterService.state().metadata().<WatcherMetadata>custom(WatcherMetadata.TYPE))
+            .map(WatcherMetadata::manuallyStopped)
+            .orElse(false);
+
+        if (manuallyStopped == false) {
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            serviceRequest.stop();
+            originClient.execute(
+                WatcherServiceAction.INSTANCE,
+                serviceRequest,
+                ActionListener.wrap(
+                    (response) -> { listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped)); },
+                    listener::onFailure
+                )
+            );
+        } else {
+            // If Watcher is manually stopped, we don't want to stop it AGAIN, so just call the listener.
+            listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
+        }
+    }
+
+    @Override
+    public void indicesMigrationComplete(
+        Map<String, Object> preUpgradeMetadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
+        Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
+        boolean manuallyStopped = (boolean) preUpgradeMetadata.getOrDefault("manually_stopped", false);
+        if (manuallyStopped == false) {
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            serviceRequest.start();
+            originClient.execute(
+                WatcherServiceAction.INSTANCE,
+                serviceRequest,
+                ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
+            );
+        } else {
+            // Watcher was manually stopped before we got there, don't start it.
+            listener.onResponse(true);
+        }
     }
 
     @Override

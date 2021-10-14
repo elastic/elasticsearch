@@ -974,6 +974,7 @@ public class TransportSearchActionTests extends ESTestCase {
         final IndexMetadata indexMetadata = clusterState.metadata().index("test-1");
         Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
         Set<ShardId> relocatedContexts = new HashSet<>();
+        Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             final String targetNode;
             if (randomBoolean()) {
@@ -987,13 +988,15 @@ public class TransportSearchActionTests extends ESTestCase {
             contexts.put(new ShardId(indexMetadata.getIndex(), shardId),
                 new SearchContextIdForNode(null, targetNode,
                     new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)));
+            aliasFilterMap.putIfAbsent(indexMetadata.getIndexUUID(), AliasFilter.EMPTY);
         }
         TimeValue keepAlive = randomBoolean() ? null : TimeValue.timeValueSeconds(between(30, 3600));
+
         final List<SearchShardIterator> shardIterators = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
             clusterState,
             OriginalIndices.NONE,
             null,
-            new SearchContextId(contexts, Map.of()),
+            new SearchContextId(contexts, aliasFilterMap),
             keepAlive
         );
         shardIterators.sort(Comparator.comparing(SearchShardIterator::shardId));

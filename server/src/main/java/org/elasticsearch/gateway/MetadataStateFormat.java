@@ -318,7 +318,7 @@ public abstract class MetadataStateFormat<T> {
      * @param currentGeneration state generation to keep.
      * @param locations         state paths.
      */
-    public void cleanupOldFiles(final long currentGeneration, Path... locations) {
+    public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
         final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);

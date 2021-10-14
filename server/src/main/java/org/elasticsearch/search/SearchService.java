@@ -17,7 +17,6 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchResponse;
 import org.elasticsearch.action.search.CanMatchRequest;
 import org.elasticsearch.action.search.SearchRequest;

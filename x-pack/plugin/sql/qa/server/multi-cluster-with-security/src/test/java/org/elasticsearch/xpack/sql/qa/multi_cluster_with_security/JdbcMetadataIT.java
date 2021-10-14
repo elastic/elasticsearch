@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class JdbcMetadataIT extends JdbcIntegrationTestCase {
 
@@ -18,8 +19,7 @@ public class JdbcMetadataIT extends JdbcIntegrationTestCase {
     public static final String LOCAL_CLUSTER_NAME = "integTest";
     public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
 
-    @AwaitsFix(bugUrl = "foo")
-    public void testJdbcGetClusters() throws Exception {
+    public void testJdbcGetClusters() throws SQLException {
         try (Connection es = esJdbc()) {
             ResultSet rs = es.getMetaData().getCatalogs();
             assertEquals(1, rs.getMetaData().getColumnCount());

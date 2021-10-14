@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.sql.SqlInfoTransportAction;
 import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
@@ -99,8 +100,9 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
      */
     Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService,
                                         NamedWriteableRegistry namedWriteableRegistry) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), settings,
-            clusterService.getClusterSettings(), SqlDataTypeRegistry.INSTANCE);
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), SqlDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 

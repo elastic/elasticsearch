@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.eql.EqlUsageTransportAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,8 +76,9 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     }
 
     private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), settings,
-            clusterService.getClusterSettings(), DefaultDataTypeRegistry.INSTANCE);
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, circuitBreaker.get());
         return Collections.singletonList(planExecutor);
     }

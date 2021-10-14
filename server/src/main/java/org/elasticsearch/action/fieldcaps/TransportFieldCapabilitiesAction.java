@@ -275,7 +275,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             typeMap.put("unmapped", unmapped);
             for (String index : unmappedIndices) {
-                unmapped.add(index, false, false, false, Collections.emptyMap());
+                unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
             }
         }
     }
@@ -291,7 +291,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(),
                 key -> new FieldCapabilities.Builder(field, key));
-            builder.add(response.getIndexName(), isMetadataField, fieldCap.isSearchable(), fieldCap.isAggregatable(), fieldCap.meta());
+            builder.add(
+                response.getIndexName(),
+                isMetadataField,
+                fieldCap.isSearchable(),
+                fieldCap.isAggregatable(),
+                fieldCap.isDimension(),
+                fieldCap.getMetricType(),
+                fieldCap.meta()
+            );
         }
     }
 
@@ -350,8 +358,16 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 MappedFieldType ft = searchExecutionContext.getFieldType(field);
                 boolean isMetadataField = searchExecutionContext.isMetadataField(field);
                 if (isMetadataField || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field,
-                            ft.familyTypeName(), isMetadataField, ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                        field,
+                        ft.familyTypeName(),
+                        isMetadataField,
+                        ft.isSearchable(),
+                        ft.isAggregatable(),
+                        ft.isDimension(),
+                        ft.getMetricType(),
+                        ft.meta()
+                    );
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -376,7 +392,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             if (mapper != null) {
                                 String type = mapper.isNested() ? "nested" : "object";
                                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                                    false, false, false, Collections.emptyMap());
+                                    false, false, false, false, null, Collections.emptyMap());
                                 responseMap.put(parentField, fieldCap);
                             }
                         }

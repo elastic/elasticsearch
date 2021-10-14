@@ -50,9 +50,6 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
 
-  // time handling, remove with java 8 time
-  api "joda-time:joda-time:${versions.joda}"
-
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation

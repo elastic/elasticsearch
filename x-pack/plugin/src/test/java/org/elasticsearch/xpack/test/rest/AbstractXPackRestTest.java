@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 import org.junit.Before;
 
@@ -86,8 +85,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             List<String> templates = Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                TransformInternalIndexConstants.AUDIT_INDEX
+                AnomalyDetectorsIndex.jobResultsIndexPrefix()
             );
 
             for (String template : templates) {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.transform.notifications;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -69,7 +70,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
                     return request;
                 } catch (IOException e) {
-                    return null;
+                    throw new ElasticsearchException("Failure creatig transform notification index", e);
                 }
             },
             () -> {
@@ -85,7 +86,7 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                     );
                     return request;
                 } catch (IOException e) {
-                    return null;
+                    throw new ElasticsearchException("Failure creatig transform notification index", e);
                 }
             },
             nodeName,

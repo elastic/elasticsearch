@@ -34,8 +34,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     static {
         for (int i = 0; i < DOUBLE_PAGE_SIZE; i++) {
-            doublePlatformNative.set(NEGATIVE_INFINITY_VALUE_FILL, i << 2, Double.NEGATIVE_INFINITY);
-            doublePlatformNative.set(POSITIVE_INFINITY_VALUE_FILL, i << 2, Double.POSITIVE_INFINITY);
+            doublePlatformNative.set(NEGATIVE_INFINITY_VALUE_FILL, i << 3, Double.NEGATIVE_INFINITY);
+            doublePlatformNative.set(POSITIVE_INFINITY_VALUE_FILL, i << 3, Double.POSITIVE_INFINITY);
         }
     }
 

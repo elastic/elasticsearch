@@ -64,9 +64,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -1701,21 +1701,6 @@ public final class TokenService {
             expiredTokenRemover.submit(client.threadPool());
             lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         }
-    }
-
-    /**
-     * Gets the token from the <code>Authorization</code> header if the header begins with
-     * <code>Bearer </code>
-     */
-    public SecureString extractBearerTokenFromHeader(ThreadContext threadContext) {
-        String header = threadContext.getHeader("Authorization");
-        if (Strings.hasText(header) && header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
-            && header.length() > "Bearer ".length()) {
-            char[] chars = new char[header.length() - "Bearer ".length()];
-            header.getChars("Bearer ".length(), header.length(), chars, 0);
-            return new SecureString(chars);
-        }
-        return null;
     }
 
     String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {

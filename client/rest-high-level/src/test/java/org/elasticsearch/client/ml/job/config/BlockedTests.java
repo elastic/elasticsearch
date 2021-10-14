@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

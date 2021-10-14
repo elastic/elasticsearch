@@ -22,8 +22,8 @@ import java.nio.file.Paths
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_ADOPTIUM
-import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_OPENJDK
+import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_ADOPTIUM
+import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_OPENJDK
 
 class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 

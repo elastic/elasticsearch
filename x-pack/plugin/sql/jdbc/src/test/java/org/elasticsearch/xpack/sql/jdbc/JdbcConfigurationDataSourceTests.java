@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.http.MockResponse;
 
 import java.io.IOException;

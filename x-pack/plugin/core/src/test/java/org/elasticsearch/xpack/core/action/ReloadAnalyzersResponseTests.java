@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;

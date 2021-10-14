@@ -21,14 +21,14 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -563,10 +563,12 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
 
             DeprecationCategory category = this.isSecure(settings) ? DeprecationCategory.SECURITY : DeprecationCategory.SETTINGS;
-
-            Settings.DeprecationLoggerHolder.deprecationLogger
-                .critical(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.", key);
+            List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
+            if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
+                Settings.DeprecationLoggerHolder.deprecationLogger
+                    .critical(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version.", key);
+            }
         }
     }
 
@@ -583,7 +585,7 @@ public class Setting<T> implements ToXContentObject {
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("key", getKey());
-        builder.field("properties", properties);
+        builder.enumSet("properties", properties);
         builder.field("is_group_setting", isGroupSetting());
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();

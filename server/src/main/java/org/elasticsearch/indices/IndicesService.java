@@ -59,10 +59,10 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -1528,7 +1528,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (InputStream inputStream = bytes.streamInput();
                  XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

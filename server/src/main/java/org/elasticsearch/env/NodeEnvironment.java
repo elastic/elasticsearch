@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.SuppressForbidden;
@@ -37,7 +38,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -53,12 +54,19 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -252,6 +260,17 @@ public final class NodeEnvironment  implements Closeable {
         NodeLock nodeLock = null;
 
         try {
+            for (Path path : environment.dataFiles()) {
+                final Path nodesPath = path.resolve(NODES_FOLDER);
+                if (Files.exists(nodesPath) && Files.isDirectory(nodesPath) == false) {
+                    throw new IllegalStateException(
+                        "data path [" + path + "] is not compatible with Elasticsearch v" + Version.CURRENT +
+                            ", perhaps it has already been upgraded to a later version",
+                        new IllegalStateException(
+                            "[" + nodesPath + "] is a file which contains [" + readFileContents(nodesPath) + "]"));
+                }
+            }
+
             sharedDataPath = environment.sharedDataFile();
             IOException lastException = null;
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
@@ -322,6 +341,26 @@ public final class NodeEnvironment  implements Closeable {
         } finally {
             if (success == false) {
                 close();
+            }
+        }
+    }
+
+    private static String readFileContents(Path nodesPath) throws IOException {
+        final int maxBytes = 256;
+
+        try (FileChannel fileChannel = FileChannel.open(nodesPath, StandardOpenOption.READ)) {
+            final ByteBuffer byteBuffer = ByteBuffer.allocate(maxBytes);
+            final int len = Channels.readFromFileChannel(fileChannel, 0, byteBuffer);
+            byteBuffer.flip();
+
+            final CharsetDecoder charsetDecoder = StandardCharsets.UTF_8
+                .newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+            try {
+                return charsetDecoder.decode(byteBuffer) + (len == maxBytes ? "..." : "");
+            } catch (CharacterCodingException e) {
+                return "<unreadable>";
             }
         }
     }

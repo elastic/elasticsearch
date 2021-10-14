@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -63,7 +64,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         clusterState = strategy.reroute(clusterState, "reroute");
 
 
-        while (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty() == false) {
+        while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
 
@@ -87,27 +88,27 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         logger.info("[{}] primaries should be still started but [{}] other primaries should be unassigned",
             numberOfShards, numberOfShards);
-        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(numberOfShards));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.routingTable().shardsWithState(UNASSIGNED).size(), equalTo(numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(numberOfShards));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(numberOfShards));
 
         logger.info("start node back up");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node1", singletonMap("tag1", "value1")))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
-        while (clusterState.getRoutingNodes().shardsWithState(STARTED).size() < totalNumberOfShards) {
+        while (shardsWithState(clusterState.getRoutingNodes(), STARTED).size() < totalNumberOfShards) {
             int localInitializations = 0;
             int relocatingInitializations = 0;
-            for (ShardRouting routing : clusterState.getRoutingNodes().shardsWithState(INITIALIZING)) {
+            for (ShardRouting routing : shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)) {
                 if (routing.relocatingNodeId() == null) {
                     localInitializations++;
                 } else {
                     relocatingInitializations++;
                 }
             }
-            int needToInitialize = totalNumberOfShards - clusterState.getRoutingNodes().shardsWithState(STARTED).size()
-                - clusterState.getRoutingNodes().shardsWithState(RELOCATING).size();
+            int needToInitialize = totalNumberOfShards - shardsWithState(clusterState.getRoutingNodes(), STARTED).size()
+                - shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size();
             logger.info("local initializations: [{}], relocating: [{}], need to initialize: {}",
                 localInitializations, relocatingInitializations, needToInitialize);
             assertThat(localInitializations, equalTo(Math.min(primaryRecoveries, needToInitialize)));

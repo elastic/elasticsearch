@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
@@ -65,7 +67,6 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         });
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78424")
     public void testNullsOrderBeforeMissingOrderSupportQueryingNewNode() throws IOException {
         testNullsOrderBeforeMissingOrderSupport(newNodesClient);
     }
@@ -125,8 +126,8 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         indexDocs.setJsonEntity(bulk.toString());
         client().performRequest(indexDocs);
 
-        Request query = new Request("GET", "_sql");
-        query.setJsonEntity("{\"query\":\"SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST\"}");
+        Request query = new Request("POST", "_sql");
+        query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion));
         Response queryResponse = queryClient.performRequest(query);
 
         assertEquals(200, queryResponse.getStatusLine().getStatusCode());
@@ -135,6 +136,23 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         Map<String, Object> result = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         return rows.stream().map(row -> (Integer) row.get(0)).collect(Collectors.toList());
+    }
+
+    public static String sqlQueryEntityWithOptionalMode(String query, Version bwcVersion) throws IOException {
+        XContentBuilder json = XContentFactory.jsonBuilder().startObject();
+        json.field("query", query);
+        if (bwcVersion.before(Version.V_7_12_0)) {
+            // a bug previous to 7.12 caused a NullPointerException when accessing displaySize in ColumnInfo. The bug has been addressed in
+            // https://github.com/elastic/elasticsearch/pull/68802/files
+            // #diff-2faa4e2df98a4636300a19d9d890a1bd7174e9b20dd3a8589d2c78a3d9e5cbc0L110
+            // as a workaround, use JDBC (driver) mode in versions prior to 7.12
+            json.field("mode", "jdbc");
+            json.field("binary_format", false);
+            json.field("version", bwcVersion.toString());
+        }
+        json.endObject();
+
+        return Strings.toString(json);
     }
 
 }

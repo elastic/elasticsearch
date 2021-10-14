@@ -15,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -49,12 +48,7 @@ public class XPackLicenseState {
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
 
-        WATCHER(OperationMode.STANDARD, true),
-        // TODO: should just check WATCHER directly?
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
-        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
-
-        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
 
         CCR(OperationMode.PLATINUM, true),
 
@@ -92,8 +86,7 @@ public class XPackLicenseState {
             "The actions of the watches don't execute"
         });
         messages.put(XPackField.MONITORING, new String[] {
-            "The agent will stop collecting cluster and indices metrics",
-            "The agent will stop automatically cleaning indices older than [xpack.monitoring.history.duration]"
+            "The agent will stop collecting cluster and indices metrics"
         });
         messages.put(XPackField.GRAPH, new String[] {
             "Graph explore APIs are disabled"
@@ -245,10 +238,7 @@ public class XPackLicenseState {
                                     "running multiple clusters, users won't be able to access the clusters with\n" +
                                     "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
                                     "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
-                                newMode, newMode, newMode),
-                            LoggerMessageFormat.format(
-                                "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
+                                newMode, newMode, newMode)
                         };
                 }
                 break;
@@ -459,6 +449,10 @@ public class XPackLicenseState {
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
         return checkAgainstStatus(status -> status.active);
+    }
+
+    public String statusDescription() {
+        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
     }
 
     @Deprecated

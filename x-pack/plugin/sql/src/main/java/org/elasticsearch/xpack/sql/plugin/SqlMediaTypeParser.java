@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;

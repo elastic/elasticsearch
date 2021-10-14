@@ -20,8 +20,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -69,7 +69,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
             .get();
 
@@ -97,7 +97,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertConcreteMappingsOnAll("test", type, fieldName);
         }
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
             Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
     }
 

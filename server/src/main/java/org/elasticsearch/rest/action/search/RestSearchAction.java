@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,6 +35,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 
 import static java.util.Arrays.asList;
@@ -61,7 +62,7 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS;
+    public static final Set<String> RESPONSE_PARAMS;
 
     static {
         final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));
@@ -130,7 +131,18 @@ public class RestSearchAction extends BaseRestHandler {
                                           XContentParser requestContentParser,
                                           NamedWriteableRegistry namedWriteableRegistry,
                                           IntConsumer setSize) throws IOException {
+        parseSearchRequest(searchRequest, request, requestContentParser, namedWriteableRegistry, setSize, (r, sr) -> {});
+    }
 
+
+    /**
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request. This variation
+     * allows the caller to specify if wait_for_checkpoints functionality is supported.
+     */
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
+                                          XContentParser requestContentParser,
+                                          NamedWriteableRegistry namedWriteableRegistry,
+                                          IntConsumer setSize, BiConsumer<RestRequest, SearchRequest> extraParamParser) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -188,6 +200,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
         }
+
+        extraParamParser.accept(request, searchRequest);
     }
 
     /**

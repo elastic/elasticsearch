@@ -22,14 +22,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
@@ -410,7 +410,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         // Run retention every second
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
+        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request r = new Request("PUT", "/_cluster/settings");
@@ -452,7 +452,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         } finally {
             // Unset retention
             ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest();
-            unsetRequest.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
+            unsetRequest.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
             try (XContentBuilder builder = jsonBuilder()) {
                 unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 Request r = new Request("PUT", "/_cluster/settings");
@@ -707,7 +707,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     private void disableSLMMinimumIntervalValidation() throws IOException {
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
+        req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Request r = new Request("PUT", "/_cluster/settings");

@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.TIER_PREFERENCE;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 import static org.hamcrest.Matchers.is;

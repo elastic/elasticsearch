@@ -89,7 +89,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             .put(IndexMetadata.builder(targetIndexMetadata)
                 .putCustom(ILM_CUSTOM_METADATA_KEY, relevantTargetCustomData.build().asMap()));
 
-        return ClusterState.builder(clusterState).metadata(newMetadata).build();
+        return ClusterState.builder(clusterState).metadata(newMetadata.build(false)).build();
     }
 
     @Override

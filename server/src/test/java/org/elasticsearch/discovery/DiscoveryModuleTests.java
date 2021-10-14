@@ -86,6 +86,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             threadPool,
             BigArrays.NON_RECYCLING_INSTANCE,
             transportService,
+            null,
             namedWriteableRegistry,
             null,
             masterService,

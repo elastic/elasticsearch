@@ -15,13 +15,13 @@ import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
-import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
@@ -142,7 +142,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
-    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
+    private final LazyPropertyList<FileCollection> extraJarConfigurations = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
@@ -602,7 +602,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // using original location can be too long due to MAX_PATH restrictions on windows CI
         // TODO revisit when moving to shorter paths on CI by using Teamcity
         return OS.current() != OS.WINDOWS
-            && extraJarFiles.size() == 0
+            && extraJarConfigurations.size() == 0
             && modules.size() == 0
             && plugins.size() == 0
             && requiresAddingXPack() == false;
@@ -668,10 +668,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * //TODO: Remove this when system modules are available
      */
     private void copyExtraJars() {
+        List<File> extraJarFiles = this.extraJarConfigurations.stream()
+            .flatMap(fileCollection -> fileCollection.getFiles().stream())
+            .collect(Collectors.toList());
+
         if (extraJarFiles.isEmpty() == false) {
-            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
+            logToProcessStdout("Setting up " + this.extraJarConfigurations.size() + " additional jar dependencies");
         }
         extraJarFiles.forEach(from -> {
+            if (from.getName().endsWith(".jar") == false) {
+                throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+            }
+
             Path destination = getDistroDir().resolve("lib").resolve(from.getName());
             try {
                 Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
@@ -720,11 +728,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        if (from.toString().endsWith(".jar") == false) {
-            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
-        }
-        extraJarFiles.add(from);
+    public void extraJarFiles(FileCollection from) {
+        extraJarConfigurations.add(from);
     }
 
     @Override

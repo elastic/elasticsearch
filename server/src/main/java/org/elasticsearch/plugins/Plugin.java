@@ -23,8 +23,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -125,7 +125,7 @@ public abstract class Plugin implements Closeable {
      * overwritten with the additional settings. These settings added if they don't exist.
      */
     public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
+        return Settings.EMPTY;
     }
 
     /**

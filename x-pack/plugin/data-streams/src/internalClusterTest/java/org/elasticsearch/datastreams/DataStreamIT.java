@@ -52,8 +52,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.core.Nullable;
@@ -68,6 +66,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
@@ -852,7 +852,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     + backingIndex
                     + "] match a backing index belonging to data stream ["
                     + dataStreamName
-                    + "]. Data streams and their backing indices don't "
+                    + "]. Data stream backing indices don't "
                     + "support aliases."
             )
         );

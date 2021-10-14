@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 
 import java.util.Collection;
 import java.util.List;

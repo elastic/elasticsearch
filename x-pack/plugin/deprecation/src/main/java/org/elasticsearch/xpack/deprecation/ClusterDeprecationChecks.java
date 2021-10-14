@@ -17,12 +17,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -48,6 +48,8 @@ import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.checkRem
 
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
+
+    private static final String SPARSE_VECTOR = "sparse_vector";
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
@@ -222,7 +224,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
@@ -251,7 +253,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                                 IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
@@ -294,7 +296,7 @@ public class ClusterDeprecationChecks {
     }
 
     protected static boolean isSparseVector(Map<?, ?> property) {
-        return "sparse_vector".equals(property.get("type"));
+        return SPARSE_VECTOR.equals(property.get("type"));
     }
 
     protected static String formatDeprecatedSparseVectorMessage(String type, Map.Entry<?, ?> entry) {
@@ -313,7 +315,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                             mappingAsMap,
                             ClusterDeprecationChecks::isSparseVector,
                             ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
@@ -342,7 +344,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                                 mappingAsMap,
                                 ClusterDeprecationChecks::isSparseVector,
                                 ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);

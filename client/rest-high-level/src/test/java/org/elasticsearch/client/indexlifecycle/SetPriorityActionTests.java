@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 

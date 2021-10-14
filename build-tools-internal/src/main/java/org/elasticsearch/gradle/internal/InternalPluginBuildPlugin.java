@@ -87,15 +87,17 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             p.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
                 // Auto add any dependent modules
-                findModulePath(project, pluginName).ifPresent(path -> {
-                    testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path));
-                });
+                findModulePath(project, pluginName).ifPresent(
+                    path -> testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path))
+                );
             });
         });
     }
 
     Optional<String> findModulePath(Project project, String pluginName) {
-        return project.getRootProject().getAllprojects().stream()
+        return project.getRootProject()
+            .getAllprojects()
+            .stream()
             .filter(p -> GradleUtils.isModuleProject(p.getPath()))
             .filter(p -> p.getPlugins().hasPlugin(PluginBuildPlugin.class))
             .filter(p -> p.getExtensions().getByType(PluginPropertiesExtension.class).getName().equals(pluginName))

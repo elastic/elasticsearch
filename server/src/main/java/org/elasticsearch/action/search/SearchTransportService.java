@@ -131,7 +131,6 @@ public class SearchTransportService {
 
     public void sendCanMatch(Transport.Connection connection, final CanMatchRequest request, SearchTask task, final
                              ActionListener<CanMatchResponse> listener) {
-        // TODO: use minNodeVersion here to check (i.e. min{connection.getVersion(), targetNode.getVersion()})
         if (connection.getVersion().onOrAfter(Version.V_8_0_0) &&
             connection.getNode().getVersion().onOrAfter(Version.V_8_0_0)) {
             transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
@@ -139,19 +138,13 @@ public class SearchTransportService {
         } else {
             // BWC layer: translate into shard-level requests
             final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-            final AtomicReferenceArray<Object> results = new AtomicReferenceArray<>(shardSearchRequests.size());
+            final AtomicReferenceArray<CanMatchResponse.ResponseOrFailure> results = new AtomicReferenceArray<>(shardSearchRequests.size());
             final CountDown counter = new CountDown(shardSearchRequests.size());
             final Runnable maybeFinish = () -> {
                 if (counter.countDown()) {
                     final List<CanMatchResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
                     for (int i = 0; i < results.length(); i++) {
-                        final Object o = results.get(i);
-                        if (o instanceof CanMatchShardResponse) {
-                            responses.add(new CanMatchResponse.ResponseOrFailure((CanMatchShardResponse) o));
-                        } else {
-                            assert o instanceof Exception;
-                            responses.add(new CanMatchResponse.ResponseOrFailure((Exception) o));
-                        }
+                        responses.set(i, results.get(i));
                     }
                     final CanMatchResponse response = new CanMatchResponse(responses);
                     listener.onResponse(response);
@@ -164,18 +157,18 @@ public class SearchTransportService {
                     sendCanMatch(connection, shardSearchRequest, task, new ActionListener<>() {
                         @Override
                         public void onResponse(CanMatchShardResponse response) {
-                            results.set(finalI, response);
+                            results.set(finalI, new CanMatchResponse.ResponseOrFailure(response));
                             maybeFinish.run();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            results.set(finalI, e);
+                            results.set(finalI, new CanMatchResponse.ResponseOrFailure(e));
                             maybeFinish.run();
                         }
                     });
                 } catch (Exception e) {
-                    results.set(finalI, e);
+                    results.set(finalI, new CanMatchResponse.ResponseOrFailure(e));
                     maybeFinish.run();
                 }
             }

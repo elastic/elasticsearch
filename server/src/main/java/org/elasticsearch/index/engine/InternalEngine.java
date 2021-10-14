@@ -2614,6 +2614,12 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
+    public long getMaxSeqNo() {
+        return localCheckpointTracker.getMaxSeqNo();
+    }
+
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }

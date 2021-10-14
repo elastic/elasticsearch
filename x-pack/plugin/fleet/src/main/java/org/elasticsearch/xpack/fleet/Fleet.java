@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction.Request;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsShardAction;
+import org.elasticsearch.xpack.fleet.rest.RestFleetMultiSearchAction;
+import org.elasticsearch.xpack.fleet.rest.RestFleetSearchAction;
 import org.elasticsearch.xpack.fleet.rest.RestGetGlobalCheckpointsAction;
 
 import java.io.IOException;
@@ -342,6 +344,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new RestGetGlobalCheckpointsAction());
+        return Arrays.asList(new RestGetGlobalCheckpointsAction(), new RestFleetSearchAction(), new RestFleetMultiSearchAction(settings));
     }
 }

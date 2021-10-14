@@ -23,6 +23,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Holds the results of migrating a single feature. See also {@link SystemIndexMigrationResult}.
+ */
 public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationStatus> implements Writeable, ToXContent {
     private static final String NAME = "feature_migration_status";
     private static final ParseField SUCCESS_FIELD = new ParseField("successful");
@@ -76,23 +79,40 @@ public class FeatureMigrationStatus extends AbstractDiffable<FeatureMigrationSta
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * Creates a record indicating that migration succeeded.
+     */
     public static FeatureMigrationStatus success() {
         return new FeatureMigrationStatus(true, null, null);
     }
 
+    /**
+     * Creates a record indicating that migration failed.
+     * @param failedIndexName The name of the specific index whose migration failed.
+     * @param exception The exception which caused the migration failure.
+     */
     public static FeatureMigrationStatus failure(String failedIndexName, Exception exception) {
         return new FeatureMigrationStatus(false, failedIndexName, exception);
     }
 
+    /**
+     * Returns {@code true} if the migration of this feature's data succeeded, or {@code false} otherwise.
+     */
     public boolean succeeded() {
         return successful;
     }
 
+    /**
+     * Gets the name of the specific index where the migration failure occurred, if the migration failed.
+     */
     @Nullable
     public String getFailedIndexName() {
         return failedIndexName;
     }
 
+    /**
+     * Gets the exception that cause the migration failure, if the migration failed.
+     */
     @Nullable
     public Exception getException() {
         return exception;

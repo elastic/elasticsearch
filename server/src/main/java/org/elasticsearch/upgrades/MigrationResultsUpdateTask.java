@@ -19,6 +19,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 
 import java.util.HashMap;
 
+/**
+ * Handles updating the {@link SystemIndexMigrationResult} in the cluster state.
+ */
 public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MigrationResultsUpdateTask.class);
 
@@ -46,6 +49,10 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
         return new MigrationResultsUpdateTask(featureName, status, listener);
     }
 
+    /**
+     * Submit the update task so that it will actually be executed.
+     * @param clusterService The cluster service to which this task should be submitted.
+     */
     public void submit(ClusterService clusterService) {
         String source = new ParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
             .toString();

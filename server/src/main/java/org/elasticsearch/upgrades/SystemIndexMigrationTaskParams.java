@@ -17,6 +17,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * The params used to initialize {@link SystemIndexMigrator} when it's initially kicked off.
+ *
+ * Currently doesn't do anything. In the future, a name of a feature could be used to indicate that only a specific feature should be
+ * migrated.
+ */
 public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
 
     public static final String SYSTEM_INDEX_UPGRADE_TASK_NAME = "upgrade-system-indices";

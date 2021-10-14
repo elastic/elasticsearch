@@ -51,6 +51,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 
+/**
+ * This is where the logic to actually perform the migration lives - {@link SystemIndexMigrator#run(SystemIndexMigrationTaskState)} will
+ * be invoked when the migration process is started, plus any time the node running the migration drops from the cluster/crashes/etc.
+ *
+ * See {@link SystemIndexMigrationTaskState} for the data that's saved for node failover.
+ */
 public class SystemIndexMigrator extends AllocatedPersistentTask {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrator.class);
 

@@ -31,6 +31,9 @@ import java.util.Map;
 
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
+/**
+ * Starts the process of migrating system indices. See {@link SystemIndexMigrator} for the actual migration logic.
+ */
 public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<SystemIndexMigrationTaskParams> {
     private final Client client; // NOTE: *NOT* an OriginSettingClient. We have to do that later.
     private final ClusterService clusterService;

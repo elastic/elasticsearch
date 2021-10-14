@@ -8,6 +8,9 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -24,6 +27,9 @@ import java.util.Objects;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Contains the current state of system index migration progress. Used to resume runs if there's a node failure during migration.
+ */
 public class SystemIndexMigrationTaskState implements PersistentTaskState {
     private static final ParseField CURRENT_INDEX_FIELD = new ParseField("current_index");
     private static final ParseField CURRENT_FEATURE_FIELD = new ParseField("current_feature");
@@ -58,14 +64,26 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
         this.featureCallbackMetadata = in.readMap();
     }
 
+    /**
+     * Gets the name of the index that's currently being migrated.
+     */
     public String getCurrentIndex() {
         return currentIndex;
     }
 
+    /**
+     * Gets the name of the feature which owns the index that's currently being migrated.
+     */
     public String getCurrentFeature() {
         return currentFeature;
     }
 
+    /**
+     * Retrieves metadata stored by the pre-upgrade hook, intended for consumption by the post-migration hook.
+     * See {@link org.elasticsearch.plugins.SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)} and
+     * {@link org.elasticsearch.plugins.SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)} for
+     * details on the pre- and post-migration hooks.
+     */
     public Map<String, Object> getFeatureCallbackMetadata() {
         return featureCallbackMetadata;
     }

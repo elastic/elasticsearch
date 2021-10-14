@@ -27,6 +27,10 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 
+/**
+ * Holds the data required to migrate a single system index, including metadata from the current index. If necessary, computes the settings
+ * and mappings for the "next" index based off of the current one.
+ */
 class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrationInfo.class);
 
@@ -35,61 +39,73 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final Settings settings;
     private final String mapping;
     private final String origin;
-    private final boolean isPrimaryIndex;
 
     private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
         SystemIndexMigrationInfo::getFeatureName
     ).thenComparing(SystemIndexMigrationInfo::getCurrentIndexName);
 
-    private SystemIndexMigrationInfo(
-        IndexMetadata currentIndex,
-        String featureName,
-        Settings settings,
-        String mapping,
-        String origin,
-        boolean isPrimaryIndex,
-        SystemIndices.Feature owningFeature
-    ) {
+    private SystemIndexMigrationInfo(IndexMetadata currentIndex, String featureName, Settings settings, String mapping, String origin) {
         this.currentIndex = currentIndex;
         this.featureName = featureName;
         this.settings = settings;
         this.mapping = mapping;
         this.origin = origin;
-        this.isPrimaryIndex = isPrimaryIndex;
     }
 
+    /**
+     * Gets the name of the index to be migrated.
+     */
     String getCurrentIndexName() {
         return currentIndex.getIndex().getName();
     }
 
+    /**
+     * Indicates if the index to be migrated is closed.
+     */
     boolean isCurrentIndexClosed() {
         return CLOSE.equals(currentIndex.getState());
     }
 
+    /**
+     * Gets the name to be used for the post-migration index.
+     */
     String getNextIndexName() {
         return currentIndex.getIndex().getName() + SystemIndices.UPGRADED_INDEX_SUFFIX;
     }
 
+    /**
+     * Gets the name of the feature which owns the index to be migrated.
+     */
     String getFeatureName() {
         return featureName;
     }
 
+    /**
+     * Gets the mappings to be used for the post-migration index.
+     */
     String getMappings() {
         return mapping;
     }
 
+    /**
+     * Gets the settings to be used for the post-migration index.
+     */
     Settings getSettings() {
         return settings;
     }
 
+    /**
+     * Gets the origin that should be used when interacting with this index.
+     */
     String getOrigin() {
         return origin;
     }
 
-    boolean isPrimaryIndex() {
-        return isPrimaryIndex;
-    }
-
+    /**
+     * Creates a client that's been configured to be able to properly access the system index to be migrated.
+     * @param baseClient The base client to wrap.
+     * @return An {@link OriginSettingClient} which uses the origin provided by {@link SystemIndexMigrationInfo#getOrigin()}.
+     */
     Client createClient(Client baseClient) {
         return new OriginSettingClient(baseClient, this.getOrigin());
     }
@@ -115,16 +131,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             + '\''
             + ", origin='"
             + origin
-            + '\''
-            + ", isPrimaryIndex="
-            + isPrimaryIndex
-            + ']';
-    }
-
-    static boolean isPrimaryIndex(IndexMetadata index, SystemIndexDescriptor descriptor) {
-        final String currentIndexName = index.getIndex().getName();
-        final String primaryIndexName = descriptor.getPrimaryIndex();
-        return primaryIndexName.equals(currentIndexName) || index.getAliases().containsKey(primaryIndexName);
+            + '\'';
     }
 
     static SystemIndexMigrationInfo build(
@@ -142,16 +149,12 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             // Copy mapping from the old index
             mapping = currentIndex.mapping().source().string();
         }
-        boolean isPrimaryIndex = isPrimaryIndex(currentIndex, descriptor);
         return new SystemIndexMigrationInfo(
             currentIndex,
             feature.getName(),
             settings,
             mapping,
-            descriptor.getOrigin(),
-            isPrimaryIndex,
-            feature
-        );
+            descriptor.getOrigin());
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {
@@ -167,6 +170,13 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         return newIndexSettings.build();
     }
 
+    /**
+     * Convenience factory method holding the logic for creating instances from a Feature object.
+     * @param feature The feature that
+     * @param metadata The current metadata, as index migration depends on the current state of the clsuter.
+     * @param indexScopedSettings
+     * @return
+     */
     static Stream<SystemIndexMigrationInfo> fromFeature(
         SystemIndices.Feature feature,
         Metadata metadata,

@@ -452,7 +452,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     final ActionListener<Void> readyListener = new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
-                            // We must check that the sequence number is greater than or equal to the global checkpoint. If it is not,
+                            // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
                             // it is possible that a stale shard could return uncommitted documents.
                             if (shard.getLastKnownGlobalCheckpoint() < waitForCheckpoint) {
                                 TimeValue gclTimeout = NO_TIMEOUT.equals(timeout) == false ? null : timeout;

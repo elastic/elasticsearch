@@ -248,10 +248,9 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * The total number of pending listeners.
      */
     public synchronized int pendingCount() {
-        // No need to synchronize here because we're doing a single volatile read
         List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners = locationRefreshListeners;
         List<Tuple<Long, ActionListener<Void>>> checkpointListeners = checkpointRefreshListeners;
-        // A null list means we haven't accumulated any listeners. Otherwise we need the size.
+        // A null list means we haven't accumulated any listeners. Otherwise, we need the size.
         return (locationListeners == null ? 0 : locationListeners.size()) + (checkpointListeners == null ? 0 : checkpointListeners.size());
     }
 

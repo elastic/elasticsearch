@@ -76,7 +76,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.MANAGEMENT,
             FieldCapabilitiesNodeRequest::new, new NodeTransportHandler());
-        transportService.registerRequestHandler(ACTION_SHARD_NAME, ThreadPool.Names.MANAGEMENT,
+        transportService.registerRequestHandler(ACTION_SHARD_NAME, ThreadPool.Names.SAME,
             FieldCapabilitiesIndexRequest::new, new ShardTransportHandler());
     }
 

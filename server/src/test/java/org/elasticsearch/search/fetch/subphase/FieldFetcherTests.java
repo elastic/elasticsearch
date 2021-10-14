@@ -20,10 +20,14 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -201,18 +205,19 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
 
-        // several other metadata fields throw exceptions via their value fetchers when trying to get them
-        for (String fieldname : List.of("_index", "_seq_no")) {
-            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
-        }
-
         String docId = randomAlphaOfLength(12);
         String routing = randomAlphaOfLength(12);
+        long version = randomLongBetween(1, 100);
         withLuceneIndex(mapperService, iw -> {
-            iw.addDocument(mapperService.documentMapper().parse(source(docId, b -> b.field("integer_field", "value"), routing)).rootDoc());
+            ParsedDocument parsedDocument = mapperService.documentMapper()
+                .parse(source(docId, b -> b.field("integer_field", "value"), routing));
+            parsedDocument.version().setLongValue(version);
+            iw.addDocument(parsedDocument.rootDoc());
         }, iw -> {
             List<FieldAndFormat> fieldList = List.of(
                 new FieldAndFormat("_id", null),
+                new FieldAndFormat("_index", null),
+                new FieldAndFormat("_version", null),
                 new FieldAndFormat("_routing", null),
                 new FieldAndFormat("_ignored", null)
             );
@@ -228,11 +233,23 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             sourceLookup.setSegmentAndDocument(readerContext, 0);
 
             Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup);
-            assertThat(fetchedFields.size(), equalTo(3));
+            assertThat(fetchedFields.size(), equalTo(5));
             assertEquals(docId, fetchedFields.get("_id").getValue());
             assertEquals(routing, fetchedFields.get("_routing").getValue());
+            assertEquals("test", fetchedFields.get("_index").getValue());
+            assertEquals(version, ((Long) fetchedFields.get("_version").getValue()).longValue());
             assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
         });
+
+        // several other metadata fields throw exceptions via their value fetchers when trying to get them
+        for (String fieldname : List.of(
+            SeqNoFieldMapper.NAME,
+            SourceFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME,
+            NestedPathFieldMapper.name(Version.CURRENT)
+        )) {
+            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+        }
     }
 
     public void testFetchAllFields() throws IOException {
@@ -1016,7 +1033,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,

@@ -20,11 +20,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LocalDatabasesTests extends ESTestCase {
 
@@ -46,19 +49,13 @@ public class LocalDatabasesTests extends ESTestCase {
 
     public void testLocalDatabasesEmptyConfig() throws Exception {
         Path configDir = createTempDir();
-        LocalDatabases localDatabases = new LocalDatabases(prepareModuleDir(), configDir, new GeoIpCache(0));
+        LocalDatabases localDatabases = new LocalDatabases(configDir, new GeoIpCache(0));
         localDatabases.initialize(resourceWatcherService);
 
-        assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
-        assertThat(localDatabases.getConfigDatabases().size(), equalTo(0));
-        DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-ASN.mmdb", true);
-        assertThat(loader.getDatabaseType(), equalTo("GeoLite2-ASN"));
-
-        loader = localDatabases.getDatabase("GeoLite2-City.mmdb", true);
-        assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-
-        loader = localDatabases.getDatabase("GeoLite2-Country.mmdb", true);
-        assertThat(loader.getDatabaseType(), equalTo("GeoLite2-Country"));
+        assertThat(localDatabases.getConfigDatabases(), anEmptyMap());
+        assertThat(localDatabases.getDatabase("GeoLite2-ASN.mmdb"), nullValue());
+        assertThat(localDatabases.getDatabase("GeoLite2-City.mmdb"), nullValue());
+        assertThat(localDatabases.getDatabase("GeoLite2-Country.mmdb"), nullValue());
     }
 
     public void testDatabasesConfigDir() throws Exception {
@@ -66,55 +63,48 @@ public class LocalDatabasesTests extends ESTestCase {
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoIP2-City-Test.mmdb"), configDir.resolve("GeoIP2-City.mmdb"));
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"));
 
-        LocalDatabases localDatabases = new LocalDatabases(prepareModuleDir(), configDir, new GeoIpCache(0));
+        LocalDatabases localDatabases = new LocalDatabases(configDir, new GeoIpCache(0));
         localDatabases.initialize(resourceWatcherService);
 
-        assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
         assertThat(localDatabases.getConfigDatabases().size(), equalTo(2));
-        DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-ASN.mmdb", true);
-        assertThat(loader.getDatabaseType(), equalTo("GeoLite2-ASN"));
-
-        loader = localDatabases.getDatabase("GeoLite2-City.mmdb", true);
+        DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-City.mmdb");
         assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
 
-        loader = localDatabases.getDatabase("GeoLite2-Country.mmdb", true);
-        assertThat(loader.getDatabaseType(), equalTo("GeoLite2-Country"));
-
-        loader = localDatabases.getDatabase("GeoIP2-City.mmdb", true);
+        loader = localDatabases.getDatabase("GeoIP2-City.mmdb");
         assertThat(loader.getDatabaseType(), equalTo("GeoIP2-City"));
     }
 
     public void testDatabasesDynamicUpdateConfigDir() throws Exception {
-        Path configDir = createTempDir();
-        LocalDatabases localDatabases = new LocalDatabases(prepareModuleDir(), configDir, new GeoIpCache(0));
+        Path configDir = prepareConfigDir();
+        LocalDatabases localDatabases = new LocalDatabases(configDir, new GeoIpCache(0));
         localDatabases.initialize(resourceWatcherService);
         {
-            assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
-            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-ASN.mmdb", true);
+            assertThat(localDatabases.getConfigDatabases().size(), equalTo(3));
+            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-ASN.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-ASN"));
 
-            loader = localDatabases.getDatabase("GeoLite2-City.mmdb", true);
+            loader = localDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
 
-            loader = localDatabases.getDatabase("GeoLite2-Country.mmdb", true);
+            loader = localDatabases.getDatabase("GeoLite2-Country.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-Country"));
         }
 
+        CopyOption option = StandardCopyOption.REPLACE_EXISTING;
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoIP2-City-Test.mmdb"), configDir.resolve("GeoIP2-City.mmdb"));
-        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"));
+        Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"), option);
         assertBusy(() -> {
-            assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
-            assertThat(localDatabases.getConfigDatabases().size(), equalTo(2));
-            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-ASN.mmdb", true);
+            assertThat(localDatabases.getConfigDatabases().size(), equalTo(4));
+            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-ASN.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-ASN"));
 
-            loader = localDatabases.getDatabase("GeoLite2-City.mmdb", true);
+            loader = localDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
 
-            loader = localDatabases.getDatabase("GeoLite2-Country.mmdb", true);
+            loader = localDatabases.getDatabase("GeoLite2-Country.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-Country"));
 
-            loader = localDatabases.getDatabase("GeoIP2-City.mmdb", true);
+            loader = localDatabases.getDatabase("GeoIP2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoIP2-City"));
         });
     }
@@ -123,14 +113,13 @@ public class LocalDatabasesTests extends ESTestCase {
         Path configDir = createTempDir();
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City.mmdb"), configDir.resolve("GeoLite2-City.mmdb"));
         GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
-        LocalDatabases localDatabases = new LocalDatabases(prepareModuleDir(), configDir, cache);
+        LocalDatabases localDatabases = new LocalDatabases(configDir, cache);
         localDatabases.initialize(resourceWatcherService);
         {
             assertThat(cache.count(), equalTo(0));
-            assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
             assertThat(localDatabases.getConfigDatabases().size(), equalTo(1));
 
-            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-City.mmdb", true);
+            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
             CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
             assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
@@ -140,11 +129,10 @@ public class LocalDatabasesTests extends ESTestCase {
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"),
             StandardCopyOption.REPLACE_EXISTING);
         assertBusy(() -> {
-            assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
             assertThat(localDatabases.getConfigDatabases().size(), equalTo(1));
             assertThat(cache.count(), equalTo(0));
 
-            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-City.mmdb", true);
+            DatabaseReaderLazyLoader loader = localDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
             CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
             assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
@@ -153,13 +141,12 @@ public class LocalDatabasesTests extends ESTestCase {
 
         Files.delete(configDir.resolve("GeoLite2-City.mmdb"));
         assertBusy(() -> {
-            assertThat(localDatabases.getDefaultDatabases().size(), equalTo(3));
             assertThat(localDatabases.getConfigDatabases().size(), equalTo(0));
             assertThat(cache.count(), equalTo(0));
         });
     }
 
-    private static Path prepareModuleDir() throws IOException {
+    private static Path prepareConfigDir() throws IOException {
         Path dir = createTempDir();
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-ASN.mmdb"), dir.resolve("GeoLite2-ASN.mmdb"));
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City.mmdb"), dir.resolve("GeoLite2-City.mmdb"));

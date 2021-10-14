@@ -513,11 +513,6 @@ public class SearchExecutionContextTests extends ESTestCase {
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
                                     }
-
-                                    @Override
-                                    public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                                        return new org.elasticsearch.script.field.StringField(fieldName, this);
-                                    }
                                 };
                             }
 

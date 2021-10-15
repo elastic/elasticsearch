@@ -62,7 +62,7 @@ public class OsProbe {
 
     // This property is specified without units because it also needs to be parsed by the launcher
     // code, which does not have access to all the utility classes of the Elasticsearch server.
-    private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes", "-1");
+    private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes");
 
     private static final Method getFreePhysicalMemorySize;
     private static final Method getTotalPhysicalMemorySize;
@@ -130,19 +130,26 @@ public class OsProbe {
     /**
      * Returns the adjusted total amount of physical memory in bytes.
      * Total memory may be overridden when some other process is running
-     * that is known to consume a non-negligible amount of memory. This is
-     * read from the "es.total_memory_bytes" system property. Negative values
-     * or not set at all mean no override. When there is no override this
-     * method returns the same value as {@link #getTotalPhysicalMemorySize}.
+     * that is known to consume a non-negligible amount of memory. This
+     * is read from the "es.total_memory_bytes" system property. When
+     * there is no override this method returns the same value as
+     * {@link #getTotalPhysicalMemorySize}.
      */
     public long getAdjustedTotalMemorySize() {
         return Optional.ofNullable(getTotalMemoryOverride(memoryOverrideProperty)).orElse(getTotalPhysicalMemorySize());
     }
 
     static Long getTotalMemoryOverride(String memoryOverrideProperty) {
+        if (memoryOverrideProperty == null) {
+            return null;
+        }
         try {
             long memoryOverride = Long.parseLong(memoryOverrideProperty);
-            return (memoryOverride < 0) ? null : memoryOverride;
+            if (memoryOverride < 0) {
+                throw new IllegalArgumentException("Negative memory size specified in [es.total_memory_bytes]: ["
+                    + memoryOverrideProperty + "]");
+            }
+            return memoryOverride;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid value for [es.total_memory_bytes]: [" + memoryOverrideProperty + "]", e);
         }

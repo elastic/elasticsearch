@@ -276,10 +276,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
                         totalMemory += total;
                     }
                     long adjustedTotal = mem.getAdjustedTotal().getBytes();
-                    if (total > 0) {
+                    if (adjustedTotal > 0) {
                         adjustedTotalMemory += adjustedTotal;
                     }
-                    long free = nodeStats.getOs().getMem().getFree().getBytes();
+                    long free = mem.getFree().getBytes();
                     if (free > 0) {
                         freeMemory += free;
                     }

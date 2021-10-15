@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class OsProbeTests extends ESTestCase {
 
@@ -310,9 +309,10 @@ public class OsProbeTests extends ESTestCase {
 
     public void testTotalMemoryOverride() {
         assertThat(OsProbe.getTotalMemoryOverride("123456789"), is(123456789L));
-        assertThat(OsProbe.getTotalMemoryOverride("-1"), nullValue());
         assertThat(OsProbe.getTotalMemoryOverride("123456789123456789"), is(123456789123456789L));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("abc"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("-1"));
+        assertThat(e.getMessage(), is("Negative memory size specified in [es.total_memory_bytes]: [-1]"));
+        e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("abc"));
         assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [abc]"));
         // Although numeric, this value overflows long. This won't be a problem in practice for sensible
         // overrides, as it will be a very long time before machines have more than 8 exabytes of RAM.

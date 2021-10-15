@@ -247,22 +247,51 @@ public class OsStats implements Writeable, ToXContentFragment {
             assert total >= 0 : "expected total memory to be positive, got: " + total;
             assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
             assert free >= 0 : "expected free memory to be positive, got: " + free;
+            // Extra layer of protection for when assertions are disabled
+            if (total < 0) {
+                logger.error("negative total memory [{}] found in memory stats", total);
+                total = 0;
+            }
+            if (adjustedTotal < 0) {
+                logger.error("negative adjusted total memory [{}] found in memory stats", total);
+                adjustedTotal = 0;
+            }
+            if (free < 0) {
+                logger.error("negative free memory [{}] found in memory stats", total);
+                free = 0;
+            }
             this.total = total;
             this.adjustedTotal = adjustedTotal;
             this.free = free;
         }
 
         public Mem(StreamInput in) throws IOException {
-            total = in.readLong();
+            long total = in.readLong();
             assert total >= 0 : "expected total memory to be positive, got: " + total;
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                adjustedTotal = in.readLong();
-                assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
-            } else {
-                adjustedTotal = total;
+            // Extra layer of protection for when assertions are disabled
+            if (total < 0) {
+                logger.error("negative total memory [{}] deserialized in memory stats", total);
+                total = 0;
             }
-            free = in.readLong();
+            this.total = total;
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                long adjustedTotal = in.readLong();
+                assert adjustedTotal >= 0 : "expected adjusted total memory to be positive, got: " + adjustedTotal;
+                if (adjustedTotal < 0) {
+                    logger.error("negative adjusted total memory [{}] deserialized in memory stats", adjustedTotal);
+                    adjustedTotal = 0;
+                }
+                this.adjustedTotal = adjustedTotal;
+            } else {
+                this.adjustedTotal = total;
+            }
+            long free = in.readLong();
             assert free >= 0 : "expected free memory to be positive, got: " + free;
+            if (free < 0) {
+                logger.error("negative free memory [{}] deserialized in memory stats", free);
+                free = 0;
+            }
+            this.free = free;
         }
 
         @Override

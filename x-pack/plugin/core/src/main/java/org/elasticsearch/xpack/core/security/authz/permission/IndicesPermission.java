@@ -456,7 +456,7 @@ public final class IndicesPermission {
                 for (String concreteIndex : concreteIndices) {
                     // If the name appear directly as part of the requested indices, it takes precedence over implicit access
                     if (false == requestedIndicesOrAliases.contains(concreteIndex)) {
-                        grantedBuilder.put(concreteIndex, grantedBuilder.getOrDefault(concreteIndex, false) || granted);
+                        grantedBuilder.merge(concreteIndex, granted, Boolean::logicalOr);
                     }
                 }
             }

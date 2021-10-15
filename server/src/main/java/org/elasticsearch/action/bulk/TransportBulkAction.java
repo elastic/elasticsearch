@@ -421,7 +421,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * retries on retryable cluster blocks, resolves item requests,
      * constructs shard bulk requests and delegates execution to shard bulk action
      * */
-    private final class BulkOperation {
+    private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
         private BulkRequest bulkRequest; // set to null once all requests are sent out
         private final ActionListener<BulkResponse> listener;
@@ -440,6 +440,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             long startTimeNanos,
             Map<String, IndexNotFoundException> indicesThatCannotBeCreated
         ) {
+            super(listener);
             this.task = task;
             this.bulkRequest = bulkRequest;
             this.listener = listener;
@@ -450,13 +451,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             this.observer = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
         }
 
-        private void performBulkRequests() {
+        @Override
+        protected void doRun() {
             assert bulkRequest != null;
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (handleBlockExceptions(clusterState)) {
                 return;
             }
-            ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
+            final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
             Metadata metadata = clusterState.metadata();
             // Group the requests by ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
@@ -601,7 +603,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     logger.trace("cluster is blocked, scheduling a retry", blockException);
                     retry(blockException);
                 } else {
-                    listener.onFailure(blockException);
+                    onFailure(blockException);
                 }
                 return true;
             }
@@ -612,7 +614,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             assert failure != null;
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
-                listener.onFailure(failure);
+                onFailure(failure);
                 return;
             }
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -623,7 +625,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 @Override
                 public void onClusterServiceClose() {
-                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    onFailure(new NodeClosedException(clusterService.localNode()));
                 }
 
                 @Override
@@ -638,12 +640,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                      * thread pools to dispatch the bulk request onto its
                      * appropriate thread pool.
                      */
-                    threadPool.executor(executorName).submit(new ActionRunnable<>(listener) {
-                        @Override
-                        protected void doRun() throws Exception {
-                            performBulkRequests();
-                        }
-                    });
+                    threadPool.executor(executorName).submit(BulkOperation.this);
                 }
             });
         }
@@ -705,8 +702,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated
     ) {
-        new BulkOperation(task, bulkRequest, listener, executorName, responses, startTimeNanos, indicesThatCannotBeCreated)
-            .performBulkRequests();
+        new BulkOperation(task, bulkRequest, listener, executorName, responses, startTimeNanos, indicesThatCannotBeCreated).run();
     }
 
     private static class ConcreteIndices  {

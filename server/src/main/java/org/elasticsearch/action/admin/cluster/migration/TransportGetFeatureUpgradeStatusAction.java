@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 
 /**
  * Transport class for the get feature upgrade status action
@@ -79,7 +79,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                 .orElse(Version.CURRENT)
                 .before(Version.V_7_0_0);
 
-        listener.onResponse(new GetFeatureUpgradeStatusResponse(features, isUpgradeNeeded ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED));
+        listener.onResponse(new GetFeatureUpgradeStatusResponse(features, isUpgradeNeeded ? MIGRATION_NEEDED : NO_MIGRATION_NEEDED));
     }
 
     // visible for testing
@@ -99,7 +99,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             featureName,
             minimumVersion,
-            minimumVersion.before(Version.V_7_0_0) ? UPGRADE_NEEDED : NO_UPGRADE_NEEDED,
+            minimumVersion.before(Version.V_7_0_0) ? MIGRATION_NEEDED : NO_MIGRATION_NEEDED,
             indexVersions
         );
     }

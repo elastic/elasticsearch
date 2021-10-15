@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -66,7 +67,7 @@ public final class StatsCollector extends Collector {
         return isElectedMaster
                 && super.shouldCollect(isElectedMaster)
                 && XPackSettings.CCR_ENABLED_SETTING.get(settings)
-                && licenseState.checkFeature(XPackLicenseState.Feature.CCR);
+                && CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState);
     }
 
 

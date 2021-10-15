@@ -281,12 +281,12 @@ public class IndexNameExpressionResolver {
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                if (addIndex(writeIndex, context)) {
+                if (addIndex(writeIndex, null, context)) {
                     concreteIndices.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
                 Index writeIndex = indexAbstraction.getWriteIndex();
-                if (addIndex(writeIndex, context)) {
+                if (addIndex(writeIndex, null, context)) {
                     concreteIndices.add(writeIndex);
                 }
             } else {
@@ -375,23 +375,23 @@ public class IndexNameExpressionResolver {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index);
             } else {
-                return options.forbidClosedIndices() == false && addIndex(index, context);
+                return options.forbidClosedIndices() == false && addIndex(index, imd, context);
             }
         } else if (imd.getState() == IndexMetadata.State.OPEN) {
-            return addIndex(index, context);
+            return addIndex(index, imd, context);
         } else {
             throw new IllegalStateException("index state [" + index + "] not supported");
         }
     }
 
-    private static boolean addIndex(Index index, Context context) {
+    private static boolean addIndex(Index index, IndexMetadata imd, Context context) {
         // This used to check the `index.search.throttled` setting, but we eventually decided that it was
         // trappy to hide throttled indices by default. In order to avoid breaking backward compatibility,
         // we changed it to look at the `index.frozen` setting instead, since frozen indices were the only
         // type of index to use the `search_throttled` threadpool at that time.
         // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
         if (context.options.ignoreThrottled()) {
-            IndexMetadata imd = context.state.metadata().index(index);
+            imd = imd != null ? imd : context.state.metadata().index(index);
             return imd.getSettings().getAsBoolean("index.frozen", false) == false;
         } else {
             return true;

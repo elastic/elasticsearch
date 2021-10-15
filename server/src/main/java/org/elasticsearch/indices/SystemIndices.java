@@ -23,13 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -870,13 +870,21 @@ public class SystemIndices {
             listener.onResponse(true);
         }
 
+        /**
+         * Type for the handler that's invoked prior to migrating a Feature's system indices.
+         * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
+         */
         @FunctionalInterface
-        interface MigrationPreparationHandler {
+        public interface MigrationPreparationHandler {
             void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
         }
 
+        /**
+         * Type for the handler that's invoked when all of a feature's system indices have been migrated.
+         * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+         */
         @FunctionalInterface
-        interface MigrationCompletionHandler {
+        public interface MigrationCompletionHandler {
             void indicesMigrationComplete(
                 Map<String, Object> preUpgradeMetadata,
                 ClusterService clusterService,

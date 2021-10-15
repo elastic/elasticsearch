@@ -180,8 +180,8 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      * Convenience factory method holding the logic for creating instances from a Feature object.
      * @param feature The feature that
      * @param metadata The current metadata, as index migration depends on the current state of the clsuter.
-     * @param indexScopedSettings
-     * @return
+     * @param indexScopedSettings This is necessary to make adjustments to the indices settings for unmanaged indices.
+     * @return A {@link Stream} of {@link SystemIndexMigrationInfo}s that represent all the indices the given feature currently owns.
      */
     static Stream<SystemIndexMigrationInfo> fromFeature(
         SystemIndices.Feature feature,

@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -191,7 +192,7 @@ public class CompositeRolesStore {
                         final Set<RoleDescriptor> effectiveDescriptors;
                         Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
                         if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity) &&
-                            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                            DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                             effectiveDescriptors = roleDescriptors.stream()
                                 .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
                                 .collect(Collectors.toSet());

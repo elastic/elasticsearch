@@ -44,7 +44,7 @@ enable <<deprecation-logging, deprecation logging>>.
 *Details* +
 Disabling <<cluster-routing-disk-threshold,disk thresholds>> in orchestrated
 environments can have negative impact on the orchestration systems ability to
-move nodes around and also does not work with orchestration. The
+move nodes around and also does not work with autoscaling. The
 `cluster.routing.allocation.disk.threshold_enabled` has therefore been changed
 to be an <<operator-only-dynamic-cluster-settings, operator only>> setting.
 

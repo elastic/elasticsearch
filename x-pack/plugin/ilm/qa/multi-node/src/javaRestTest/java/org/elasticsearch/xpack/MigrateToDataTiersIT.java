@@ -68,6 +68,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
         assertOK(client().performRequest(new Request("POST", "_ilm/start")));
+
+        // we can't have the pre-migration indices getting tier preferences auto-assigned,
+        // if we did, then we wouldn't really be testing the migration *to* data tiers anymore :D
+        enforceDefaultTierPreference(false);
     }
 
     @AfterClass
@@ -327,5 +331,15 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
+    }
+
+    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) throws IOException {
+        Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{\n" +
+            "  \"persistent\": {\n" +
+            "    \"" + DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE + "\" : " + enforceDefaultTierPreference + "\n" +
+            "  }\n" +
+            "}");
+        assertOK(client().performRequest(request));
     }
 }

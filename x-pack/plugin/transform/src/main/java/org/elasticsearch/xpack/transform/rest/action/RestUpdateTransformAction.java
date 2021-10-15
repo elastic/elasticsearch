@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction.MAX_REQUEST_SIZE;
 
 public class RestUpdateTransformAction extends BaseRestHandler {
 
@@ -34,6 +36,11 @@ public class RestUpdateTransformAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        if (restRequest.contentLength() > MAX_REQUEST_SIZE.getBytes()) {
+            throw ExceptionsHelper.badRequestException(
+                "Request is too large: was [{}b], expected at most [{}]", restRequest.contentLength(), MAX_REQUEST_SIZE);
+        }
+
         String id = restRequest.param(TransformField.ID.getPreferredName());
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
         XContentParser parser = restRequest.contentParser();

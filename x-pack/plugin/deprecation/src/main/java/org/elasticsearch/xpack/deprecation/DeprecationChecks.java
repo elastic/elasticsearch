@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -24,6 +25,15 @@ import java.util.stream.Collectors;
  * by the {@link DeprecationInfoAction}.
  */
 public class DeprecationChecks {
+
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
+        Setting.listSetting(
+            "deprecation.skip_deprecated_settings",
+            Collections.emptyList(),
+            Function.identity(),
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
 
     private DeprecationChecks() {
     }

@@ -539,6 +539,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Marks this context as not cacheable.
+     * This method fails if {@link #freezeContext()} is called before on this context.
+     */
+    public void disableCache() {
+        failIfFrozen();
+    }
+
+    /**
      * This method fails if {@link #freezeContext()} is called before on this
      * context. This is used to <i>seal</i>.
      *
@@ -547,7 +555,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * class cannot be bypassed. This is important so we can trust when this
      * class says a request can be cached.
      */
-    public final void failIfFrozen() {
+    protected final void failIfFrozen() {
         this.cacheable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");

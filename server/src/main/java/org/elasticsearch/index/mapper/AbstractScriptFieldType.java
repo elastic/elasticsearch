@@ -166,7 +166,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             );
         }
         if (isResultDeterministic == false) {
-            context.failIfFrozen();
+            context.disableCache();
         }
     }
 

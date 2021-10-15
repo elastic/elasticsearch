@@ -160,8 +160,7 @@ public class ElasticsearchMappings {
             listener.onResponse(true);
             return;
         }
-        String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetadata::getIndex).map(Index::getName)
-            .toArray(String[]::new);
+        String[] concreteIndices = indexAbstraction.getIndices().stream().map(Index::getName).toArray(String[]::new);
 
         String[] indicesThatRequireAnUpdate;
         try {

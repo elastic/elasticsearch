@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1106,7 +1107,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getIndex().getName(),
+            assertThat(value.getWriteIndex().getName(),
                 equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
         }
     }
@@ -1274,18 +1275,18 @@ public class MetadataTests extends ESTestCase {
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
 
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices, Arrays.asList());
+        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, Collections.emptyList());
         // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method already
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
         }
 
         for (int i = 1; i <= generations; i++) {
             // for the indices that we added in the data stream with a "shrink-" prefix, add the non-prefixed indices to the lookup
             if (i % 2 == 0 && i < generations) {
                 IndexMetadata indexMeta = createBackingIndex(dataStreamName, i).build();
-                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
             }
         }
         DataStreamMetadata dataStreamMetadata =

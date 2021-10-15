@@ -234,14 +234,16 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
-            // expecting the phase definition to be refreshed with the index being in the shrink action
+            // expecting the phase definition to be refreshed with the index being in the migrate action.
+            // even though the policy above doesn't mention migrate specifically, it has been injected.
             Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
             assertThat(actions.size(), is(2));
             Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
             assertThat(allocateDef, nullValue());
-            assertThat(newLifecycleState.getAction(), is(ShrinkAction.NAME));
-            assertThat(newLifecycleState.getStep(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
+            assertThat(newLifecycleState.getAction(), is(MigrateAction.NAME));
+            assertThat(newLifecycleState.getStep(), is(MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP));
 
+            // the shrink and set_priority actions are unchanged
             Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
             assertThat(shrinkDef.get("number_of_shards"), is(2));
             Map<String, Object> setPriorityDef = (Map<String, Object>) actions.get(SetPriorityAction.NAME);

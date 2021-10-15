@@ -9,7 +9,7 @@ your application to {es} 7.16.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-* <<breaking_716_disk_threshold_enabled_operator_only>>
+* <<breaking_716_settings_changes>>
 * <<breaking_716_ilm_changes>>
 * <<breaking_716_monitoring_changes>>
 

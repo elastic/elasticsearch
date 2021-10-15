@@ -83,6 +83,13 @@ public class BaseEnrollmentTokenGenerator {
         return filteredAddresses.stream().distinct().collect(Collectors.toList());
     }
 
+    static String getIpFromPublishAddress(String publishAddress) {
+        if (publishAddress.contains("/")) {
+            return publishAddress.split("/")[1];
+        }
+        return publishAddress;
+    }
+
     private static InetAddress getInetAddressFromString(String address) throws Exception {
         URI uri = new URI("http://" + address);
         return InetAddress.getByName(uri.getHost());

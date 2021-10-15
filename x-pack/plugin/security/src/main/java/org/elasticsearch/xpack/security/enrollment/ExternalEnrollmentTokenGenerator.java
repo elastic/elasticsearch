@@ -104,7 +104,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
         final List<String> addresses = new ArrayList<>();
         addresses.addAll((Collection<? extends String>) http.get("bound_address"));
-        addresses.add((String) http.get("publish_address"));
+        addresses.add(getIpFromPublishAddress((String) http.get("publish_address")));
         return addresses;
     }
 

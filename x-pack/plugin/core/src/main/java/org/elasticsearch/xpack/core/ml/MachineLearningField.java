@@ -29,7 +29,7 @@ public final class MachineLearningField {
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
     public static final String ML_FEATURE_FAMILY = "machine-learning";
     public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(
-        "ML_FEATURE_FAMILY",
+        ML_FEATURE_FAMILY,
         "api",
         License.OperationMode.PLATINUM
     );

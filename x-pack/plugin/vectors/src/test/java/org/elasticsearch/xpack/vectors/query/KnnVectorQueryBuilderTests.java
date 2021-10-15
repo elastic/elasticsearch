@@ -123,8 +123,7 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
             "      2.0,\n" +
             "      3.0\n" +
             "    ],\n" +
-            "    \"num_cands\" : 10,\n" +
-            "    \"boost\" : 1.0\n" +
+            "    \"num_cands\" : 10\n" +
             "  }\n" +
             "}";
         assertEquals(expected, query.toString());

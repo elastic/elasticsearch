@@ -128,6 +128,108 @@ enable <<deprecation-logging, deprecation logging>>.
 
 // tag::notable-breaking-changes[]
 [discrete]
+[[breaking_713_tls_changes]]
+==== Security changes
+
+[[tls-ssl-transport-enabled-required]]
+.The `xpack.security.transport.ssl.enabled` setting will be required to configure `xpack.security.transport.ssl` settings.
+[%collapsible]
+====
+*Details* +
+Configuring any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled` generates warnings in the deprecation
+log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+To avoid deprecation warnings, either:
+
+* Explicitly set `xpack.security.transport.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.transport.ssl` settings
+
+If you want to enable SSL, follow the instructions to
+{ref}/security-basic-setup.html#encrypt-internode-communication[encrypt internode communications with TLS]. As part of this configuration, explicitly set
+`xpack.security.transport.ssl.enabled` as `true`.
+
+For example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+====
+
+[[tls-ssl-http-enabled-required]]
+.The `xpack.security.http.ssl.enabled` setting will be required to configure `xpack.security.http.ssl` settings.
+[%collapsible]
+====
+*Details* +
+Configuring any SSL settings for `xpack.security.http.ssl` without also
+configuring `xpack.security.http.ssl.enabled` generates warnings in the
+deprecation log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+To avoid deprecation warnings, either:
+
+* Explicitly set `xpack.security.http.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.http.ssl` settings
+
+If you want to enable SSL, follow the instructions to
+{ref}/security-basic-setup-https.html#encrypt-http-communication[encrypt HTTP client communications for {es}]. As part
+of this configuration, explicitly set `xpack.security.http.ssl.enabled`
+as `true`.
+
+For example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+====
+
+[[tls-ssl-transport-cert-required]]
+.A `xpack.security.transport.ssl` certificate and key will be required to enable SSL for the transport interface.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the transport interface without also configuring a certificate
+and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings generates warnings in the
+deprecation log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+If `xpack.security.transport.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
+[[tls-ssl-http-cert-required]]
+.A `xpack.security.http.ssl` certificate and key will be required to enable SSL for the HTTP layer.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the HTTP layer without also configuring a certificate and key
+through use of the `xpack.security.http.ssl.keystore.path` setting or
+the `xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
+settings generates warnings in the deprecation log. In 8.0, this configuration
+will result in errors.
+*Impact* +
+If `xpack.security.http.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
+[discrete]
 [[breaking_713_agg_deprecations]]
 ==== Aggregation deprecations
 

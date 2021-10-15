@@ -946,6 +946,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     private Optional<String> aggregatedTierPreference(Settings settings, boolean isDataStream,
                                                       boolean enforceDefaultTierPreference) {
         Settings templateSettings = Settings.EMPTY;
+        request.settings(Settings.EMPTY);
 
         if (randomBoolean()) {
             templateSettings = settings;

@@ -166,15 +166,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         int shardId = indexRouting.updateShard(request.id(), request.routing());
-        ShardIterator shardIterator = RoutingTable.shardRoutingTable(clusterState.routingTable().index(request.concreteIndex()), shardId)
-            .shardsIt();
-        ShardRouting shard;
-        while ((shard = shardIterator.nextOrNull()) != null) {
-            if (shard.primary()) {
-                return new PlainShardIterator(shardIterator.shardId(), Collections.singletonList(shard));
-            }
-        }
-        return new PlainShardIterator(shardIterator.shardId(), Collections.emptyList());
+        return RoutingTable.shardRoutingTable(clusterState.routingTable().index(request.concreteIndex()), shardId).primaryShardIt();
     }
 
     @Override

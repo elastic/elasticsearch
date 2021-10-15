@@ -269,9 +269,6 @@ public class HotThreads {
                         double percentWait = getTimeSharePercentage(topThread.getWaitedTime());
                         double percentBlocked = getTimeSharePercentage(topThread.getBlockedTime());
                         double percentOther = Math.max(0, 100.0 - percentBlocked - percentWait - percentCpu);
-                        if (cpuTime == 0L) {
-                            percentOther = 0;
-                        }
                         sb.append(String.format(Locale.ROOT,
                             "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
                             percentOther + percentCpu, percentCpu, percentOther,

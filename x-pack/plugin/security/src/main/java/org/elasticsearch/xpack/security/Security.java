@@ -376,6 +376,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
+    private static final String AUTHORIZATION_FEATURE_FAMILY = "security-authorization";
+    public static final LicensedFeature.Momentary AUTHORIZATION_REALM_FEATURE =
+        LicensedFeature.momentary(AUTHORIZATION_FEATURE_FAMILY, "realm", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary AUTHORIZATION_ENGINE_FEATURE =
+        LicensedFeature.momentary(AUTHORIZATION_FEATURE_FAMILY, "engine", License.OperationMode.PLATINUM);
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();

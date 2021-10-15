@@ -247,8 +247,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         channelVersion = Version.min(Version.readVersion(in), in.getVersion());
-        // TODO: Update after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             waitForCheckpoint = in.readLong();
             waitForCheckpointsTimeout = in.readTimeValue();
         } else {
@@ -322,8 +321,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalTimeValue(keepAlive);
         }
         Version.writeVersion(channelVersion, out);
-        // TODO: Update after backport
-        Version waitForCheckpointsVersion = Version.V_8_0_0;
+        Version waitForCheckpointsVersion = Version.V_7_16_0;
         if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeLong(waitForCheckpoint);
             out.writeTimeValue(waitForCheckpointsTimeout);

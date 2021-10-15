@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
-import org.elasticsearch.xpack.core.security.authc.ApiKeyServiceField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -113,6 +112,10 @@ import java.util.function.Predicate;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.anyOf;
@@ -149,8 +152,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .grantedFields("*")
@@ -220,8 +223,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testRolesWhenDlsFlsLicensed() throws IOException {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .grantedFields("*")
@@ -1307,11 +1310,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY,
+            Map.of(API_KEY_ID_KEY,
                 "key-id-1",
-                ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
-                ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 limitedByRoleBytes));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
 
@@ -1329,11 +1332,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY,
+            Map.of(API_KEY_ID_KEY,
                 "key-id-2",
-                ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
-                ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 limitedByRoleBytes));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
@@ -1350,11 +1353,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(ApiKeyServiceField.API_KEY_ID_KEY,
+            Map.of(API_KEY_ID_KEY,
                 "key-id-3",
-                ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                API_KEY_ROLE_DESCRIPTORS_KEY,
                 anotherRoleBytes,
-                ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                 limitedByRoleBytes));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();

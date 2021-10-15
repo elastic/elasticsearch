@@ -325,7 +325,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         deleteDatabasesInConfigDirectory();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         putPipeline();

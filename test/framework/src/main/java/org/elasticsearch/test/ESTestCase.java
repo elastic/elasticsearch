@@ -430,12 +430,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
+        filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release",
-                "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
-        } else {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release");
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         }
+        return filtered;
     }
 
     /**

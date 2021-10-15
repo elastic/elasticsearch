@@ -54,7 +54,7 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "10";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "15";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
@@ -107,9 +107,6 @@ public class Archives {
 
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);
-        // TODO: Adjust all tests so that they can run with security on, which is the default behavior
-        // https://github.com/elastic/elasticsearch/issues/75940
-        ServerUtils.possiblyDisableSecurityFeatures(installation);
 
         return installation;
     }
@@ -200,7 +197,6 @@ public class Archives {
             "elasticsearch-certutil",
             "elasticsearch-croneval",
             "elasticsearch-saml-metadata",
-            "elasticsearch-security-config",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
@@ -241,6 +237,7 @@ public class Archives {
         if (daemonize) {
             command.add("-d");
         }
+        command.add("-v"); // verbose auto-configuration
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
@@ -292,6 +289,7 @@ public class Archives {
             if (daemonize) {
                 command.add("-d");
             }
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(pidFile.toString());
             if (keystorePassword != null) {
@@ -321,7 +319,7 @@ public class Archives {
                     + "$processInfo.FileName = '"
                     + bin.elasticsearch
                     + "'; "
-                    + "$processInfo.Arguments = '-p "
+                    + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
                     + "'; "
                     + powerShellProcessUserSetup
@@ -367,6 +365,7 @@ public class Archives {
                 command.add("echo '" + keystorePassword + "' |");
             }
             command.add(bin.elasticsearch.toString());
+            command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
             return sh.runIgnoreExitCode(String.join(" ", command));
@@ -396,8 +395,8 @@ public class Archives {
             // Clear the asynchronous event handlers
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
-                    + "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |"
-                    + "Unregister-EventSubscriber -Force"
+                    + "Where-Object {($_.EventName -eq 'OutputDataReceived') -or ($_.EventName -eq 'ErrorDataReceived')} | "
+                    + "Unregister-Event -Force"
             );
         });
         if (Files.exists(pidFile)) {

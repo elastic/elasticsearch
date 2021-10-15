@@ -75,20 +75,6 @@ public class Authentication implements ToXContentObject {
         this.verifyApiKeyInfoAndCreateApiKeyInfoMap(); // authentication.api_key={"id":"ab12", "name":"my-key"}
     }
 
-    /**
-     * For ApiKeys, assert metadata map is non-null, and assert value for id key is non-null.
-     * Do not assert value for name key is non-null. Name is mandatory now, but it was not required in older versions.
-     *
-     * @param type     If type=API_KEY, metadata map and id value have always been mandatory.
-     * @param metadata Map of metadata.
-     */
-    private void requireNonNullApiKeyMetadataAndIdValue(AuthenticationType type, Map<String, Object> metadata) {
-        if (AuthenticationType.API_KEY.equals(type)) {
-            Objects.requireNonNull(metadata);
-            Objects.requireNonNull(metadata.get(ApiKeyServiceField.API_KEY_ID_KEY));
-        }
-    }
-
     public User getUser() {
         return user;
     }

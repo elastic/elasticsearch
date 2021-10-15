@@ -389,7 +389,7 @@ public final class DateFieldMapper extends FieldMapper {
             final Instant instant = getInstant(value);
             if (resolution == Resolution.MILLISECONDS && instant.getNano() % 1000000 != 0) {
                 DEPRECATION_LOGGER.warn(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
-                    "You are attempting to store a nanosecond resolution on a field {} of type date on index {}. " +
+                    "You are attempting to store a nanosecond resolution on a field [{}] of type date on index [{}]. " +
                         "The nanosecond part was lost. Use date_nanos field type.", fieldName, indexName);
             }
             return resolution.convert(instant);

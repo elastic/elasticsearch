@@ -1102,6 +1102,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 return true;
             }
 
+            if (previous.isSystem() != current.isSystem()) {
+                return true;
+            }
+
             if (previous.getState() != current.getState()) {
                 return true;
             }

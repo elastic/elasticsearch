@@ -97,8 +97,9 @@ Information about the transport interface of this node.
 ====
 
 If you use the full `GET /_nodes/<node_id>/<metric>` form of this API then you
-can also use `_all` to explicitly request all metrics, and `_none` to suppress
-all metrics and return only the identity of the node.
+can also request the metric `_all` to retrieve all metrics, or you can request
+the metric `_none` to suppress all metrics and retrieve only the identity of
+the node.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 

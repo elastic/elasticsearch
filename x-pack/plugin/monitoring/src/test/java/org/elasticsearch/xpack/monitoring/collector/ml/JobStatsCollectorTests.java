@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
@@ -49,7 +50,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // regardless of ML being enabled
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -62,7 +63,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = mlDisabledSettings();
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
@@ -76,7 +77,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
         // this is controls the blockage
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(false);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -88,7 +89,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsTrue() {
         final Settings settings = mlEnabledSettings();
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);

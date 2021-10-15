@@ -1587,9 +1587,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             SortedMap<String, IndexAbstraction> indicesLookup;
             if (previousIndicesLookup != null) {
-                // Can't compare the values, because IndexMetadata uses IndexMetadata, which are allowed to be updated.
-                // TODO: change IndexAbstraction's getIndices() and getWriteIndex() methods to return String instead of IndexMetadata
-                assert previousIndicesLookup.keySet().equals(buildIndicesLookup(dataStreamMetadata, indices).keySet());
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indices));
                 indicesLookup = previousIndicesLookup;
             } else {
                 if (builtIndicesLookupEagerly) {

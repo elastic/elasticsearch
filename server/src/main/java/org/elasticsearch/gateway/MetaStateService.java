@@ -142,7 +142,7 @@ public class MetaStateService {
      */
     @Nullable
     public IndexMetadata loadIndexState(Index index) throws IOException {
-        return INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPath(index));
+        return INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
     }
 
     /**
@@ -205,7 +205,7 @@ public class MetaStateService {
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
             long generation = INDEX_METADATA_FORMAT.write(indexMetadata,
-                    nodeEnv.indexPath(indexMetadata.getIndex()));
+                    nodeEnv.indexPaths(indexMetadata.getIndex()));
             logger.trace("[{}] state written", index);
             return generation;
         } catch (WriteStateException ex) {
@@ -246,7 +246,7 @@ public class MetaStateService {
      * @param currentGeneration current state generation to keep in the index directory.
      */
     public void cleanupIndex(Index index, long currentGeneration) {
-        INDEX_METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPath(index));
+        INDEX_METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPaths(index));
     }
 
     /**

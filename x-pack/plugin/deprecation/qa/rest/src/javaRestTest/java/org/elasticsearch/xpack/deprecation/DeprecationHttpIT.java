@@ -14,6 +14,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -67,7 +68,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     @Before
     public void assertIndexingIsEnabled() throws Exception {
-        configureWriteDeprecationLogsToIndex(true);
 
         // make sure the deprecation logs indexing is enabled
         Response response = client().performRequest(new Request("GET", "/_cluster/settings?include_defaults=true&flat_settings=true"));
@@ -75,8 +75,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
         ObjectMapper mapper = new ObjectMapper();
         final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
 
-        final boolean transientValue = jsonNode.at("/transient/cluster.deprecation_indexing.enabled").asBoolean();
-        assertTrue(transientValue);
+        final boolean defaultValue = jsonNode.at("/defaults/cluster.deprecation_indexing.enabled").asBoolean();
+        assertTrue(defaultValue);
 
         // assert index does not exist, which will prevent previous tests to interfere
         assertBusy(() -> {
@@ -89,12 +89,22 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
             List<Map<String, Object>> documents = getIndexedDeprecations();
             logger.warn(documents);
+            // if data stream is still present, that means that previous test (could be different class) created a deprecation
+            // hence resetting again
+            resetDeprecationIndexAndCache();
             fail("Index should be removed on startup");
         }, 30, TimeUnit.SECONDS);
     }
 
     @After
     public void cleanUp() throws Exception {
+        resetDeprecationIndexAndCache();
+
+        // switch logging setting to default
+        configureWriteDeprecationLogsToIndex(null);
+    }
+
+    private void resetDeprecationIndexAndCache() throws Exception {
         // making sure the deprecation indexing cache is reset and index is deleted
         assertBusy(() -> {
             try {
@@ -105,9 +115,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
 
         }, 30, TimeUnit.SECONDS);
-
-        // switch logging setting to default
-        configureWriteDeprecationLogsToIndex(null);
     }
 
     /**
@@ -350,8 +357,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     public void testDisableDeprecationLogIndexing() throws Exception {
-
-        configureWriteDeprecationLogsToIndex(true);
         final Request deprecatedRequest = deprecatedRequest("GET", "xOpaqueId-testDisableDeprecationLogIndexing");
         assertOK(client().performRequest(deprecatedRequest));
         configureWriteDeprecationLogsToIndex(false);
@@ -652,7 +657,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     private void configureWriteDeprecationLogsToIndex(Boolean value) throws IOException {
         final Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("{ \"transient\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
+        request.setJsonEntity("{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
         final Response response = client().performRequest(request);
         assertOK(response);
     }

@@ -23,7 +23,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
@@ -88,11 +90,12 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         SourceLookup lookup = new SourceLookup();
 
+        List<Object> ignoredValues = new ArrayList<>();
         ValueFetcher valueFetcher = ft.valueFetcher(createContext(), null);
-        assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup));
+        assertEquals(singletonList("data_warm"), valueFetcher.fetchValues(lookup, ignoredValues));
 
         ValueFetcher emptyValueFetcher = ft.valueFetcher(createContextWithoutSetting(), null);
-        assertTrue(emptyValueFetcher.fetchValues(lookup).isEmpty());
+        assertTrue(emptyValueFetcher.fetchValues(lookup, ignoredValues).isEmpty());
     }
 
     private SearchExecutionContext createContext() {

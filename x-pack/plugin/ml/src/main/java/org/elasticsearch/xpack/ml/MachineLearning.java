@@ -458,20 +458,19 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // This is for performance testing.  It's not exposed to the end user.
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;
-    public static final String ML_FEATURE_FAMILY = "machine-learning";
 
     public static final LicensedFeature.Persistent ML_ANOMALY_JOBS_FEATURE = LicensedFeature.persistent(
-        ML_FEATURE_FAMILY,
+        MachineLearningField.ML_FEATURE_FAMILY,
         "anomaly-detection-job",
         License.OperationMode.PLATINUM
     );
     public static final LicensedFeature.Persistent ML_ANALYTICS_JOBS_FEATURE = LicensedFeature.persistent(
-        ML_FEATURE_FAMILY,
+        MachineLearningField.ML_FEATURE_FAMILY,
         "data-frame-analytics-job",
         License.OperationMode.PLATINUM
     );
     public static final LicensedFeature.Persistent ML_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
-        ML_FEATURE_FAMILY,
+        MachineLearningField.ML_FEATURE_FAMILY,
         "model-inference",
         License.OperationMode.PLATINUM
     );
@@ -1403,11 +1402,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
-            getInferenceIndexSecurityDescriptor()
+            getInferenceIndexSystemIndexDescriptor()
         );
     }
 
-    public static SystemIndexDescriptor getInferenceIndexSecurityDescriptor() {
+    public static SystemIndexDescriptor getInferenceIndexSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
             .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
@@ -1419,11 +1418,49 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             .build();
     }
 
+    @Override
+    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        boolean isAlreadyInUpgradeMode = MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
+        if (isAlreadyInUpgradeMode) {
+            // ML is already in upgrade mode, so nothing will write to the ML system indices during their upgrade
+            listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", true));
+            return;
+        }
+
+        // Enable ML upgrade mode before upgrading the ML system indices to ensure nothing writes to them during the upgrade
+        Client originClient = new OriginSettingClient(client, ML_ORIGIN);
+        originClient.execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(true), ActionListener.wrap(
+            r -> listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)),
+            listener::onFailure
+        ));
+    }
+
+    @Override
+    public void indicesMigrationComplete(
+        Map<String, Object> preUpgradeMetadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
+        boolean wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
+        if (wasAlreadyInUpgradeMode) {
+            // ML was already in upgrade mode before system indices upgrade started - we shouldn't disable it
+            listener.onResponse(true);
+            return;
+        }
+
+        Client originClient = new OriginSettingClient(client, ML_ORIGIN);
+        originClient.execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false), ActionListener.wrap(
+            r -> listener.onResponse(r.isAcknowledged()),
+            listener::onFailure
+        ));
+    }
+
     /**
      * These are the ML hidden indices. They are "associated" in the sense that if the ML system indices
      * are backed up or deleted then these hidden indices should also be backed up or deleted.
      */
-    private static Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS =
+    private static final Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS =
         List.of(
             new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
             new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
@@ -1457,10 +1494,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
-        Client client,
+        Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         logger.info("Starting machine learning feature reset");
+        OriginSettingClient client = new OriginSettingClient(unwrappedClient, ML_ORIGIN);
 
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 

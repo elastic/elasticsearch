@@ -1167,8 +1167,8 @@ public class IndexNameExpressionResolver {
                     }
                 }
 
-                if ((indexAbstraction.isHidden() == false && indexAbstraction.isSystem() == false) || includeHidden || implicitHiddenMatch(aliasOrIndexName,
-                    expression)) {
+                if ((indexAbstraction.isHidden() == false && indexAbstraction.isSystem() == false) || includeHidden ||
+                    implicitHiddenMatch(aliasOrIndexName, expression)) {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                         expand.add(aliasOrIndexName);
                     } else {

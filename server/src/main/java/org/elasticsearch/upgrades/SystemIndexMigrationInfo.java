@@ -140,7 +140,13 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         SystemIndices.Feature feature,
         IndexScopedSettings indexScopedSettings
     ) {
-        Settings settings = descriptor.getSettings();
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (descriptor.getSettings() != null) {
+            settingsBuilder.put(descriptor.getSettings());
+            settingsBuilder.remove("index.version.created"); // Simplifies testing, should never impact real uses.
+        }
+        Settings settings = settingsBuilder.build();
+
         String mapping = descriptor.getMappings();
         if (descriptor.isAutomaticallyManaged() == false) {
             // Get Settings from old index

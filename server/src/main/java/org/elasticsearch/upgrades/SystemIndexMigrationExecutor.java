@@ -95,8 +95,11 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState
     ) {
-        // Only run on master-eligible nodes because we already require all master-eligible nodes to have all plugins installed.
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::isMasterNode);
+        // This should select from master-eligible nodes because we already require all master-eligible nodes to have all plugins installed.
+        // However, due to a misunderstanding, this code as-written needs to run on the master node in particular. This is not a fundamental
+        // problem, but more that you can't submit cluster state update tasks from non-master nodes. If we translate the process of updating
+        // the cluster state to a Transport action, we can revert this to selecting any master-eligible node.
+        DiscoveryNode discoveryNode = clusterState.nodes().getMasterNode();
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {

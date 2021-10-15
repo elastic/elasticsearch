@@ -45,10 +45,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 
 /**
@@ -295,8 +297,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         if (indexMetadata == null) {
             return false;
         }
-        // GWB> This is a total hack to enable testing the prototype here, this should check the created version and stuff
-        return indexMetadata.isSystem() && indexMetadata.getIndex().getName().endsWith("-reindexed") == false;
+        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_VERSION);
     }
 
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
@@ -436,11 +437,17 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         synchronized (migrationQueue) {
             migrationQueue.clear();
         }
+        String featureName = Optional.ofNullable(migrationInfo).map(SystemIndexMigrationInfo::getFeatureName).orElse("<unknown feature>");
+        String indexName = Optional.ofNullable(migrationInfo)
+            .map(SystemIndexMigrationInfo::getCurrentIndexName)
+            .orElse("<unknown index>");
+
         MigrationResultsUpdateTask.upsert(
-            migrationInfo.getFeatureName(),
-            SingleFeatureMigrationResult.failure(migrationInfo.getCurrentIndexName(), e),
+            featureName,
+            SingleFeatureMigrationResult.failure(indexName, e),
             ActionListener.wrap(state -> super.markAsFailed(e), exception -> super.markAsFailed(e))
         ).submit(clusterService);
+        super.markAsFailed(e);
     }
 
     private static Exception checkNodeVersionsReadyForMigration(ClusterState state) {
@@ -466,9 +473,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         clusterService.submitStateUpdateTask("clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.metadata()).removeCustom(FeatureMigrationResults.TYPE))
-                    .build();
+                if (currentState.metadata().custom(FeatureMigrationResults.TYPE) != null) {
+                    return ClusterState.builder(currentState)
+                        .metadata(Metadata.builder(currentState.metadata()).removeCustom(FeatureMigrationResults.TYPE))
+                        .build();
+                }
+                return currentState;
             }
 
             @Override

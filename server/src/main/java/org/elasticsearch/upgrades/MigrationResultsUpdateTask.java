@@ -55,7 +55,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
      */
     public void submit(ClusterService clusterService) {
         String source = new ParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
-            .toString();
+            .getFormattedMessage();
         clusterService.submitStateUpdateTask(source, this);
     }
 
@@ -91,7 +91,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
                     "failed to update cluster state after failed migration of feature [{}] on index [{}]",
                     featureName,
                     status.getFailedIndexName()
-                ),
+                ).getFormattedMessage(),
                 clusterStateUpdateException
             );
         }

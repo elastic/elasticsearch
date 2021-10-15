@@ -47,7 +47,10 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusRequest,
     GetFeatureUpgradeStatusResponse> {
 
-    private static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
+    /**
+     * This version is only valid for >=8.0.0 and should be changed on backport.
+     */
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
 
     private final SystemIndices systemIndices;
 

@@ -44,6 +44,8 @@ public class HotThreads {
     private TimeValue threadElementsSnapshotDelay = new TimeValue(10, TimeUnit.MILLISECONDS);
     private int threadElementsSnapshotCount = 10;
     private ReportType type = ReportType.CPU;
+    private SortOrder sortOder = SortOrder.DEFAULT;
+
     private boolean ignoreIdleThreads = true;
 
     private static final List<String[]> knownIdleStackFrames = Arrays.asList(
@@ -87,6 +89,31 @@ public class HotThreads {
         }
     }
 
+    public enum SortOrder {
+
+        DEFAULT("default"),
+        LEGACY("legacy");
+
+        private final String order;
+
+        SortOrder(String order) {
+            this.order = order;
+        }
+
+        public String getOrderValue() {
+            return order;
+        }
+
+        public static SortOrder of(String order) {
+            for (var sortOrder : values()) {
+                if (sortOrder.order.equals(order)) {
+                    return sortOrder;
+                }
+            }
+            throw new IllegalArgumentException("sort order not supported [" + order + "]");
+        }
+    }
+
     public HotThreads interval(TimeValue interval) {
         this.interval = interval;
         return this;
@@ -114,6 +141,11 @@ public class HotThreads {
 
     public HotThreads type(ReportType type) {
         this.type = type;
+        return this;
+    }
+
+    public HotThreads sortOrder(SortOrder order) {
+        this.sortOder = order;
         return this;
     }
 
@@ -232,7 +264,10 @@ public class HotThreads {
             // Sort by delta CPU time on thread.
             List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
 
-            CollectionUtil.introSort(topThreads, Comparator.comparingLong(ThreadTimeAccumulator.sortFuncForReportType(type)).reversed());
+            ToLongFunction<HotThreads.ThreadTimeAccumulator> sortFunction = (sortOder == SortOrder.DEFAULT) ?
+                ThreadTimeAccumulator.sortFuncForReportType(type) : ThreadTimeAccumulator.valueGetterForReportType(type);
+
+            CollectionUtil.introSort(topThreads, Comparator.comparingLong(sortFunction).reversed());
             topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
             long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
 
@@ -263,12 +298,9 @@ public class HotThreads {
                             new ByteSizeValue(topThread.getAllocatedBytes()), threadName));
                         break;
                     case CPU:
-                        long cpuTime = topThread.getCpuTime();
                         long runnableTime = topThread.getRunnableTime();
-                        double percentCpu = getTimeSharePercentage(cpuTime);
-                        double percentWait = getTimeSharePercentage(topThread.getWaitedTime());
-                        double percentBlocked = getTimeSharePercentage(topThread.getBlockedTime());
-                        double percentOther = Math.max(0, 100.0 - percentBlocked - percentWait - percentCpu);
+                        double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
+                        double percentOther = getTimeSharePercentage(topThread.getOtherTime());
                         sb.append(String.format(Locale.ROOT,
                             "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
                             percentOther + percentCpu, percentCpu, percentOther,
@@ -354,9 +386,6 @@ public class HotThreads {
         private long allocatedBytes;
 
         ThreadTimeAccumulator(ThreadInfo info, TimeValue interval, long cpuTime, long allocatedBytes) {
-
-            System.out.println(String.format("%n%s: %d %d %d", info.getThreadName(), info.getWaitedTime()*1_000_000, info.getBlockedTime()*1_000_000, cpuTime));
-
             this.blockedTime = millisecondsToNanos(info.getBlockedTime()); // Convert to nanos to standardize
             this.waitedTime = millisecondsToNanos(info.getWaitedTime()); // Convert to nanos to standardize
             this.cpuTime = cpuTime;

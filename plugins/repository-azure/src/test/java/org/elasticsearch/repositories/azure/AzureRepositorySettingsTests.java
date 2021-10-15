@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -30,7 +30,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     private AzureRepository azureRepository(Settings settings) {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
         final AzureRepository azureRepository = new AzureRepository(new RepositoryMetadata("foo", "azure", internalSettings),

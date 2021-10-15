@@ -45,7 +45,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -1164,7 +1164,7 @@ public class MetadataCreateIndexService {
         IndexAbstraction source = state.metadata().getIndicesLookup().get(sourceIndex);
         assert source != null;
         if (source.getParentDataStream() != null &&
-            source.getParentDataStream().getWriteIndex().getIndex().equals(sourceMetadata.getIndex())) {
+            source.getParentDataStream().getWriteIndex().equals(sourceMetadata.getIndex())) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot resize the write index [%s] for data stream [%s]",
                 sourceIndex, source.getParentDataStream().getName()));
         }

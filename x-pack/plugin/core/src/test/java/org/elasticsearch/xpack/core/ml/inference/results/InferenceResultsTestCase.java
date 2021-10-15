@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 

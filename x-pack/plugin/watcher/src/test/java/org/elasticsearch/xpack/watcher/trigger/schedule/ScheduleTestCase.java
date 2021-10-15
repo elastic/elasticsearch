@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayOfWeek;

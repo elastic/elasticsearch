@@ -15,6 +15,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
@@ -182,6 +183,17 @@ public class PyTorchModelIT extends ESRestTestCase {
         String resultsField = randomAlphaOfLength(10);
         Response inference = infer("my words", modelId, resultsField);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        stopDeployment(modelId);
+    }
+
+    public void testEvaluateWithMinimalTimeout() throws IOException {
+        String modelId = "test_evaluate_timeout";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        ResponseException ex = expectThrows(ResponseException.class, () -> infer("my words", modelId, TimeValue.ZERO));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         stopDeployment(modelId);
     }
 
@@ -446,6 +458,14 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private Response getDeploymentStats(String modelId, boolean allowNoMatch) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?allow_no_match=" + allowNoMatch);
+        return client().performRequest(request);
+    }
+
+    private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
+        request.setJsonEntity("{  " +
+            "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
+            "}");
         return client().performRequest(request);
     }
 

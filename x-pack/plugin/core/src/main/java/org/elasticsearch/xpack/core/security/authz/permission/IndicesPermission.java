@@ -12,12 +12,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -57,6 +57,7 @@ public final class IndicesPermission {
     private final Automaton restrictedNamesAutomaton;
     private final Group[] groups;
     private final CharacterRunAutomaton characterRunAutomaton;
+    private final boolean hasFieldOrDocumentLevelSecurity;
 
     public static class Builder {
 
@@ -85,6 +86,8 @@ public final class IndicesPermission {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
+            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     /**
@@ -124,6 +127,10 @@ public final class IndicesPermission {
      */
     public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
         return allowedIndicesMatchersForAction.computeIfAbsent(action, this::buildIndexMatcherPredicateForAction);
+    }
+
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return hasFieldOrDocumentLevelSecurity;
     }
 
     private Predicate<IndexAbstraction> buildIndexMatcherPredicateForAction(String action) {
@@ -321,13 +328,17 @@ public final class IndicesPermission {
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
             } else {
-                final List<IndexMetadata> indices = indexAbstraction.getIndices();
+                final List<Index> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndices = new ArrayList<>(indices.size());
                 for (var idx : indices) {
-                    concreteIndices.add(idx.getIndex().getName());
+                    concreteIndices.add(idx.getName());
                 }
                 return concreteIndices;
             }
+        }
+
+        public boolean canHaveBackingIndices() {
+            return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
         }
     }
 
@@ -448,8 +459,13 @@ public final class IndicesPermission {
             }
 
             grantedBuilder.put(resource.name, granted);
-            for (String concreteIndex : concreteIndices) {
-                grantedBuilder.put(concreteIndex, granted);
+            if (resource.canHaveBackingIndices()) {
+                for (String concreteIndex : concreteIndices) {
+                    // If the name appear directly as part of the requested indices, it takes precedence over implicit access
+                    if (false == requestedIndicesOrAliases.contains(concreteIndex)) {
+                        grantedBuilder.merge(concreteIndex, granted, Boolean::logicalOr);
+                    }
+                }
             }
         }
 

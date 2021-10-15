@@ -105,6 +105,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
             "action.search.shard_count.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<Integer> DEFAULT_PRE_FILTER_SHARD_SIZE = Setting.intSetting(
+        "action.search.pre_filter_shard_size.default", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE, 1, Property.NodeScope);
+
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
@@ -115,6 +118,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final ExecutorSelector executorSelector;
+    private final int defaultPreFilterShardSize;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool,
@@ -140,6 +144,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
+        this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(ClusterState clusterState,
@@ -733,7 +738,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             nodes::get, remoteConnections, searchTransportService::getConnection);
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, concreteLocalIndices,
-            localShardIterators.size() + remoteShardIterators.size());
+            localShardIterators.size() + remoteShardIterators.size(), defaultPreFilterShardSize);
         searchAsyncActionProvider.asyncSearchAction(
             task, searchRequest, asyncSearchExecutor, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener,
@@ -780,14 +785,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     static boolean shouldPreFilterSearchShards(ClusterState clusterState,
                                                SearchRequest searchRequest,
                                                String[] indices,
-                                               int numShards) {
+                                               int numShards,
+                                               int defaultPreFilterShardSize) {
         SearchSourceBuilder source = searchRequest.source();
         Integer preFilterShardSize = searchRequest.getPreFilterShardSize();
         if (preFilterShardSize == null
                 && (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source))) {
             preFilterShardSize = 1;
         } else if (preFilterShardSize == null) {
-            preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
+            preFilterShardSize = defaultPreFilterShardSize;
         }
         return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
                     && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))

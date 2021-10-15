@@ -243,6 +243,9 @@ public class PackageTests extends PackagingTestCase {
             assertPathsExist(installation.envFile);
             setHeap(null);
 
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
+
             withCustomConfig(tempConf -> {
                 // Work as though total system memory is 850MB
                 append(installation.envFile, "ES_JAVA_OPTS=\"-Des.total_memory_bytes=891289600\"");

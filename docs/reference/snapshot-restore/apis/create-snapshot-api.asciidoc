@@ -102,7 +102,7 @@ initializes. Defaults to `false`.
 --
 (Optional, string) Determines how wildcard patterns in the `indices` parameter
 match data streams and indices. Supports comma-separated values, such as
-`open,hidden`. Valid values are:
+`open,hidden`. Defaults to `all`. Valid values are:
 
 `all`:::
 Match any data stream or index, including <<hidden,hidden>> ones.

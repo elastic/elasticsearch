@@ -236,8 +236,7 @@ public class DeploymentManager {
         try {
             processContext.executorService.execute(inferenceAction);
         } catch (Exception e) {
-            inferenceAction.timeoutHandler.cancel();
-            listener.onFailure(e);
+            inferenceAction.onFailure(e);
         }
     }
 

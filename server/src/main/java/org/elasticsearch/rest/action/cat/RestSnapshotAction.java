@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.cat;
 
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -49,9 +50,10 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
+        final String[] matchAll = {TransportGetRepositoriesAction.ALL_PATTERN};
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
-                .repositories(request.paramAsStringArray("repository", new String[]{"_all"}))
-                .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
+            .repositories(request.paramAsStringArray("repository", matchAll))
+            .snapshots(matchAll);
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 

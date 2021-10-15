@@ -19,10 +19,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -275,7 +275,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         if (documentFields.isEmpty() == false) {
             builder.startObject(FIELDS);
             for (DocumentField field : documentFields.values()) {
-                field.toXContent(builder, params);
+                field.getValidValuesWriter().toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -327,7 +327,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
                 } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
-                    deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {

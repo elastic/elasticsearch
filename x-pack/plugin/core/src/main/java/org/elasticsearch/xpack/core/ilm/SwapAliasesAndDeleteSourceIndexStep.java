@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 
@@ -77,8 +76,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(sourceIndexName));
         // copy over other aliases from source index
-        sourceIndex.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
-            AliasMetadata aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
+        sourceIndex.getAliases().values().forEach(aliasMetaDataToAdd -> {
             // inherit all alias properties except `is_write_index`
             aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add()
                 .index(targetIndex).alias(aliasMetaDataToAdd.alias())

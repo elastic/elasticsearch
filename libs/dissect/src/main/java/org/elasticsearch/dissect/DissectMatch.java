@@ -85,11 +85,11 @@ final class DissectMatch {
 
     /**
      * Checks if results are valid.
-     * @param results the results to check
+     * @param resultsToCheck the results to check
      * @return true if all dissect keys have been matched and the results are of the expected size.
      */
-    boolean isValid(Map<String, String> results) {
-        return fullyMatched() && results.size() == maxResults;
+    boolean isValid(Map<String, String> resultsToCheck) {
+        return fullyMatched() && resultsToCheck.size() == maxResults;
     }
 
     /**

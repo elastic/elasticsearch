@@ -16,8 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
@@ -83,7 +83,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
             builder.field("data_stream_count", dataStreamCount);
             builder.field("backing_indices", backingIndices);
             builder.humanReadableField("total_store_size_bytes", "total_store_size", totalStoreSize);
-            builder.array("data_streams", (Object[]) dataStreams);
+            builder.xContentList("data_streams", dataStreams);
         }
 
         public int getDataStreamCount() {

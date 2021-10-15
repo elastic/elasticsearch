@@ -13,8 +13,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
@@ -51,6 +51,36 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         "/data-streams-mappings.json",
         REGISTRY_VERSION,
         TEMPLATE_VERSION_VARIABLE
+    );
+
+    //////////////////////////////////////////////////////////
+    // Built in ILM policies for users to use
+    //////////////////////////////////////////////////////////
+    public static final String ILM_7_DAYS_POLICY_NAME = "7-days-default";
+    public static final String ILM_30_DAYS_POLICY_NAME = "30-days-default";
+    public static final String ILM_90_DAYS_POLICY_NAME = "90-days-default";
+    public static final String ILM_180_DAYS_POLICY_NAME = "180-days-default";
+    public static final String ILM_365_DAYS_POLICY_NAME = "365-days-default";
+
+    public static final LifecyclePolicyConfig ILM_7_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_7_DAYS_POLICY_NAME,
+        "/" + ILM_7_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_30_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_30_DAYS_POLICY_NAME,
+        "/" + ILM_30_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_90_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_90_DAYS_POLICY_NAME,
+        "/" + ILM_90_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_180_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_180_DAYS_POLICY_NAME,
+        "/" + ILM_180_DAYS_POLICY_NAME + ".json"
+    );
+    public static final LifecyclePolicyConfig ILM_365_DAYS_POLICY = new LifecyclePolicyConfig(
+        ILM_365_DAYS_POLICY_NAME,
+        "/" + ILM_365_DAYS_POLICY_NAME + ".json"
     );
 
     //////////////////////////////////////////////////////////
@@ -177,7 +207,16 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
         if (stackTemplateEnabled) {
-            return Arrays.asList(LOGS_ILM_POLICY, METRICS_ILM_POLICY, SYNTHETICS_ILM_POLICY);
+            return Arrays.asList(
+                LOGS_ILM_POLICY,
+                METRICS_ILM_POLICY,
+                SYNTHETICS_ILM_POLICY,
+                ILM_7_DAYS_POLICY,
+                ILM_30_DAYS_POLICY,
+                ILM_90_DAYS_POLICY,
+                ILM_180_DAYS_POLICY,
+                ILM_365_DAYS_POLICY
+            );
         } else {
             return Collections.emptyList();
         }

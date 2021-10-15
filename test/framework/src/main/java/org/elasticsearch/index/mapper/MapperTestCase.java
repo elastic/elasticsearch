@@ -22,12 +22,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -44,10 +43,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
@@ -175,12 +172,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected <T> void assertDimension(boolean isDimension, Function<T, Boolean> checker) throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", isDimension);
+            b.field("time_series_dimension", isDimension);
         }));
 
         @SuppressWarnings("unchecked") // Syntactic sugar in tests
         T fieldType = (T) mapperService.fieldType("field");
         assertThat(checker.apply(fieldType), equalTo(isDimension));
+    }
+
+    protected <T> void assertMetricType(String metricType, Function<T, Enum<TimeSeriesParams.MetricType>> checker)
+        throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", metricType);
+        }));
+
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType).name(), equalTo(metricType));
     }
 
     public final void testEmptyName() {
@@ -326,7 +335,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            result.set(valueFetcher.fetchValues(lookup.source()));
+            result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
         });
         return result.get();
     }
@@ -545,25 +554,25 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
         // dimension cannot be updated
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
-        checker.registerConflictCheck("dimension",
+        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
+        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
+        checker.registerConflictCheck("time_series_dimension",
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", false);
+                b.field("time_series_dimension", false);
             }),
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true);
+                b.field("time_series_dimension", true);
             }));
-        checker.registerConflictCheck("dimension",
+        checker.registerConflictCheck("time_series_dimension",
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true);
+                b.field("time_series_dimension", true);
             }),
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", false);
+                b.field("time_series_dimension", false);
             }));
     }
 
@@ -596,8 +605,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
-            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup);
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup);
+            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside
@@ -723,12 +732,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             // compare index and search time stored fields
             assertThat(storedFields.get("field").getValues(), equalTo(indexStoredFields.get("field").getValues()));
         });
-    }
-
-    private BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft
-            .fielddataBuilder("test", lookupSource)
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
     public final void testNullInput() throws Exception {

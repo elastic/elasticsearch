@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -48,16 +47,16 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     @Before
     public void setup() {
         searchPhaseController = new SearchPhaseController(
-            s -> new InternalAggregation.ReduceContextBuilder() {
+            (t, s) -> new InternalAggregation.ReduceContextBuilder() {
                 @Override
                 public InternalAggregation.ReduceContext forPartialReduction() {
                     return InternalAggregation.ReduceContext.forPartialReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineAggregator.PipelineTree.EMPTY, t);
                 }
 
                 public InternalAggregation.ReduceContext forFinalReduction() {
                     return InternalAggregation.ReduceContext.forFinalReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
+                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY, t);
                 };
             });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
@@ -85,7 +84,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchRequest.setBatchedReduceSize(2);
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
         QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(searchRequest, executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, searchProgressListener,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), searchPhaseController, () -> false, searchProgressListener,
             10, e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
                 curr.addSuppressed(prev);
                 return curr;
@@ -95,7 +94,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i),
-                null, OriginalIndices.NONE);
+                null);
             QuerySearchResult querySearchResult = new QuerySearchResult();
             TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
             querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);

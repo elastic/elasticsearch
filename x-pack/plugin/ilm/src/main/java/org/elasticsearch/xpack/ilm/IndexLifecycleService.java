@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ilm;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -24,7 +22,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -54,10 +52,10 @@ import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
@@ -77,8 +75,8 @@ public class IndexLifecycleService
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
-    private ClusterService clusterService;
-    private LongSupplier nowSupplier;
+    private final ClusterService clusterService;
+    private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
@@ -166,8 +164,7 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (ObjectCursor<IndexMetadata> cursor : clusterState.metadata().indices().values()) {
-                IndexMetadata idxMeta = cursor.value;
+            for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
@@ -282,8 +279,11 @@ public class IndexLifecycleService
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
-            if (event.state().metadata().custom(IndexLifecycleMetadata.TYPE) != null) {
-                policyRegistry.update(event.state());
+            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+            // only update the policy registry if we just became the master node or if the ilm metadata changed
+            if (ilmMetadata != null && (event.previousState().nodes().isLocalNodeElectedMaster() == false
+                    || ilmMetadata != event.previousState().metadata().custom(IndexLifecycleMetadata.TYPE))) {
+                policyRegistry.update(ilmMetadata);
             }
         }
     }
@@ -334,8 +334,7 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (ObjectCursor<IndexMetadata> cursor : clusterState.metadata().indices().values()) {
-            IndexMetadata idxMeta = cursor.value;
+        for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
@@ -423,20 +422,22 @@ public class IndexLifecycleService
     }
 
     static Set<String> indicesOnShuttingDownNodesInDangerousStep(ClusterState state, String nodeId) {
-        final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(state, SingleNodeShutdownMetadata.Type.REMOVE);
+        final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(state,
+            SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE);
         if (shutdownNodes.isEmpty()) {
             return Collections.emptySet();
         }
 
-        Set<String> indicesPreventingShutdown = StreamSupport.stream(state.metadata().indices().spliterator(), false)
+        Set<String> indicesPreventingShutdown = state.metadata().indices().stream()
             // Filter out to only consider managed indices
-            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.value.getSettings())))
+            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(
+                indexToMetadata.getValue().getSettings())))
             // Only look at indices in the shrink action
             .filter(indexToMetadata ->
-                ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getAction()))
+                ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getAction()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
             .filter(indexToMetadata -> {
-                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getStep();
+                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getStep();
                 return SetSingleNodeAllocateStep.NAME.equals(step) ||
                     CheckShrinkReadyStep.NAME.equals(step) ||
                     ShrinkStep.NAME.equals(step) ||
@@ -444,11 +445,11 @@ public class IndexLifecycleService
             })
             // Only look at indices where the node picked for the shrink is the node marked as shutting down
             .filter(indexToMetadata -> {
-                String nodePicked = indexToMetadata.value.getSettings()
+                String nodePicked = indexToMetadata.getValue().getSettings()
                     .get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id");
                 return nodeId.equals(nodePicked);
             })
-            .map(indexToMetadata -> indexToMetadata.key)
+            .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         logger.trace("with nodes marked as shutdown for removal {}, indices {} are preventing shutdown",
             shutdownNodes, indicesPreventingShutdown);
@@ -461,6 +462,7 @@ public class IndexLifecycleService
             case RESTART:
                 // It is safe to restart during ILM operation
                 return true;
+            case REPLACE:
             case REMOVE:
                 Set<String> indices = indicesOnShuttingDownNodesInDangerousStep(clusterService.state(), nodeId);
                 return indices.isEmpty();

@@ -41,7 +41,9 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos infos, MergeContext mergeContext) throws IOException {
-        return forcedMergePolicy.findForcedDeletesMerges(infos, mergeContext);
+        // we apply the max segment size through the regular merge policy in
+        // order to avoid giant segments when expunging deletes on a read/write index
+        return regularMergePolicy.findForcedDeletesMerges(infos, mergeContext);
     }
 
     public void setForceMergeDeletesPctAllowed(double forceMergeDeletesPctAllowed) {
@@ -69,15 +71,6 @@ final class EsTieredMergePolicy extends FilterMergePolicy {
 
     public int getMaxMergeAtOnce() {
         return regularMergePolicy.getMaxMergeAtOnce();
-    }
-
-    public void setMaxMergeAtOnceExplicit(int maxMergeAtOnceExplicit) {
-        regularMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
-        forcedMergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
-    }
-
-    public int getMaxMergeAtOnceExplicit() {
-        return forcedMergePolicy.getMaxMergeAtOnceExplicit();
     }
 
     // only setter that must NOT delegate to the forced merge policy

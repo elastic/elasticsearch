@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -14,10 +16,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -67,7 +72,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         Response.Builder responseBuilder = Response.builder();
 
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
             doInfer(request, responseBuilder, listener);
         } else {
@@ -138,7 +143,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 // Always fail immediately and return an error
                 ex -> true);
         request.getObjectsToInfer().forEach(stringObjectMap -> typedChainTaskExecutor.add(
-            chainedTask -> inferSingleDocAgainstAllocatedModel(request.getModelId(), stringObjectMap, chainedTask)));
+            chainedTask -> inferSingleDocAgainstAllocatedModel(request.getModelId(), request.getUpdate(), stringObjectMap, chainedTask)));
 
         typedChainTaskExecutor.execute(ActionListener.wrap(
             inferenceResults -> listener.onResponse(responseBuilder.setInferenceResults(inferenceResults)
@@ -148,14 +153,31 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         ));
     }
 
-    private void inferSingleDocAgainstAllocatedModel(String modelId, Map<String, Object> doc, ActionListener<InferenceResults> listener) {
+    private void inferSingleDocAgainstAllocatedModel(
+        String modelId,
+        InferenceConfigUpdate inferenceConfigUpdate,
+        Map<String, Object> doc,
+        ActionListener<InferenceResults> listener
+    ) {
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
-            new InferTrainedModelDeploymentAction.Request(modelId, Collections.singletonList(doc)),
+            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc), null),
             ActionListener.wrap(
                 r -> listener.onResponse(r.getResults()),
-                e -> listener.onResponse(new WarningInferenceResults(e.getMessage()))
+                e -> {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ElasticsearchStatusException) {
+                        ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
+                        if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
+                            listener.onFailure(ex);
+                        } else {
+                            listener.onResponse(new WarningInferenceResults(ex.getMessage()));
+                        }
+                    } else {
+                        listener.onResponse(new WarningInferenceResults(e.getMessage()));
+                    }
+                }
             )
         );
     }

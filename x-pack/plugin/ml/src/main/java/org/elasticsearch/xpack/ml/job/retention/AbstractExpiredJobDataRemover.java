@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 /**
  * Removes job data that expired with respect to their retention period.
@@ -41,14 +41,14 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     @Override
     public void remove(float requestsPerSecond,
                        ActionListener<Boolean> listener,
-                       Supplier<Boolean> isTimedOutSupplier) {
+                       BooleanSupplier isTimedOutSupplier) {
         removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
     }
 
     private void removeData(Iterator<Job> jobIterator,
                             float requestsPerSecond,
                             ActionListener<Boolean> listener,
-                            Supplier<Boolean> isTimedOutSupplier) {
+                            BooleanSupplier isTimedOutSupplier) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -60,7 +60,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        if (isTimedOutSupplier.get()) {
+        if (isTimedOutSupplier.getAsBoolean()) {
             listener.onResponse(false);
             return;
         }

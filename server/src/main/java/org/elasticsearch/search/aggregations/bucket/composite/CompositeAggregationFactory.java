@@ -22,9 +22,16 @@ class CompositeAggregationFactory extends AggregatorFactory {
     private final CompositeValuesSourceConfig[] sources;
     private final CompositeKey afterKey;
 
-    CompositeAggregationFactory(String name, AggregationContext context, AggregatorFactory parent,
-                                AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
-                                int size, CompositeValuesSourceConfig[] sources, CompositeKey afterKey) throws IOException {
+    CompositeAggregationFactory(
+        String name,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        int size,
+        CompositeValuesSourceConfig[] sources,
+        CompositeKey afterKey
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.size = size;
         this.sources = sources;

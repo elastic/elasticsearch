@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
@@ -56,5 +59,23 @@ public enum TrainedModelType {
     @Nullable
     public TrainedModelInput getDefaultInput() {
         return defaultInput;
+    }
+
+    public TrainedModelLocation getDefaultLocation(String modelId) {
+        switch (this) {
+            case TREE_ENSEMBLE:
+            case LANG_IDENT:
+                return new IndexLocation(InferenceIndexConstants.LATEST_INDEX_NAME);
+            case PYTORCH:
+                return new IndexLocation(InferenceIndexConstants.nativeDefinitionStore());
+            default:
+                throw new IllegalArgumentException(
+                    "can not determine appropriate location for type ["
+                        + this
+                        + " for model ["
+                        + modelId
+                        + "]"
+                );
+        }
     }
 }

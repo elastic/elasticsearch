@@ -26,14 +26,16 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final GeoBoundsAggregatorSupplier aggregatorSupplier;
     private final boolean wrapLongitude;
 
-    GeoBoundsAggregatorFactory(String name,
-                                ValuesSourceConfig config,
-                                boolean wrapLongitude,
-                                AggregationContext context,
-                                AggregatorFactory parent,
-                                AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metadata,
-                                GeoBoundsAggregatorSupplier aggregatorSupplier) throws IOException {
+    GeoBoundsAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        boolean wrapLongitude,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        GeoBoundsAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
         this.aggregatorSupplier = aggregatorSupplier;
@@ -45,11 +47,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, context, parent, config, wrapLongitude, metadata);
     }
 

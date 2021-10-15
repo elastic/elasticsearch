@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.actions;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;

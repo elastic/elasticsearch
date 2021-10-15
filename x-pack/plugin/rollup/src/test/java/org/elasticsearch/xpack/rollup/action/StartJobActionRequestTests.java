@@ -22,4 +22,3 @@ public class StartJobActionRequestTests extends AbstractWireSerializingTestCase<
         return Request::new;
     }
 }
-

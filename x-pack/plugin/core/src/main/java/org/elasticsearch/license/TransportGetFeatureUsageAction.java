@@ -45,11 +45,11 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
             ZonedDateTime lastUsedTime = Instant.ofEpochMilli(lastUsed).atZone(ZoneOffset.UTC);
             usageInfos.add(
                 new GetFeatureUsageResponse.FeatureUsageInfo(
-                    usage.feature().family,
-                    usage.feature().name,
+                    usage.feature().getFamily(),
+                    usage.feature().getName(),
                     lastUsedTime,
                     usage.contextName(),
-                    usage.feature().minimumOperationMode.description()
+                    usage.feature().getMinimumOperationMode().description()
                 )
             );
         });

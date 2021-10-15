@@ -37,8 +37,13 @@ public class MovFnPipelineAggregationBuilderSerializationTests extends BasePipel
 
     public void testValidParent() throws IOException {
         Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", emptyMap());
-        assertThat(validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
-                new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3)), nullValue());
+        assertThat(
+            validate(
+                PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
+                new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3)
+            ),
+            nullValue()
+        );
     }
 
     public void testInvalidParent() throws IOException {
@@ -46,16 +51,23 @@ public class MovFnPipelineAggregationBuilderSerializationTests extends BasePipel
         AggregationBuilder parent = mock(AggregationBuilder.class);
         when(parent.getName()).thenReturn("name");
 
-        assertThat(validate(parent, new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1)), equalTo(
+        assertThat(
+            validate(parent, new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1)),
+            equalTo(
                 "Validation Failed: 1: moving_fn aggregation [name] must have a histogram, date_histogram"
-                + " or auto_date_histogram as parent;"));
+                    + " or auto_date_histogram as parent;"
+            )
+        );
     }
 
     public void testNoParent() throws IOException {
         Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
-                assertThat(validate(emptyList(), new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1)), equalTo(
+        assertThat(
+            validate(emptyList(), new MovFnPipelineAggregationBuilder("name", "invalid_agg>metric", script, 1)),
+            equalTo(
                 "Validation Failed: 1: moving_fn aggregation [name] must have a histogram, date_histogram"
-                + " or auto_date_histogram as parent but doesn't have a parent;"));
+                    + " or auto_date_histogram as parent but doesn't have a parent;"
+            )
+        );
     }
 }
-

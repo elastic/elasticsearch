@@ -35,5 +35,6 @@ public interface GeoDistanceAggregatorSupplier {
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata) throws IOException;
+        Map<String, Object> metadata
+    ) throws IOException;
 }

@@ -23,11 +23,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -42,7 +41,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -76,6 +74,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
@@ -341,7 +340,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddComponentTemplate() throws Exception{
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
+        Template template = new Template(
+            Settings.builder().build(),
+            new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}"),
+            ComponentTemplateTests.randomAliases()
+        );
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
@@ -1511,9 +1514,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        ThreadPool testThreadPool = mock(ThreadPool.class);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
-                null,
+                clusterService,
                 null,
                 null,
                 null,
@@ -1587,55 +1592,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 
-    @SuppressWarnings("unchecked")
     public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {
-        ComposableIndexTemplate actualNoTemplate = new ComposableIndexTemplate(actual.indexPatterns(), null,
-            actual.composedOf(), actual.priority(), actual.version(), actual.metadata(), actual.getDataStreamTemplate(), null);
-        ComposableIndexTemplate expectedNoTemplate = new ComposableIndexTemplate(expected.indexPatterns(), null,
-            expected.composedOf(), expected.priority(), expected.version(), expected.metadata(), expected.getDataStreamTemplate(), null);
-
-        assertThat(actualNoTemplate, equalTo(expectedNoTemplate));
-        Template actualTemplate = actual.template();
-        Template expectedTemplate = expected.template();
-
-        assertThat("expected both templates to have either a template or no template",
-            Objects.nonNull(actualTemplate), equalTo(Objects.nonNull(expectedTemplate)));
-
-        if (actualTemplate != null) {
-            assertThat(actualTemplate.settings(), equalTo(expectedTemplate.settings()));
-            assertThat(actualTemplate.aliases(), equalTo(expectedTemplate.aliases()));
-            assertThat("expected both templates to have either mappings or no mappings",
-                Objects.nonNull(actualTemplate.mappings()), equalTo(Objects.nonNull(expectedTemplate.mappings())));
-
-            if (actualTemplate.mappings() != null) {
-                Map<String, Object> actualMappings;
-                Map<String, Object> expectedMappings;
-                try (XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(new NamedXContentRegistry(List.of()), LoggingDeprecationHandler.INSTANCE,
-                        actualTemplate.mappings().string())) {
-                    actualMappings = parser.map();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-                try (XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(new NamedXContentRegistry(List.of()), LoggingDeprecationHandler.INSTANCE,
-                        expectedTemplate.mappings().string())) {
-                    expectedMappings = parser.map();
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-
-                if (actualMappings.size() == 1 && actualMappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                    actualMappings = (Map<String, Object>) actualMappings.get(MapperService.SINGLE_MAPPING_NAME);
-                }
-
-                if (expectedMappings.size() == 1 && expectedMappings.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
-                    expectedMappings = (Map<String, Object>) expectedMappings.get(MapperService.SINGLE_MAPPING_NAME);
-                }
-
-                assertThat(actualMappings, equalTo(expectedMappings));
-            }
-        }
+        assertTrue(Objects.equals(actual, expected));
     }
 
     // Composable index template with data_stream definition need _timestamp meta field mapper,

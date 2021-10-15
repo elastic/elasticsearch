@@ -18,8 +18,15 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalStatsBucket extends InternalStats implements StatsBucket {
-    public InternalStatsBucket(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                               Map<String, Object> metadata) {
+    public InternalStatsBucket(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, count, sum, min, max, formatter, metadata);
     }
 

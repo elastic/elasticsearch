@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -33,7 +33,6 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
-
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -53,7 +52,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private ProfileShardResult profileShardResults;
+    private SearchProfileQueryPhaseResult profileShardResults;
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
@@ -65,6 +64,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
+        this(in, false);
+    }
+
+    /**
+     * Read the object, but using a delayed aggregations field when delayedAggregations=true. Using this, the caller must ensure that
+     * either `consumeAggs` or `releaseAggs` is called if `hasAggs() == true`.
+     * @param delayedAggregations whether to use delayed aggregations or not
+     */
+    public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isNull = in.readBoolean();
@@ -73,7 +81,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
-            readFromWithId(id, in);
+            readFromWithId(id, in, delayedAggregations);
         }
     }
 
@@ -225,11 +233,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * This allows to free up memory once the profiled result is consumed.
      * @throws IllegalStateException if the profiled result has already been consumed.
      */
-    public ProfileShardResult consumeProfileResult() {
+    public SearchProfileQueryPhaseResult consumeProfileResult() {
         if (profileShardResults == null) {
             throw new IllegalStateException("profile results already consumed");
         }
-        ProfileShardResult result = profileShardResults;
+        SearchProfileQueryPhaseResult result = profileShardResults;
         profileShardResults = null;
         return result;
     }
@@ -252,7 +260,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(ProfileShardResult shardResults) {
+    public void profileResults(SearchProfileQueryPhaseResult shardResults) {
         this.profileShardResults = shardResults;
         hasProfileResults = shardResults != null;
     }
@@ -316,6 +324,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
+        readFromWithId(id, in, false);
+    }
+
+    private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
         this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
@@ -333,14 +345,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
         boolean success = false;
         try {
             if (hasAggs) {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                if (delayedAggregations) {
+                    aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                } else {
+                    aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                }
             }
             if (in.readBoolean()) {
                 suggest = new Suggest(in);
             }
             searchTimedOut = in.readBoolean();
             terminatedEarly = in.readOptionalBoolean();
-            profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
+            profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();
@@ -359,6 +375,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
+        assert aggregations == null || aggregations.isSerialized() == false : "cannot send serialized version since it will leak";
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(isNull);
         }

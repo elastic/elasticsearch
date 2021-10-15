@@ -6,15 +6,13 @@
  * Side Public License, v 1.
  */
 
-
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 /*
@@ -25,7 +23,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
  */
 esplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.Netty4Plugin'
+  classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 dependencies {
@@ -65,7 +63,7 @@ TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClu
 
 TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaRestTest", RestIntegTestTask) {
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet javaRestTestSourceSet = sourceSets.getByName(JavaRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet javaRestTestSourceSet = sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(javaRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(javaRestTestSourceSet.getRuntimeClasspath())
 
@@ -203,15 +201,4 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // transport is owned by server, these should be renamed to netty specific
-  ignoreClasses 'org.elasticsearch.transport.CopyBytesServerSocketChannel',
-    'org.elasticsearch.transport.CopyBytesSocketChannel',
-    'org.elasticsearch.transport.Netty4NioSocketChannel',
-    'org.elasticsearch.transport.Netty4Plugin',
-    'org.elasticsearch.transport.NettyAllocator',
-    'org.elasticsearch.transport.NettyByteBufSizer',
-    'org.elasticsearch.transport.SharedGroupFactory'
 }

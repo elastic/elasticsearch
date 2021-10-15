@@ -335,12 +335,12 @@ public abstract class SslConfigurationLoader {
         return buildDefaultTrustConfig(defaultTrustConfig, keyConfig);
     }
 
-    protected SslTrustConfig buildDefaultTrustConfig(SslTrustConfig defaultTrustConfig, SslKeyConfig keyConfig) {
+    protected SslTrustConfig buildDefaultTrustConfig(SslTrustConfig trustConfig, SslKeyConfig keyConfig) {
         final SslTrustConfig trust = keyConfig.asTrustConfig();
         if (trust == null) {
-            return defaultTrustConfig;
+            return trustConfig;
         } else {
-            return new CompositeTrustConfig(List.of(defaultTrustConfig, trust));
+            return new CompositeTrustConfig(List.of(trustConfig, trust));
         }
     }
 

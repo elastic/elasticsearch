@@ -10,7 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,11 +18,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -192,6 +192,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
+        assert this.licenseLevel.equals(License.OperationMode.PLATINUM) || this.licenseLevel.equals(License.OperationMode.BASIC) :
+                "[" + LICENSE_LEVEL.getPreferredName() + "] only [platinum] or [basic] is supported";
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
         this.inferenceConfig = inferenceConfig;
         this.location = location;
@@ -281,6 +283,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return definition.getCompressedDefinition();
     }
 
+    public BytesReference getCompressedDefinitionIfSet() {
+        if (definition == null) {
+            return null;
+        }
+        return definition.getCompressedDefinitionIfSet();
+    }
+
+
     public void clearCompressed() {
         definition.compressedRepresentation = null;
     }
@@ -330,6 +340,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return estimatedOperations;
     }
 
+    //TODO if we ever support anything other than "basic" and platinum, we need to adjust our feature tracking logic
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
     }
@@ -487,7 +498,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public Builder(TrainedModelConfig config) {
             this.modelId = config.getModelId();
-            this.modelType = config.getModelType();
+            this.modelType = config.modelType;
             this.createdBy = config.getCreatedBy();
             this.version = config.getVersion();
             this.createTime = config.getCreateTime();
@@ -701,16 +712,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         /**
          * Runs validations against the builder.
+         * @param forCreation indicates if we should validate for model creation or for a model read from storage
          * @return The current builder object if validations are successful
          * @throws ActionRequestValidationException when there are validation failures.
          */
         public Builder validate(boolean forCreation) {
             // We require a definition to be available here even though it will be stored in a different doc
             ActionRequestValidationException validationException = null;
-            if (definition == null && location == null) {
-                validationException = addValidationError("either a model [" + DEFINITION.getPreferredName() + "] " +
-                    "or [" + LOCATION.getPreferredName() + "] must be defined.", validationException);
-            }
             if (definition != null && location != null) {
                 validationException = addValidationError("[" + DEFINITION.getPreferredName() + "] " +
                     "and [" + LOCATION.getPreferredName() + "] are both defined but only one can be used.", validationException);
@@ -770,13 +778,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
                 validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
-                validationException = checkIllegalSetting(estimatedHeapMemory,
-                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-                    validationException);
-                validationException = checkIllegalSetting(estimatedOperations,
-                    ESTIMATED_OPERATIONS.getPreferredName(),
-                    validationException);
                 validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(location, LOCATION.getPreferredName(), validationException);
                 if (metadata != null) {
                     validationException = checkIllegalSetting(
                         metadata.get(TOTAL_FEATURE_IMPORTANCE),
@@ -788,7 +791,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                         validationException);
                 }
             }
-
             if (validationException != null) {
                 throw validationException;
             }
@@ -871,6 +873,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (compressedRepresentation == null) {
                 compressedRepresentation = InferenceToXContentCompressor.deflate(parsedDefinition);
             }
+            return compressedRepresentation;
+        }
+
+        private BytesReference getCompressedDefinitionIfSet() {
             return compressedRepresentation;
         }
 

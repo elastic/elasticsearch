@@ -107,25 +107,25 @@ to a different node in the same cluster.
 --
 (String)
 Recovery stage.
-Returned values include:
-
-`DONE`::
-Complete.
-
-`FINALIZE`::
-Cleanup.
-
-`INDEX`::
-Reading index metadata and copying bytes from source to destination.
+Returned values can include:
 
 `INIT`::
 Recovery has not started.
 
-`START`::
-Starting the recovery process; opening the index for use.
+`INDEX`::
+Reading index metadata and copying bytes from source to destination.
+
+`VERIFY_INDEX`::
+Verifying the integrity of the index.
 
 `TRANSLOG`::
-Replaying transaction log .
+Replaying transaction log.
+
+`FINALIZE`::
+Cleanup.
+
+`DONE`::
+Complete.
 --
 
 `primary`::
@@ -303,7 +303,7 @@ The API returns the following response:
         "percent" : "100.0%",
         "total_on_start" : 0,
         "total_time" : "0s",
-        "total_time_in_millis" : 0,
+        "total_time_in_millis" : 0
       },
       "verify_index" : {
         "check_index_time" : "0s",

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -74,7 +73,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     private AsyncSearchTask createAsyncSearchTask() {
         return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
     }
 
     public void testTaskDescription() {
@@ -82,7 +81,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         AsyncSearchTask asyncSearchTask = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), searchRequest::buildDescription,
             TimeValue.timeValueHours(1), Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
         assertEquals("async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], " +
             "source[{\"query\":{\"term\":{\"field\":{\"value\":\"value\",\"boost\":1.0}}}}]}", asyncSearchTask.getDescription());
     }
@@ -90,7 +89,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     public void testWaitForInit() throws InterruptedException {
         AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
@@ -246,7 +245,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             IOException failure = new IOException("boum");
             //fetch failures are currently ignored, they come back with onFailure or onResponse anyways
             task.getSearchProgressActionListener().onFetchFailure(i,
-                new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
+                new SearchShardTarget("0", new ShardId("0", "0", 1), null),
                 failure);
             shardSearchFailures[i] = new ShardSearchFailure(failure);
         }
@@ -280,7 +279,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             //fetch failures are currently ignored, they come back with onFailure or onResponse anyways
             task.getSearchProgressActionListener().onFetchFailure(i,
-                new SearchShardTarget("0", new ShardId("0", "0", 1), null, OriginalIndices.NONE),
+                new SearchShardTarget("0", new ShardId("0", "0", 1), null),
                 new IOException("boum"));
         }
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, true, false);

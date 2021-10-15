@@ -13,11 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -32,8 +32,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
 class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
@@ -68,8 +68,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString,
             in -> {
                 long lastUpdate = in.readLong();
-                return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(),
-                    in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readLong() : lastUpdate);
+                return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
             }));
     }
 
@@ -135,9 +134,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
-            if (o.getVersion().onOrAfter(Version.V_7_14_0)) {
-                o.writeLong(v.lastCheck);
-            }
+            o.writeLong(v.lastCheck);
         });
     }
 

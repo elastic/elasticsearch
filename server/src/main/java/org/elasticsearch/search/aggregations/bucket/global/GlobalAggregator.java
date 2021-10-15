@@ -57,15 +57,22 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0: "global aggregator can only be a top level aggregator";
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalGlobal(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata())
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0 : "global aggregator can only be a top level aggregator";
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalGlobal(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
         );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         throw new UnsupportedOperationException(
-                "global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
+            "global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations"
+        );
     }
 }

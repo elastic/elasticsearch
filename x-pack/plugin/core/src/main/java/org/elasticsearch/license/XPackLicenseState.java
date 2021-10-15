@@ -15,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -25,14 +24,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -46,42 +42,12 @@ public class XPackLicenseState {
      */
     public enum Feature {
         SECURITY_AUDITING(OperationMode.GOLD, false),
-        SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
         SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
         SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
 
-        WATCHER(OperationMode.STANDARD, true),
-        // TODO: should just check WATCHER directly?
-        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
-        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
-
-        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
-
-        CCR(OperationMode.PLATINUM, true),
-
-        GRAPH(OperationMode.PLATINUM, true),
-
-        MACHINE_LEARNING(OperationMode.PLATINUM, true),
-
-        LOGSTASH(OperationMode.STANDARD, true),
-
-        JDBC(OperationMode.PLATINUM, true),
-
-        ODBC(OperationMode.PLATINUM, true),
-
-        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
-
-        SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-
-        SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
-
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
-
-        AUTOSCALING(OperationMode.ENTERPRISE, true);
+        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
         // Embedding the feature instance here is a stopgap to allow smaller initial PR,
@@ -113,8 +79,7 @@ public class XPackLicenseState {
             "The actions of the watches don't execute"
         });
         messages.put(XPackField.MONITORING, new String[] {
-            "The agent will stop collecting cluster and indices metrics",
-            "The agent will stop automatically cleaning indices older than [xpack.monitoring.history.duration]"
+            "The agent will stop collecting cluster and indices metrics"
         });
         messages.put(XPackField.GRAPH, new String[] {
             "Graph explore APIs are disabled"
@@ -263,10 +228,7 @@ public class XPackLicenseState {
                                     "running multiple clusters, users won't be able to access the clusters with\n" +
                                     "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
                                     "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
-                                newMode, newMode, newMode),
-                            LoggerMessageFormat.format(
-                                "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
+                                newMode, newMode, newMode)
                         };
                 }
                 break;
@@ -379,13 +341,13 @@ public class XPackLicenseState {
         /** True if the license is active, or false if it is expired. */
         final boolean active;
 
-        /** The current expiration date of the license; Long.MAX_VALUE if not available yet. */
-        final long licenseExpiryDate;
+        /** A warning to be emitted on license checks about the license expiring soon. */
+        final String expiryWarning;
 
-        Status(OperationMode mode, boolean active, long licenseExpiryDate) {
+        Status(OperationMode mode, boolean active, String expiryWarning) {
             this.mode = mode;
             this.active = active;
-            this.licenseExpiryDate = licenseExpiryDate;
+            this.expiryWarning = expiryWarning;
         }
     }
 
@@ -404,7 +366,7 @@ public class XPackLicenseState {
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true, Long.MAX_VALUE);
+    private volatile Status status = new Status(OperationMode.TRIAL, true, null);
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -439,10 +401,10 @@ public class XPackLicenseState {
      *
      * @param mode   The mode (type) of the current license.
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
-     * @param expirationDate Expiration date of the current license.
+     * @param expiryWarning Warning to emit on license checks about the license expiring soon.
      */
-    protected void update(OperationMode mode, boolean active, long expirationDate) {
-        status = new Status(mode, active, expirationDate);
+    protected void update(OperationMode mode, boolean active, String expiryWarning) {
+        status = new Status(mode, active, expiryWarning);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
@@ -467,20 +429,24 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    public String statusDescription() {
+        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
+    }
+
     @Deprecated
     public boolean checkFeature(Feature feature) {
         return feature.feature.check(this);
     }
 
     void featureUsed(LicensedFeature feature) {
+        checkExpiry();
         usage.put(new FeatureUsage(feature, null), epochMillisProvider.getAsLong());
-        checkForExpiry(feature);
     }
 
     void enableUsageTracking(LicensedFeature feature, String contextName) {
+        checkExpiry();
         Objects.requireNonNull(contextName, "Context name cannot be null");
         usage.put(new FeatureUsage(feature, contextName), -1L);
-        checkForExpiry(feature);
     }
 
     void disableUsageTracking(LicensedFeature feature, String contextName) {
@@ -511,24 +477,13 @@ public class XPackLicenseState {
 
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
-        if (isAllowedByLicense(feature.minimumOperationMode, feature.needsActive)) {
-            return true;
-        }
-        return false;
+        return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
     }
 
-    private void checkForExpiry(LicensedFeature feature) {
-        final long licenseExpiryDate = getLicenseExpiryDate();
-        // TODO: this should use epochMillisProvider to avoid a system call + testability
-        final long diff = licenseExpiryDate - System.currentTimeMillis();
-        if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
-            LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
-            final long days = TimeUnit.MILLISECONDS.toDays(diff);
-            final String expiryMessage = (days == 0 && diff > 0)? "expires today":
-                (diff > 0? String.format(Locale.ROOT, "will expire in [%d] days", days):
-                    String.format(Locale.ROOT, "expired on [%s]", LicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
-            HeaderWarning.addWarning("Your license {}. " +
-                "Contact your administrator or update your license for continued use of features", expiryMessage);
+    void checkExpiry() {
+        String warning = status.expiryWarning;
+        if (warning != null) {
+            HeaderWarning.addWarning(warning);
         }
     }
 
@@ -612,11 +567,6 @@ public class XPackLicenseState {
         });
     }
 
-    /** Return the current license expiration date. */
-    public long getLicenseExpiryDate() {
-        return executeAgainstStatus(status -> status.licenseExpiryDate);
-    }
-
     /**
      * A convenient method to test whether a feature is by license status.
      * @see #isAllowedByLicense(OperationMode, boolean)
@@ -640,7 +590,7 @@ public class XPackLicenseState {
 
         @Override
         public String toString() {
-            return context == null ? feature.name : feature.name + ":" + context;
+            return context == null ? feature.getName() : feature.getName() + ":" + context;
         }
 
         @Override

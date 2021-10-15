@@ -11,7 +11,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -24,12 +23,12 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.FilterXContentParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.NumberType;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.NumberType;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -133,7 +132,7 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Integer> maxInputLength = Parameter.intParam("max_input_length", true,
             m -> builder(m).maxInputLength.get(), Defaults.DEFAULT_MAX_INPUT_LENGTH)
             .addDeprecatedName("max_input_len")
-            .setValidator(Builder::validateInputLength)
+            .addValidator(Builder::validateInputLength)
             .alwaysSerialize();
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -172,16 +171,16 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public CompletionFieldMapper build(ContentPath contentPath) {
+        public CompletionFieldMapper build(MapperBuilderContext context) {
             checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(this.searchAnalyzer.getValue().name(), AnalyzerScope.INDEX,
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue()));
 
             CompletionFieldType ft
-                = new CompletionFieldType(buildFullName(contentPath), completionAnalyzer, meta.getValue());
+                = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
             return new CompletionFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+                multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
         private void checkCompletionContextsLimit() {
@@ -190,7 +189,7 @@ public class CompletionFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "excessive_completion_contexts",
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "excessive_completion_contexts",
                         "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                             " in the mapping for field [" + name() + "]. " +
                             "The maximum allowed number of completion contexts in a mapping will be limited to " +
@@ -208,8 +207,6 @@ public class CompletionFieldMapper extends FieldMapper {
         = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers().get("simple"), c.indexVersionCreated()));
 
     public static final class CompletionFieldType extends TermBasedFieldType {
-
-        private static PostingsFormat postingsFormat;
 
         private ContextMappings contextMappings = null;
 
@@ -234,16 +231,6 @@ public class CompletionFieldMapper extends FieldMapper {
          */
         public ContextMappings getContextMappings() {
             return contextMappings;
-        }
-
-        /**
-         * @return postings format to use for this field-type
-         */
-        public static synchronized PostingsFormat postingsFormat() {
-            if (postingsFormat == null) {
-                postingsFormat = new Completion84PostingsFormat();
-            }
-            return postingsFormat;
         }
 
         /**
@@ -311,6 +298,10 @@ public class CompletionFieldMapper extends FieldMapper {
     @Override
     public CompletionFieldType fieldType() {
         return (CompletionFieldType) super.fieldType();
+    }
+
+    static PostingsFormat postingsFormat() {
+        return PostingsFormat.forName("Completion90");
     }
 
     @Override

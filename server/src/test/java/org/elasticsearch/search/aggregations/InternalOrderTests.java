@@ -8,10 +8,10 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,10 +33,13 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     }
 
     private BucketOrder getRandomOrder() {
-        switch(randomInt(2)) {
-            case 0: return BucketOrder.key(randomBoolean());
-            case 1: return BucketOrder.count(randomBoolean());
-            default: return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
+        switch (randomInt(2)) {
+            case 0:
+                return BucketOrder.key(randomBoolean());
+            case 1:
+                return BucketOrder.count(randomBoolean());
+            default:
+                return BucketOrder.aggregation(randomAlphaOfLength(10), randomBoolean());
         }
     }
 
@@ -67,7 +70,7 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
         // compound and aggregation order because _key and _count orders are static instances.
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-        if(expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
+        if (expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {
             assertNotSame(newInstance, expectedInstance);
         }
     }

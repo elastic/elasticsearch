@@ -108,39 +108,39 @@ public final class DissectParser {
         while (matcher.find()) {
             leadingDelimiter = matcher.group(1);
         }
-        List<DissectPair> matchPairs = new ArrayList<>();
+        List<DissectPair> dissectPairs = new ArrayList<>();
         matcher = KEY_DELIMITER_FIELD_PATTERN.matcher(pattern.substring(leadingDelimiter.length()));
         while (matcher.find()) {
             DissectKey key = new DissectKey(matcher.group(1));
             String delimiter = matcher.group(2);
-            matchPairs.add(new DissectPair(key, delimiter));
+            dissectPairs.add(new DissectPair(key, delimiter));
         }
-        this.maxMatches = matchPairs.size();
-        this.maxResults = Long.valueOf(matchPairs.stream()
+        this.maxMatches = dissectPairs.size();
+        this.maxResults = Long.valueOf(dissectPairs.stream()
             .filter(dissectPair -> dissectPair.getKey().skip() == false).map(KEY_NAME).distinct().count()).intValue();
         if (this.maxMatches == 0 || maxResults == 0) {
             throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
         }
         //append validation - look through all of the keys to see if there are any keys that need to participate in an append operation
         // but don't have the '+' defined
-        Set<String> appendKeyNames = matchPairs.stream()
+        Set<String> appendKeyNames = dissectPairs.stream()
             .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.getKey().getModifier()))
             .map(KEY_NAME).distinct().collect(Collectors.toSet());
         if (appendKeyNames.size() > 0) {
-            List<DissectPair> modifiedMatchPairs = new ArrayList<>(matchPairs.size());
-            for (DissectPair p : matchPairs) {
+            List<DissectPair> modifiedMatchPairs = new ArrayList<>(dissectPairs.size());
+            for (DissectPair p : dissectPairs) {
                 if (p.getKey().getModifier().equals(DissectKey.Modifier.NONE) && appendKeyNames.contains(p.getKey().getName())) {
                     modifiedMatchPairs.add(new DissectPair(new DissectKey(p.getKey(), DissectKey.Modifier.APPEND), p.getDelimiter()));
                 } else {
                     modifiedMatchPairs.add(p);
                 }
             }
-            matchPairs = modifiedMatchPairs;
+            dissectPairs = modifiedMatchPairs;
         }
         appendCount = appendKeyNames.size();
 
         //reference validation - ensure that '*' and '&' come in pairs
-        Map<String, List<DissectPair>> referenceGroupings = matchPairs.stream()
+        Map<String, List<DissectPair>> referenceGroupings = dissectPairs.stream()
             .filter(dissectPair -> ASSOCIATE_MODIFIERS.contains(dissectPair.getKey().getModifier()))
             .collect(Collectors.groupingBy(KEY_NAME));
         for (Map.Entry<String, List<DissectPair>> entry : referenceGroupings.entrySet()) {
@@ -152,7 +152,7 @@ public final class DissectParser {
         }
 
         referenceCount = referenceGroupings.size() * 2;
-        this.matchPairs = Collections.unmodifiableList(matchPairs);
+        this.matchPairs = Collections.unmodifiableList(dissectPairs);
     }
 
 

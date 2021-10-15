@@ -192,7 +192,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         private RestoreSession(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef,
                                Scheduler.Cancellable timeoutTask) {
-            super("restore-session");
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
             this.commitRef = commitRef;

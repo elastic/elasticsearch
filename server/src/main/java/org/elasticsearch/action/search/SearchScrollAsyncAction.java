@@ -141,7 +141,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                         // we need this down the road for subseq. phases
                         SearchShardTarget searchShardTarget = response.getSearchShardTarget();
                         response.setSearchShardTarget(new SearchShardTarget(searchShardTarget.getNodeId(), searchShardTarget.getShardId(),
-                            target.getClusterAlias(), null));
+                            target.getClusterAlias()));
                     }
                 }
 

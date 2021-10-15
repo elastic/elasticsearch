@@ -10,19 +10,17 @@ package org.elasticsearch.xpack;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -60,8 +58,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MigrateToDataTiersIT extends ESRestTestCase {
-    private static final Logger logger = LogManager.getLogger(MigrateToDataTiersIT.class);
-
     private String index;
     private String policy;
     private String alias;
@@ -72,6 +68,10 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
         assertOK(client().performRequest(new Request("POST", "_ilm/start")));
+
+        // we can't have the pre-migration indices getting tier preferences auto-assigned,
+        // if we did, then we wouldn't really be testing the migration *to* data tiers anymore :D
+        enforceDefaultTierPreference(false);
     }
 
     @AfterClass
@@ -118,7 +118,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
+            .putNull(DataTier.TIER_PREFERENCE)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -140,7 +140,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             createIndexWithSettings(client(), rolloverIndexPrefix + "-00000" + i, alias + i, Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
+                .putNull(DataTier.TIER_PREFERENCE)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias + i)
             );
         }
@@ -181,7 +181,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // let's assert the require.data:warm configuration the "indexWithDataWarmRouting" had was migrated to
         // _tier_preference:data_warm,data_hot
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_warm,data_hot"));
 
         // let's retrieve the migrated policy and check it was migrated correctly - namely the warm phase should not contain any allocate
         // action anymore and the cold phase should contain an allocate action that only configures the number of replicas
@@ -239,7 +239,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
+            .putNull(DataTier.TIER_PREFERENCE)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -288,7 +288,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         // the index settings should not contain the _tier_preference
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), indexWithDataWarmRouting);
-        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), nullValue());
+        assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), nullValue());
 
         // let's check the ILM policy was not migrated - ie. the warm phase still contains the allocate action
         Request getPolicy = new Request("GET", "/_ilm/policy/" + policy);
@@ -331,5 +331,15 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(templateRequest);
+    }
+
+    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) throws IOException {
+        Request request = new Request("PUT", "_cluster/settings");
+        request.setJsonEntity("{\n" +
+            "  \"persistent\": {\n" +
+            "    \"" + DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE + "\" : " + enforceDefaultTierPreference + "\n" +
+            "  }\n" +
+            "}");
+        assertOK(client().performRequest(request));
     }
 }

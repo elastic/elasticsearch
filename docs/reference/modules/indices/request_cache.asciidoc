@@ -105,7 +105,7 @@ query-string parameter detailed here.
 [discrete]
 ==== Cache key
 
-The whole JSON body is used as the cache key. This means that if the JSON
+A hash of the whole JSON body is used as the cache key. This means that if the JSON
 changes -- for instance if keys are output in a different order -- then the
 cache key will not be recognised.
 

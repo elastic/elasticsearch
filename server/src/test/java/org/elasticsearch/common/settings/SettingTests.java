@@ -152,7 +152,7 @@ public class SettingTests extends ESTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -627,7 +627,7 @@ public class SettingTests extends ESTestCase {
                 .build();
         deprecatedListSetting.get(settings);
         nonDeprecatedListSetting.get(settings);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedListSetting });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedListSetting }, false);
     }
 
     public void testListSettings() {
@@ -1273,11 +1273,11 @@ public class SettingTests extends ESTestCase {
         ensureNoWarnings();
         final Setting<String> criticalDeprecatedSetting = Setting.simpleString(criticalSettingName, settingValue, Property.Deprecated);
         criticalDeprecatedSetting.checkDeprecation(settings);
-        assertSettingDeprecationsAndWarningsIncludingLevel(new Setting<?>[]{ criticalDeprecatedSetting });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ criticalDeprecatedSetting }, true);
         final Setting<String> deprecatedSettingWarningOnly =
             Setting.simpleString(warningSettingName, settingValue, Property.DeprecatedWarning);
         deprecatedSettingWarningOnly.checkDeprecation(settings);
-        assertSettingDeprecationsAndWarningsIncludingLevel(new Setting<?>[]{ deprecatedSettingWarningOnly });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSettingWarningOnly }, true);
     }
 
     public void testDeprecationPropertyValidation() {

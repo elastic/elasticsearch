@@ -166,7 +166,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
             )
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
-            configurationSettings.x509KeyPair.legacyKeystorePassword});
+            configurationSettings.x509KeyPair.legacyKeystorePassword}, false);
     }
 
     public void testKeystoreKeyPassword() {
@@ -208,7 +208,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             configurationSettings.x509KeyPair.legacyKeystorePassword,
             configurationSettings.x509KeyPair.legacyKeystoreKeyPassword
-        });
+        }, false);
     }
 
     public void testInferKeystoreTypeFromJksFile() {
@@ -382,7 +382,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         KeyManager keyManager = keyConfig.createKeyManager();
         assertNotNull(keyManager);
         assertCombiningTrustConfigContainsCorrectIssuers(config);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{configurationSettings.x509KeyPair.legacyKeyPassword});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{configurationSettings.x509KeyPair.legacyKeyPassword}, false);
     }
 
     public void testPEMKeyAndTrustFiles() {
@@ -427,7 +427,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(config.getTrustConfig(), instanceOf(PemTrustConfig.class));
         TrustManager trustManager = keyConfig.asTrustConfig().createTrustManager();
         assertNotNull(trustManager);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{configurationSettings.x509KeyPair.legacyKeyPassword});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{configurationSettings.x509KeyPair.legacyKeyPassword}, false);
     }
 
     public void testExplicitlyConfigured() {

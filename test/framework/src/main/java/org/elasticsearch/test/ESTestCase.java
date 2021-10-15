@@ -441,41 +441,39 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
-     *
-     * @param settings the settings that are expected to be deprecated
+     *  @param settings the settings that are expected to be deprecated
+     * @param shouldAssertExpectedLogLevel
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
-        assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
-    }
-
-    protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
-        assertWarnings(
-                Stream.concat(
-                        Arrays
-                                .stream(settings)
-                                .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                                        "See the breaking changes documentation for the next major version."),
-                        Arrays.stream(warnings))
-                        .toArray(String[]::new));
-    }
-
-    protected final void assertSettingDeprecationsAndWarningsIncludingLevel(final Setting<?>[] settings, final String... warnings) {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, boolean shouldAssertExpectedLogLevel, final String... warnings) {
         assertWarnings(
             true,
-            true,
+            shouldAssertExpectedLogLevel,
             Stream.concat(
                 Arrays
                     .stream(settings)
-                    .map(setting -> String.format(
-                        Locale.ROOT, "%s Elasticsearch-%s%s-%s \"[%s] setting was deprecated in Elasticsearch and will be " +
-                            "removed in a future release! See the breaking changes documentation for the next major version.\"",
-                        setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL.intLevel() :
-                            Level.WARN.intLevel(),
-                        Version.CURRENT.toString(),
-                        Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                        Build.CURRENT.hash(),
-                        setting.getKey())),
+                    .map(setting -> {
+                        String prefix;
+                        String suffix;
+                        if (shouldAssertExpectedLogLevel) {
+                            prefix = String.format(Locale.ROOT, "%s Elasticsearch-%s%s-%s \"",
+                                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL.intLevel() :
+                                    Level.WARN.intLevel(),
+                                Version.CURRENT.toString(),
+                                Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
+                                Build.CURRENT.hash());
+                            suffix = "\"";
+                        }
+                        else {
+                            prefix = "";
+                            suffix = "";
+                        }
+                        String warningMessage = String.format(
+                            Locale.ROOT, "[%s] setting was deprecated in Elasticsearch and will be " +
+                                "removed in a future release! See the breaking changes documentation for the next major version.",
+                            setting.getKey());
+                        return prefix + warningMessage + suffix;
+                    }),
                 Arrays.stream(warnings))
                 .toArray(String[]::new));
     }

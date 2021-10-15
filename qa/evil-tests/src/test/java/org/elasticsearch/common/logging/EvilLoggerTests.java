@@ -190,7 +190,7 @@ public class EvilLoggerTests extends ESTestCase {
         final int iterations = randomIntBetween(0, 128);
         for (int i = 0; i < iterations; i++) {
             setting.get(settings);
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{setting});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{setting}, false);
         }
 
         final String deprecationPath =

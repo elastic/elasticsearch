@@ -136,7 +136,7 @@ public class SettingsFilterTests extends ESTestCase {
         if (useLegacyLdapBindPassword) {
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD
                     .apply(LdapRealmSettings.LDAP_TYPE)
-                    .getConcreteSettingForNamespace("ldap1")});
+                    .getConcreteSettingForNamespace("ldap1")}, false);
         }
     }
 

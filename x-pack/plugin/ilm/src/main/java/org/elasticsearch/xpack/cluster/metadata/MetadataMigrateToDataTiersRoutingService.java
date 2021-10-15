@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
@@ -127,6 +128,18 @@ public final class MetadataMigrateToDataTiersRoutingService {
         }
 
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
+
+        // set ENFORCE_DEFAULT_TIER_PREFERENCE to true (in the persistent settings)
+        mb.persistentSettings(Settings.builder()
+            .put(mb.persistentSettings())
+            .put(ENFORCE_DEFAULT_TIER_PREFERENCE, true)
+            .build());
+
+        // and remove it from the transient settings, just in case it was there
+        Settings.Builder transientSettingsBuilder = Settings.builder().put(mb.transientSettings());
+        transientSettingsBuilder.remove(ENFORCE_DEFAULT_TIER_PREFERENCE);
+        mb.transientSettings(transientSettingsBuilder.build());
+
         String removedIndexTemplateName = null;
         if (Strings.hasText(indexTemplateToDelete)) {
             if (currentState.metadata().getTemplates().containsKey(indexTemplateToDelete)) {

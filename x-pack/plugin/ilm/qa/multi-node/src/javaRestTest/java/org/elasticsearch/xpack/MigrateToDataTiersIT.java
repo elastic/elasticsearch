@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -210,6 +213,13 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         assertThat(cachedPhaseDefinition, containsString(ShrinkAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(SetPriorityAction.NAME));
         assertThat(cachedPhaseDefinition, containsString(ForceMergeAction.NAME));
+
+        // ENFORCE_DEFAULT_TIER_PREFERENCE has been set to true
+        Request getSettingsRequest = new Request("GET", "_cluster/settings");
+        Response getSettingsResponse = client().performRequest(getSettingsRequest);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
+        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
     }
 
     @SuppressWarnings("unchecked")

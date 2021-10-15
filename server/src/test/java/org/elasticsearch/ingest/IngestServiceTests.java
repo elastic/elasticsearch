@@ -319,7 +319,7 @@ public class IngestServiceTests extends ESTestCase {
             indices.put(indexName, indexMetadata);
         }
 
-        int finalIndicesCount = randomIntBetween(0, 4);
+        int finalIndicesCount = randomIntBetween(defaultIndicesCount > 0 ? 0 : 1, 4);
         List<String> finalIndices = new ArrayList<>();
         for (int i = defaultIndicesCount; i < (finalIndicesCount + defaultIndicesCount); i++) {
             String indexName = "index" + i;

@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.index.IndexResponse;
@@ -118,6 +119,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -1340,6 +1342,92 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         clearScrollRequest.setScrollIds(singletonList(scrollId));
         client().clearScroll(clearScrollRequest);
+    }
+
+    public void testWaitOnRefresh() throws Exception {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
+        assertEquals(RestStatus.CREATED, response.status());
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0, TimeValue.timeValueSeconds(30));
+        service.executeQueryPhase(request, task, future);
+        SearchPhaseResult searchPhaseResult = future.actionGet();
+        assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
+    }
+
+    public void testWaitOnRefreshFailsWithRefreshesDisabled() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "-1").build());
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
+        assertEquals(RestStatus.CREATED, response.status());
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0, TimeValue.timeValueSeconds(30));
+        service.executeQueryPhase(request, task, future);
+        IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(illegalArgumentException.getMessage(),
+            containsString("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]"));
+    }
+
+    public void testWaitOnRefreshFailsIfCheckpointNotIndexed() throws Exception {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
+        assertEquals(RestStatus.CREATED, response.status());
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 1,
+            TimeValue.timeValueMillis(randomIntBetween(10, 100)));
+        service.executeQueryPhase(request, task, future);
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(ex.getMessage(),
+            containsString("Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint=1, max_issued_seqNo=0]"));
+    }
+
+    public void testWaitOnRefreshTimeout() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+
+        final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
+        assertEquals(RestStatus.CREATED, response.status());
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0,
+            TimeValue.timeValueMillis(randomIntBetween(10, 100)));
+        service.executeQueryPhase(request, task, future);
+
+        ElasticsearchTimeoutException ex = expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
+        assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

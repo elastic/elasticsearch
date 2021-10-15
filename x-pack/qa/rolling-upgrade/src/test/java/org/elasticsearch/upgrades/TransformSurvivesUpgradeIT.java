@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -24,19 +23,19 @@ import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -66,7 +65,6 @@ import static org.hamcrest.Matchers.oneOf;
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String TRANSFORM_ENDPOINT = "/_transform/";
-    private static final String TRANSFORM_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
     private static final String CONTINUOUS_TRANSFORM_SOURCE = "transform-upgrade-continuous-source";
     private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1)
@@ -290,10 +288,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private String getTransformEndpoint() {
-        // always hit the destination cluster on the non-deprecated endpoint, sometimes hit the source cluster on the non-deprecated
-        // endpoint, unless we're upgrading from 8.0.0, in which case always hit the non-deprecated endpoint
-        return (CLUSTER_TYPE == ClusterType.UPGRADED) || randomBoolean() || UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0) ?
-            TRANSFORM_ENDPOINT : TRANSFORM_ENDPOINT_DEPRECATED;
+        return TRANSFORM_ENDPOINT;
     }
 
     private void putTransform(String id, TransformConfig config) throws IOException {

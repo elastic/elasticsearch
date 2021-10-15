@@ -15,13 +15,11 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
-import org.gradle.initialization.layout.BuildLayout;
-import org.gradle.initialization.layout.BuildLayoutFactory;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.Properties;
+import javax.inject.Inject;
 
 abstract class VersionPropertiesBuildService implements BuildService<VersionPropertiesBuildService.Params>, AutoCloseable {
 
@@ -33,15 +31,24 @@ abstract class VersionPropertiesBuildService implements BuildService<VersionProp
         try {
             File propertiesInputFile = new File(infoPath, "version.properties");
             properties = VersionPropertiesLoader.loadBuildSrcVersion(propertiesInputFile, providerFactory);
-            properties.computeIfAbsent("minimumJava", s -> resolveMinimumJavaVersion(infoPath));
+            properties.computeIfAbsent("minimumRuntimeJava", s -> resolveMinimumRuntimeJavaVersion(infoPath));
+            properties.computeIfAbsent("minimumCompilerJava", s -> resolveMinimumCompilerJavaVersion(infoPath));
         } catch (IOException e) {
             throw new GradleException("Cannot load VersionPropertiesBuildService", e);
         }
     }
 
-    private JavaVersion resolveMinimumJavaVersion(File infoPath) {
+    private JavaVersion resolveMinimumRuntimeJavaVersion(File infoPath) {
+        return resolveJavaVersion(infoPath, "src/main/resources/minimumRuntimeVersion");
+    }
+
+    private JavaVersion resolveMinimumCompilerJavaVersion(File infoPath) {
+        return resolveJavaVersion(infoPath, "src/main/resources/minimumCompilerVersion");
+    }
+
+    private JavaVersion resolveJavaVersion(File infoPath, String path) {
         final JavaVersion minimumJavaVersion;
-        File minimumJavaInfoSource = new File(infoPath, "src/main/resources/minimumRuntimeVersion");
+        File minimumJavaInfoSource = new File(infoPath, path);
         try {
             String versionString = FileUtils.readFileToString(minimumJavaInfoSource);
             minimumJavaVersion = JavaVersion.toVersion(versionString);

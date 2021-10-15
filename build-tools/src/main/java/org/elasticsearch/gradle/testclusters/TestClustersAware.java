@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.gradle.api.Action;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.provider.Provider;
@@ -26,8 +25,8 @@ public interface TestClustersAware extends Task {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 
-        cluster.getNodes().all(node -> node.getDistributions().stream()
-                .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
+        cluster.getNodes()
+            .all(node -> node.getDistributions().stream().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
         cluster.getNodes().all(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }
@@ -37,4 +36,15 @@ public interface TestClustersAware extends Task {
     }
 
     default void beforeStart() {}
+
+    default void enableDebug() {
+        int debugPort = 5007;
+        for (ElasticsearchCluster cluster : getClusters()) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                getLogger().lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
+                node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
+                debugPort += 1;
+            }
+        }
+    }
 }

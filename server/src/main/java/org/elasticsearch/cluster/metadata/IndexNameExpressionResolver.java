@@ -511,7 +511,8 @@ public class IndexNameExpressionResolver {
      * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
      */
     public String[] filteringAliases(ClusterState state, String index, Set<String> resolvedExpressions) {
-        return indexAliases(state, index, AliasMetadata::filteringRequired, false, resolvedExpressions);
+        return indexAliases(state, index,
+            AliasMetadata::filteringRequired, DataStreamAlias::filteringRequired, false, resolvedExpressions);
     }
 
     /**
@@ -530,8 +531,12 @@ public class IndexNameExpressionResolver {
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
      * <p><b>NOTE</b>: the provided expressions must have been resolved already via {@link #resolveExpressions}.
      */
-    public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetadata> requiredAlias, boolean skipIdentity,
-            Set<String> resolvedExpressions) {
+    public String[] indexAliases(ClusterState state,
+                                 String index,
+                                 Predicate<AliasMetadata> requiredAlias,
+                                 Predicate<DataStreamAlias> requiredDataStreamAlias,
+                                 boolean skipIdentity,
+                                 Set<String> resolvedExpressions) {
         if (isAllIndices(resolvedExpressions)) {
             return null;
         }
@@ -558,7 +563,7 @@ public class IndexNameExpressionResolver {
                 stream = resolvedExpressions.stream().map(dataStreamAliases::get).filter(Objects::nonNull);
             }
             return stream.filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
-                .filter(dataStreamAlias -> dataStreamAlias.getFilter() != null)
+                .filter(requiredDataStreamAlias)
                 .map(DataStreamAlias::getName)
                 .toArray(String[]::new);
         } else {

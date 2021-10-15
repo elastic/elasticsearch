@@ -840,12 +840,14 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         // Read TransformConfig from JSON and verify that metadata keys are in the same order as in JSON
         TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
-        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+        assertThat(
+            new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(org.elasticsearch.core.List.of("d", "a", "c", "e", "b"))));
 
         // Write TransformConfig to JSON, read it again and verify that metadata keys are still in the same order
         json = XContentHelper.toXContent(transformConfig, XContentType.JSON, TO_XCONTENT_PARAMS, false).utf8ToString();
         transformConfig = createTransformConfigFromString(json, transformId, true);
-        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+        assertThat(
+            new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(org.elasticsearch.core.List.of("d", "a", "c", "e", "b"))));
 
         // Write TransformConfig to wire, read it again and verify that metadata keys are still in the same order
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -854,7 +856,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 transformConfig = new TransformConfig(in);
             }
         }
-        assertThat(new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(List.of("d", "a", "c", "e", "b"))));
+        assertThat(
+            new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(org.elasticsearch.core.List.of("d", "a", "c", "e", "b"))));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

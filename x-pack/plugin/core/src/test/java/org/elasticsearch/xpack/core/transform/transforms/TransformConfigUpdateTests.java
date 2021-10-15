@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
@@ -198,7 +199,9 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     }
 
     public void testApplyMetadata() {
-        Map<String, Object> oldMetadata = Map.of("foo", 123, "bar", 456);
+        Map<String, Object> oldMetadata = new HashMap<String, Object>();
+        oldMetadata.put("foo", 123);
+        oldMetadata.put("bar", 456);
         TransformConfig config = new TransformConfig(
             "time-transform",
             randomSourceConfig(),
@@ -216,12 +219,14 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
 
-        Map<String, Object> newMetadata = Map.of("bar", 789, "baz", 1000);
+        Map<String, Object> newMetadata = new HashMap<String, Object>();
+        newMetadata.put("bar", 789);
+        newMetadata.put("baz", 1000);
         TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, newMetadata, null);
         TransformConfig updatedConfig = update.apply(config);
 
         // For metadata we apply full replace rather than partial update, so "foo" disappears.
-        assertThat(updatedConfig.getMetadata(), equalTo(Map.of("bar", 789, "baz", 1000)));
+        assertThat(updatedConfig.getMetadata(), equalTo(newMetadata));
     }
 
     public void testApplyWithSyncChange() {

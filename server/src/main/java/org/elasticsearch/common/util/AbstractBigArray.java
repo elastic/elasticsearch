@@ -139,9 +139,10 @@ abstract class AbstractBigArray extends AbstractArray {
      */
     protected static final void fillBySelfCopy(byte[] page, int fromBytes, int toBytes, int initialCopyBytes) {
         for (int pos = fromBytes + initialCopyBytes; pos < toBytes;) {
-            int nextPos = Math.min(fromBytes + ((pos - fromBytes) << 1), toBytes);
-            System.arraycopy(page, fromBytes, page, pos, nextPos - pos);
-            pos = nextPos;
+            int sourceBytesLength = pos - fromBytes; // source bytes available to be copied
+            int copyBytesLength = Math.min(sourceBytesLength, toBytes - pos); // number of bytes to actually copy
+            System.arraycopy(page, fromBytes, page, pos, copyBytesLength);
+            pos += copyBytesLength;
         }
     }
 

@@ -86,8 +86,10 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     }
 
     public static void fill(byte[] page, int from, int to, int value) {
-        VH_PLATFORM_NATIVE_INT.set(page, from << 2, value);
-        fillBySelfCopy(page, from << 2, to << 2, Integer.BYTES);
+        if (from < to) {
+            VH_PLATFORM_NATIVE_INT.set(page, from << 2, value);
+            fillBySelfCopy(page, from << 2, to << 2, Integer.BYTES);
+        }
     }
 
     @Override

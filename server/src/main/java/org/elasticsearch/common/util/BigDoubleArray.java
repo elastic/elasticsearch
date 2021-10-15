@@ -108,8 +108,10 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     }
 
     public static void fill(byte[] page, int from, int to, double value) {
-        VH_PLATFORM_NATIVE_DOUBLE.set(page, from << 3, value);
-        fillBySelfCopy(page, from << 3, to << 3, Double.BYTES);
+        if (from < to) {
+            VH_PLATFORM_NATIVE_DOUBLE.set(page, from << 3, value);
+            fillBySelfCopy(page, from << 3, to << 3, Double.BYTES);
+        }
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

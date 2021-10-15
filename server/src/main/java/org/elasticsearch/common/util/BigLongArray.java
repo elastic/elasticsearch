@@ -111,8 +111,10 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     }
 
     public static void fill(byte[] page, int from, int to, long value) {
-        VH_PLATFORM_NATIVE_LONG.set(page, from << 3, value);
-        fillBySelfCopy(page, from << 3, to << 3, Long.BYTES);
+        if (from < to) {
+            VH_PLATFORM_NATIVE_LONG.set(page, from << 3, value);
+            fillBySelfCopy(page, from << 3, to << 3, Long.BYTES);
+        }
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

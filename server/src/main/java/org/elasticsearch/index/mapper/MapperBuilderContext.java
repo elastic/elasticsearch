@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.Index;
 
 /**
  * Holds context for building Mapper objects from their Builders
@@ -30,9 +31,14 @@ public class MapperBuilderContext {
     }
 
     private final String path;
+    private final String indexName;
 
     private MapperBuilderContext(String path) {
+        this(path,null);
+    }
+    private MapperBuilderContext(String path, String indexName) {
         this.path = path;
+        this.indexName = indexName;
     }
 
     /**
@@ -52,5 +58,13 @@ public class MapperBuilderContext {
             return name;
         }
         return path + "." + name;
+    }
+
+    public MapperBuilderContext withIndexName(String indexName) {
+        return new MapperBuilderContext(this.path, indexName);
+    }
+
+    public String getIndexName() {
+        return indexName;
     }
 }

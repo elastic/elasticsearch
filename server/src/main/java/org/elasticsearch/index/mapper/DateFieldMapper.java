@@ -285,14 +285,13 @@ public final class DateFieldMapper extends FieldMapper {
             return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta);
         }
 
-        private Long parseNullValue(DateFieldType fieldType) {
+        private Long parseNullValue(DateFieldType fieldType, String indexName) {
             if (nullValue.getValue() == null) {
                 return null;
             }
             try {
                 final String fieldName = fieldType.name();
-                final String indexName = "null value... but what index?";//context.indexSettings().getIndex().getName();
-                return fieldType.parseWithDeprecation(nullValue.getValue(), fieldName, nullValue.getValue());
+                return fieldType.parseWithDeprecation(nullValue.getValue(), fieldName, indexName);
             } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
@@ -310,7 +309,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = new DateFieldType(context.buildFullName(name()), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), scriptValues(), meta.getValue());
 
-            Long nullTimestamp = parseNullValue(ft);
+            Long nullTimestamp = parseNullValue(ft, context.getIndexName());
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
         }

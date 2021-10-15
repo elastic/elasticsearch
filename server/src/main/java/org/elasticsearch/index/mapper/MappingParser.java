@@ -95,7 +95,8 @@ public final class MappingParser {
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper
-            = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+            = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT
+            .withIndexName(parserContext.getIndexSettings().getIndex().getName()));
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;

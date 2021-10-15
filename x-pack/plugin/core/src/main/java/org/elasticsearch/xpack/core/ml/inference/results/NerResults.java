@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -21,24 +20,32 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class NerResults implements InferenceResults {
 
     public static final String NAME = "ner_result";
+    public static final String ENTITY_FIELD = "entities";
+
+    private final String resultsField;
+    private final String annotatedResult;
 
     private final List<EntityGroup> entityGroups;
 
-    public NerResults(List<EntityGroup> entityGroups) {
+    public NerResults(String resultsField, String annotatedResult, List<EntityGroup> entityGroups) {
         this.entityGroups = Objects.requireNonNull(entityGroups);
+        this.resultsField = Objects.requireNonNull(resultsField);
+        this.annotatedResult = Objects.requireNonNull(annotatedResult);
     }
 
     public NerResults(StreamInput in) throws IOException {
         entityGroups = in.readList(EntityGroup::new);
+        resultsField = in.readString();
+        annotatedResult = in.readString();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(resultsField, annotatedResult);
         builder.startArray("entities");
         for (EntityGroup entity : entityGroups) {
             entity.toXContent(builder, params);
@@ -55,19 +62,21 @@ public class NerResults implements InferenceResults {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(entityGroups);
+        out.writeString(resultsField);
+        out.writeString(annotatedResult);
     }
 
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(DEFAULT_RESULTS_FIELD, entityGroups.stream().map(EntityGroup::toMap).collect(Collectors.toList()));
+        map.put(resultsField, annotatedResult);
+        map.put(ENTITY_FIELD, entityGroups.stream().map(EntityGroup::toMap).collect(Collectors.toList()));
         return map;
     }
 
     @Override
     public Object predictedValue() {
-        // Used by the inference aggregation
-        throw new UnsupportedOperationException("Named Entity Recognition does not support a single predicted value");
+        return annotatedResult;
     }
 
     public List<EntityGroup> getEntityGroups() {
@@ -75,75 +84,124 @@ public class NerResults implements InferenceResults {
     }
 
     @Override
+    public String getResultsField() {
+        return resultsField;
+    }
+
+    public String getAnnotatedResult() {
+        return annotatedResult;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NerResults that = (NerResults) o;
-        return Objects.equals(entityGroups, that.entityGroups);
+        return Objects.equals(entityGroups, that.entityGroups)
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(annotatedResult, that.annotatedResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entityGroups);
+        return Objects.hash(entityGroups, resultsField, annotatedResult);
     }
 
     public static class EntityGroup implements ToXContentObject, Writeable {
 
-        private static final ParseField LABEL = new ParseField("label");
-        private static final ParseField SCORE = new ParseField("score");
-        private static final ParseField WORD = new ParseField("word");
+        static final String CLASS_NAME = "class_name";
+        static final String CLASS_PROBABILITY = "class_probability";
+        static final String START_POS = "start_pos";
+        static final String END_POS = "end_pos";
 
-        private final String label;
-        private final double score;
-        private final String word;
+        private final String entity;
+        private final String className;
+        private final double classProbability;
+        private final int startPos;
+        private final int endPos;
 
-        public EntityGroup(String label, double score, String word) {
-            this.label = Objects.requireNonNull(label);
-            this.score = score;
-            this.word = Objects.requireNonNull(word);
+        public EntityGroup(
+            String entity,
+            String className,
+            double classProbability,
+            int startPos,
+            int endPos
+        ) {
+            this.entity = entity;
+            this.className = className;
+            this.classProbability = classProbability;
+            this.startPos = startPos;
+            this.endPos = endPos;
+            if (endPos < startPos) {
+                throw new IllegalArgumentException("end_pos [" + endPos + "] less than start_pos [" + startPos + "]");
+            }
         }
 
         public EntityGroup(StreamInput in) throws IOException {
-            label = in.readString();
-            score = in.readDouble();
-            word = in.readString();
+            this.entity = in.readString();
+            this.className = in.readString();
+            this.classProbability = in.readDouble();
+            this.startPos = in.readInt();
+            this.endPos = in.readInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(entity);
+            out.writeString(className);
+            out.writeDouble(classProbability);
+            out.writeInt(startPos);
+            out.writeInt(endPos);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(LABEL.getPreferredName(), label);
-            builder.field(SCORE.getPreferredName(), score);
-            builder.field(WORD.getPreferredName(), word);
+            builder.field("entity", entity);
+            builder.field(CLASS_NAME, className);
+            builder.field(CLASS_PROBABILITY, classProbability);
+            if (startPos >= 0) {
+                builder.field(START_POS, startPos);
+            }
+            if (endPos >= 0) {
+                builder.field(END_POS, endPos);
+            }
             builder.endObject();
             return builder;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(label);
-            out.writeDouble(score);
-            out.writeString(word);
-        }
-
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
-            map.put(LABEL.getPreferredName(), label);
-            map.put(SCORE.getPreferredName(), score);
-            map.put(WORD.getPreferredName(), word);
+            map.put("entity", entity);
+            map.put(CLASS_NAME, className);
+            map.put(CLASS_PROBABILITY, classProbability);
+            if (startPos >= 0) {
+                map.put(START_POS, startPos);
+            }
+            if (endPos >= 0) {
+                map.put(END_POS, endPos);
+            }
             return map;
         }
 
-        public String getLabel() {
-            return label;
+        public String getEntity() {
+            return entity;
         }
 
-        public double getScore() {
-            return score;
+        public String getClassName() {
+            return className;
         }
 
-        public String getWord() {
-            return word;
+        public double getClassProbability() {
+            return classProbability;
+        }
+
+        public int getStartPos() {
+            return startPos;
+        }
+
+        public int getEndPos() {
+            return endPos;
         }
 
         @Override
@@ -151,14 +209,16 @@ public class NerResults implements InferenceResults {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             EntityGroup that = (EntityGroup) o;
-            return Double.compare(that.score, score) == 0 &&
-                Objects.equals(label, that.label) &&
-                Objects.equals(word, that.word);
+            return Double.compare(that.classProbability, classProbability) == 0
+                && startPos == that.startPos
+                && endPos == that.endPos
+                && Objects.equals(entity, that.entity)
+                && Objects.equals(className, that.className);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(label, score, word);
+            return Objects.hash(entity, className, classProbability, startPos, endPos);
         }
     }
 }

@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -115,10 +113,6 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         conditions.setNotOnOrAfter(now.plus(serviceProvider.getAuthnExpiry()));
         conditions.getAudienceRestrictions().add(restriction);
         return conditions;
-    }
-
-    private DateTime now() {
-        return new DateTime(clock.millis(), DateTimeZone.UTC);
     }
 
     private Subject buildSubject(Instant now, UserServiceAuthentication user, SamlAuthenticationState authnState) {

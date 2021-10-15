@@ -175,8 +175,8 @@ setup:
 ---
 histogram with time series mappings:
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/78443"
+      version: " - 7.99.99"
+      reason: time series mode added in 8.0.0
 
   - do:
 

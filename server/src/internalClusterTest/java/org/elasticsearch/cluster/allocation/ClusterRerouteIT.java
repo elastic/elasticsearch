@@ -48,7 +48,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -267,12 +266,12 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         final Index index = resolveIndex("test");
 
         logger.info("--> closing all nodes");
-        Path shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).availableShardPath(new ShardId(index, 0));
+        Path[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).availableShardPaths(new ShardId(index, 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
         internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
-        logger.info("--> deleting the shard data [{}] ", shardLocation);
-        assertThat(Files.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
+        logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
+        assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
         IOUtils.rm(shardLocation);
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
@@ -329,7 +328,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         Settings newSettings = Settings.builder()
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
                 .build();
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(newSettings).execute().actionGet();
 
         logger.info("--> starting a second node");
         String node_2 = internalCluster().startNode(commonSettings);

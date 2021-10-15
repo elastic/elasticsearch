@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -62,8 +63,8 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
         assertEquals(1, clusterState.getRoutingNodes().node("node1")
             .numberOfShardsWithState(ShardRoutingState.INITIALIZING));
-        assertEquals(byteSize, clusterState.getRoutingTable()
-            .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
+        assertEquals(byteSize,
+            shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
         logger.info("Start the primary shard");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
@@ -77,8 +78,8 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
 
         assertEquals(1, clusterState.getRoutingNodes()
             .node("node2").numberOfShardsWithState(ShardRoutingState.INITIALIZING));
-        assertEquals(byteSize, clusterState.getRoutingTable()
-            .shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
+        assertEquals(byteSize,
+            shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
     }
 
     public void testExpectedSizeOnMove() {

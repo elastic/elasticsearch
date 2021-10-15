@@ -84,7 +84,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         }
 
         TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
+            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null, null);
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, true);
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
     }
@@ -99,7 +99,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         }
 
         TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
+            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null, null);
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, false);
         ElasticsearchStatusException e =
             expectThrows(

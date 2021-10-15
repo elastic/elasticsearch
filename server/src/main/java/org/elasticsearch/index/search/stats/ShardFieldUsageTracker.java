@@ -75,22 +75,24 @@ public class ShardFieldUsageTracker {
     }
 
     static class PerField {
-        boolean terms;
-        boolean postings;
-        boolean termFrequencies;
-        boolean positions;
-        boolean offsets;
-        boolean docValues;
-        boolean storedFields;
-        boolean norms;
-        boolean payloads;
-        boolean termVectors;
-        boolean points;
+        // while these fields are currently only sequentially accessed, we expect concurrent access by future usages (and custom plugins)
+        volatile boolean terms;
+        volatile boolean postings;
+        volatile boolean termFrequencies;
+        volatile boolean positions;
+        volatile boolean offsets;
+        volatile boolean docValues;
+        volatile boolean storedFields;
+        volatile boolean norms;
+        volatile boolean payloads;
+        volatile boolean termVectors;
+        volatile boolean points;
     }
 
     public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
 
-        private final Map<String, PerField> usages = new HashMap<>();
+        // while this map is currently only sequentially accessed, we expect future usages (and custom plugins) to access this concurrently
+        private final Map<String, PerField> usages = new ConcurrentHashMap<>();
 
         @Override
         public void close() {

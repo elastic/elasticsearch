@@ -32,9 +32,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -405,9 +405,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDICES_FIELD.getPreferredName(), indices);
-            builder.field(ALIASES_FIELD.getPreferredName(), aliases);
-            builder.field(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+            builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
+            builder.xContentList(ALIASES_FIELD.getPreferredName(), aliases);
+            builder.xContentList(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
             builder.endObject();
             return builder;
         }

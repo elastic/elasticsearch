@@ -203,7 +203,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
                 .build();
             final Settings.Builder updates = Settings.builder();
-            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "persistent"));
             assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()));
             assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()));
             assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey()),
@@ -215,7 +215,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "97%")
                 .build();
             final Settings.Builder updates = Settings.builder();
-            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "persistent"));
             assertNull(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()));
             assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()),
                 equalTo("97%"));
@@ -228,7 +228,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "95%")
                 .build();
             final Settings.Builder updates = Settings.builder();
-            assertTrue(clusterSettings.updateSettings(settings, target, updates, "transient"));
+            assertTrue(clusterSettings.updateSettings(settings, target, updates, "persistent"));
             assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()),
                 equalTo("95%"));
             assertThat(target.get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey()),

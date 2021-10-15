@@ -55,7 +55,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
             if (entry.getValue() instanceof ValuesSource.Numeric == false) {
                 throw new AggregationExecutionException(
-                    "ValuesSource type " + entry.getValue().toString() + "is not supported for aggregation " + this.name()
+                    "ValuesSource type [" + entry.getValue().toString() + "] is not supported for aggregation [" + this.name() + "]"
                 );
             }
             // TODO: There must be a better option than this.

@@ -149,10 +149,20 @@ Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 // tag::snapshot-repo-corruption-75598-known-issue[]
 * Snapshot and restore: If a running snapshot is cancelled while a
 previously-started snapshot is still ongoing and a later snapshot is enqueued
-then there is a risk that some shard data may be lost from the repository,
-causing future restore operations to fail. To mitigate this problem, prevent
-concurrent snapshot operations by setting
-`snapshot.max_concurrent_operations: 1`.
+then there is a risk that some shard data may be lost from the repository. This
+will cause future restore operations to fail. To mitigate this problem, set
+`snapshot.max_concurrent_operations: 1` to prevent concurrent snapshot
+operations:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "snapshot.max_concurrent_operations" : 1
+  }
+}
+----
 +
 This issue is fixed in {es} versions 7.14.1 and later. For more details, see
 {es-issue}75598[#75598].

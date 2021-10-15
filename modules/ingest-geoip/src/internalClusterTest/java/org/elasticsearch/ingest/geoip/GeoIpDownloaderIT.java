@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -94,6 +95,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
+        deleteDatabasesInConfigDirectory();
+
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder()
@@ -285,13 +288,20 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // verify before updating dbs
         {
-            SimulateDocumentBaseResult result = simulatePipeline();
-            assertThat(result.getFailure(), nullValue());
-            assertThat(result.getIngestDocument(), notNullValue());
+            assertBusy(() -> {
+                SimulateDocumentBaseResult result = simulatePipeline();
+                assertThat(result.getFailure(), nullValue());
+                assertThat(result.getIngestDocument(), notNullValue());
 
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+                IngestDocument doc = result.getIngestDocument();
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-city"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-asn"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-country"));
+
+                assertThat(doc.getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
+                assertThat(doc.getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+                assertThat(doc.getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            });
         }
 
         // Enable downloader:
@@ -325,7 +335,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 }
             }
         });
-        deleteDatabasesInConfigDirectory();
     }
 
     public void testStartWithNoDatabases() throws Exception {
@@ -491,6 +500,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(),
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb"));
+                assertThat(nodeResponse.getDatabases(), empty());
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
+                    empty());
             }
         });
     }

@@ -142,6 +142,8 @@ public class SecurityContextTests extends ESTestCase {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = Map.of(
+            ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
+            ApiKeyServiceField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
             ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
@@ -169,6 +171,8 @@ public class SecurityContextTests extends ESTestCase {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = Map.of(
+            ApiKeyServiceField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10),
+            ApiKeyServiceField.API_KEY_NAME_KEY, randomAlphaOfLengthBetween(1, 10),
             ApiKeyServiceField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
             ApiKeyServiceField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
         );

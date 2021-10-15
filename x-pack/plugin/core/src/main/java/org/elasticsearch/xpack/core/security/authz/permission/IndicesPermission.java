@@ -11,8 +11,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -261,7 +259,7 @@ public final class IndicesPermission {
             } else {
                 final List<Index> indices = indexAbstraction.getIndices();
                 final List<String> concreteIndices = new ArrayList<>(indices.size());
-                for (final IndexMetadata idx : indices) {
+                for (final Index idx : indices) {
                     concreteIndices.add(idx.getName());
                 }
                 return concreteIndices;

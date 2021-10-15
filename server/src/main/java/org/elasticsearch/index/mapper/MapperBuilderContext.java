@@ -53,5 +53,4 @@ public class MapperBuilderContext {
         }
         return path + "." + name;
     }
-
 }

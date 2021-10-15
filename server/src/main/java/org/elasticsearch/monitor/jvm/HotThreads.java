@@ -349,14 +349,14 @@ public class HotThreads {
 
     static class ThreadTimeAccumulator {
         private final long threadId;
-        private final TimeValue maxTime;
+        private final TimeValue interval;
 
         private long cpuTime;
         private long blockedTime;
         private long waitedTime;
         private long allocatedBytes;
 
-        ThreadTimeAccumulator(ThreadInfo info, TimeValue maxTime, long cpuTime, long allocatedBytes) {
+        ThreadTimeAccumulator(ThreadInfo info, TimeValue interval, long cpuTime, long allocatedBytes) {
 
             System.out.println(String.format("%n%s: %d %d %d", info.getThreadName(), info.getWaitedTime()*1_000_000, info.getBlockedTime()*1_000_000, cpuTime));
 
@@ -365,7 +365,7 @@ public class HotThreads {
             this.cpuTime = cpuTime;
             this.allocatedBytes = allocatedBytes;
             this.threadId = info.getThreadId();
-            this.maxTime = maxTime;
+            this.interval = interval;
         }
 
         private long millisecondsToNanos(long millis) {
@@ -398,7 +398,17 @@ public class HotThreads {
             if (getCpuTime() == 0) {
                 return 0;
             }
-            return Math.max(maxTime.nanos() - getWaitedTime() - getBlockedTime(), 0);
+            return Math.max(interval.nanos() - getWaitedTime() - getBlockedTime(), 0);
+        }
+
+        public long getOtherTime() {
+            // If the thread didn't have any CPU movement, we can't really tell if it's
+            // not running, or it has been asleep forever.
+            if (getCpuTime() == 0) {
+                return 0;
+            }
+
+            return Math.max(getRunnableTime() - getCpuTime(), 0);
         }
 
         public long getBlockedTime() {
@@ -435,12 +445,9 @@ public class HotThreads {
             switch (type) {
                 case CPU:
                     return ThreadTimeAccumulator::getRunnableTime;
-                case WAIT:
-                case BLOCK:
-                case MEM:
+                default:
                     return valueGetterForReportType(type);
             }
-            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
         }
     }
 }

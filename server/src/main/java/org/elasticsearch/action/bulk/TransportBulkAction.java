@@ -620,6 +620,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
+                    /*
+                     * This is called on the cluster state update thread pool
+                     * but we'd prefer to coordinate the bulk request on the
+                     * write thread pool just to make sure the cluster state
+                     * update thread doesn't get clogged up.
+                     */
                     dispatchRetry();
                 }
 
@@ -630,16 +636,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    // Try one more time...
+                    /*
+                     * Try one more time.... This is called on the generic
+                     * thread pool but out of an abundance of caution we
+                     * switch over to the write thread pool that we expect
+                     * to coordinate the bulk request.
+                     */
                     dispatchRetry();
                 }
 
                 private void dispatchRetry() {
-                    /*
-                     * This is called on the cluster state update and timer
-                     * thread pools to dispatch the bulk request onto its
-                     * appropriate thread pool.
-                     */
                     threadPool.executor(executorName).submit(BulkOperation.this);
                 }
             });

@@ -49,6 +49,15 @@ if (!isEclipse) {
   }
 }
 
+sourceSets {
+  test {
+    runtimeClasspath = project.objects.fileCollection().from(
+      output,
+      tasks.named('jar'),
+      project.configurations.testRuntimeClasspath)
+  }
+}
+
 dependencies {
   api 'org.lz4:lz4-java:1.8.0'
   api project(':libs:elasticsearch-core')

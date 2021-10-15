@@ -21,6 +21,4 @@ import net.jpountz.lz4.LZ4Factory;
 
 public class ESLZ4Compressor {
     public static final LZ4Compressor INSTANCE = LZ4Factory.safeInstance().fastCompressor();
-
-    public static final boolean JAVA9_INSTANCE = false;
 }

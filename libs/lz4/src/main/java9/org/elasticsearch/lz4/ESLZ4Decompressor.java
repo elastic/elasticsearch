@@ -31,8 +31,6 @@ import java.nio.ByteBuffer;
 public class ESLZ4Decompressor extends LZ4FastDecompressor {
     public static final LZ4FastDecompressor INSTANCE = new ESLZ4Decompressor();
 
-    public static final boolean JAVA9_INSTANCE = true;
-
     ESLZ4Decompressor() {
     }
 

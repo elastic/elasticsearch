@@ -21,11 +21,16 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ESLZ4CompressorTests extends ESTestCase {
 
+    // This test will fail in Intellij as the Intellij testrunner will not run the tests against the JAR.
+    // Running the tests against the multi release jar is necessary to get Java9 versions.
     public void testJava9VersionIsUsed() {
         boolean isAtLeastJava9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
-        assertEquals(isAtLeastJava9, ESLZ4Compressor.JAVA9_INSTANCE);
+        assumeTrue("Forked instance is only used on Java9 or greater JDKs", isAtLeastJava9);
+        assertThat(ESLZ4Compressor.INSTANCE, instanceOf(ESLZ4Compressor.class));
     }
 
     public void testCompressRealisticUnicode() {

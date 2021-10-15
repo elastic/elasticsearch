@@ -38,8 +38,6 @@ public class ESLZ4Compressor extends LZ4Compressor {
 
     public static final LZ4Compressor INSTANCE = new ESLZ4Compressor();
 
-    public static final boolean JAVA9_INSTANCE = true;
-
     ESLZ4Compressor() {
     }
 

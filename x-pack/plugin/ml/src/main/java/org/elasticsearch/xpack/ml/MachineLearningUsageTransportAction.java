@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -89,7 +90,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
             MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
-                licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING), enabled,
+                MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
@@ -106,7 +107,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             response -> {
                 addTrainedModelStats(response, inferenceUsage);
                 MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
-                    licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING),
+                    MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
                     enabled, jobsUsage, datafeedsUsage, analyticsUsage, inferenceUsage, nodeCount);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             },

@@ -34,6 +34,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
+import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -429,12 +430,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        filtered.add("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing" +
+            " multiple disks. This feature will be removed in a future release.");
+        filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
+        filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release",
-                "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
-        } else {
-            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release");
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         }
+        return filtered;
     }
 
     /**
@@ -1050,7 +1054,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Returns a random number of temporary paths. */
     public String[] tmpPaths() {
-        return new String[] { createTempDir().toAbsolutePath().toString() };
+        final int numPaths = TestUtil.nextInt(random(), 1, 3);
+        final String[] absPaths = new String[numPaths];
+        for (int i = 0; i < numPaths; i++) {
+            absPaths[i] = createTempDir().toAbsolutePath().toString();
+        }
+        return absPaths;
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
@@ -1061,7 +1070,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath()).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
     }
 
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {

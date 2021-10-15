@@ -77,8 +77,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
         List<String> backingIndexNames = ds.getIndices()
             .stream()
-            .filter(x -> x.getIndex().getName().startsWith(".ds-"))
-            .map(x -> x.getIndex().getName())
+            .filter(x -> x.getName().startsWith(".ds-"))
+            .map(Index::getName)
             .collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder(
             Arrays.stream(backingIndices)
@@ -88,7 +88,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 .toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = ds.getIndices().get(0);
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -133,10 +133,9 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         List<Index> expectedBackingIndices = ds.getIndices()
             .stream()
-            .map(IndexMetadata::getIndex)
             .filter(x -> x.getName().equals(indexToRemove.getIndex().getName()) == false)
             .collect(Collectors.toList());
-        assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().stream().map(IndexMetadata::getIndex).toArray()));
+        assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
 
         IndexMetadata removedIndex = newState.metadata().getIndices().get(indexToRemove.getIndex().getName());
         assertThat(removedIndex, notNullValue());
@@ -193,8 +192,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
         List<String> backingIndexNames = ds.getIndices()
             .stream()
-            .filter(x -> x.getIndex().getName().startsWith(".ds-"))
-            .map(x -> x.getIndex().getName())
+            .map(Index::getName)
+            .filter(name -> name.startsWith(".ds-"))
             .collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder(
                 Arrays.stream(backingIndices)
@@ -204,7 +203,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = ds.getIndices().get(0);
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -265,8 +264,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
         List<String> backingIndexNames = ds.getIndices()
             .stream()
-            .filter(x -> x.getIndex().getName().startsWith(".ds-"))
-            .map(x -> x.getIndex().getName())
+            .map(Index::getName)
+            .filter(x -> x.startsWith(".ds-"))
             .collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder(
                 Arrays.stream(backingIndices)
@@ -276,7 +275,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = ds.getIndices().get(0);
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));

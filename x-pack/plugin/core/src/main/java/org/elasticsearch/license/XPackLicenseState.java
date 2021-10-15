@@ -47,12 +47,6 @@ public class XPackLicenseState {
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
 
-        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
-
-        CCR(OperationMode.PLATINUM, true),
-
-        MACHINE_LEARNING(OperationMode.PLATINUM, true),
-
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.

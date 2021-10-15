@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
@@ -53,10 +54,10 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testResizeRequestInterceptorThrowsWhenFLSDLSEnabled() {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -105,10 +106,10 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testResizeRequestInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);

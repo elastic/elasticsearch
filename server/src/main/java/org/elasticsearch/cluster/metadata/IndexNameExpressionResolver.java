@@ -202,7 +202,6 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        Metadata metadata = context.getState().metadata();
         IndicesOptions options = context.getOptions();
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{Metadata.ALL};
@@ -248,8 +247,9 @@ public class IndexNameExpressionResolver {
 
         boolean excludedDataStreams = false;
         final Set<Index> concreteIndices = new LinkedHashSet<>(expressions.size());
+        final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
+            IndexAbstraction indexAbstraction = indicesLookup.get(expression);
             if (indexAbstraction == null ) {
                 if (failNoIndices) {
                     IndexNotFoundException infe;
@@ -275,35 +275,35 @@ public class IndexNameExpressionResolver {
             }
 
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
-                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
+                Index writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex == null) {
                     throw new IllegalArgumentException("no write index is defined for alias [" + indexAbstraction.getName() + "]." +
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                if (addIndex(writeIndex, context)) {
-                    concreteIndices.add(writeIndex.getIndex());
+                if (addIndex(writeIndex, null, context)) {
+                    concreteIndices.add(writeIndex);
                 }
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
-                if (addIndex(writeIndex, context)) {
-                    concreteIndices.add(writeIndex.getIndex());
+                Index writeIndex = indexAbstraction.getWriteIndex();
+                if (addIndex(writeIndex, null, context)) {
+                    concreteIndices.add(writeIndex);
                 }
             } else {
                 if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
-                    for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
-                        indexNames[i++] = indexMetadata.getIndex().getName();
+                    for (Index indexName : indexAbstraction.getIndices()) {
+                        indexNames[i++] = indexName.getName();
                     }
                     throw new IllegalArgumentException(indexAbstraction.getType().getDisplayName() + " [" + expression +
                         "] has more than one index associated with it " + Arrays.toString(indexNames) +
                         ", can't execute a single index op");
                 }
 
-                for (IndexMetadata index : indexAbstraction.getIndices()) {
+                for (Index index : indexAbstraction.getIndices()) {
                     if (shouldTrackConcreteIndex(context, options, index)) {
-                        concreteIndices.add(index.getIndex());
+                        concreteIndices.add(index);
                     }
                 }
             }
@@ -318,11 +318,12 @@ public class IndexNameExpressionResolver {
             }
             throw infe;
         }
-        checkSystemIndexAccess(context, metadata, concreteIndices, indexExpressions);
+        checkSystemIndexAccess(context, concreteIndices, indexExpressions);
         return concreteIndices.toArray(Index.EMPTY_ARRAY);
     }
 
-    private void checkSystemIndexAccess(Context context, Metadata metadata, Set<Index> concreteIndices, String[] originalPatterns) {
+    private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices, String[] originalPatterns) {
+        final Metadata metadata = context.getState().metadata();
         final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate().negate();
         final List<IndexMetadata> systemIndicesThatShouldNotBeAccessed = concreteIndices.stream()
             .map(metadata::index)
@@ -363,32 +364,38 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
+    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
         if (context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
-            && context.netNewSystemIndexPredicate.test(index.getIndex().getName())) {
+            && context.netNewSystemIndexPredicate.test(index.getName())) {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        if (index.getState() == IndexMetadata.State.CLOSE) {
+        final IndexMetadata imd = context.state.metadata().index(index);
+        if (imd.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
-                throw new IndexClosedException(index.getIndex());
+                throw new IndexClosedException(index);
             } else {
-                return options.forbidClosedIndices() == false && addIndex(index, context);
+                return options.forbidClosedIndices() == false && addIndex(index, imd, context);
             }
-        } else if (index.getState() == IndexMetadata.State.OPEN) {
-            return addIndex(index, context);
+        } else if (imd.getState() == IndexMetadata.State.OPEN) {
+            return addIndex(index, imd, context);
         } else {
-            throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+            throw new IllegalStateException("index state [" + index + "] not supported");
         }
     }
 
-    private static boolean addIndex(IndexMetadata metadata, Context context) {
+    private static boolean addIndex(Index index, IndexMetadata imd, Context context) {
         // This used to check the `index.search.throttled` setting, but we eventually decided that it was
         // trappy to hide throttled indices by default. In order to avoid breaking backward compatibility,
         // we changed it to look at the `index.frozen` setting instead, since frozen indices were the only
         // type of index to use the `search_throttled` threadpool at that time.
         // NOTE: We can't reference the Setting object, which is only defined and registered in x-pack.
-        return (context.options.ignoreThrottled() && metadata.getSettings().getAsBoolean("index.frozen", false)) == false;
+        if (context.options.ignoreThrottled()) {
+            imd = imd != null ? imd : context.state.metadata().index(index);
+            return imd.getSettings().getAsBoolean("index.frozen", false) == false;
+        } else {
+            return true;
+        }
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
@@ -631,10 +638,10 @@ public class IndexNameExpressionResolver {
         for (String expression : resolvedExpressions) {
             IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                for (IndexMetadata index : indexAbstraction.getIndices()) {
-                    String concreteIndex = index.getIndex().getName();
-                    AliasMetadata aliasMetadata = index.getAliases().get(indexAbstraction.getName());
+                for (Index index : indexAbstraction.getIndices()) {
+                    String concreteIndex = index.getName();
                     if (norouting.contains(concreteIndex) == false) {
+                        AliasMetadata aliasMetadata = state.metadata().index(concreteIndex).getAliases().get(indexAbstraction.getName());
                         if (aliasMetadata != null && aliasMetadata.searchRoutingValues().isEmpty() == false) {
                             // Routing alias
                             if (routings == null) {
@@ -677,8 +684,8 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 if (dataStream.getIndices() != null) {
-                    for (IndexMetadata indexMetadata : dataStream.getIndices()) {
-                        String concreteIndex = indexMetadata.getIndex().getName();
+                    for (Index index : dataStream.getIndices()) {
+                        String concreteIndex =  index.getName();
                         if (norouting.contains(concreteIndex) == false) {
                             norouting.add(concreteIndex);
                             if (paramRouting != null) {
@@ -1164,7 +1171,8 @@ public class IndexNameExpressionResolver {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                         expand.add(aliasOrIndexName);
                     } else {
-                        for (IndexMetadata meta : indexAbstraction.getIndices()) {
+                        for (Index index : indexAbstraction.getIndices()) {
+                            IndexMetadata meta = context.state.metadata().index(index);
                             if (excludeState == null || meta.getState() != excludeState) {
                                 expand.add(meta.getIndex().getName());
                             }

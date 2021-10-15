@@ -1164,7 +1164,7 @@ public class MetadataCreateIndexService {
         IndexAbstraction source = state.metadata().getIndicesLookup().get(sourceIndex);
         assert source != null;
         if (source.getParentDataStream() != null &&
-            source.getParentDataStream().getWriteIndex().getIndex().equals(sourceMetadata.getIndex())) {
+            source.getParentDataStream().getWriteIndex().equals(sourceMetadata.getIndex())) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot resize the write index [%s] for data stream [%s]",
                 sourceIndex, source.getParentDataStream().getName()));
         }

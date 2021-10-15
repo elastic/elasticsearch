@@ -22,17 +22,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -100,7 +100,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private Client client;
     private JobManager jobManager;
     private JobManagerHolder jobManagerHolder;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
 
     @Before
     public void init() {
@@ -112,7 +112,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         client = mock(Client.class);
         jobManager = mock(JobManager.class);
         jobManagerHolder = new JobManagerHolder(jobManager);
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).build();
         when(clusterService.state()).thenReturn(clusterState);
         givenJobs(Collections.emptyList(), Collections.emptyList());
@@ -132,7 +132,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), commonSettings, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(available);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         var usageAction = newUsageAction(commonSettings);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -171,7 +171,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
@@ -392,7 +392,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageWithOrphanedTask() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
@@ -431,7 +431,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageDisabledML() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
@@ -451,7 +451,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testNodeCount() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         int nodeCount = randomIntBetween(1, 3);
         ClusterState clusterState = givenNodeCount(nodeCount);
         Settings.Builder settings = Settings.builder().put(commonSettings);
@@ -478,7 +478,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
+        when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);

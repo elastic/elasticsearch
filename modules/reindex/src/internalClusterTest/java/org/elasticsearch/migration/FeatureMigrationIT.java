@@ -125,7 +125,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(meta.get(DESCRIPTOR_INTERNAL_META_KEY), is(isInternal));
 
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
-        assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is(INDEX_DOC_COUNT));
+        assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
@@ -160,7 +160,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(client().prepareIndex("source").setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
     }

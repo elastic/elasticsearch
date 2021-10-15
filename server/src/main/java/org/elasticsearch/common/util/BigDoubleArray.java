@@ -121,21 +121,6 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     @Override
     public void set(long index, byte[] buf, int offset, int len) {
-        assert index + len <= size();
-        int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        if (indexInPage + len <= pageSize()) {
-            System.arraycopy(buf, offset << 3, pages[pageIndex], indexInPage << 3, len << 3);
-        } else {
-            int copyLen = pageSize() - indexInPage;
-            System.arraycopy(buf, offset << 3, pages[pageIndex], indexInPage, copyLen << 3);
-            do {
-                ++pageIndex;
-                offset += copyLen;
-                len -= copyLen;
-                copyLen = Math.min(len, pageSize());
-                System.arraycopy(buf, offset << 3, pages[pageIndex], 0, copyLen << 3);
-            } while (len > copyLen);
-        }
+        set(index, buf, offset, len, pages, 3);
     }
 }

@@ -146,4 +146,26 @@ abstract class AbstractBigArray extends AbstractArray {
         }
     }
 
+    /**
+     * Bulk copies array to paged array
+     */
+    public void set(long index, byte[] buf, int offset, int len, byte[][] pages, int shift) {
+        assert index + len <= size();
+        int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        if (indexInPage + len <= pageSize()) {
+            System.arraycopy(buf, offset << shift, pages[pageIndex], indexInPage << shift, len << shift);
+        } else {
+            int copyLen = pageSize() - indexInPage;
+            System.arraycopy(buf, offset << shift, pages[pageIndex], indexInPage, copyLen << shift);
+            do {
+                ++pageIndex;
+                offset += copyLen;
+                len -= copyLen;
+                copyLen = Math.min(len, pageSize());
+                System.arraycopy(buf, offset << shift, pages[pageIndex], 0, copyLen << shift);
+            } while (len > copyLen);
+        }
+    }
+
 }

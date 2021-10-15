@@ -16,43 +16,75 @@
 
   - do:
       indices.create_data_stream:
-        name: data-stream-for-rollover
+        name: data-stream-for-modification
   - is_true: acknowledged
 
   # rollover data stream to create new backing index
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
+        alias: "data-stream-for-modification"
+  - is_true: acknowledged
 
-  - match: { old_index: "/\\.ds-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
-  - match: { new_index: "/\\.ds-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
-  - match: { rolled_over: true }
-  - match: { dry_run: false }
-
-  # save the backing index names for later use
+  # save index names for later use
   - do:
       indices.get_data_stream:
-        name: data-stream-for-rollover
-  - set: { data_streams.0.indices.0.index_name: idx0name }
+        name: data-stream-for-modification
+  - set: { data_streams.0.indices.0.index_name: first_index }
+  - set: { data_streams.0.indices.1.index_name: write_index }
 
-  # ensure new index is created
   - do:
-      indices.exists:
-        index: $idx0name
+      index:
+        index:  test_index1
+        body:   { "foo": "bar1", "@timestamp": "2009-11-15T14:12:12" }
 
-  - is_true: ''
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+  - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: "*"
-  - match: { data_streams.0.name: data-stream-for-rollover }
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.generation: 2 }
+  - match: { data_streams.0.generation: 3 }
+  - length: { data_streams.0.indices: 3 }
+  - match: { data_streams.0.indices.0.index_name: 'test_index1' }
+  - match: { data_streams.0.indices.1.index_name: $first_index }
+  - match: { data_streams.0.indices.2.index_name: $write_index }
+
+  - do:
+      catch: bad_request
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 3 }
   - length: { data_streams.0.indices: 2 }
-  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.indices.1.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { data_streams.0.indices.0.index_name: $first_index }
+  - match: { data_streams.0.indices.1.index_name: $write_index }
 
   - do:
       indices.delete_data_stream:
-        name: data-stream-for-rollover
+        name: data-stream-for-modification
   - is_true: acknowledged

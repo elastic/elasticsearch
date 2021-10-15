@@ -1469,7 +1469,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 final String name = indexMetadata.getIndex().getName();
                 boolean added = allIndices.add(name);
                 assert added : "double index named [" + name + "]";
-                final boolean visible = indexMetadata.isHidden() == false;
+                final boolean visible = indexMetadata.isHidden() == false && indexMetadata.isSystem() == false;
                 if (visible) {
                     visibleIndices.add(name);
                 }

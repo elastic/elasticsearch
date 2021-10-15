@@ -11,6 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -73,7 +74,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         }
 
         return new IndexFieldCapabilities(fieldName, randomAlphaOfLengthBetween(5, 20),
-            randomBoolean(), randomBoolean(), randomBoolean(), meta);
+            randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomFrom(TimeSeriesParams.MetricType.values()), meta);
     }
 
     @Override

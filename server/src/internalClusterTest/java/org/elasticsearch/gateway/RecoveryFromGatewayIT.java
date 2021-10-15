@@ -545,17 +545,19 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         });
 
         if (corrupt) {
-            Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId);
-            final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
-            if (Files.exists(indexPath)) { // multi data path might only have one path in use
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                    for (Path item : stream) {
-                        if (item.getFileName().toString().startsWith("segments_")) {
-                            logger.debug("--> deleting [{}]", item);
-                            Files.delete(item);
+            for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
+                final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+                if (Files.exists(indexPath)) { // multi data path might only have one path in use
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                        for (Path item : stream) {
+                            if (item.getFileName().toString().startsWith("segments_")) {
+                                logger.debug("--> deleting [{}]", item);
+                                Files.delete(item);
+                            }
                         }
                     }
                 }
+
             }
         }
 

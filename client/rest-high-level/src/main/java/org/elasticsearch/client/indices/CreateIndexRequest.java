@@ -36,8 +36,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-
 /**
  * A request to create an index.
  */
@@ -47,7 +45,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
     static final ParseField ALIASES = new ParseField("aliases");
 
     private final String index;
-    private Settings settings = EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     private BytesReference mappings;
     private XContentType mappingsXContentType;

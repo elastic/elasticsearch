@@ -17,7 +17,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
@@ -44,7 +43,7 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
     public void testCustomDateFormatsWithNowFunctions() throws IOException {
         createIndex();
         String[] docs = new String[customFormats.length];
-        String zID = JdbcIntegrationTestCase.randomKnownTimeZone();
+        String zID = randomZone().getId();
         StringBuilder datesConditions = new StringBuilder();
 
         for (int i = 0; i < customFormats.length; i++) {

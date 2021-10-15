@@ -47,6 +47,8 @@ public class XPackLicenseState {
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
 
+        CCR(OperationMode.PLATINUM, true),
+
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);

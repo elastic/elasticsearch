@@ -36,7 +36,7 @@ setup:
 "Execute successful after refresh search":
   - do:
       fleet.search:
-        index: "test-after-refresh"
+        target: "test-after-refresh"
         allow_partial_search_results: false
         wait_for_checkpoints: 1
         body: { query: { match_all: {} } }
@@ -48,7 +48,7 @@ setup:
 "Can use alias":
   - do:
       fleet.search:
-        index: "test-alias"
+        target: "test-alias"
         allow_partial_search_results: false
         wait_for_checkpoints: 1
         body: { query: { match_all: {} } }
@@ -61,7 +61,7 @@ setup:
   - do:
       catch: bad_request
       fleet.search:
-        index: "test-after-refresh"
+        target: "test-after-refresh"
         allow_partial_search_results: false
         wait_for_checkpoints: [1, 1]
         body: { query: { match_all: {} } }
@@ -71,7 +71,7 @@ setup:
   - do:
       catch: bad_request
       fleet.search:
-        index: "test-refresh-disabled"
+        target: "test-refresh-disabled"
         wait_for_checkpoints: 0
         body: { query: { match_all: { } } }
 
@@ -80,7 +80,7 @@ setup:
   - do:
       catch: bad_request
       fleet.search:
-        index: "test-after-refresh"
+        target: "test-after-refresh"
         allow_partial_search_results: false
         wait_for_checkpoints: 2
         body: { query: { match_all: {} } }
@@ -89,7 +89,7 @@ setup:
 "Test msearch":
   - do:
       fleet.msearch:
-        index: "test-after-refresh"
+        target: "test-after-refresh"
         body:
           - { "allow_partial_search_results": false, wait_for_checkpoints: 1 }
           - { query: { match_all: { } } }

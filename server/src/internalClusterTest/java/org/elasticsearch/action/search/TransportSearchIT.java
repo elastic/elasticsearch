@@ -282,7 +282,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             () -> client().prepareSearch("test1")
                 .setWaitForCheckpoints(Collections.singletonMap("test1", new long[2]))
                 .get());
-        assertThat(e2.getMessage(), containsString("Index configured with wait_for_checkpoints must search the same number of shards as " +
+        assertThat(e2.getMessage(), containsString("Target configured with wait_for_checkpoints must search the same number of shards as " +
             "checkpoints provided. [2] checkpoints provided. Target [test1] which resolved to index [test1] has [" + numberOfShards +
             "] shards."));
 
@@ -290,7 +290,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             () -> client().prepareSearch("testAlias")
                 .setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2]))
                 .get());
-        assertThat(e3.getMessage(), containsString("Index configured with wait_for_checkpoints must search the same number of shards as " +
+        assertThat(e3.getMessage(), containsString("Target configured with wait_for_checkpoints must search the same number of shards as " +
             "checkpoints provided. [2] checkpoints provided. Target [testAlias] which resolved to index [test1] has [" + numberOfShards +
             "] shards."));
 

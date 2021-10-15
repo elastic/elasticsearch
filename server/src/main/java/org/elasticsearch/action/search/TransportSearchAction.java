@@ -923,7 +923,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             } else if (indexMetadata == null) {
                 throw new IllegalArgumentException("Cannot find index configured for wait_for_checkpoints parameter [" + index + "].");
             } else if (indexMetadata.getNumberOfShards() != checkpointsProvided) {
-                throw new IllegalArgumentException("Index configured with wait_for_checkpoints must search the same number of shards as " +
+                throw new IllegalArgumentException("Target configured with wait_for_checkpoints must search the same number of shards as " +
                     "checkpoints provided. [" + checkpointsProvided + "] checkpoints provided. Target [" + target + "] which resolved to " +
                     "index [" + index + "] has " + "["  + indexMetadata.getNumberOfShards() + "] shards.");
             }

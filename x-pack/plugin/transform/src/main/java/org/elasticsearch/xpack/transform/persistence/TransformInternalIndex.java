@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.transform.persistence;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -432,7 +432,7 @@ public final class TransformInternalIndex {
         // Creating the index involves communication with the master node, so it's more expensive but much rarer
         try {
             CreateIndexRequest request = new CreateIndexRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
-                settings()
+                settings())
                 .mapping(MapperService.SINGLE_MAPPING_NAME, mappings())
                 // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
                 .alias(new Alias(".data-frame-internal-3"))

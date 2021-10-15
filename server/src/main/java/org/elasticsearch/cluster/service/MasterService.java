@@ -380,6 +380,7 @@ public class MasterService extends AbstractLifecycleComponent {
             newClusterState = builder.build();
         }
 
+        assert previousClusterState.metadata().getIndicesLookup() == newClusterState.metadata().getIndicesLookup();
         return newClusterState;
     }
 

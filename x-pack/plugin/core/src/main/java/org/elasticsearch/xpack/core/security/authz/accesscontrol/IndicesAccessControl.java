@@ -227,18 +227,15 @@ public class IndicesAccessControl {
                 '}';
     }
 
-    public boolean isAllowAll() {
-        return this == AllowAllIndicesAccessControl.ALLOW_ALL_INDICES_ACCESS_CONTROL;
-    }
-
     public static IndicesAccessControl allowAll() {
-        return AllowAllIndicesAccessControl.ALLOW_ALL_INDICES_ACCESS_CONTROL;
+        return AllowAllIndicesAccessControl.INSTANCE;
     }
 
     private static class AllowAllIndicesAccessControl extends IndicesAccessControl {
 
-        private static final IndicesAccessControl ALLOW_ALL_INDICES_ACCESS_CONTROL = new AllowAllIndicesAccessControl();
-        private static final IndexAccessControl ALLOW_ALL_INDEX_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
+        private static final IndicesAccessControl INSTANCE = new AllowAllIndicesAccessControl();
+
+        private final IndexAccessControl ALLOW_ALL_INDEX_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
 
         private AllowAllIndicesAccessControl() {
             super(true, null);

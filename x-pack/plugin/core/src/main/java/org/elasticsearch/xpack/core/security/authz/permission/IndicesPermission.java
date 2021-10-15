@@ -121,10 +121,6 @@ public final class IndicesPermission {
         return groups;
     }
 
-    public boolean isTotal() {
-        return Arrays.stream(groups).anyMatch(Group::isTotal);
-    }
-
     /**
      * @return A predicate that will match all the indices that this permission
      * has the privilege for executing the given action on.
@@ -345,12 +341,17 @@ public final class IndicesPermission {
     /**
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
-    public Map<String, IndicesAccessControl.IndexAccessControl> authorize(
+    public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        // Short circuit if the indicesPermission allows all access to every index
+        if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
+            return IndicesAccessControl.allowAll();
+        }
+
         final List<IndexResource> resources = new ArrayList<>(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
 
@@ -463,6 +464,7 @@ public final class IndicesPermission {
             }
         }
 
+        boolean overallGranted = true;
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>(grantedBuilder.size());
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
             String index = entry.getKey();
@@ -482,10 +484,13 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
+            if (entry.getValue() == false) {
+                overallGranted = false;
+            }
             indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions,
                     (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()));
         }
-        return unmodifiableMap(indexPermissions);
+        return new IndicesAccessControl(overallGranted, unmodifiableMap(indexPermissions));
     }
 
     private boolean isConcreteRestrictedIndex(String indexPattern) {
@@ -578,7 +583,7 @@ public final class IndicesPermission {
             return indexNameAutomaton.get();
         }
 
-        public boolean isTotal() {
+        boolean isTotal() {
             return allowRestrictedIndices
                 && indexNameMatcher.isTotal()
                 && privilege == IndexPrivilege.ALL

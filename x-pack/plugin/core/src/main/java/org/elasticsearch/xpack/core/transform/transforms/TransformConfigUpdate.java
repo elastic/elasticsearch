@@ -117,7 +117,7 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             settings = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             metadata = in.readMap();
         } else {
             metadata = null;
@@ -189,7 +189,7 @@ public class TransformConfigUpdate implements Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalWriteable(settings);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {

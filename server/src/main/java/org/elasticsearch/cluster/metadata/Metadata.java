@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -576,11 +577,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;
         }
-        IndexMetadata writeIndex = result.getWriteIndex();
-        if (writeIndex == null) {
+        Index writeIndexName = result.getWriteIndex();
+        if (writeIndexName == null) {
             throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
         }
-        AliasMetadata writeIndexAliasMetadata = writeIndex.getAliases().get(result.getName());
+        AliasMetadata writeIndexAliasMetadata = index(writeIndexName).getAliases().get(result.getName());
         if (writeIndexAliasMetadata != null) {
             return resolveRouting(routing, aliasOrIndex, writeIndexAliasMetadata);
         } else {
@@ -605,7 +606,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (result.getIndices().size() > 1) {
             rejectSingleIndexOperation(aliasOrIndex, result);
         }
-        return resolveRouting(routing, aliasOrIndex, AliasMetadata.getFirstAliasMetadata(result));
+        return resolveRouting(routing, aliasOrIndex, AliasMetadata.getFirstAliasMetadata(this, result));
     }
 
     private static String resolveRouting(@Nullable String routing, String aliasOrIndex, AliasMetadata aliasMd) {
@@ -629,8 +630,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
         String[] indexNames = new String[result.getIndices().size()];
         int i = 0;
-        for (IndexMetadata indexMetadata : result.getIndices()) {
-            indexNames[i++] = indexMetadata.getIndex().getName();
+        for (Index indexName : result.getIndices()) {
+            indexNames[i++] = indexName.getName();
         }
         throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" +
             Arrays.toString(indexNames) + "], can't execute a single index op");
@@ -1568,34 +1569,29 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dataStreamMetadata != null && indices.size() > 0) {
                 Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
                 for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                    List<IndexMetadata> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
+                    List<Index> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
                         .map(name -> {
                             List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
                             aliases.add(alias.getName());
                             return dataStreamMetadata.dataStreams().get(name);
                         })
                         .flatMap(ds -> ds.getIndices().stream())
-                        .map(index -> indices.get(index.getName()))
                         .collect(Collectors.toList());
-                    IndexMetadata writeIndexOfWriteDataStream = null;
+                    Index writeIndexOfWriteDataStream = null;
                     if (alias.getWriteDataStream() != null) {
                         DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
-                        writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
+                        writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
                     }
                     IndexAbstraction existing = indicesLookup.put(alias.getName(),
                         new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
                     assert existing == null : "duplicate data stream alias for " + alias.getName();
                 }
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
-                    List<IndexMetadata> backingIndices = dataStream.getIndices().stream()
-                        .map(index -> indices.get(index.getName()))
-                        .collect(Collectors.toList());
-                    assert backingIndices.isEmpty() == false;
-                    assert backingIndices.contains(null) == false;
+                    assert dataStream.getIndices().isEmpty() == false;
 
                     List<String> aliases = dataStreamToAliasLookup.getOrDefault(dataStream.getName(), List.of());
                     IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, backingIndices, aliases));
+                        new IndexAbstraction.DataStream(dataStream, aliases));
                     assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                     for (Index i : dataStream.getIndices()) {
@@ -1606,7 +1602,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
             for (var indexMetadata : indices.values()) {
-                IndexAbstraction.Index index;
+                ConcreteIndex index;
                 DataStream parent = indexToDataStreamLookup.get(indexMetadata.getIndex().getName());
                 if (parent != null) {
                     assert parent.getIndices().stream()
@@ -1614,9 +1610,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         .collect(Collectors.toList())
                         .contains(indexMetadata.getIndex().getName()) :
                         "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
-                    index = new IndexAbstraction.Index(indexMetadata, (IndexAbstraction.DataStream) indicesLookup.get(parent.getName()));
+                    index = new ConcreteIndex(indexMetadata, (IndexAbstraction.DataStream) indicesLookup.get(parent.getName()));
                 } else {
-                    index = new IndexAbstraction.Index(indexMetadata);
+                    index = new ConcreteIndex(indexMetadata);
                 }
 
                 IndexAbstraction existing = indicesLookup.put(indexMetadata.getIndex().getName(), index);
@@ -1646,8 +1642,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
                     .filter(ia -> ia.isDataStreamRelated() == false)
                     .filter(ia -> {
-                        for (IndexMetadata index : ia.getIndices()) {
-                            if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {
+                        for (Index index : ia.getIndices()) {
+                            if (indicesLookup.get(index.getName()).getParentDataStream() != null) {
                                 return true;
                             }
                         }

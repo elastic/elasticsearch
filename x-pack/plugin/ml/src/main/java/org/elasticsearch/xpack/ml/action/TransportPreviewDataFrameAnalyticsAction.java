@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction.Response;
@@ -77,7 +78,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }

@@ -59,6 +59,7 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -123,7 +124,7 @@ public class PackageTests extends PackagingTestCase {
 
         startElasticsearch();
 
-        final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
+        final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
         stopElasticsearch();
@@ -208,18 +209,24 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        install();
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
+        try {
+            install();
+            assertInstalled(distribution());
+            verifyPackageInstallation(installation, distribution(), sh);
 
-        remove(distribution());
-        assertRemoved(distribution());
+            remove(distribution());
+            assertRemoved(distribution());
+        } finally {
+            cleanup();
+        }
     }
 
     public void test70RestartServer() throws Exception {
         try {
             install();
             assertInstalled(distribution());
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
 
             startElasticsearch();
             restartElasticsearch(sh, installation);
@@ -279,13 +286,15 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
         stopElasticsearch();
+        // Recreate file realm users that have been deleted in earlier tests
+        setFileSuperuser("test_superuser", "test_superuser_password");
 
         withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 

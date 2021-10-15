@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -29,7 +28,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -171,7 +169,8 @@ public class MetadataDataStreamsService {
         extends AcknowledgedRequest<ModifyDataStreamRequest>
         implements IndicesRequest, ToXContentObject {
 
-        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
+        private static final IndicesOptions INDICES_OPTIONS =
+            IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
         private List<DataStreamAction> actions;
 

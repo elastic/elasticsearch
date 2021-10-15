@@ -142,7 +142,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                         assertThat(jsonParser.numberValue(), equalTo(testParser.numberValue()));
                         break;
                     default:
-                        continue;
+                        break;
                 }
             }
         } catch (Exception e) {

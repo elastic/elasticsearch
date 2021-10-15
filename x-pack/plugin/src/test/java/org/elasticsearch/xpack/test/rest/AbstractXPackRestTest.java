@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,7 +78,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for Machine Learning and Transform templates to be created by the {@link MetadataUpgrader}
+     * Waits for Machine Learning templates to be created by the {@link MetadataUpgrader}
      */
     private void waitForTemplates() {
         if (installTemplates()) {
@@ -93,16 +92,6 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
                 awaitCallApi("indices.exists_index_template", singletonMap("name", template), emptyList(),
                     response -> true,
                     () -> "Exception when waiting for [" + template + "] template to be created");
-            }
-
-            List<String> legacyTemplates = Collections.singletonList(
-                TransformInternalIndexConstants.AUDIT_INDEX
-            );
-
-            for (String legacyTemplate : legacyTemplates) {
-                awaitCallApi("indices.exists_template", singletonMap("name", legacyTemplate), emptyList(),
-                    response -> true,
-                    () -> "Exception when waiting for [" + legacyTemplate + "] legacy template to be created");
             }
         }
     }

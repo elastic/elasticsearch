@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -84,7 +83,6 @@ import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDe
 import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
@@ -137,10 +135,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
@@ -337,23 +333,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
 
         return Arrays.asList(transformServices.get(), new TransformClusterStateListener(clusterService, client));
-    }
-
-    @Override
-    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
-        return templates -> {
-            try {
-                // Template upgraders are only ever called on the master nodes, so we can use the current node version as the compatibility
-                // version here because we can be sure that this node, if elected master, will be compatible with itself.
-                templates.put(
-                    TransformInternalIndexConstants.AUDIT_INDEX,
-                    TransformInternalIndex.getAuditIndexTemplateMetadata(Version.CURRENT)
-                );
-            } catch (IOException e) {
-                logger.warn("Error creating transform audit index", e);
-            }
-            return templates;
-        };
     }
 
     @Override

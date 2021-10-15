@@ -114,7 +114,8 @@ public class AuthenticateResponseTests extends ESTestCase {
             case 1:
                 return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(),
                     originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 2:
                 final List<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
@@ -130,11 +131,13 @@ public class AuthenticateResponseTests extends ESTestCase {
             case 4:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName() + "wrong", originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 5:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail() + "wrong"), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
+                    response.getApiKeyInfo());
             case 6:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled() == false, response.getAuthenticationRealm(),

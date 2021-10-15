@@ -58,7 +58,7 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
-        this.requireNonNullApiKeyMetadataAndIdValue(type, metadata);
+        this.verifyApiKeyInfoAndCreateApiKeyInfoMap(); // authentication.api_key={"id":"ab12", "name":"my-key"}
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -72,7 +72,7 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         this.type = AuthenticationType.values()[in.readVInt()];
         this.metadata = in.readMap();
-        this.requireNonNullApiKeyMetadataAndIdValue(type, metadata);
+        this.verifyApiKeyInfoAndCreateApiKeyInfoMap(); // authentication.api_key={"id":"ab12", "name":"my-key"}
     }
 
     /**
@@ -268,15 +268,32 @@ public class Authentication implements ToXContentObject {
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
         if (isApiKey()) {
-            final Map<String, Object> apiKeyInfoMap;
-            if (this.metadata.containsKey(ApiKeyServiceField.API_KEY_NAME_KEY)) { // Map.of() does not accept nulls, check if name present
-                apiKeyInfoMap = Map.of("id", this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY),
-                    "name", this.metadata.get(ApiKeyServiceField.API_KEY_NAME_KEY));                // newer API KEYs include name
-            } else {
-                apiKeyInfoMap = Map.of("id", this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY)); // older API KEYs lack name
-            }
-            builder.field("api_key", apiKeyInfoMap); // authentication.api_key={"id":"abc123", "name":"my-api-key"}
+            builder.field("api_key", verifyApiKeyInfoAndCreateApiKeyInfoMap()); // authentication.api_key={"id":"ab12", "name":"my-key"}
         }
+    }
+
+    /**
+     * If authenticationType=API_KEY then validate and return API KEY info map, otherwise return null map.
+     *
+     * @return Map of API KEY info, or null for other authentication types.
+     * @throws IllegalArgumentException Error if API KEY id is missing or null, or if API KEY name present but null.
+     */
+    private Map<String, Object> verifyApiKeyInfoAndCreateApiKeyInfoMap() throws IllegalArgumentException {
+        if (isApiKey()) {
+            final String apiKeyId = (String) this.metadata.get(ApiKeyServiceField.API_KEY_ID_KEY);
+            if (apiKeyId == null) { // checks for both errors: 1) metadata.containsKey==false, 2) metadata.get==null
+                throw new IllegalArgumentException("If AuthenticationType=API_KEY, User metadata must contain non-null API KEY id");
+            }
+            if (this.metadata.containsKey(ApiKeyServiceField.API_KEY_NAME_KEY)) { // handle older API KEYs where name was not mandatory
+                final String apiKeyName = (String) this.metadata.get(ApiKeyServiceField.API_KEY_NAME_KEY);
+                if (apiKeyName == null) {
+                    throw new IllegalArgumentException("If AuthenticationType=API_KEY, User metadata with API KEY name must be non-null");
+                }
+                return Map.of("id", apiKeyId, "name", apiKeyName); // newer API KEYs include name
+            }
+            return Map.of("id", apiKeyId);                           // older API KEYs lack name
+        }
+        return null;
     }
 
     @Override

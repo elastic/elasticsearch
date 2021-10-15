@@ -220,7 +220,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(delayedOperations + 1);
         final List<Thread> threads = new ArrayList<>(delayedOperationsBarrier.getParties());
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"rawtypes", "unchecked"})
         final PlainActionFuture<Response>[] futures = new PlainActionFuture[numOperations];
         final TestAction[] actions = new TestAction[numOperations];
 
@@ -239,6 +239,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             Thread thread = new Thread(() -> {
                 final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
                     = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+                @SuppressWarnings("rawtypes")
                 TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                     singlePermitAction.new AsyncPrimaryAction(primaryRequest, listener, null) {
                         @Override
@@ -251,6 +252,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
+                        @SuppressWarnings({"rawtypes", "unchecked"})
                         void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
                             assertThat(reference.indexShard.getActiveOperationsCount(), greaterThan(0));
                             assertSame(primary, reference.indexShard);
@@ -290,11 +292,14 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
+            @SuppressWarnings("rawtypes")
             final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
                 = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+            @SuppressWarnings("rawtypes")
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                 allPermitsAction.new AsyncPrimaryAction(primaryRequest, allPermitFuture, null) {
                     @Override
+                    @SuppressWarnings({"rawtypes", "unchecked"})
                     void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
                         assertEquals("All permits must be acquired",
                             IndexShard.OPERATIONS_BLOCKED, reference.indexShard.getActiveOperationsCount());

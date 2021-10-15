@@ -622,7 +622,7 @@ public class CacheTests extends ESTestCase {
     public void testComputeIfAbsentCallsOnce() throws BrokenBarrierException, InterruptedException {
         int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
-        AtomicReferenceArray flags = new AtomicReferenceArray(numberOfEntries);
+        AtomicReferenceArray<Object> flags = new AtomicReferenceArray<>(numberOfEntries);
         for (int j = 0; j < numberOfEntries; j++) {
             flags.set(j, false);
         }

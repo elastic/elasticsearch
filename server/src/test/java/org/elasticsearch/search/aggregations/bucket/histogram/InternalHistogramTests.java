@@ -36,9 +36,9 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         super.setUp();
         keyed = randomBoolean();
         format = randomNumericDocValueFormat();
-        //in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo
-        //and offset in all randomly created aggs as part of the same test run. This is particularly important when minDocCount is
-        //set to 0 as empty buckets need to be added to fill the holes.
+        // in order for reduction to work properly (and be realistic) we need to use the same interval, minDocCount, emptyBucketInfo
+        // and offset in all randomly created aggs as part of the same test run. This is particularly important when minDocCount is
+        // set to 0 as empty buckets need to be added to fill the holes.
         interval = randomIntBetween(1, 3);
         offset = randomIntBetween(0, 3);
         if (randomBoolean()) {
@@ -46,10 +46,10 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             emptyBucketInfo = null;
         } else {
             minDocCount = 0;
-            //it's ok if minBound and maxBound are outside the range of the generated buckets, that will just mean that
-            //empty buckets won't be added before the first bucket and/or after the last one
+            // it's ok if minBound and maxBound are outside the range of the generated buckets, that will just mean that
+            // empty buckets won't be added before the first bucket and/or after the last one
             int minBound = randomInt(50) - 30;
-            int maxBound =  randomNumberOfBuckets() * interval + randomIntBetween(0, 10);
+            int maxBound = randomNumberOfBuckets() * interval + randomIntBetween(0, 10);
             emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, InternalAggregations.EMPTY);
         }
     }
@@ -64,7 +64,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         final int numBuckets = randomNumberOfBuckets();
         List<InternalHistogram.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < numBuckets; ++i) {
-            //rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
+            // rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
             if (frequently()) {
                 final int docCount = TestUtil.nextInt(random(), 1, 50);
                 buckets.add(new InternalHistogram.Bucket(base + i * interval, docCount, keyed, format, aggregations));
@@ -92,21 +92,26 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
 
         InternalHistogram newHistogram = histogram.create(newBuckets);
-        newHistogram.reduce(Arrays.asList(newHistogram, histogram2),
-                InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction());
+        newHistogram.reduce(
+            Arrays.asList(newHistogram, histogram2),
+            InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction()
+        );
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(new InternalHistogram(
-            "h",
-            List.of(),
-            BucketOrder.key(true),
-            0,
-            new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
-            DocValueFormat.RAW,
-            false,
-            null
-        ), 100000);
+        expectReduceUsesTooManyBuckets(
+            new InternalHistogram(
+                "h",
+                List.of(),
+                BucketOrder.key(true),
+                0,
+                new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
+                DocValueFormat.RAW,
+                false,
+                null
+            ),
+            100000
+        );
     }
 
     @Override
@@ -114,8 +119,10 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         TreeMap<Double, Long> expectedCounts = new TreeMap<>();
         for (Histogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                expectedCounts.compute((Double) bucket.getKey(),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                expectedCounts.compute(
+                    (Double) bucket.getKey(),
+                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+                );
             }
         }
         if (minDocCount == 0) {
@@ -143,8 +150,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
 
         Map<Double, Long> actualCounts = new TreeMap<>();
         for (Histogram.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute((Double) bucket.getKey(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+            actualCounts.compute((Double) bucket.getKey(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
     }
@@ -163,31 +169,38 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         Map<String, Object> metadata = instance.getMetadata();
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         switch (between(0, 4)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(new InternalHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), keyed, format,
-                    InternalAggregations.EMPTY));
-            break;
-        case 2:
-            order = BucketOrder.count(randomBoolean());
-            break;
-        case 3:
-            minDocCount += between(1, 10);
-            emptyBucketInfo = null;
-            break;
-        case 4:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(
+                    new InternalHistogram.Bucket(
+                        randomNonNegativeLong(),
+                        randomIntBetween(1, 100),
+                        keyed,
+                        format,
+                        InternalAggregations.EMPTY
+                    )
+                );
+                break;
+            case 2:
+                order = BucketOrder.count(randomBoolean());
+                break;
+            case 3:
+                minDocCount += between(1, 10);
+                emptyBucketInfo = null;
+                break;
+            case 4:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }

@@ -63,11 +63,6 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
-    setting 'ingest.geoip.downloader.enabled', 'false'
-    if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-      setting 'es.shutdown_feature_flag_enabled', 'true'
-    }
-    systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
@@ -92,6 +87,9 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
+  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-City.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("${project.projectDir}/src/test/resources/GeoLite2-Country.mmdb")
+
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 
@@ -115,6 +113,10 @@ tasks.named("integTest").configure {
   doFirst {
     delete("${buildDir}/cluster/shared/repo")
   }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
 }
 
 tasks.named("buildRestTests").configure {
@@ -1074,6 +1076,39 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "indexes":"farequote"
           }
 '''
+buildRestTests.setups['categorize_text'] = '''
+  - do:
+        indices.create:
+          index: log-messages
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                time:
+                  type: date
+                message:
+                  type: text
+
+  - do:
+        bulk:
+          index: log-messages
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"time":"2016-02-07T00:01:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
+            {"index": {"_id":"2"}}
+            {"time":"2016-02-07T00:02:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
+            {"index": {"_id":"3"}}
+            {"time":"2016-02-07T00:03:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
+            {"index": {"_id":"4"}}
+            {"time":"2016-02-08T00:01:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
+            {"index": {"_id":"5"}}
+            {"time":"2016-02-08T00:02:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
+            {"index": {"_id":"6"}}
+            {"time":"2016-02-08T00:04:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
+'''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
         indices.create:
@@ -1516,6 +1551,29 @@ setups['setup-repository'] = '''
           type: fs
           settings:
             location: buildDir/cluster/shared/repo
+'''
+
+// Used by snapshot restore docs
+setups['setup-snapshots'] = setups['setup-repository'] + '''
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
 '''
 
 // Fake sec logs data used by EQL search

@@ -9,9 +9,9 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,8 +99,9 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
     }
 
     public void testNumericKeys() throws IOException {
-        RangeAggregationBuilder builder = doParseInstance(createParser(JsonXContent.jsonXContent,
-            "{\"test\":{\"range\":{\"field\":\"f\",\"ranges\":[{\"key\":1,\"to\":0}]}}}"));
+        RangeAggregationBuilder builder = doParseInstance(
+            createParser(JsonXContent.jsonXContent, "{\"test\":{\"range\":{\"field\":\"f\",\"ranges\":[{\"key\":1,\"to\":0}]}}}")
+        );
         assertThat(builder.getName(), equalTo("test"));
         assertThat(builder.field(), equalTo("f"));
         assertThat(builder.ranges, equalTo(List.of(new RangeAggregator.Range("1", null, 0d))));

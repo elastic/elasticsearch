@@ -54,7 +54,7 @@ public class XContentMapValues {
     }
 
     @SuppressWarnings({"unchecked"})
-    private static void extractRawValues(List values, Map<String, Object> part, String[] pathElements, int index) {
+    private static void extractRawValues(List<Object> values, Map<String, Object> part, String[] pathElements, int index) {
         if (index == pathElements.length) {
             return;
         }
@@ -69,7 +69,7 @@ public class XContentMapValues {
                 if (currentValue instanceof Map) {
                     extractRawValues(values, (Map<String, Object>) currentValue, pathElements, nextIndex);
                 } else if (currentValue instanceof List) {
-                    extractRawValues(values, (List) currentValue, pathElements, nextIndex);
+                    extractRawValues(values, (List<Object>) currentValue, pathElements, nextIndex);
                 } else {
                     if (nextIndex == pathElements.length) {
                         values.add(currentValue);
@@ -85,7 +85,7 @@ public class XContentMapValues {
     }
 
     @SuppressWarnings({"unchecked"})
-    private static void extractRawValues(List values, List<Object> part, String[] pathElements, int index) {
+    private static void extractRawValues(List<Object> values, List<Object> part, String[] pathElements, int index) {
         for (Object value : part) {
             if (value == null) {
                 continue;
@@ -93,7 +93,7 @@ public class XContentMapValues {
             if (value instanceof Map) {
                 extractRawValues(values, (Map<String, Object>) value, pathElements, index);
             } else if (value instanceof List) {
-                extractRawValues(values, (List) value, pathElements, index);
+                extractRawValues(values, (List<Object>) value, pathElements, index);
             } else {
                 if (index == pathElements.length) {
                     values.add(value);
@@ -362,6 +362,7 @@ public class XContentMapValues {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
 
+                @SuppressWarnings("unchecked")
                 Map<String, Object> valueAsMap = (Map<String, Object>) value;
                 Map<String, Object> filteredValue = filter(valueAsMap,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
@@ -404,7 +405,8 @@ public class XContentMapValues {
                 if (excludeState != -1) {
                     excludeState = excludeAutomaton.step(excludeState, '.');
                 }
-                Map<String, Object> filteredValue = filter((Map<String, ?>)value,
+                @SuppressWarnings("unchecked")
+                Map<String, Object> filteredValue = filter((Map<String, ?>) value,
                         includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
@@ -571,6 +573,7 @@ public class XContentMapValues {
         return TimeValue.parseTimeValue(node.toString(), null, XContentMapValues.class.getSimpleName() + ".nodeTimeValue");
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<String, Object> nodeMapValue(Object node, String desc) {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
@@ -587,7 +590,7 @@ public class XContentMapValues {
      */
     public static String[] nodeStringArrayValue(Object node) {
         if (isArray(node)) {
-            List list = (List) node;
+            List<?> list = (List<?>) node;
             String[] arr = new String[list.size()];
             for (int i = 0; i < arr.length; i++) {
                 arr[i] = nodeStringValue(list.get(i), null);

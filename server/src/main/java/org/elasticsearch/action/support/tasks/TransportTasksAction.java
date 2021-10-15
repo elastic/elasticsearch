@@ -147,6 +147,7 @@ public abstract class TransportTasksAction<
         }
     }
 
+    @SuppressWarnings("unchecked")
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
         if (request.getTaskId().isSet()) {
             // we are only checking one task, we can optimize it
@@ -173,7 +174,7 @@ public abstract class TransportTasksAction<
         taskOperationFailures, List<FailedNodeException> failedNodeExceptions);
 
     @SuppressWarnings("unchecked")
-    protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray responses) {
+    protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray<?> responses) {
         List<TaskResponse> tasks = new ArrayList<>();
         List<FailedNodeException> failedNodeExceptions = new ArrayList<>();
         List<TaskOperationFailure> taskOperationFailures = new ArrayList<>();

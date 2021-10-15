@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -71,10 +71,35 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
-    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
+    static PluginsService newPluginsService(Settings settings) {
         return new PluginsService(
             settings, null, null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(), Arrays.asList(classpathPlugins)
+            TestEnvironment.newEnvironment(settings).pluginsFile(), List.of()
+        );
+    }
+
+    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin)
+        );
+    }
+
+    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins
+        );
+    }
+
+    static PluginsService newPluginsService(
+        Settings settings,
+        Class<? extends Plugin> classpathPlugin1,
+        Class<? extends Plugin> classpathPlugin2
+    ) {
+        return new PluginsService(
+            settings, null, null,
+            TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin1, classpathPlugin2)
         );
     }
 
@@ -136,7 +161,6 @@ public class PluginsServiceTests extends ESTestCase {
                         .build();
         final Path hidden = home.resolve("plugins").resolve(".hidden");
         Files.createDirectories(hidden);
-        @SuppressWarnings("unchecked")
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
                 () -> newPluginsService(settings));
@@ -156,7 +180,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Path desktopServicesStore = plugins.resolve(".DS_Store");
         Files.createFile(desktopServicesStore);
         if (Constants.MAC_OS_X) {
-            @SuppressWarnings("unchecked") final PluginsService pluginsService = newPluginsService(settings);
+            final PluginsService pluginsService = newPluginsService(settings);
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
@@ -409,9 +433,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public static class DummyClass3 {}
 
-    void makeJar(Path jarFile, Class... classes) throws Exception {
+    void makeJar(Path jarFile, Class<?>... classes) throws Exception {
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jarFile))) {
-            for (Class clazz : classes) {
+            for (Class<?> clazz : classes) {
                 String relativePath = clazz.getCanonicalName().replaceAll("\\.", "/") + ".class";
                 if (relativePath.contains(PluginsServiceTests.class.getSimpleName())) {
                     // static inner class of this test
@@ -500,6 +524,26 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Level"));
     }
 
+    public void testJarHellWhenExtendedPluginJarNotFound() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("dummy.jar");
+
+        Path otherDir = createTempDir();
+        Path extendedPlugin = otherDir.resolve("extendedDep-not-present.jar");
+
+        PluginInfo info = new PluginInfo("dummy", "desc", "1.0", Version.CURRENT, "1.8",
+            "Dummy", Arrays.asList("extendedPlugin"), false, PluginType.ISOLATED, "", false);
+
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        transitiveUrls.put("extendedPlugin", Collections.singleton(extendedPlugin.toUri().toURL()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls));
+
+        assertEquals("failed to load plugin dummy while checking for jar hell", e.getMessage());
+    }
+
     public void testJarHellDuplicateClassWithDep() throws Exception {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
@@ -562,6 +606,50 @@ public class PluginsServiceTests extends ESTestCase {
         Set<URL> deps = transitiveDeps.get("myplugin");
         assertNotNull(deps);
         assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dep1Jar.toUri().toURL(), dep2Jar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiAddedToTransitiveDeps() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass3.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        Set<URL> transitive = transitiveDeps.get("myplugin");
+        assertThat(transitive, containsInAnyOrder(spiJar.toUri().toURL(), depJar.toUri().toURL()));
+    }
+
+    public void testJarHellSpiConflict() throws Exception {
+        Path pluginDir = createTempDir();
+        Path pluginJar = pluginDir.resolve("plugin.jar");
+        makeJar(pluginJar, DummyClass2.class);
+        Path spiDir = pluginDir.resolve("spi");
+        Files.createDirectories(spiDir);
+        Path spiJar = spiDir.resolve("spi.jar");
+        makeJar(spiJar, DummyClass1.class);
+        Path depDir = createTempDir();
+        Path depJar = depDir.resolve("dep.jar");
+        makeJar(depJar, DummyClass1.class);
+        Map<String, Set<URL>> transitiveDeps = new HashMap<>();
+        transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, PluginType.ISOLATED, "", false);
+        PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+            PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps));
+        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
+        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
+        assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
     public void testNonExtensibleDep() throws Exception {

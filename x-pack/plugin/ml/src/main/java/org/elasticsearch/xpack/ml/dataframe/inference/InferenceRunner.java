@@ -91,7 +91,7 @@ public class InferenceRunner {
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
-            modelLoadingService.getModelForPipeline(modelId, localModelPlainActionFuture);
+            modelLoadingService.getModelForInternalInference(modelId, localModelPlainActionFuture);
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,

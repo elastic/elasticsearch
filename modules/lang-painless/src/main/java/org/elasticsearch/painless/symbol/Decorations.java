@@ -365,6 +365,10 @@ public class Decorations {
         }
     }
 
+    public interface DynamicInvocation extends Condition {
+
+    }
+
     public static class GetterPainlessMethod implements Decoration {
 
         private final PainlessMethod getterPainlessMethod;
@@ -414,6 +418,19 @@ public class Decorations {
 
         public LocalFunction getLocalFunction() {
             return localFunction;
+        }
+    }
+
+    public static class ThisPainlessMethod implements Decoration {
+
+        private final PainlessMethod thisPainlessMethod;
+
+        public ThisPainlessMethod(PainlessMethod thisPainlessMethod) {
+            this.thisPainlessMethod = Objects.requireNonNull(thisPainlessMethod);
+        }
+
+        public PainlessMethod getThisPainlessMethod() {
+            return thisPainlessMethod;
         }
     }
 

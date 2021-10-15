@@ -11,6 +11,8 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
@@ -23,7 +25,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
@@ -42,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +55,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -270,7 +274,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             filesSet = new HashSet<>();
             files.put(groupName, filesSet);
         }
+
         filesSet.add(file);
+        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList());
+        if (Collections.frequency(fileNames, file.getFileName().toString()) > 1) {
+            Logger logger = LogManager.getLogger(ESClientYamlSuiteTestCase.class);
+            logger.warn("Found duplicate test name [" + groupName + "/" + file.getFileName() + "] on the class path. " +
+                "This can result in class loader dependent execution commands and reproduction commands " +
+                "(will add #2 to one of the test names dependent on the classloading order)");
+        }
     }
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {

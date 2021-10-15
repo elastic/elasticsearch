@@ -36,11 +36,18 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.ml.MlLifeCycleService.MAX_GRACEFUL_SHUTDOWN_TIME;
+import static org.elasticsearch.xpack.ml.MlLifeCycleService.isNodeSafeToShutdown;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -82,10 +89,34 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-1", clusterState), is(false)); // has AD job
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-2", clusterState), is(true)); // has DFA job
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-3", clusterState), is(false)); // has snapshot upgrade
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-4", clusterState), is(true)); // has no ML tasks
+        Instant shutdownStartTime = Instant.now();
+
+        // We might be asked if it's safe to shut down immediately after being asked to shut down
+        Clock clock = Clock.fixed(shutdownStartTime, ZoneId.systemDefault());
+        assertThat(isNodeSafeToShutdown("node-1", clusterState, shutdownStartTime, clock), is(false)); // has AD job
+        assertThat(isNodeSafeToShutdown("node-2", clusterState, shutdownStartTime, clock), is(true)); // has DFA job
+        assertThat(isNodeSafeToShutdown("node-3", clusterState, shutdownStartTime, clock), is(false)); // has snapshot upgrade
+        assertThat(isNodeSafeToShutdown("node-4", clusterState, shutdownStartTime, clock), is(true)); // has no ML tasks
+
+        // Results should also be the same if we're asked if it's safe to shut down before being asked to shut down
+        assertThat(isNodeSafeToShutdown("node-1", clusterState, null, Clock.systemUTC()), is(false)); // has AD job
+        assertThat(isNodeSafeToShutdown("node-2", clusterState, null, Clock.systemUTC()), is(true)); // has DFA job
+        assertThat(isNodeSafeToShutdown("node-3", clusterState, null, Clock.systemUTC()), is(false)); // has snapshot upgrade
+        assertThat(isNodeSafeToShutdown("node-4", clusterState, null, Clock.systemUTC()), is(true)); // has no ML tasks
+
+        // Results should still be the same 1 minute into shutdown
+        clock = Clock.fixed(clock.instant().plus(Duration.ofMinutes(1)), ZoneId.systemDefault());
+        assertThat(isNodeSafeToShutdown("node-1", clusterState, shutdownStartTime, clock), is(false)); // has AD job
+        assertThat(isNodeSafeToShutdown("node-2", clusterState, shutdownStartTime, clock), is(true)); // has DFA job
+        assertThat(isNodeSafeToShutdown("node-3", clusterState, shutdownStartTime, clock), is(false)); // has snapshot upgrade
+        assertThat(isNodeSafeToShutdown("node-4", clusterState, shutdownStartTime, clock), is(true)); // has no ML tasks
+
+        // After the timeout we should always report it's safe to shut down
+        clock = Clock.fixed(clock.instant().plus(MAX_GRACEFUL_SHUTDOWN_TIME), ZoneId.systemDefault());
+        assertThat(isNodeSafeToShutdown("node-1", clusterState, shutdownStartTime, clock), is(true)); // has AD job
+        assertThat(isNodeSafeToShutdown("node-2", clusterState, shutdownStartTime, clock), is(true)); // has DFA job
+        assertThat(isNodeSafeToShutdown("node-3", clusterState, shutdownStartTime, clock), is(true)); // has snapshot upgrade
+        assertThat(isNodeSafeToShutdown("node-4", clusterState, shutdownStartTime, clock), is(true)); // has no ML tasks
     }
 
     public void testIsNodeSafeToShutdownGivenFailedTasks() {
@@ -108,10 +139,13 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-1", clusterState), is(true)); // has failed AD job
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-2", clusterState), is(true)); // has failed DFA job
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-3", clusterState), is(true)); // has failed snapshot upgrade
-        assertThat(MlLifeCycleService.isNodeSafeToShutdown("node-4", clusterState), is(true)); // has no ML tasks
+        // For these tests it shouldn't matter when shutdown started or what the time is now, because it's always safe to shut down
+        Instant shutdownStartTime = randomFrom(Instant.now(), null);
+        Clock clock = Clock.fixed(randomFrom(Instant.now(), Instant.now().plus(Duration.ofDays(1))), ZoneId.systemDefault());
+        assertThat(isNodeSafeToShutdown("node-1", clusterState, shutdownStartTime, clock), is(true)); // has failed AD job
+        assertThat(isNodeSafeToShutdown("node-2", clusterState, shutdownStartTime, clock), is(true)); // has failed DFA job
+        assertThat(isNodeSafeToShutdown("node-3", clusterState, shutdownStartTime, clock), is(true)); // has failed snapshot upgrade
+        assertThat(isNodeSafeToShutdown("node-4", clusterState, shutdownStartTime, clock), is(true)); // has no ML tasks
     }
 
     public void testSignalGracefulShutdownIncludingLocalNode() {
@@ -133,11 +167,18 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         Collection<String> shutdownNodeIds =
             randomBoolean() ? Collections.singleton("node-2") : Arrays.asList("node-1", "node-2", "node-3");
 
-        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds);
+        final Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, clock);
+        assertThat(mlLifeCycleService.getShutdownStartTime(), is(clock.instant()));
 
         verify(datafeedRunner).vacateAllDatafeedsOnThisNode("previously assigned node [node-2-name] is shutting down");
         verify(autodetectProcessManager).vacateOpenJobsOnThisNode();
         verifyNoMoreInteractions(datafeedRunner, mlController, autodetectProcessManager, analyticsManager, memoryTracker);
+
+        // Calling the method again should not advance the start time
+        Clock advancedClock = Clock.fixed(clock.instant().plus(Duration.ofMinutes(1)), ZoneId.systemDefault());
+        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, advancedClock);
+        assertThat(mlLifeCycleService.getShutdownStartTime(), is(clock.instant()));
     }
 
     public void testSignalGracefulShutdownExcludingLocalNode() {
@@ -158,7 +199,8 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         Collection<String> shutdownNodeIds =
             randomBoolean() ? Collections.singleton("node-1") : Arrays.asList("node-1", "node-3");
 
-        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds);
+        mlLifeCycleService.signalGracefulShutdown(clusterState, shutdownNodeIds, Clock.systemUTC());
+        assertThat(mlLifeCycleService.getShutdownStartTime(), nullValue());
 
         verifyNoMoreInteractions(datafeedRunner, mlController, autodetectProcessManager, analyticsManager, memoryTracker);
     }

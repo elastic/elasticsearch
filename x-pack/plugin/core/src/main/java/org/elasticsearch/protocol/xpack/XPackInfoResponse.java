@@ -9,14 +9,16 @@ package org.elasticsearch.protocol.xpack;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.license.License;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 import java.io.IOException;
@@ -31,7 +33,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
     /**
@@ -203,11 +205,27 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject()
-                .field("uid", uid)
-                .field("type", type)
-                .field("mode", mode)
-                .field("status", status.label());
+            builder.startObject();
+            builder.field("uid", uid);
+
+            if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.paramAsBoolean("accept_enterprise", false) == false) {
+                if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
+                    builder.field("type", License.LicenseType.PLATINUM.getTypeName());
+                } else {
+                    builder.field("type", type);
+                }
+
+                if (License.OperationMode.ENTERPRISE.description().equals(mode)) {
+                    builder.field("mode", License.OperationMode.PLATINUM.description());
+                } else {
+                    builder.field("mode", mode);
+                }
+            } else {
+                builder.field("type", type);
+                builder.field("mode", mode);
+            }
+
+            builder.field("status", status.label());
             if (expiryDate != BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
                 builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
             }

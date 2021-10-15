@@ -18,8 +18,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -419,6 +419,7 @@ public class RestTable {
             this.ordering = ordering;
         }
 
+        @SuppressWarnings("unchecked")
         private int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;

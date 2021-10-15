@@ -370,6 +370,19 @@ public class IRDecorations {
         }
     }
 
+    /** describes a method for a node on the script class; which method depends on node type */
+    public static class IRDThisMethod extends IRDecoration<PainlessMethod> {
+
+        public IRDThisMethod(PainlessMethod value) {
+            super(value);
+        }
+
+        @Override
+        public String toString() {
+            return PainlessLookupUtility.buildPainlessMethodKey(getValue().javaMethod.getName(), getValue().typeParameters.size());
+        }
+    }
+
     /** describes the call to a class binding */
     public static class IRDClassBinding extends IRDecoration<PainlessClassBinding> {
 

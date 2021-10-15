@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
@@ -50,6 +51,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -80,7 +82,6 @@ public class PkiRealmTests extends ESTestCase {
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
@@ -272,6 +273,30 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
+    public void testVerificationUsingCertificateAuthorities() throws Exception {
+        final Path caPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt");
+        final Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/trusted.crt");
+        final X509Certificate certificate = readCert(certPath);
+
+        UserRoleMapper roleMapper = buildRoleMapper();
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .putList("xpack.security.authc.realms.pki.my_pki.certificate_authorities", caPath.toString())
+                .build();
+        ThreadContext threadContext = new ThreadContext(globalSettings);
+        PkiRealm realm = buildRealm(roleMapper, settings);
+        assertRealmUsageStats(realm, true, false, true, false);
+
+        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
+
+        X509AuthenticationToken token = realm.token(threadContext);
+        User user = authenticate(token, realm).getUser();
+        assertThat(user, is(notNullValue()));
+        assertThat(user.principal(), is("trusted"));
+        assertThat(user.roles(), is(notNullValue()));
+        assertThat(user.roles().length, is(0));
+    }
+
     public void testAuthenticationDelegationFailsWithoutTokenServiceAndTruststore() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Settings settings = Settings.builder()
@@ -397,13 +422,12 @@ public class PkiRealmTests extends ESTestCase {
                 .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
                 .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+        SslConfigException e = expectThrows(SslConfigException.class, () ->
                 new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier(PkiRealmSettings.TYPE, REALM_NAME), settings,
                         TestEnvironment.newEnvironment(settings), new ThreadContext(settings)),
                     mock(UserRoleMapper.class))
         );
-        assertThat(e.getMessage(), containsString("Neither [xpack.security.authc.realms.pki.my_pki.truststore.secure_password] or [" +
-                    "xpack.security.authc.realms.pki.my_pki.truststore.password] is configured"));
+        assertThat(e, throwableWithMessage(containsString("incorrect password; (no password")));
     }
 
     public void testTruststorePathWithLegacyPasswordDoesNotThrow() throws Exception {

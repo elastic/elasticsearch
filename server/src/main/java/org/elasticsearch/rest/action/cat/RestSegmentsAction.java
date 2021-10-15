@@ -138,7 +138,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                         table.addCell(segment.getNumDocs());
                         table.addCell(segment.getDeletedDocs());
                         table.addCell(segment.getSize());
-                        table.addCell(segment.getMemoryInBytes());
+                        table.addCell(0L);
                         table.addCell(segment.isCommitted());
                         table.addCell(segment.isSearch());
                         table.addCell(segment.getVersion());

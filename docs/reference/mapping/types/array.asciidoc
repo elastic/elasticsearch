@@ -81,20 +81,3 @@ GET my-index-000001/_search
 <3> The second document contains no arrays, but can be indexed into the same fields.
 <4> The query looks for `elasticsearch` in the `tags` field, and matches both documents.
 
-[[multi-value-fields-inverted-index]]
-.Multi-value fields and the inverted index
-****************************************************
-
-The fact that all field types support multi-value fields out of the box is a
-consequence of the origins of Lucene. Lucene was designed to be a full text
-search engine. In order to be able to search for individual words within a
-big block of text, Lucene tokenizes the text into individual terms, and
-adds each term to the inverted index separately.
-
-This means that even a simple text field must be able to support multiple
-values by default. When other data types were added, such as numbers and
-dates, they used the same data structure as strings, and so got multi-values
-for free.
-
-****************************************************
-

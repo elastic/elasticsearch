@@ -74,9 +74,7 @@ public class TTestStats implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TTestStats that = (TTestStats) o;
-        return count == that.count &&
-            Double.compare(that.sum, sum) == 0 &&
-            Double.compare(that.sumOfSqrs, sumOfSqrs) == 0;
+        return count == that.count && Double.compare(that.sum, sum) == 0 && Double.compare(that.sumOfSqrs, sumOfSqrs) == 0;
     }
 
     @Override

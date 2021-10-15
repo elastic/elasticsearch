@@ -30,7 +30,6 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
     public ShrinkSetAliasStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        String shrunkIndexPrefix = randomAlphaOfLength(10);
         return new ShrinkSetAliasStep(stepKey, nextStepKey, client);
     }
 
@@ -56,7 +55,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         return new ShrinkSetAliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
         AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
@@ -94,7 +93,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -114,7 +113,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();

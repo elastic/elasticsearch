@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
@@ -199,8 +200,8 @@ public class RestIndicesAction extends AbstractCatAction {
             public void onResponse(final Collection<ActionResponse> responses) {
                 try {
                     GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
-                    Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
-                        .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
+                    Map<String, Settings> indicesSettings = settingsResponse.getIndexToSettings().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
                     ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
                     Map<String, IndexMetadata> indicesStates =
@@ -722,8 +723,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getCount());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getCount());
 
-            table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getMemory());
-            table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getMemory());
+            table.addCell(totalStats.getSegments() == null ? null : new ByteSizeValue(0));
+            table.addCell(primaryStats.getSegments() == null ? null : new ByteSizeValue(0));
 
             table.addCell(totalStats.getSegments() == null ? null : totalStats.getSegments().getIndexWriterMemory());
             table.addCell(primaryStats.getSegments() == null ? null : primaryStats.getSegments().getIndexWriterMemory());

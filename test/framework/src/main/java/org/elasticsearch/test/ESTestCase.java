@@ -37,7 +37,6 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -66,16 +65,16 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -101,7 +100,6 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -172,7 +170,6 @@ import static org.hamcrest.Matchers.hasItem;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
-    protected static final List<String> JODA_TIMEZONE_IDS;
     protected static final List<String> JAVA_TIMEZONE_IDS;
     protected static final List<String> JAVA_ZONE_IDS;
 
@@ -228,18 +225,29 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         BootstrapForTesting.ensureInitialized();
 
-        // filter out joda timezones that are deprecated for the java time migration
-        List<String> jodaTZIds = DateTimeZone.getAvailableIDs().stream()
-            .filter(s -> DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(s) == false).sorted().collect(Collectors.toList());
-        JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
+        /*
+         * We need to exclude time zones not supported by joda (like SystemV* timezones)
+         * because they cannot be converted back to DateTimeZone which we currently
+         * still need to do internally e.g. in bwc serialization and in the extract() method
+         * //TODO remove once tests do not send time zone ids back to versions of ES using Joda
+         */
+        Set<String> unsupportedJodaTZIds = Set.of(
+            "ACT", "AET", "AGT", "ART", "AST", "BET", "BST", "CAT", "CNT", "CST", "CTT", "EAT", "ECT", "EST",
+            "HST", "IET", "IST", "JST", "MIT", "MST", "NET", "NST", "PLT", "PNT", "PRT", "PST", "SST", "VST"
+        );
+        Predicate<String> unsupportedZoneIdsPredicate = tz -> tz.startsWith("System/") || tz.equals("Eire");
+        Predicate<String> unsupportedTZIdsPredicate = unsupportedJodaTZIds::contains;
 
-        List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
-        Collections.sort(javaTZIds);
-        JAVA_TIMEZONE_IDS = Collections.unmodifiableList(javaTZIds);
+        JAVA_TIMEZONE_IDS = Arrays.stream(TimeZone.getAvailableIDs())
+            .filter(unsupportedTZIdsPredicate.negate())
+            .filter(unsupportedZoneIdsPredicate.negate())
+            .sorted()
+            .collect(Collectors.toUnmodifiableList());
 
-        List<String> javaZoneIds = new ArrayList<>(ZoneId.getAvailableZoneIds());
-        Collections.sort(javaZoneIds);
-        JAVA_ZONE_IDS = Collections.unmodifiableList(javaZoneIds);
+        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream()
+            .filter(unsupportedZoneIdsPredicate.negate())
+            .sorted()
+            .collect(Collectors.toUnmodifiableList());
     }
     @SuppressForbidden(reason = "force log4j and netty sysprops")
     private static void setTestSysProps() {
@@ -248,6 +256,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+
+        // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+        // other if we allow them to set the number of available processors as it's set-once in Netty.
+        System.setProperty("es.set.netty.runtime.available.processors", "false");
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -725,6 +737,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomPicks.randomFrom(random, array);
     }
 
+    /** Pick a random object from the given array of suppliers. The array must not be empty. */
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> T randomFrom(Random random, Supplier<T>... array) {
+        Supplier<T> supplier = RandomPicks.randomFrom(random, array);
+        return supplier.get();
+    }
+
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
@@ -857,13 +877,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * generate a random DateTimeZone from the ones available in joda library
-     */
-    public static DateTimeZone randomDateTimeZone() {
-        return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
-    }
-
-    /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
     public long randomMillisUpToYear9999() {
@@ -874,35 +887,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
-        return TimeZone.getTimeZone(randomJodaAndJavaSupportedTimezone(JAVA_TIMEZONE_IDS));
+        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
     }
 
     /**
      * generate a random TimeZone from the ones available in java.time
      */
     public static ZoneId randomZone() {
-        // work around a JDK bug, where java 8 cannot parse the timezone GMT0 back into a temporal accessor
-        // see https://bugs.openjdk.java.net/browse/JDK-8138664
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            ZoneId timeZone;
-            do {
-                timeZone = ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
-            } while (timeZone.equals(ZoneId.of("GMT0")));
-            return timeZone;
-        } else {
-            return ZoneId.of(randomJodaAndJavaSupportedTimezone(JAVA_ZONE_IDS));
-        }
-    }
-
-    /**
-     * We need to exclude time zones not supported by joda (like SystemV* timezones)
-     * because they cannot be converted back to DateTimeZone which we currently
-     * still need to do internally e.g. in bwc serialization and in the extract() method
-     * //TODO remove once joda is not supported
-     */
-    private static String randomJodaAndJavaSupportedTimezone(List<String> zoneIds) {
-        return randomValueOtherThanMany(id -> JODA_TIMEZONE_IDS.contains(id) == false,
-            () -> randomFrom(zoneIds));
+        return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
     }
 
     /**
@@ -1054,6 +1046,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (Exception e) {
             throw new RuntimeException("resource not found: " + relativePath, e);
         }
+    }
+
+    /** Returns a random number of temporary paths. */
+    public String[] tmpPaths() {
+        return new String[] { createTempDir().toAbsolutePath().toString() };
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {

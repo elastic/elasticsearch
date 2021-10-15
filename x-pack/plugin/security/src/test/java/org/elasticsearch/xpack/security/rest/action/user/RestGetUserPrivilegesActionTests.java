@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -32,7 +33,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -42,11 +43,11 @@ import static org.mockito.Mockito.when;
 public class RestGetUserPrivilegesActionTests extends ESTestCase {
 
     public void testSecurityDisabled() throws Exception {
+        final Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestGetUserPrivilegesAction action =
-            new RestGetUserPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
+            new RestGetUserPrivilegesAction(securityDisabledSettings, mock(SecurityContext.class), licenseState);
         final FakeRestRequest request = new FakeRestRequest();
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
@@ -55,7 +56,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         assertThat(channel.capturedResponse(), notNullValue());
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(channel.capturedResponse().content().utf8ToString(),
-            containsString("Security must be explicitly enabled when using a [basic] license"));
+            containsString("Security is not enabled but a security rest handler is registered"));
     }
 
     public void testBuildResponse() throws Exception {

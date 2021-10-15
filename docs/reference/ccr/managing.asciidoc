@@ -80,9 +80,6 @@ To recreate a follower index,
 <<ccr-access-ccr,access Cross-Cluster Replication>> and choose the
 *Follower indices* tab.
 
-[role="screenshot"]
-image::images/ccr-follower-index.png["The Cross-Cluster Replication page in {kib}"]
-
 Select the follower index and pause replication. When the follower index status
 changes to Paused, reselect the follower index and choose to unfollow the
 leader index.

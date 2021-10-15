@@ -13,12 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
+ * A logger that logs deprecation notices. Logger should be initialized with a class or name which will be used
  * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.elasticsearch.test.SomeClass")</code> will
  * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use a
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
- * Logs are emitted at the custom {@link #DEPRECATION} level, and routed wherever they need to go using log4j. For example,
+ * Logs are emitted at the custom {@link #CRITICAL} level, and routed wherever they need to go using log4j. For example,
  * to disk using a rolling file appender, or added as a response header using {@link HeaderWarningAppender}.
  * <p>
  * Deprecation messages include a <code>key</code>, which is used for rate-limiting purposes. The log4j configuration
@@ -27,11 +27,12 @@ import org.apache.logging.log4j.Logger;
  * message limiting.
  */
 public class DeprecationLogger {
-
     /**
      * Deprecation messages are logged at this level.
+     * More serious that WARN by 1, but less serious than ERROR
      */
-    public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
+    public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
+
 
     private final Logger logger;
 
@@ -72,29 +73,55 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
+     * Logs a message at the {@link DeprecationLogger#CRITICAL} level.
+     * This log will indicate that a change will break in next version.
+     * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger deprecate(
+    public DeprecationLogger critical(
         final DeprecationCategory category,
         final String key,
         final String msg,
-        final Object... params
-    ) {
+        final Object... params) {
+        return logDeprecation(CRITICAL, category, key, msg, params);
+    }
+
+    /**
+     * Logs a message at the {@link Level#WARN} level for less critical deprecations
+     * that won't break in next version.
+     * The message is also sent to the header warning logger,
+     * so that it can be returned to the client.
+     */
+    public DeprecationLogger warn(
+        final DeprecationCategory category,
+        final String key,
+        final String msg,
+        final Object... params) {
+        return logDeprecation(Level.WARN, category, key, msg, params);
+    }
+
+    private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
         assert category != DeprecationCategory.COMPATIBLE_API :
             "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
         ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-        logger.log(DEPRECATION, deprecationMessage);
+        logger.log(level, deprecationMessage);
         return this;
     }
 
-    public DeprecationLogger compatibleApiWarning(
+    /**
+     * Used for handling previous version RestApiCompatible logic.
+     * Logs a message at the {@link DeprecationLogger#CRITICAL} level
+     * that have been broken in previous version.
+     * The message is also sent to the header warning logger,
+     * so that it can be returned to the client.
+     */
+    public DeprecationLogger compatibleCritical(
         final String key,
         final String msg,
         final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
         ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
-        logger.log(DEPRECATION, deprecationMessage);
+        logger.log(CRITICAL, deprecationMessage);
         return this;
     }
 

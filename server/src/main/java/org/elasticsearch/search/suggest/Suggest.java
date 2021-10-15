@@ -10,7 +10,7 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -18,10 +18,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -147,13 +147,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return new Suggest(suggestions);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
-        for (Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-            List<Suggestion> value = unmergedResults.getValue();
+        for (Map.Entry<String, List<Suggestion<?>>> unmergedResults : groupedSuggestions.entrySet()) {
+            List<Suggestion<?>> value = unmergedResults.getValue();
+            @SuppressWarnings("rawtypes")
             Class<? extends Suggestion> suggestionClass = null;
-            for (Suggestion suggestion : value) {
+            for (Suggestion<?> suggestion : value) {
                 if (suggestionClass == null) {
                     suggestionClass = suggestion.getClass();
                 } else if (suggestionClass != suggestion.getClass()) {
@@ -162,7 +162,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                         " query on a single completion suggester version");
                 }
             }
-            Suggestion reduce = value.get(0).reduce(value);
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Suggestion<? extends Entry<? extends Option>> reduce = value.get(0).reduce((List) value);
             reduce.trim();
             reduced.add(reduce);
         }

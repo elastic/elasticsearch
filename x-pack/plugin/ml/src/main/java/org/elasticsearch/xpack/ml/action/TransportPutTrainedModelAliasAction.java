@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
@@ -132,6 +133,10 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                 }
                 if (isLicensed.test(newModel) == false) {
                     listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+                    return;
+                }
+                if (newModel.getModelType() == TrainedModelType.PYTORCH) {
+                    listener.onFailure(ExceptionsHelper.badRequestException("model_alias is not supported on pytorch models"));
                     return;
                 }
                 // if old model is null, none of these validations matter

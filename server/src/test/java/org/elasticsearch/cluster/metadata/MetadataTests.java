@@ -24,10 +24,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -53,6 +53,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataSt
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -922,7 +923,7 @@ public class MetadataTests extends ESTestCase {
             "}";
 
     public void testTransientSettingsOverridePersistentSettings() {
-        final Setting setting = Setting.simpleString("key");
+        final Setting<String> setting = Setting.simpleString("key");
         final Metadata metadata = Metadata.builder()
             .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
             .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
@@ -1021,14 +1022,7 @@ public class MetadataTests extends ESTestCase {
         int numDataStreams = randomIntBetween(2, 8);
         for (int i = 0; i < numDataStreams; i++) {
             String name = "data-stream-" + i;
-            int numBackingIndices = randomIntBetween(1, 4);
-            List<Index> indices = new ArrayList<>(numBackingIndices);
-            for (int j = 1; j <= numBackingIndices; j++) {
-                IndexMetadata idx = createBackingIndex(name, j).build();
-                indices.add(idx.getIndex());
-                b.put(idx, true);
-            }
-            b.put(new DataStream(name, createTimestampField("@timestamp"), indices));
+            addDataStream(name, b);
         }
 
         Metadata metadata = b.build();
@@ -1043,9 +1037,71 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getIndex().getName(),
+            assertThat(value.getWriteIndex().getName(),
                 equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
         }
+    }
+
+    public void testBuildIndicesLookupForDataStreamAliases() {
+        Metadata.Builder b = Metadata.builder();
+
+        addDataStream("d1", b);
+        addDataStream("d2", b);
+        addDataStream("d3", b);
+        addDataStream("d4", b);
+
+        b.put("a1", "d1", null, null);
+        b.put("a1", "d2", null, null);
+        b.put("a2", "d3", null, null);
+        b.put("a3", "d1", null, null);
+
+        Metadata metadata = b.build();
+        assertThat(metadata.dataStreams().size(), equalTo(4));
+        IndexAbstraction value = metadata.getIndicesLookup().get("d1");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), containsInAnyOrder("a1", "a3"));
+
+        value = metadata.getIndicesLookup().get("d2");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), contains("a1"));
+
+        value = metadata.getIndicesLookup().get("d3");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), contains("a2"));
+
+        value = metadata.getIndicesLookup().get("d4");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(value.getAliases(), empty());
+
+        value = metadata.getIndicesLookup().get("a1");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(value.getAliases(), nullValue());
+
+        value = metadata.getIndicesLookup().get("a2");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(value.getAliases(), nullValue());
+
+        value = metadata.getIndicesLookup().get("a3");
+        assertThat(value, notNullValue());
+        assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        assertThat(value.getAliases(), nullValue());
+    }
+
+    private void addDataStream(String name, Metadata.Builder b) {
+        int numBackingIndices = randomIntBetween(1, 4);
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int j = 1; j <= numBackingIndices; j++) {
+            IndexMetadata idx = createBackingIndex(name, j).build();
+            indices.add(idx.getIndex());
+            b.put(idx, true);
+        }
+        b.put(new DataStream(name, createTimestampField("@timestamp"), indices));
     }
 
     public void testIndicesLookupRecordsDataStreamForBackingIndices() {
@@ -1149,18 +1205,18 @@ public class MetadataTests extends ESTestCase {
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
 
-        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
+        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, List.of());
         // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method already
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
         for (IndexMetadata indexMeta : backingIndices) {
-            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
         }
 
         for (int i = 1; i <= generations; i++) {
             // for the indices that we added in the data stream with a "shrink-" prefix, add the non-prefixed indices to the lookup
             if (i % 2 == 0 && i < generations) {
                 IndexMetadata indexMeta = createBackingIndex(dataStreamName, i).build();
-                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.ConcreteIndex(indexMeta, dataStreamAbstraction));
             }
         }
         DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream), Map.of());

@@ -14,7 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -64,13 +64,13 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         Map<String, Phase> phases1 = new HashMap<>();
         phases1.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L))));
         phases1.put("warm", new Phase("warm", TimeValue.ZERO,
-                singletonMap(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "foobarbaz"), null, null))));
+                singletonMap(AllocateAction.NAME, new AllocateAction(1, null, singletonMap("_name", "foobarbaz"), null, null))));
         LifecyclePolicy lifecyclePolicy1 = new LifecyclePolicy("policy_1", phases1);
         Map<String, Phase> phases2 = new HashMap<>();
         phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L))));
         phases2.put("warm", new Phase("warm", TimeValue.ZERO,
                 singletonMap(AllocateAction.NAME,
-                    new AllocateAction(1, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),
+                    new AllocateAction(1, null, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),
                         null, null))));
         LifecyclePolicy lifecyclePolicy2 = new LifecyclePolicy("policy_2", phases2);
         // PUT policy_1 and policy_2

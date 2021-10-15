@@ -1294,7 +1294,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     @After
     public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         // Don't check rollup jobs because we clear them in the superclass.
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
     }

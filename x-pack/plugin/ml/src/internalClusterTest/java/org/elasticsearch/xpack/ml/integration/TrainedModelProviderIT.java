@@ -15,9 +15,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -339,7 +339,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<InferenceDefinition> definitionHolder = new AtomicReference<>();
         blockingCall(
-            listener -> trainedModelProvider.getTrainedModelForInference(modelId, listener),
+            listener -> trainedModelProvider.getTrainedModelForInference(modelId, false, listener),
             definitionHolder,
             exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));

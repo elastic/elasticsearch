@@ -9,13 +9,15 @@
 package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
+
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
-import org.elasticsearch.gradle.internal.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -40,6 +42,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // Default test task should run only unit tests
@@ -101,6 +104,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
+                "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
@@ -118,12 +122,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             Map<String, String> sysprops = Map.of(
                 "java.awt.headless",
                 "true",
-                "tests.gradle",
-                "true",
                 "tests.artifact",
                 project.getName(),
-                "tests.task",
-                test.getPath(),
                 "tests.security.manager",
                 "true",
                 "jna.nosys",
@@ -139,14 +139,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability
-            File gradleHome = project.getGradle().getGradleUserHomeDir();
-            String gradleVersion = project.getGradle().getGradleVersion();
-            nonInputProperties.systemProperty("gradle.dist.lib", new File(project.getGradle().getGradleHomeDir(), "lib"));
-            nonInputProperties.systemProperty(
-                "gradle.worker.jar",
-                gradleHome + "/caches/" + gradleVersion + "/workerMain/gradle-worker.jar"
-            );
-            nonInputProperties.systemProperty("gradle.user.home", gradleHome);
+            File gradleUserHome = project.getGradle().getGradleUserHomeDir();
+            nonInputProperties.systemProperty("gradle.user.home", gradleUserHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 

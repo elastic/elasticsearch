@@ -54,12 +54,18 @@ public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregation
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_6_0);
             builder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
-                new NamedWriteableRegistry(Collections.emptyList()))) {
+            try (
+                StreamInput in = new NamedWriteableAwareStreamInput(
+                    output.bytes().streamInput(),
+                    new NamedWriteableRegistry(Collections.emptyList())
+                )
+            ) {
                 in.setVersion(noBoundsSupportVersion);
                 GeoTileGridAggregationBuilder readBuilder = new GeoTileGridAggregationBuilder(in);
-                assertThat(readBuilder.geoBoundingBox(), equalTo(new GeoBoundingBox(
-                    new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN))));
+                assertThat(
+                    readBuilder.geoBoundingBox(),
+                    equalTo(new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN)))
+                );
             }
         }
     }

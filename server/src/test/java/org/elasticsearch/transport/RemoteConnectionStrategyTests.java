@@ -45,8 +45,8 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
-        assertEquals(Compression.Enabled.FALSE, connectionManager.getConnectionProfile().getCompressionEnabled());
-        assertEquals(Compression.Scheme.DEFLATE, connectionManager.getConnectionProfile().getCompressionScheme());
+        assertEquals(Compression.Enabled.INDEXING_DATA, connectionManager.getConnectionProfile().getCompressionEnabled());
+        assertEquals(Compression.Scheme.LZ4, connectionManager.getConnectionProfile().getCompressionScheme());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
@@ -63,11 +63,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                 TimeValue.timeValueSeconds(5));
         } else if (change.equals(compress)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                randomFrom(Compression.Enabled.INDEXING_DATA, Compression.Enabled.TRUE));
+                randomFrom(Compression.Enabled.FALSE, Compression.Enabled.TRUE));
         } else if (change.equals(compressionScheme)) {
             newBuilder.put(
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                Compression.Scheme.LZ4
+                Compression.Scheme.DEFLATE
             );
         } else {
             throw new AssertionError("Unexpected option: " + change);

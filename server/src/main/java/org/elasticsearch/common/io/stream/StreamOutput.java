@@ -30,10 +30,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -629,7 +626,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS = Map.ofEntries(
+    private static final Map<Class<?>, Writer<?>> WRITERS = Map.ofEntries(
             entry(
                     String.class,
                     (o, v) -> {
@@ -678,7 +675,7 @@ public abstract class StreamOutput extends OutputStream {
                     List.class,
                     (o, v) -> {
                         o.writeByte((byte) 7);
-                        final List list = (List) v;
+                        final List<?> list = (List<?>) v;
                         o.writeVInt(list.size());
                         for (Object item : list) {
                             o.writeGenericValue(item);
@@ -720,14 +717,6 @@ public abstract class StreamOutput extends OutputStream {
                     (o, v) -> {
                         o.writeByte((byte) 12);
                         o.writeLong(((Date) v).getTime());
-                    }),
-            entry(
-                    ReadableInstant.class,
-                    (o, v) -> {
-                        o.writeByte((byte) 13);
-                        final ReadableInstant instant = (ReadableInstant) v;
-                        o.writeString(instant.getZone().getID());
-                        o.writeLong(instant.getMillis());
                     }),
             entry(
                     BytesReference.class,
@@ -792,17 +781,6 @@ public abstract class StreamOutput extends OutputStream {
                         o.writeLong(zonedDateTime.toInstant().toEpochMilli());
                     }),
             entry(
-                    JodaCompatibleZonedDateTime.class,
-                    (o, v) -> {
-                        // write the joda compatibility datetime as joda datetime
-                        o.writeByte((byte) 13);
-                        final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
-                        String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
-                        // joda does not understand "Z" for utc, so we must special case
-                        o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
-                        o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-                    }),
-            entry(
                     Set.class,
                     (o, v) -> {
                         if (v instanceof LinkedHashSet) {
@@ -839,8 +817,6 @@ public abstract class StreamOutput extends OutputStream {
             return Map.class;
         } else if (value instanceof Set) {
             return Set.class;
-        } else if (value instanceof ReadableInstant) {
-            return ReadableInstant.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
         } else {
@@ -859,7 +835,8 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer writer = WRITERS.get(type);
+        @SuppressWarnings("unchecked")
+        final Writer<Object> writer = (Writer<Object>) WRITERS.get(type);
         if (writer != null) {
             writer.write(this, value);
         } else {
@@ -1154,29 +1131,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write a {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeTimeZone(DateTimeZone timeZone) throws IOException {
-        writeString(timeZone.getID());
-    }
-
-    /**
      * Write a {@linkplain ZoneId} to the stream.
      */
     public void writeZoneId(ZoneId timeZone) throws IOException {
         writeString(timeZone.getId());
-    }
-
-    /**
-     * Write an optional {@linkplain DateTimeZone} to the stream.
-     */
-    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
-        if (timeZone == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeTimeZone(timeZone);
-        }
     }
 
     /**

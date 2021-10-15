@@ -13,14 +13,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -72,7 +72,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             if (includeTypeName) {
                 //expecting one type only
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                    request.createIndexRequest.mapping((Map<String, Object>) mappingsEntry.getValue());
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
+                    request.createIndexRequest.mapping(value);
                 }
             } else {
                 // a type is not included, add a dummy _doc type

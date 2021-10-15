@@ -65,6 +65,7 @@ public class TransportExplainDataFrameAnalyticsAction
     private final MemoryUsageEstimationProcessManager processManager;
     private final SecurityContext securityContext;
     private final ThreadPool threadPool;
+    private final Settings settings;
 
     @Inject
     public TransportExplainDataFrameAnalyticsAction(TransportService transportService,
@@ -82,6 +83,7 @@ public class TransportExplainDataFrameAnalyticsAction
         this.licenseState = licenseState;
         this.processManager = Objects.requireNonNull(processManager);
         this.threadPool = threadPool;
+        this.settings = settings;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) :
             null;
@@ -119,7 +121,7 @@ public class TransportExplainDataFrameAnalyticsAction
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
             new ParentTaskAssigningClient(client, task.getParentTaskId())
         );
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
                 // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.

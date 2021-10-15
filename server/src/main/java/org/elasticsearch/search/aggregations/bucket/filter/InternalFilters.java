@@ -10,10 +10,10 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,9 +97,9 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             }
             InternalBucket that = (InternalBucket) other;
             return Objects.equals(key, that.key)
-                    && Objects.equals(keyed,  that.keyed)
-                    && Objects.equals(docCount, that.docCount)
-                    && Objects.equals(aggregations, that.aggregations);
+                && Objects.equals(keyed, that.keyed)
+                && Objects.equals(docCount, that.docCount)
+                && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -249,8 +249,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         if (super.equals(obj) == false) return false;
 
         InternalFilters that = (InternalFilters) obj;
-        return Objects.equals(buckets, that.buckets)
-                && Objects.equals(keyed, that.keyed);
+        return Objects.equals(buckets, that.buckets) && Objects.equals(keyed, that.keyed);
     }
 
 }

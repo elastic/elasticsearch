@@ -25,12 +25,12 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -76,7 +76,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
             allActiveShards.addAll(cursor.value.activeShards());
         }
-        this.allActiveShards = Collections.unmodifiableList(allActiveShards);
+        this.allActiveShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allActiveShards);
     }
 
     /**
@@ -120,14 +120,19 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (shardRouting.index().equals(index) == false) {
-                    throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
-                                                    "from the routing table");
+                    throw new IllegalStateException(
+                        "shard routing has an index [" + shardRouting.index() + "] that is different from the routing table"
+                    );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
                 if (shardRouting.active() &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
-                    throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the in-sync " +
-                        "allocation set " + inSyncAllocationIds);
+                    throw new IllegalStateException(
+                        "active shard routing "
+                            + shardRouting
+                            + " has no corresponding entry in the in-sync allocation set "
+                            + inSyncAllocationIds
+                    );
                 }
 
                 if (shardRouting.primary() && shardRouting.initializing() &&
@@ -139,9 +144,13 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                                 "allocation set " + inSyncAllocationIds);
                         }
                     } else if (inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
-                        throw new IllegalStateException("a primary shard routing " + shardRouting
-                            + " is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync " +
-                            "allocation set " + inSyncAllocationIds);
+                        throw new IllegalStateException(
+                            "a primary shard routing "
+                                + shardRouting
+                                + " is a primary that is recovering from a known allocation id but has no corresponding "
+                                + "entry in the in-sync allocation set "
+                                + inSyncAllocationIds
+                        );
                     }
                 }
             }

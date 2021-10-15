@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.feature.ResetFeaturesRequest;
+import org.elasticsearch.client.feature.ResetFeaturesResponse;
 import org.elasticsearch.client.ml.GetTrainedModelsStatsRequest;
 
 import java.io.IOException;
@@ -36,7 +37,15 @@ public class MlTestStateCleaner {
     public void clearMlMetadata() throws IOException {
         deleteAllTrainedModelIngestPipelines();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
-        client.features().resetFeatures(new ResetFeaturesRequest(), RequestOptions.DEFAULT);
+        ResetFeaturesResponse response = client.features().resetFeatures(new ResetFeaturesRequest(), RequestOptions.DEFAULT);
+        if (response.getFeatureResetStatuses().stream().anyMatch(status -> "FAILURE".equals(status.getStatus()))) {
+            logger.warn("Not all feature states could be reset while clearing ML Metadata:");
+            for (ResetFeaturesResponse.ResetFeatureStateStatus status : response.getFeatureResetStatuses()) {
+                if (status.getStatus().equals("FAILURE")) {
+                    logger.warn("Feature {} failed with response: {}", status.getFeatureName(), status.getException());
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -427,7 +427,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // no local index execution
         assertFalse(responseCalled.get()); // listener not called yet
 
-        BulkItemResponse itemResponse = new BulkItemResponse(0, DocWriteRequest.OpType.CREATE, indexResponse);
+        BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.CREATE, indexResponse);
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[1];
         bulkItemResponses[0] = itemResponse;
         remoteResponseHandler.getValue().handleResponse(new BulkResponse(bulkItemResponses, 0)); // call the listener for the remote node

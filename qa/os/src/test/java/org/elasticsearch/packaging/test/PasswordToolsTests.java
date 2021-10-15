@@ -17,9 +17,7 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,16 +34,13 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeFalse("no docker", distribution.isDocker());
+        assumeFalse("only archives", distribution.isDocker() || distribution().isPackage());
     }
 
     public void test010Install() throws Exception {
         install();
-        Files.write(
-            installation.config("elasticsearch.yml"),
-            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true"),
-            StandardOpenOption.APPEND
-        );
+        // Disable auto-configuration for archives so that we can run setup-passwords
+        ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
     public void test20GeneratePasswords() throws Exception {

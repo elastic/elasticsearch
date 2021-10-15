@@ -18,27 +18,40 @@ import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.XmlProvider;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.BasePluginConvention;
+import org.gradle.api.plugins.BasePluginExtension;
+import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.MapProperty;
-import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
+import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
 public class PublishPlugin implements Plugin<Project> {
+
+    private ProjectLayout projectLayout;
+    private BuildLayout buildLayout;
+    private ProviderFactory providerFactory;
+
+    @Inject
+    public PublishPlugin(ProjectLayout projectLayout, BuildLayout buildLayout, ProviderFactory providerFactory) {
+        this.projectLayout = projectLayout;
+        this.buildLayout = buildLayout;
+        this.providerFactory = providerFactory;
+    }
 
     @Override
     public void apply(Project project) {
@@ -46,7 +59,6 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
-
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
@@ -56,7 +68,6 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
-
         project.afterEvaluate(project1 -> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
                 configureWithShadowPlugin(project1, publication);
@@ -64,11 +75,11 @@ public class PublishPlugin implements Plugin<Project> {
                 publication.from(project.getComponents().getByName("java"));
             }
         });
+        var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             var node = xml.asNode();
             node.appendNode("inceptionYear", "2009");
             var licensesNode = node.appendNode("licenses");
-            var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
             projectLicenses.get().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 Node license = licensesNode.appendNode("license");
                 license.appendNode("name", entry.getKey());
@@ -81,58 +92,59 @@ public class PublishPlugin implements Plugin<Project> {
         });
         publishingExtension.getRepositories().maven(mavenArtifactRepository -> {
             mavenArtifactRepository.setName("test");
-            mavenArtifactRepository.setUrl(new File(project.getRootProject().getBuildDir(), "local-test-repo"));
+            mavenArtifactRepository.setUrl(new File(buildLayout.getRootDirectory(), "build/local-test-repo"));
         });
     }
 
-    private static String getArchivesBaseName(Project project) {
-        return project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
+    private static String getArchivesBaseName(ExtensionContainer extensions) {
+        return extensions.getByType(BasePluginExtension.class).getArchivesName().get();
     }
 
     /**
      * Configuration generation of maven poms.
      */
-    private static void configurePomGeneration(Project project) {
-        Property<GitInfo> gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
-
+    private void configurePomGeneration(Project project) {
+        var gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
         var generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
-        project.getTasks()
-                .withType(GenerateMavenPom.class)
-                .configureEach(
-                        pomTask -> pomTask.setDestination(
-                                (Callable<String>) () -> String.format(
-                                        "%s/distributions/%s-%s.pom",
-                                        project.getBuildDir(),
-                                        getArchivesBaseName(project),
-                                        project.getVersion()
-                                )
-                        )
-                );
-        var publishing = project.getExtensions().getByType(PublishingExtension.class);
+        var extensions = project.getExtensions();
+        var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
+        var projectVersion = providerFactory.provider(() -> project.getVersion());
+        var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
+        generateMavenPoms.configureEach(
+            pomTask -> pomTask.setDestination(
+                (Callable<String>) () -> String.format(
+                    "%s/distributions/%s-%s.pom",
+                    projectLayout.getBuildDirectory().get().getAsFile().getPath(),
+                    archivesBaseName.get(),
+                    projectVersion.get()
+                )
+            )
+        );
+        var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
-
-        mavenPublications.all(publication -> {
+        mavenPublications.configureEach(publication -> {
             // Add git origin info to generated POM files for internal builds
-            publication.getPom().withXml((xmlProvider) -> addScmInfo(xmlProvider, gitInfo.get()));
+            publication.getPom().withXml(xml -> addScmInfo(xml, gitInfo.get()));
             // have to defer this until archivesBaseName is set
-            project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
-            generatePomTask.configure(t -> t.dependsOn(project.getTasks().withType(GenerateMavenPom.class)));
+            project.afterEvaluate(p -> publication.setArtifactId(archivesBaseName.get()));
+            generatePomTask.configure(t -> t.dependsOn(generateMavenPoms));
         });
     }
 
-    private static void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
-        mavenPublications.all(p -> p.getPom().withXml(xml -> {
+    private void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
+        var name = project.getName();
+        var description = providerFactory.provider(() -> project.getDescription() != null ? project.getDescription() : "");
+        mavenPublications.configureEach(p -> p.getPom().withXml(xml -> {
             var root = xml.asNode();
-            root.appendNode("name", project.getName());
-            var description = project.getDescription() != null ? project.getDescription() : "";
-            root.appendNode("description", description);
+            root.appendNode("name", name);
+            root.appendNode("description", description.get());
         }));
     }
 
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
+        var shadow = project.getExtensions().getByType(ShadowExtension.class);
         shadow.component(publication);
     }
 
@@ -161,7 +173,7 @@ public class PublishPlugin implements Plugin<Project> {
 
     static void configureSourcesJar(Project project) {
         project.getPlugins().withType(JavaLibraryPlugin.class, p -> {
-            TaskProvider<Jar> sourcesJarTask = project.getTasks().register("sourcesJar", Jar.class);
+            var sourcesJarTask = project.getTasks().register("sourcesJar", Jar.class);
             sourcesJarTask.configure(jar -> {
                 jar.getArchiveClassifier().set("sources");
                 jar.setGroup("build");

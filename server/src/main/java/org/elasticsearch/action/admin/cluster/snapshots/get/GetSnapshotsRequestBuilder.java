@@ -41,6 +41,17 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     /**
+     * Sets slm policy patterns
+     *
+     * @param policies slm policy patterns
+     * @return this builder
+     */
+    public GetSnapshotsRequestBuilder setPolicies(String... policies) {
+        request.policies(policies);
+        return this;
+    }
+
+    /**
      * Sets list of snapshots to return
      *
      * @param snapshots list of snapshots
@@ -106,6 +117,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder setFromSortValue(@Nullable String fromSortValue) {
+        request.fromSortValue(fromSortValue);
+        return this;
+    }
+
     public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
         request.sort(sort);
         return this;
@@ -113,6 +129,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     public GetSnapshotsRequestBuilder setSize(int size) {
         request.size(size);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setOffset(int offset) {
+        request.offset(offset);
         return this;
     }
 

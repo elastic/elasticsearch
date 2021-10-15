@@ -76,8 +76,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     @Override
-    protected String downloadStorageEndpoint(String blob) {
-        return "/bucket/" + blob;
+    protected String downloadStorageEndpoint(BlobContainer container, String blob) {
+        return "/bucket/" + container.path().buildAsString() + blob;
     }
 
     @Override
@@ -92,9 +92,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Override
     protected BlobContainer createBlobContainer(final @Nullable Integer maxRetries,
-                                              final @Nullable TimeValue readTimeout,
-                                              final @Nullable Boolean disableChunkedEncoding,
-                                              final @Nullable ByteSizeValue bufferSize) {
+                                                final @Nullable TimeValue readTimeout,
+                                                final @Nullable Boolean disableChunkedEncoding,
+                                                final @Nullable ByteSizeValue bufferSize) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
@@ -123,7 +123,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE,
             Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build());
 
-        return new S3BlobContainer(BlobPath.EMPTY, new S3BlobStore(service, "bucket",
+        return new S3BlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), new S3BlobStore(service, "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
@@ -145,8 +145,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/bucket/write_blob_max_retries", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_max_retries"), exchange -> {
             if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
                 if (countDown.countDown()) {
                     final BytesReference body = Streams.readFully(exchange.getRequestBody());
@@ -171,8 +173,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 exchange.close();
             }
         });
-
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
@@ -185,7 +185,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null);
 
         // HTTP server does not send a response
-        httpServer.createContext("/bucket/write_blob_timeout", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_timeout"), exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
@@ -201,7 +201,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
-            containsString("unable to upload object [write_blob_timeout] using a single upload"));
+            containsString(
+                "unable to upload object [" + blobContainer.path().buildAsString() + "write_blob_timeout] using a single upload"));
 
         assertThat(exception.getCause(), instanceOf(SdkClientException.class));
         assertThat(exception.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
@@ -225,7 +226,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * (parts + 1));
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        httpServer.createContext("/bucket/write_large_blob", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
             if ("POST".equals(exchange.getRequestMethod())
@@ -314,7 +315,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final AtomicLong bytesReceived = new AtomicLong(0L);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        httpServer.createContext("/bucket/write_large_blob_streaming", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
             if ("POST".equals(exchange.getRequestMethod())

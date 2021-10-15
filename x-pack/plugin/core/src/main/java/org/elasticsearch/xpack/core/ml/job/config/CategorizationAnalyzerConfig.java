@@ -7,17 +7,17 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 
@@ -86,8 +86,10 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      *
      * The parser is strict when parsing config and lenient when parsing cluster state.
      */
-    static CategorizationAnalyzerConfig buildFromXContentFragment(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-
+    public static CategorizationAnalyzerConfig buildFromXContentFragment(
+        XContentParser parser,
+        boolean ignoreUnknownFields
+    ) throws IOException {
         CategorizationAnalyzerConfig.Builder builder = new CategorizationAnalyzerConfig.Builder();
 
         XContentParser.Token token = parser.currentToken();
@@ -173,7 +175,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
         return new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter("first_non_blank_line")
+            .addCharFilter("first_line_with_letters")
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()

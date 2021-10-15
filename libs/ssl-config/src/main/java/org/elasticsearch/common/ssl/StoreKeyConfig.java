@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -28,6 +29,7 @@ import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +39,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     private final String keystorePath;
     private final String type;
     private final char[] storePassword;
+    private final Function<KeyStore, KeyStore> filter;
     private final char[] keyPassword;
     private final String algorithm;
     private final Path configBasePath;
@@ -46,18 +49,21 @@ public class StoreKeyConfig implements SslKeyConfig {
      * @param storePassword The password for the keystore
      * @param type          The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
      *                      See {@link KeyStoreUtil#inferKeyStoreType}.
+     * @param filter        A function to process the keystore after it is loaded. See {@link KeyStoreUtil#filter}
      * @param keyPassword   The password for the key(s) within the keystore
-     *                      (see {@link javax.net.ssl.KeyManagerFactory#init(KeyStore, char[])}).
+     *                      (see {@link KeyManagerFactory#init(KeyStore, char[])}).
      * @param algorithm     The algorithm to use for the Key Manager (see {@link KeyManagerFactory#getAlgorithm()}).
      * @param configBasePath The base path for configuration files (used for error handling)
      */
-    public StoreKeyConfig(String path, char[] storePassword, String type, char[] keyPassword, String algorithm, Path configBasePath) {
+    public StoreKeyConfig(String path, char[] storePassword, String type, @Nullable Function<KeyStore, KeyStore> filter,
+                          char[] keyPassword, String algorithm, Path configBasePath) {
+        this.keystorePath = Objects.requireNonNull(path, "Keystore path cannot be null");
         this.storePassword = Objects.requireNonNull(storePassword, "Keystore password cannot be null (but may be empty)");
+        this.type = Objects.requireNonNull(type, "Keystore type cannot be null");
+        this.filter = filter;
         this.keyPassword = Objects.requireNonNull(keyPassword, "Key password cannot be null (but may be empty)");
         this.algorithm = Objects.requireNonNull(algorithm, "Keystore algorithm cannot be null");
         this.configBasePath = Objects.requireNonNull(configBasePath, "Config path cannot be null");
-        this.keystorePath = Objects.requireNonNull(path, "Keystore path cannot be null");
-        this.type = Objects.requireNonNull(type, "Keystore type cannot be null");
     }
 
     @Override
@@ -80,10 +86,23 @@ public class StoreKeyConfig implements SslKeyConfig {
         return configBasePath.resolve(keystorePath);
     }
 
+    /**
+     * Equivalent to {@link #getKeys(boolean) getKeys(false)}.
+     */
     @Override
     public List<Tuple<PrivateKey, X509Certificate>> getKeys() {
+        return getKeys(false);
+    }
+
+    /**
+     * Return the list of keys inside the configured keystore, optionally applying the {@code filter} that was set during construction.
+     */
+    public List<Tuple<PrivateKey, X509Certificate>> getKeys(boolean filterKeystore) {
         final Path path = resolvePath();
-        final KeyStore keyStore = readKeyStore(path);
+        KeyStore keyStore = readKeyStore(path);
+        if (filterKeystore) {
+            keyStore = this.processKeyStore(keyStore);
+        }
         return KeyStoreUtil.stream(keyStore, ex -> keystoreException(path, ex))
             .filter(KeyStoreUtil.KeyStoreEntry::isKeyEntry)
             .map(entry -> {
@@ -122,12 +141,20 @@ public class StoreKeyConfig implements SslKeyConfig {
 
     private X509ExtendedKeyManager createKeyManager(Path path) {
         try {
-            final KeyStore keyStore = readKeyStore(path);
+            KeyStore keyStore = readKeyStore(path);
+            keyStore = processKeyStore(keyStore);
             checkKeyStore(keyStore, path);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, algorithm);
         } catch (GeneralSecurityException e) {
             throw keystoreException(path, e);
         }
+    }
+
+    private KeyStore processKeyStore(KeyStore keyStore) {
+        if (filter == null) {
+            return keyStore;
+        }
+        return Objects.requireNonNull(filter.apply(keyStore), "A keystore filter may not return null");
     }
 
     private KeyStore readKeyStore(Path path) {

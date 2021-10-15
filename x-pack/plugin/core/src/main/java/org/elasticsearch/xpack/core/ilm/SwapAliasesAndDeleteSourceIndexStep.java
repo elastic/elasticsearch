@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 
@@ -46,7 +45,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                              ActionListener<Boolean> listener) {
+                              ActionListener<Void> listener) {
         String originalIndex = indexMetadata.getIndex().getName();
         final String targetIndexName = targetIndexPrefix + originalIndex;
         IndexMetadata targetIndexMetadata = currentClusterState.metadata().index(targetIndexName);
@@ -70,15 +69,14 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
      * The is_write_index will *not* be set on the target index as this operation is currently executed on read-only indices.
      */
     static void deleteSourceIndexAndTransferAliases(Client client, IndexMetadata sourceIndex, String targetIndex,
-                                                    ActionListener<Boolean> listener) {
+                                                    ActionListener<Void> listener) {
         String sourceIndexName = sourceIndex.getIndex().getName();
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
             .masterNodeTimeout(TimeValue.MAX_VALUE)
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(sourceIndexName));
         // copy over other aliases from source index
-        sourceIndex.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
-            AliasMetadata aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
+        sourceIndex.getAliases().values().forEach(aliasMetaDataToAdd -> {
             // inherit all alias properties except `is_write_index`
             aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add()
                 .index(targetIndex).alias(aliasMetaDataToAdd.alias())
@@ -93,7 +91,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
                 if (response.isAcknowledged() == false) {
                     logger.warn("aliases swap from [{}] to [{}] response was not acknowledged", sourceIndexName, targetIndex);
                 }
-                listener.onResponse(true);
+                listener.onResponse(null);
             }, listener::onFailure));
     }
 

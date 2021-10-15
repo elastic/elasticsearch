@@ -8,19 +8,18 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
@@ -52,12 +51,7 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
             return builder.build();
         }
 
-        Set<String> indices = new HashSet<>();
-        Iterator<String> keys = aliases.keysIt();
-        while (keys.hasNext()) {
-            indices.add(keys.next());
-        }
-
+        Set<String> indices = aliases.keySet();
         List<String> indicesToBeModified = randomSubsetOf(randomIntBetween(1, indices.size()), indices);
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> builder = ImmutableOpenMap.builder();
 
@@ -98,7 +92,11 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
     }
 
     public static AliasMetadata createAliasMetadata() {
-        Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
+        return createAliasMetadata(s -> false);
+    }
+
+    public static AliasMetadata createAliasMetadata(Predicate<String> t) {
+        Builder builder = AliasMetadata.builder(randomValueOtherThanMany(t, () -> randomAlphaOfLengthBetween(3, 10)));
         if (randomBoolean()) {
             builder.routing(randomAlphaOfLengthBetween(3, 10));
         }

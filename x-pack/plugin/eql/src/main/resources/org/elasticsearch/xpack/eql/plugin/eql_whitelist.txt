@@ -65,6 +65,7 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 
 class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils {
 
+  Boolean multiValueDocValues(java.util.Map, String, java.util.function.Predicate)
 #
 # ASCII Functions
 #

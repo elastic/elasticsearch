@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,7 +18,9 @@ import java.util.Map;
 public class PointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        MappedFieldType mapper = new PointFieldMapper.Builder("field", false)
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         String wktPoint = "POINT (42.0 27.1)";

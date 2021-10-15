@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -78,8 +78,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                        BigArrays.NON_RECYCLING_INSTANCE, 1);
+                    reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1);
                 }
                 reduced.merge(0, cardinality.counts, 0);
             }
@@ -119,4 +118,3 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         return counts;
     }
 }
-

@@ -66,10 +66,9 @@ public class SegmentTests extends ESTestCase {
         segment.sizeInBytes = randomNonNegativeLong();
         segment.docCount = randomIntBetween(1, Integer.MAX_VALUE);
         segment.delDocCount = randomIntBetween(0, segment.docCount);
-        segment.version = Version.LUCENE_7_0_0;
+        segment.version = Version.LUCENE_8_0_0;
         segment.compound = randomBoolean();
         segment.mergeId = randomAlphaOfLengthBetween(1, 10);
-        segment.memoryInBytes = randomNonNegativeLong();
         segment.segmentSort = randomIndexSort();
         if (randomBoolean()) {
             segment.attributes = Collections.singletonMap("foo", "bar");
@@ -97,7 +96,6 @@ public class SegmentTests extends ESTestCase {
             Objects.equals(seg1.version, seg2.version) &&
             Objects.equals(seg1.compound, seg2.compound) &&
             seg1.sizeInBytes == seg2.sizeInBytes &&
-            seg1.memoryInBytes == seg2.memoryInBytes &&
             seg1.getGeneration() == seg2.getGeneration() &&
             seg1.getName().equals(seg2.getName()) &&
             seg1.getMergeId().equals(seg2.getMergeId()) &&

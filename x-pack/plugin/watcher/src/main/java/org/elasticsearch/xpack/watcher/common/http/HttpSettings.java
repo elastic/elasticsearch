@@ -52,11 +52,11 @@ public class HttpSettings {
             new ByteSizeValue(50, ByteSizeUnit.MB),   // max
             Property.NodeScope);
 
-    private static final SSLConfigurationSettings SSL = SSLConfigurationSettings.withPrefix(SSL_KEY_PREFIX);
+    private static final SSLConfigurationSettings SSL = SSLConfigurationSettings.withPrefix(SSL_KEY_PREFIX, true);
 
     public static List<? extends Setting<?>> getSettings() {
         final ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(SSL.getAllSettings());
+        settings.addAll(SSL.getEnabledSettings());
         settings.add(READ_TIMEOUT);
         settings.add(CONNECTION_TIMEOUT);
         settings.add(TCP_KEEPALIVE);

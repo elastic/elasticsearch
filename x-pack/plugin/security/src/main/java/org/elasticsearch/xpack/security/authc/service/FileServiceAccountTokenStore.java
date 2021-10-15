@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.security.support.SecurityFiles;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,12 +46,14 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     private static final Logger logger = LogManager.getLogger(FileServiceAccountTokenStore.class);
 
     private final Path file;
+    private final ClusterService clusterService;
     private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
     public FileServiceAccountTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
-                                        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+                                        ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         super(env.settings(), threadPool);
+        this.clusterService = clusterService;
         file = resolveFile(env);
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
@@ -83,15 +85,15 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         return TokenSource.FILE;
     }
 
-    @Override
-    public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
+    public List<TokenInfo> findTokensFor(ServiceAccountId accountId) {
         final String principal = accountId.asPrincipal();
-        final List<TokenInfo> tokenInfos = tokenHashes.keySet()
+        return tokenHashes.keySet()
             .stream()
             .filter(k -> k.startsWith(principal + "/"))
-            .map(k -> TokenInfo.fileToken(Strings.substring(k, principal.length() + 1, k.length())))
+            .map(k -> TokenInfo.fileToken(
+                Strings.substring(k, principal.length() + 1, k.length()),
+                List.of(clusterService.localNode().getName())))
             .collect(Collectors.toUnmodifiableList());
-        listener.onResponse(tokenInfos);
     }
 
     public void addListener(Runnable listener) {

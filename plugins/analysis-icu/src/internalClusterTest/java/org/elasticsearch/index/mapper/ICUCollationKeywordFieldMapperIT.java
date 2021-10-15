@@ -13,8 +13,8 @@ import com.ibm.icu.util.ULocale;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -27,7 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -318,7 +318,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
-                .sort("id", SortOrder.ASC) // secondary sort should kick in on docs 1 and 3 because same value collate value
+                // secondary sort should kick in on docs 1 and 3 because same value collate value
+                .sort("id", SortOrder.ASC)
             );
 
         SearchResponse response = client().search(request).actionGet();

@@ -1,0 +1,102 @@
+[[migrating-${majorDotMinor}]]
+== Migrating to ${majorDotMinor}
+++++
+<titleabbrev>${majorDotMinor}</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} ${majorDotMinor}.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+<% if (isElasticsearchSnapshot) { %>
+coming[${version}]
+<% } %>
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+<% if (breakingChangesByNotabilityByArea.isEmpty() == false) { %>
+[discrete]
+[[breaking-changes-${majorDotMinor}]]
+=== Breaking changes
+
+The following changes in {es} ${majorDotMinor} might affect your applications
+and prevent them from operating normally.
+Before upgrading to ${majorDotMinor} review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+<%
+[true, false].each { isNotable ->
+    def breakingChangesByArea = breakingChangesByNotabilityByArea.getOrDefault(isNotable, [])
+
+    breakingChangesByArea.eachWithIndex { area, breakingChanges, i ->
+        print "\n"
+
+        if (isNotable) {
+            print "// tag::notable-breaking-changes[]\n"
+        }
+
+        print "[discrete]\n"
+        print "[[breaking_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }]]\n"
+        print "==== ${area}\n"
+
+        for (breaking in breakingChanges) { %>
+[[${ breaking.anchor }]]
+.${breaking.title}
+[%collapsible]
+====
+*Details* +
+${breaking.details.trim()}
+
+*Impact* +
+${breaking.impact.trim()}
+====
+<%
+        }
+
+        if (isNotable) {
+            print "// end::notable-breaking-changes[]\n"
+        }
+    }
+}
+}
+if (deprecationsByArea.empty == false) { %>
+
+[discrete]
+[[deprecated-${majorDotMinor}]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} ${majorDotMinor}
+and will be removed in ${nextMajor}.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to ${majorDotMinor}.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>."
+
+<%
+deprecationsByArea.eachWithIndex { area, deprecations, i ->
+    print "\n[discrete]\n"
+    print "[[deprecations_${majorMinor}_${ area.toLowerCase().replaceAll("[^a-z0-9]+", "_") }]]"
+    print "==== ${area} deprecations"
+
+    for (deprecation in deprecations) { %>
+
+[[${ deprecation.anchor }]]
+.${deprecation.title}
+[%collapsible]
+====
+*Details* +
+${deprecation.body.trim()}
+====
+<%
+}
+}
+} %>

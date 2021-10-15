@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,21 +22,28 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 final class EnrichProcessorFactory implements Processor.Factory, Consumer<ClusterState> {
 
     static final String TYPE = "enrich";
     private final Client client;
     private final ScriptService scriptService;
+    private final EnrichCache enrichCache;
 
     volatile Metadata metadata;
 
-    EnrichProcessorFactory(Client client, ScriptService scriptService) {
+    EnrichProcessorFactory(Client client, ScriptService scriptService, EnrichCache enrichCache) {
         this.client = client;
         this.scriptService = scriptService;
+        this.enrichCache = Objects.requireNonNull(enrichCache);
     }
 
     @Override
@@ -50,7 +60,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         }
         assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = indexAbstraction.getIndices().get(0);
+        IndexMetadata imd = metadata.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -67,13 +77,14 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-
+        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner = createSearchRunner(client, enrichCache);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
+            case EnrichPolicy.RANGE_TYPE:
                 return new MatchProcessor(
                     tag,
                     description,
-                    client,
+                    searchRunner,
                     policyName,
                     field,
                     targetField,
@@ -90,7 +101,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 return new GeoMatchProcessor(
                     tag,
                     description,
-                    client,
+                    searchRunner,
                     policyName,
                     field,
                     targetField,
@@ -109,6 +120,18 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     @Override
     public void accept(ClusterState state) {
         metadata = state.getMetadata();
+        enrichCache.setMetadata(metadata);
     }
 
+    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(
+        Client client,
+        EnrichCache enrichCache
+    ) {
+        Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
+        return (req, handler) -> enrichCache.resolveOrDispatchSearch(
+            req,
+            (searchRequest, listener) -> originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, searchRequest, listener),
+            handler
+        );
+    }
 }

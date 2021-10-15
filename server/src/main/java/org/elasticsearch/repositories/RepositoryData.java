@@ -15,14 +15,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -743,11 +743,7 @@ public final class RepositoryData {
             }
             builder.endArray();
             if (shouldWriteShardGens) {
-                builder.startArray(SHARD_GENERATIONS);
-                for (String gen : shardGenerations.getGens(indexId)) {
-                    builder.value(gen);
-                }
-                builder.endArray();
+                builder.xContentList(SHARD_GENERATIONS, shardGenerations.getGens(indexId));
             }
             builder.endObject();
         }
@@ -959,7 +955,7 @@ public final class RepositoryData {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             final String indexName = parser.currentName();
             final List<SnapshotId> snapshotIds = new ArrayList<>();
-            final List<String> gens = new ArrayList<>();
+            final List<ShardGeneration> gens = new ArrayList<>();
 
             IndexId indexId = null;
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
@@ -1003,7 +999,7 @@ public final class RepositoryData {
                     case SHARD_GENERATIONS:
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, currentToken, parser);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            gens.add(parser.textOrNull());
+                            gens.add(ShardGeneration.fromXContent(parser));
                         }
                         break;
                 }
@@ -1012,7 +1008,7 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
             indexLookup.put(indexId.getId(), indexId);
             for (int i = 0; i < gens.size(); i++) {
-                String parsedGen = gens.get(i);
+                ShardGeneration parsedGen = gens.get(i);
                 if (fixBrokenShardGens) {
                     parsedGen = ShardGenerations.fixShardGeneration(parsedGen);
                 }

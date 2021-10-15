@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFun
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation;
 
@@ -31,6 +34,20 @@ import static org.elasticsearch.xpack.eql.expression.predicate.operator.comparis
 public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {
+    }
+
+    public static <T> Boolean multiValueDocValues(Map<String, ScriptDocValues<T>> doc, String fieldName, Predicate<T> script) {
+        ScriptDocValues<T> docValues = doc.get(fieldName);
+        if (docValues != null && docValues.isEmpty() == false) {
+            for (T value : docValues) {
+                if (script.test(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        // missing value means "null"
+        return script.test(null);
     }
 
     public static Boolean seq(Object left, Object right) {

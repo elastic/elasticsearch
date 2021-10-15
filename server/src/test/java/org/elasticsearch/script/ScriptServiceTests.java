@@ -18,8 +18,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -489,7 +489,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(ingest.cacheExpireDefault, holder.contextCache.get(name).get().cacheExpire);
     }
 
-    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
+    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {
         try {
             scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext);
             fail("compile should have been rejected for lang [" + lang + "], " +
@@ -499,7 +499,7 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
+    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {
         assertThat(
                 scriptService.compile(new Script(scriptType, lang, script, Collections.emptyMap()), scriptContext),
                 notNullValue()

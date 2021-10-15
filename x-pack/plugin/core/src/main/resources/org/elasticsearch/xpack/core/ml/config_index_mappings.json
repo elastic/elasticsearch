@@ -180,6 +180,9 @@
       },
       "analysis_config" : {
         "properties" : {
+          "model_prune_window" : {
+            "type" : "keyword"
+          },
           "bucket_span" : {
             "type" : "keyword"
           },

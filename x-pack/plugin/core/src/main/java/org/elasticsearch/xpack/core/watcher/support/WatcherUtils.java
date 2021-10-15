@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.watcher.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -30,8 +30,8 @@ public final class WatcherUtils {
     }
 
     public static Map<String, Object> responseToData(ToXContentObject response, ToXContent.Params params) throws IOException {
-        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.JSON, params, false), false,
-            XContentType.JSON).v2();
+        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.SMILE, params, false), false,
+            XContentType.SMILE).v2();
     }
 
     public static Map<String, Object> flattenModel(Map<String, Object> map) {

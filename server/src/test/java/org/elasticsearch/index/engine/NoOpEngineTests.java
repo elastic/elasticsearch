@@ -148,7 +148,6 @@ public class NoOpEngineTests extends EngineTestCase {
                     noOpEngine.segmentsStats(includeFileSize, true).getFiles().size());
 
                 assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getFiles().size());
-                assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getMemoryInBytes());
             } catch (AssertionError e) {
                 logger.error(config.getMergePolicy());
                 throw e;

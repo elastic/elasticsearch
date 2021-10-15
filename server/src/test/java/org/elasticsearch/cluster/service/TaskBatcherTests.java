@@ -53,10 +53,11 @@ public class TaskBatcherTests extends TaskExecutorTests {
             super(logger, threadExecutor);
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
-            List<UpdateTask> updateTasks = (List) tasks;
-            ((TestExecutor) batchingKey).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
+            List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
+            ((TestExecutor<Object>) batchingKey).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
             updateTasks.forEach(updateTask -> updateTask.listener.processed(updateTask.source));
         }
 
@@ -77,6 +78,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public String describeTasks(List<? extends BatchedTask> tasks) {
                 return ((TestExecutor<Object>) batchingKey).describeTasks(
                     tasks.stream().map(BatchedTask::getTask).collect(Collectors.toList()));

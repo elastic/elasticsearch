@@ -24,11 +24,12 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -368,7 +369,8 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 "starting shards for " + indexName,
                 clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName)
             );
-            assertTrue(clusterService.state().routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
+            RoutingNodes routingNodes = clusterService.state().getRoutingNodes();
+            assertTrue(RoutingNodesHelper.shardsWithState(routingNodes, ShardRoutingState.UNASSIGNED).isEmpty());
 
         } else {
             // simulate deletion of the index
@@ -382,19 +384,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
-        PlainActionFuture.get(
+        PlainActionFuture.<Void, RuntimeException>get(
             future -> clusterService.getClusterApplierService()
-                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), new ClusterApplier.ClusterApplyListener() {
-                    @Override
-                    public void onSuccess(String source) {
-                        future.onResponse(source);
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        future.onFailure(e);
-                    }
-                })
+                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), future)
         );
     }
 

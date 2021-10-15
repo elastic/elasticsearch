@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
@@ -35,7 +36,7 @@ public class NodeDeprecationChecks {
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
     }
 
     static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
@@ -45,7 +46,7 @@ public class NodeDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
     }
@@ -75,7 +76,7 @@ public class NodeDeprecationChecks {
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
-                        .collect(Collectors.joining("; "))), null);
+                        .collect(Collectors.joining("; "))), false, null);
         }
     }
 
@@ -87,7 +88,7 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                     "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
                 String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key),
-                null);
+                    false, null);
         }
 
         return null;

@@ -11,7 +11,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -45,7 +45,6 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
     public void init() {
         settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         requestHolder = new AtomicReference<>();
         controller().registerHandler(new RestClearServiceAccountTokenStoreCacheAction(settings, licenseState));
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {

@@ -850,4 +850,11 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 exec("def test = ['hostname': 'somehostname']; test?.hostname && params.host.hostname != ''"));
         expectScriptThrows(NullPointerException.class, () -> exec("params?.host?.hostname && params.host?.hostname != ''"));
     }
+
+    public void testInstanceMethodNotFound() {
+        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("doesNotExist()"));
+        assertEquals(iae.getMessage(), "Unknown call [doesNotExist] with [0] arguments.");
+        iae = expectScriptThrows(IllegalArgumentException.class, () -> exec("doesNotExist(1, 'string', false)"));
+        assertEquals(iae.getMessage(), "Unknown call [doesNotExist] with [3] arguments.");
+    }
 }

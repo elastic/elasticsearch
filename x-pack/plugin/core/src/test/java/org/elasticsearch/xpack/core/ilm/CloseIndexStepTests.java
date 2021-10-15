@@ -90,8 +90,8 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
         step.performAction(indexMetadata, null, null, new ActionListener<>() {
 
             @Override
-            public void onResponse(Boolean complete) {
-                actionCompleted.set(complete);
+            public void onResponse(Void complete) {
+                actionCompleted.set(true);
             }
 
             @Override
@@ -128,7 +128,7 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
             f -> step.performAction(indexMetadata, null, null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();

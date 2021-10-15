@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,8 +29,7 @@ public interface CompositeAggregation extends MultiBucketsAggregation {
      */
     Map<String, Object> afterKey();
 
-    static XContentBuilder bucketToXContent(CompositeAggregation.Bucket bucket,
-                                            XContentBuilder builder, Params params) throws IOException {
+    static XContentBuilder bucketToXContent(CompositeAggregation.Bucket bucket, XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         buildCompositeMap(CommonFields.KEY.getPreferredName(), bucket.getKey(), builder);
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), bucket.getDocCount());

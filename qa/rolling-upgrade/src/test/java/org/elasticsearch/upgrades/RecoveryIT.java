@@ -271,7 +271,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
     }
 
@@ -309,7 +309,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
         ensureGreen(index);
     }
@@ -584,7 +584,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            flush(index, randomBoolean());
         }
     }
 

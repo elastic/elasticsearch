@@ -35,7 +35,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -87,6 +87,7 @@ class Netty4HttpClient implements Closeable {
             final HttpRequest httpRequest = new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
             httpRequest.headers().add(HOST, "localhost");
             httpRequest.headers().add("X-Opaque-ID", String.valueOf(i));
+            httpRequest.headers().add("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
             requests.add(httpRequest);
         }
         return sendRequests(remoteAddress, requests);

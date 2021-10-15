@@ -9,9 +9,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -42,7 +42,7 @@ abstract class  AbstractBinaryDVLeafFieldData implements LeafFieldData {
         return new SortedBinaryDocValues() {
 
             int count;
-            final ByteArrayDataInput in = new ByteArrayDataInput();
+            final ByteArrayStreamInput in = new ByteArrayStreamInput();
             final BytesRef scratch = new BytesRef();
 
             @Override

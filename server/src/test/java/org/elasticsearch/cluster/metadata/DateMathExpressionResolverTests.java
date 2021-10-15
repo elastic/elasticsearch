@@ -16,18 +16,20 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.DateMathExpressionResolver;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class DateMathExpressionResolverTests extends ESTestCase {
 
@@ -36,6 +38,15 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
         SystemIndexAccessLevel.NONE
     );
+
+    private static ZonedDateTime dateFromMillis(long millis) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC);
+    }
+
+    private static String formatDate(String pattern, ZonedDateTime zonedDateTime) {
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(pattern, Locale.ROOT);
+        return dateFormatter.format(zonedDateTime);
+    }
 
     public void testNormal() throws Exception {
         int numIndexExpressions = randomIntBetween(1, 9);
@@ -55,11 +66,11 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         List<String> result = expressionResolver.resolve(context, indexExpressions);
         assertThat(result.size(), equalTo(3));
         assertThat(result.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
         assertThat(result.get(1),
-            equalTo(".watch_history-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".watch_history-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
         assertThat(result.get(2),
-            equalTo("logstash-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo("logstash-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
     }
 
     public void testEmpty() throws Exception {
@@ -77,30 +88,30 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         List<String> result = expressionResolver.resolve(context, Arrays.asList("<.text1-{now/d}-text2-{now/M}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0), equalTo(".text1-"
-                + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))
+                + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))
                 + "-text2-"
-                + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
+                + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()).withDayOfMonth(1))));
     }
 
     public void testExpression_CustomFormat() throws Exception {
         List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd}}>"));
         assertThat(results.size(), equalTo(1));
         assertThat(results.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
     }
 
     public void testExpression_EscapeStatic() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList("<.mar\\{v\\}el-{now/d}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0),
-            equalTo(".mar{v}el-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".mar{v}el-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
     }
 
     public void testExpression_EscapeDateFormat() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'yyyy}}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'yyyy").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + formatDate("'{year}'yyyy", dateFromMillis(context.getStartTime()))));
     }
 
     public void testExpression_MixedArray() throws Exception {
@@ -110,39 +121,42 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0), equalTo("name1"));
         assertThat(result.get(1),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(context.getStartTime()))));
         assertThat(result.get(2), equalTo("name2"));
         assertThat(result.get(3), equalTo(".logstash-" +
-            DateTimeFormat.forPattern("yyyy.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
+            formatDate("uuuu.MM", dateFromMillis(context.getStartTime()).withDayOfMonth(1))));
     }
-
+    
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
-        DateTimeZone timeZone;
+        ZoneId timeZone;
         int hoursOffset;
         int minutesOffset = 0;
         if (randomBoolean()) {
             hoursOffset = randomIntBetween(-12, 14);
-            timeZone = DateTimeZone.forOffsetHours(hoursOffset);
+            timeZone = ZoneOffset.ofHours(hoursOffset);
         } else {
             hoursOffset = randomIntBetween(-11, 13);
             minutesOffset = randomIntBetween(0, 59);
-            timeZone = DateTimeZone.forOffsetHoursMinutes(hoursOffset, minutesOffset);
+            if (hoursOffset < 0) {
+                minutesOffset = -minutesOffset;
+            }
+            timeZone = ZoneOffset.ofHoursMinutes(hoursOffset, minutesOffset);
         }
-        DateTime now;
+        ZonedDateTime now;
         if (hoursOffset >= 0) {
             // rounding to next day 00:00
-            now = DateTime.now(UTC).plusHours(hoursOffset).plusMinutes(minutesOffset)
-                .withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
+            now = ZonedDateTime.now(ZoneOffset.UTC).plusHours(hoursOffset).plusMinutes(minutesOffset)
+                .withHour(0).withMinute(0).withSecond(0);
         } else {
             // rounding to today 00:00
-            now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
+            now = ZonedDateTime.now(ZoneOffset.UTC).withHour(0).withMinute(0).withSecond(0);
         }
-        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(),
+        Context context = new Context(this.context.getState(), this.context.getOptions(), now.toInstant().toEpochMilli(),
             SystemIndexAccessLevel.NONE, name -> false, name -> false);
-        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
+        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getId() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));
-        assertThat(results.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.withZone(timeZone))));
+        assertThat(results.get(0), equalTo(".marvel-" + formatDate("uuuu.MM.dd", now.withZoneSameInstant(timeZone))));
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {

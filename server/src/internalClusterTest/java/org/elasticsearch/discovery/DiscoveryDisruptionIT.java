@@ -154,6 +154,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * sure that the node is removed form the cluster, that the node start pinging and that
      * the cluster reforms when healed.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77751")
     public void testNodeNotReachableFromMaster() throws Exception {
         startCluster(3);
 

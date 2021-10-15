@@ -12,14 +12,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -45,6 +46,12 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
+    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter")
+        .withAllDeprecated()
+        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
+    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path")
+        .withAllDeprecated()
+        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
     private static final Map<String, Parser<?>> PARSERS = Map.of(
             ScriptSortBuilder.NAME, ScriptSortBuilder::fromXContent,

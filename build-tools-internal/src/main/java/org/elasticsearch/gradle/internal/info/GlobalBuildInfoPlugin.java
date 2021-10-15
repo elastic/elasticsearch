@@ -8,8 +8,8 @@
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -28,9 +28,7 @@ import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
-import org.jetbrains.annotations.NotNull;
 
-import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -51,6 +49,8 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.inject.Inject;
+
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
@@ -67,7 +67,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         ProviderFactory providers
     ) {
         this.javaInstallationRegistry = javaInstallationRegistry;
-        this.metadataDetector = metadataDetector;
+        this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
     }
 
@@ -345,10 +345,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-
     public static String getResourceContents(String resourcePath) {
         try (
-                BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
+            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
         ) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -364,5 +363,21 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
+    private static class ErrorTraceMetadataDetector implements JvmMetadataDetector {
+        private final JvmMetadataDetector delegate;
+
+        ErrorTraceMetadataDetector(JvmMetadataDetector delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public JvmInstallationMetadata getMetadata(File file) {
+            JvmInstallationMetadata metadata = delegate.getMetadata(file);
+            if (metadata instanceof JvmInstallationMetadata.FailureInstallationMetadata) {
+                throw new GradleException("Jvm Metadata cannot be resolved for " + metadata.getJavaHome().toString());
+            }
+            return metadata;
+        }
+    }
 
 }

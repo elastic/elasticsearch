@@ -175,20 +175,20 @@ public class MockLogAppender extends AbstractAppender {
         protected final String name;
         protected final String logger;
         protected final Level level;
-        protected final String pattern;
+        protected final Pattern pattern;
         volatile boolean saw;
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
             this.level = level;
-            this.pattern = pattern;
+            this.pattern = Pattern.compile(pattern);
         }
 
         @Override
         public void match(LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
-                if (Pattern.matches(pattern, event.getMessage().getFormattedMessage())) {
+                if (pattern.matcher(event.getMessage().getFormattedMessage()).matches()) {
                     saw = true;
                 }
             }

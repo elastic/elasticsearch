@@ -34,7 +34,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         inetAddress = InetAddress.getLoopbackAddress();
 
         setInitialState(null, licenseState, settings);
@@ -49,7 +49,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
                 .put("discovery.type", "single-node")
                 .build();
         licenseService.stop();
-        licenseState = new XPackLicenseState(settings, () -> 0);
+        licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);
@@ -63,7 +63,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
+        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         inetAddress = TransportAddress.META_ADDRESS;
 
         setInitialState(null, licenseState, settings);
@@ -75,7 +75,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
 
         settings = Settings.builder().put("xpack.security.enabled", false).build();
         licenseService.stop();
-        licenseState = new XPackLicenseState(settings, () -> 0);
+        licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);
@@ -86,7 +86,7 @@ public class LicenseTLSTests extends AbstractLicenseServiceTestCase {
                 .put("xpack.security.transport.ssl.enabled", true)
                 .build();
         licenseService.stop();
-        licenseState = new XPackLicenseState(settings, () -> 0);
+        licenseState = new XPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);

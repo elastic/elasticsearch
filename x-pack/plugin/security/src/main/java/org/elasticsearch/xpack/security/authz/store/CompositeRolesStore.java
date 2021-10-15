@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -76,6 +78,7 @@ import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -113,13 +116,17 @@ public class CompositeRolesStore {
     private final boolean isAnonymousEnabled;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
+    private final Role superuserRole;
+    private final Role xpackUserRole;
+    private final Role asyncSearchUserRole;
+    private final Automaton restrictedIndicesAutomaton;
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
                                ApiKeyService apiKeyService, ServiceAccountService serviceAccountService,
-                               DocumentSubsetBitsetCache dlsBitsetCache,
+                               DocumentSubsetBitsetCache dlsBitsetCache, IndexNameExpressionResolver resolver,
                                Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
         this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
         this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
@@ -157,6 +164,14 @@ public class CompositeRolesStore {
         }
         this.anonymousUser = new AnonymousUser(settings);
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
+        this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
+        this.superuserRole = Role.builder(
+            ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            restrictedIndicesAutomaton
+        ).build();
+        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
+        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
     }
 
     public void roles(Set<String> roleNames, ActionListener<Role> roleActionListener) {
@@ -177,7 +192,7 @@ public class CompositeRolesStore {
                         final Set<RoleDescriptor> effectiveDescriptors;
                         Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
                         if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity) &&
-                            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                            DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                             effectiveDescriptors = roleDescriptors.stream()
                                 .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
                                 .collect(Collectors.toSet());
@@ -202,9 +217,19 @@ public class CompositeRolesStore {
             .forEach(rd -> {
                 String reason = Objects.toString(
                     rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY), "Please check the documentation");
-                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
+                deprecationLogger.critical(DeprecationCategory.SECURITY, "deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
                             "] is deprecated and will be removed in a future version of Elasticsearch. " + reason);
             });
+    }
+
+    // for testing
+    Role getXpackUserRole() {
+        return xpackUserRole;
+    }
+
+    // for testing
+    Role getAsyncSearchUserRole() {
+        return asyncSearchUserRole;
     }
 
     public void getRoles(User user, Authentication authentication, ActionListener<Role> roleActionListener) {
@@ -218,15 +243,15 @@ public class CompositeRolesStore {
         }
         if (XPackUser.is(user)) {
             assert XPackUser.INSTANCE.roles().length == 1;
-            roleActionListener.onResponse(XPackUser.ROLE);
+            roleActionListener.onResponse(xpackUserRole);
             return;
         }
         if (XPackSecurityUser.is(user)) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            roleActionListener.onResponse(superuserRole);
             return;
         }
         if (AsyncSearchUser.is(user)) {
-            roleActionListener.onResponse(AsyncSearchUser.ROLE);
+            roleActionListener.onResponse(asyncSearchUserRole);
             return;
         }
 
@@ -246,7 +271,7 @@ public class CompositeRolesStore {
             if (roleNames.isEmpty()) {
                 roleActionListener.onResponse(Role.EMPTY);
             } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-                roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+                roleActionListener.onResponse(superuserRole);
             } else {
                 roles(roleNames, roleActionListener);
             }
@@ -275,7 +300,7 @@ public class CompositeRolesStore {
                     } else {
                         buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
                             limitedByRole -> roleActionListener.onResponse(
-                                limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
+                                LimitedRole.createLimitedRole(role, limitedByRole)),
                             roleActionListener::onFailure
                         ));
                     }
@@ -320,27 +345,29 @@ public class CompositeRolesStore {
     private void buildThenMaybeCacheRole(RoleKey roleKey, Collection<RoleDescriptor> roleDescriptors, Set<String> missing,
                                          boolean tryCache, long invalidationCounter, ActionListener<Role> listener) {
         logger.trace("Building role from descriptors [{}] for names [{}] from source [{}]", roleDescriptors, roleKey.names, roleKey.source);
-        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
-            if (role != null && tryCache) {
-                try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                     * started the request we don't put a potential stale result in the cache, hence the
-                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                     * be on the safe side and don't cache potentially stale results
-                     */
-                    if (invalidationCounter == numInvalidation.get()) {
-                        roleCache.computeIfAbsent(roleKey, (s) -> role);
+        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, restrictedIndicesAutomaton,
+            ActionListener.wrap(role -> {
+                if (role != null && tryCache) {
+                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
+                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                         * started the request we don't put a potential stale result in the cache, hence the
+                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                         * be on the safe side and don't cache potentially stale results
+                         */
+                        if (invalidationCounter == numInvalidation.get()) {
+                            roleCache.computeIfAbsent(roleKey, (s) -> role);
+                        }
+                    }
+
+                    for (String missingRole : missing) {
+                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
                     }
                 }
-
-                for (String missingRole : missing) {
-                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
-                }
-            }
-            listener.onResponse(role);
-        }, listener::onFailure));
+                listener.onResponse(role);
+            }, listener::onFailure)
+        );
     }
 
     private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
@@ -420,7 +447,8 @@ public class CompositeRolesStore {
     }
 
     public static void buildRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
-                                                NativePrivilegeStore privilegeStore, ActionListener<Role> listener) {
+                                                NativePrivilegeStore privilegeStore, Automaton restrictedIndicesAutomaton,
+                                                ActionListener<Role> listener) {
         if (roleDescriptors.isEmpty()) {
             listener.onResponse(Role.EMPTY);
             return;
@@ -463,19 +491,27 @@ public class CompositeRolesStore {
         }
 
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
-        final Role.Builder builder = Role.builder(roleNames.toArray(new String[roleNames.size()]))
+        final Role.Builder builder = Role.builder(restrictedIndicesAutomaton, roleNames.toArray(Strings.EMPTY_ARRAY))
                 .cluster(clusterPrivileges, configurableClusterPrivileges)
                 .runAs(runAsPrivilege);
-        indicesPrivilegesMap.entrySet().forEach((entry) -> {
-            MergeableIndicesPrivilege privilege = entry.getValue();
-            builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
-                    IndexPrivilege.get(privilege.privileges), false, privilege.indices.toArray(Strings.EMPTY_ARRAY));
-        });
-        restrictedIndicesPrivilegesMap.entrySet().forEach((entry) -> {
-            MergeableIndicesPrivilege privilege = entry.getValue();
-            builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
-                    IndexPrivilege.get(privilege.privileges), true, privilege.indices.toArray(Strings.EMPTY_ARRAY));
-        });
+        indicesPrivilegesMap.forEach((key, privilege) ->
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.get(privilege.privileges),
+                false,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+        restrictedIndicesPrivilegesMap.forEach((key, privilege) ->
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.get(privilege.privileges),
+                true,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            )
+        );
 
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
@@ -544,8 +580,8 @@ public class CompositeRolesStore {
      * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
      */
     private static class MergeableIndicesPrivilege {
-        private Set<String> indices;
-        private Set<String> privileges;
+        private final Set<String> indices;
+        private final Set<String> privileges;
         private FieldPermissionsDefinition fieldPermissionsDefinition;
         private Set<BytesReference> query = null;
 

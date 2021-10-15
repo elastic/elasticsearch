@@ -54,7 +54,6 @@ public class SharedBytes extends AbstractRefCounted {
 
     SharedBytes(int numRegions, long regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes)
         throws IOException {
-        super("shared-bytes");
         this.numRegions = numRegions;
         this.regionSize = regionSize;
         final long fileSize = numRegions * regionSize;
@@ -85,7 +84,9 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } else {
             this.fileChannel = null;
-            Files.deleteIfExists(environment.nodeDataPath().resolve(CACHE_FILE_NAME));
+            for (Path path : environment.nodeDataPaths()) {
+                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
+            }
         }
         this.path = cacheFile;
         this.writeBytes = writeBytes;
@@ -98,7 +99,8 @@ public class SharedBytes extends AbstractRefCounted {
      * @return path for the cache file or {@code null} if none could be found
      */
     public static Path findCacheSnapshotCacheFilePath(NodeEnvironment environment, long fileSize) throws IOException {
-        Path path = environment.nodeDataPath();
+        assert environment.nodeDataPaths().length == 1;
+        Path path = environment.nodeDataPaths()[0];
         Files.createDirectories(path);
         // TODO: be resilient to this check failing and try next path?
         long usableSpace = Environment.getUsableSpace(path);
@@ -158,7 +160,6 @@ public class SharedBytes extends AbstractRefCounted {
         private final long pageStart;
 
         private IO(final int sharedBytesPos) {
-            super("shared-bytes-io");
             this.sharedBytesPos = sharedBytesPos;
             pageStart = getPhysicalOffset(sharedBytesPos);
         }

@@ -86,9 +86,7 @@ public abstract class Command implements Closeable {
             if (e.exitCode == ExitCodes.USAGE) {
                 printHelp(terminal, true);
             }
-            if (e.getMessage() != null) {
-                terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
-            }
+            printUserException(terminal, e);
             return e.exitCode;
         }
         return ExitCodes.OK;
@@ -132,6 +130,13 @@ public abstract class Command implements Closeable {
 
     /** Prints additional help information, specific to the command */
     protected void printAdditionalHelp(Terminal terminal) {}
+
+    protected void printUserException(Terminal terminal, UserException e) {
+        if (e.getMessage() != null) {
+            terminal.errorPrintln("");
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+        }
+    }
 
     @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
     protected static void exit(int status) {

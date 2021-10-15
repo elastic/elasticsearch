@@ -9,7 +9,7 @@ package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -286,6 +286,20 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 emptyMap()), "keyword_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(Arrays.asList("test", "baz was not here", "Data", "-10", "20", "9"), response.getResult());
+    }
+
+    public void testCompositeExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless",
+            "emit(\"foo\", \"bar\"); emit(\"foo2\", 2);", emptyMap()), "composite_field", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertEquals(Map.of(
+            "composite_field.foo", List.of("bar"),
+            "composite_field.foo2", List.of(2)), response.getResult());
     }
 
     public void testContextWhitelists() throws IOException {

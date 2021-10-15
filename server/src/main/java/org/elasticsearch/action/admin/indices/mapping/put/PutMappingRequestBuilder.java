@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.util.Map;
@@ -59,7 +59,7 @@ public class PutMappingRequestBuilder
     /**
      * The mapping source definition.
      */
-    public PutMappingRequestBuilder setSource(Map mappingSource) {
+    public PutMappingRequestBuilder setSource(Map<String, ?> mappingSource) {
         request.source(mappingSource);
         return this;
     }

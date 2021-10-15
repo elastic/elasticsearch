@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -44,6 +45,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus.DECIDERS_NO;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
@@ -179,11 +181,12 @@ public class AllocationServiceTests extends ESTestCase {
 
         final ClusterState reroutedState1 = rerouteAndStartShards(allocationService, clusterState);
         final RoutingTable routingTable1 = reroutedState1.routingTable();
+        final RoutingNodes routingNodes1 = reroutedState1.getRoutingNodes();
         // the test harness only permits one recovery per node, so we must have allocated all the high-priority primaries and one of the
         // medium-priority ones
-        assertThat(routingTable1.shardsWithState(ShardRoutingState.INITIALIZING), empty());
-        assertThat(routingTable1.shardsWithState(ShardRoutingState.RELOCATING), empty());
-        assertTrue(routingTable1.shardsWithState(ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
+        assertThat(shardsWithState(routingNodes1, ShardRoutingState.INITIALIZING), empty());
+        assertThat(shardsWithState(routingNodes1, ShardRoutingState.RELOCATING), empty());
+        assertTrue(shardsWithState(routingNodes1, ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
         assertThat(routingTable1.index("highPriority").primaryShardsActive(), equalTo(2));
         assertThat(routingTable1.index("mediumPriority").primaryShardsActive(), equalTo(1));
         assertThat(routingTable1.index("lowPriority").shardsWithState(ShardRoutingState.STARTED), empty());
@@ -191,10 +194,11 @@ public class AllocationServiceTests extends ESTestCase {
 
         final ClusterState reroutedState2 = rerouteAndStartShards(allocationService, reroutedState1);
         final RoutingTable routingTable2 = reroutedState2.routingTable();
+        final RoutingNodes routingNodes2 = reroutedState2.getRoutingNodes();
         // this reroute starts the one remaining medium-priority primary and both of the low-priority ones, but no replicas
-        assertThat(routingTable2.shardsWithState(ShardRoutingState.INITIALIZING), empty());
-        assertThat(routingTable2.shardsWithState(ShardRoutingState.RELOCATING), empty());
-        assertTrue(routingTable2.shardsWithState(ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
+        assertThat(shardsWithState(routingNodes2, ShardRoutingState.INITIALIZING), empty());
+        assertThat(shardsWithState(routingNodes2, ShardRoutingState.RELOCATING), empty());
+        assertTrue(shardsWithState(routingNodes2, ShardRoutingState.STARTED).stream().allMatch(ShardRouting::primary));
         assertTrue(routingTable2.index("highPriority").allPrimaryShardsActive());
         assertTrue(routingTable2.index("mediumPriority").allPrimaryShardsActive());
         assertTrue(routingTable2.index("lowPriority").allPrimaryShardsActive());
@@ -202,9 +206,10 @@ public class AllocationServiceTests extends ESTestCase {
 
         final ClusterState reroutedState3 = rerouteAndStartShards(allocationService, reroutedState2);
         final RoutingTable routingTable3 = reroutedState3.routingTable();
+        final RoutingNodes routingNodes3 = reroutedState3.getRoutingNodes();
         // this reroute starts the two medium-priority replicas since their allocator permits this
-        assertThat(routingTable3.shardsWithState(ShardRoutingState.INITIALIZING), empty());
-        assertThat(routingTable3.shardsWithState(ShardRoutingState.RELOCATING), empty());
+        assertThat(shardsWithState(routingNodes3, ShardRoutingState.INITIALIZING), empty());
+        assertThat(shardsWithState(routingNodes3, ShardRoutingState.RELOCATING), empty());
         assertTrue(routingTable3.index("highPriority").allPrimaryShardsActive());
         assertThat(routingTable3.index("mediumPriority").shardsWithState(ShardRoutingState.UNASSIGNED), empty());
         assertTrue(routingTable3.index("lowPriority").allPrimaryShardsActive());
@@ -250,9 +255,13 @@ public class AllocationServiceTests extends ESTestCase {
             assertThat(nodeAllocationResult.getNodeDecision(), equalTo(AllocationDecision.NO));
             assertThat(nodeAllocationResult.getCanAllocateDecision().type(), equalTo(Decision.Type.NO));
             assertThat(nodeAllocationResult.getCanAllocateDecision().label(), equalTo("allocator_plugin"));
-            assertThat(nodeAllocationResult.getCanAllocateDecision().getExplanation(), equalTo("finding the previous copies of this " +
-                "shard requires an allocator called [unknown] but that allocator was not found; perhaps the corresponding plugin is " +
-                "not installed"));
+            assertThat(
+                nodeAllocationResult.getCanAllocateDecision().getExplanation(),
+                equalTo(
+                    "finding the previous copies of this shard requires an allocator called [unknown] but that allocator "
+                        + "was not found; perhaps the corresponding plugin is not installed"
+                )
+            );
         }
     }
 
@@ -334,7 +343,7 @@ public class AllocationServiceTests extends ESTestCase {
     private static ClusterState rerouteAndStartShards(final AllocationService allocationService, final ClusterState clusterState) {
         final ClusterState reroutedState = allocationService.reroute(clusterState, "test");
         return allocationService.applyStartedShards(reroutedState,
-            reroutedState.routingTable().shardsWithState(ShardRoutingState.INITIALIZING));
+            shardsWithState(reroutedState.getRoutingNodes(), ShardRoutingState.INITIALIZING));
     }
 
 }

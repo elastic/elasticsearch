@@ -8,7 +8,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.standard.ClassicFilter;
+import org.apache.lucene.analysis.classic.ClassicFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;

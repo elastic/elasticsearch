@@ -216,7 +216,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         @SuppressWarnings("unchecked") // we imprecisely treat the class literal of T as a Class<T>
                 Class<F> factoryRawType = (Class) factoryType.getRawType();
         return factoryRawType.cast(Proxy.newProxyInstance(factoryRawType.getClassLoader(),
-                new Class[]{factoryRawType}, invocationHandler));
+                new Class<?>[]{factoryRawType}, invocationHandler));
     }
 
     private static ConfigurationException newConfigurationException(String format, Object... args) {

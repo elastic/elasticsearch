@@ -11,10 +11,10 @@ package org.elasticsearch.packaging.test;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.Before;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 
@@ -27,9 +27,10 @@ public class ConfigurationTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
-    public void test60HostnameSubstitution() throws Exception {
+    public void test20HostnameSubstitution() throws Exception {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
@@ -37,10 +38,18 @@ public class ConfigurationTests extends PackagingTestCase {
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
+            // security auto-config requires that the archive owner and the node process user be the same
+            Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
-                final String nameResponse = makeRequest(Request.Get("http://localhost:9200/_cat/nodes?h=name")).strip();
+                final String nameResponse = ServerUtils.makeRequest(
+                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
+                    "test_superuser",
+                    "test_superuser_password",
+                    ServerUtils.getCaCert(confPath)
+                ).strip();
                 assertThat(nameResponse, equalTo("mytesthost"));
             });
+            Platforms.onWindows(() -> sh.chown(confPath));
         });
     }
 }

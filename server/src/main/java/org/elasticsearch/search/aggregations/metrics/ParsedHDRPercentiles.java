@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
@@ -31,8 +31,11 @@ public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentil
         return getPercentileAsString(percent);
     }
 
-    private static final ObjectParser<ParsedHDRPercentiles, Void> PARSER =
-            new ObjectParser<>(ParsedHDRPercentiles.class.getSimpleName(), true, ParsedHDRPercentiles::new);
+    private static final ObjectParser<ParsedHDRPercentiles, Void> PARSER = new ObjectParser<>(
+        ParsedHDRPercentiles.class.getSimpleName(),
+        true,
+        ParsedHDRPercentiles::new
+    );
     static {
         ParsedPercentiles.declarePercentilesFields(PARSER);
     }

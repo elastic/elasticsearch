@@ -12,14 +12,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -39,6 +39,19 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getConfig().utf8ToString());
+    }
+
+    public void testMetaSerialization() throws IOException {
+        String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+        PipelineConfiguration configuration = new PipelineConfiguration("1",
+            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        assertEquals(XContentType.JSON, configuration.getXContentType());
+        BytesStreamOutput out = new BytesStreamOutput();
+        configuration.writeTo(out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
+        assertEquals(XContentType.JSON, serialized.getXContentType());
+        assertEquals(configJson, serialized.getConfig().utf8ToString());
     }
 
     public void testParser() throws IOException {

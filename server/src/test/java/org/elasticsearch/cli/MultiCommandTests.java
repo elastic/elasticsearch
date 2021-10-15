@@ -11,6 +11,7 @@ package org.elasticsearch.cli;
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionSet;
 import joptsimple.util.KeyValuePair;
+
 import org.junit.Before;
 
 import java.io.IOException;
@@ -111,11 +112,13 @@ public class MultiCommandTests extends CommandTestCase {
         assertEquals("Unknown command [somethingelse]", e.getMessage());
     }
 
-    public void testMissingCommand() {
+    public void testMissingCommand() throws Exception {
         multiCommand.subcommands.put("command1", new DummySubCommand());
-        UserException e = expectThrows(UserException.class, this::execute);
+        MultiCommand.MissingCommandException e = expectThrows(MultiCommand.MissingCommandException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertEquals("Missing command", e.getMessage());
+        assertEquals("Missing required command", e.getMessage());
+        multiCommand.printUserException(terminal, e);
+        assertThat(terminal.getErrorOutput(), containsString("command1"));
     }
 
     public void testHelp() throws Exception {

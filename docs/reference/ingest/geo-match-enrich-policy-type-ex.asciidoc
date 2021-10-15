@@ -82,13 +82,13 @@ pipeline. In the pipeline, add an <<enrich-processor,enrich processor>> that
 includes:
 
 * Your enrich policy.
-* The `field` of incoming documents used to match the geo_shape of documents
+* The `field` of incoming documents used to match the geoshape of documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
   This field contains the `match_field` and `enrich_fields` specified in your
   enrich policy.
-* The `shape_relation`, which indicates how the processor matches geo_shapes in
-  incoming documents to geo_shapes in documents from the enrich index. See
+* The `shape_relation`, which indicates how the processor matches geoshapes in
+  incoming documents to geoshapes in documents from the enrich index. See
   <<_spatial_relations>> for valid options and more information.
 
 [source,console]

@@ -20,9 +20,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Arrays;
 import java.util.Map;
-
-import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
+import java.util.stream.Stream;
 
 /**
  * A set of utilities around Logging.
@@ -38,7 +38,8 @@ public class Loggers {
             Setting.Property.NodeScope));
 
     public static Logger getLogger(Class<?> clazz, ShardId shardId, String... prefixes) {
-        return getLogger(clazz, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(clazz, shardId.getIndex(), Stream.concat(Stream.of(Integer.toString(shardId.id())),
+            Arrays.stream(prefixes)).toArray(String[]::new));
     }
 
     /**
@@ -51,7 +52,7 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Index index, String... prefixes) {
-        return getLogger(clazz, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, Stream.concat(Stream.of(Loggers.SPACE, index.getName()), Arrays.stream(prefixes)).toArray(String[]::new));
     }
 
     public static Logger getLogger(Class<?> clazz, String... prefixes) {

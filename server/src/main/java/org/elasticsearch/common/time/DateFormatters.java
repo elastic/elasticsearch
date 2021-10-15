@@ -48,7 +48,7 @@ public class DateFormatters {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
 
     public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
 
@@ -208,7 +208,7 @@ public class DateFormatters {
     /**
      * Returns a ISO 8601 compatible date time formatter and parser.
      * This is not fully compatible to the existing spec, which would require far more edge cases, but merely compatible with the
-     * existing joda time ISO date formatter
+     * existing legacy joda time ISO date formatter
      */
     private static final DateFormatter ISO_8601 = new JavaDateFormatter("iso8601", STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder()
@@ -1852,7 +1852,7 @@ public class DateFormatters {
      * - If no time is given, the start of the day is used
      * - If no month of the year is found, the first day of the year is used
      * - If an iso based weekyear is found, but not week is specified, the first monday
-     *   of the new year is chosen (reataining BWC to joda time)
+     *   of the new year is chosen (retaining BWC with joda time)
      * - If an iso based weekyear is found and an iso based weekyear week, the start
      *   of the day is used
      *

@@ -37,6 +37,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.RegExp.Kind;
 import org.elasticsearch.ElasticsearchParseException;
@@ -47,19 +49,19 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -193,7 +195,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final Parameter<Integer> ignoreAbove
             = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE)
-            .setValidator(v -> {
+            .addValidator(v -> {
                 if (v < 0) {
                     throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                 }
@@ -226,12 +228,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public WildcardFieldMapper build(ContentPath contentPath) {
+        public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 name,
-                new WildcardFieldType(buildFullName(contentPath), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
-                multiFieldsBuilder.build(this, contentPath),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 nullValue.get(),
                 indexVersionCreated
@@ -330,19 +332,15 @@ public class WildcardFieldMapper extends FieldMapper {
             Automaton automaton = caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term(name(), wildcardPattern), Integer.MAX_VALUE)
                 : WildcardQuery.toAutomaton(new Term(name(), wildcardPattern));
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), wildcardPattern, automaton);
             if (clauseCount > 0) {
                 // We can accelerate execution with the ngram query
                 BooleanQuery approxQuery = rewritten.build();
-                BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-                verifyingBuilder.add(new BooleanClause(approxQuery, Occur.MUST));
-                verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-                return new ConstantScoreQuery(verifyingBuilder.build());
+                return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new DocValuesFieldExistsQuery(name());
             }
-            return verifyingQuery;
+            return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
 
         }
 
@@ -352,32 +350,27 @@ public class WildcardFieldMapper extends FieldMapper {
             if (value.length() == 0) {
                 return new MatchNoDocsQuery();
             }
+            
+            //Check for simple "match all expressions e.g. .*
+            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
+            Automaton a = regExp.toAutomaton();
+            a = Operations.determinize(a, maxDeterminizedStates);
+            a = MinimizationOperations.minimize(a, maxDeterminizedStates);
+            if (Operations.isTotal(a)) { // Will match all
+                return existsQuery(context);
+            }
 
             RegExp ngramRegex = new RegExp(addLineEndChars(value), syntaxFlags, matchFlags);
+            
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
 
-            // MatchAll is a special case meaning the regex is known to match everything .* and
-            // there is no need for verification.
-            if (approxNgramQuery instanceof MatchAllDocsQuery) {
-                return existsQuery(context);
-            }
             RegExp regex = new RegExp(value, syntaxFlags, matchFlags);
             Automaton automaton = regex.toAutomaton(maxDeterminizedStates);
-            AutomatonQueryOnBinaryDv verifyingQuery = new AutomatonQueryOnBinaryDv(name(), value, automaton);
-
-            // MatchAllButRequireVerificationQuery is a special case meaning the regex is reduced to a single
-            // clause which we can't accelerate at all and needs verification. Example would be ".."
-            if (approxNgramQuery instanceof MatchAllButRequireVerificationQuery) {
-                return verifyingQuery;
-            }
 
             // We can accelerate execution with the ngram query
-            BooleanQuery.Builder verifyingBuilder = new BooleanQuery.Builder();
-            verifyingBuilder.add(new BooleanClause(approxNgramQuery, Occur.MUST));
-            verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
-            return verifyingBuilder.build();
+            return new BinaryDvConfirmedAutomatonQuery(approxNgramQuery, name(), value, automaton);
         }
 
         // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
@@ -422,12 +415,12 @@ public class WildcardFieldMapper extends FieldMapper {
                             // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
                             // concatenated.
                             BooleanQuery.Builder wrapper = new BooleanQuery.Builder();
-                            wrapper.add(result, Occur.MUST);
+                            wrapper.add(result, Occur.FILTER);
                             result = wrapper.build();
                         }
                     } else {
                         // Expressions like (a){0,3} match empty string or up to 3 a's.
-                        result = new MatchAllButRequireVerificationQuery();
+                        result = new MatchAllDocsQuery();
                     }
                     break;
                 case REGEXP_ANYSTRING:
@@ -444,7 +437,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:
                 case REGEXP_AUTOMATON:
-                    result = new MatchAllButRequireVerificationQuery();
+                    result = new MatchAllDocsQuery();
                     break;
             }
             assert result != null; // All regex types are understood and translated to a query.
@@ -464,21 +457,21 @@ public class WildcardFieldMapper extends FieldMapper {
                     sequence.append(tq.getTerm().text());
                 } else {
                     if (sequence.length() > 0) {
-                        bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
+                        bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.FILTER);
                         sequence = new StringBuilder();
                     }
-                    bAnd.add(query, Occur.MUST);
+                    bAnd.add(query, Occur.FILTER);
                 }
             }
             if (sequence.length() > 0) {
-                bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
+                bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.FILTER);
             }
             BooleanQuery combined = bAnd.build();
             if (combined.clauses().size() > 0) {
                 return combined;
             }
             // There's something in the regex we couldn't represent as a query - resort to a match all with verification
-            return new MatchAllButRequireVerificationQuery();
+            return new MatchAllDocsQuery();
 
         }
 
@@ -506,7 +499,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             }
             // There's something in the regex we couldn't represent as a query - resort to a match all with verification
-            return new MatchAllButRequireVerificationQuery();
+            return new MatchAllDocsQuery();
         }
 
         private static void findLeaves(RegExp exp, Kind kind, List<Query> queries) {
@@ -537,7 +530,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 for (BooleanClause clause : bq) {
                     Query q = rewriteBoolToNgramQuery(clause.getQuery());
                     if (q != null) {
-                        if (clause.getOccur().equals(Occur.MUST)) {
+                        if (clause.getOccur().equals(Occur.FILTER)) {
                             // Can't drop "should" clauses because it can elevate a sibling optional item
                             // to mandatory (shoulds with 1 clause) causing false negatives
                             // Dropping MUSTs increase false positives which are OK because are verified anyway.
@@ -549,7 +542,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewritten.add(q, clause.getOccur());
                     }
                 }
-                return simplify(rewritten.build());
+                return rewritten.build();
             }
             if (approxQuery instanceof TermQuery) {
                 TermQuery tq = (TermQuery) approxQuery;
@@ -557,7 +550,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 //Remove simple terms that are only string beginnings or ends.
                 String s = tq.getTerm().text();
                 if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) || s.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
-                    return new MatchAllButRequireVerificationQuery();
+                    return new MatchAllDocsQuery();
                 }
 
                 // Break term into tokens
@@ -565,75 +558,15 @@ public class WildcardFieldMapper extends FieldMapper {
                 getNgramTokens(tokens, s);
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 for (String string : tokens) {
-                    addClause(string, rewritten, Occur.MUST);
+                    addClause(string, rewritten, Occur.FILTER);
                 }
-                return simplify(rewritten.build());
+                return rewritten.build();
             }
-            if (isMatchAll(approxQuery)) {
+            if (approxQuery instanceof MatchAllDocsQuery) {
                 return approxQuery;
             }
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }
-
-        static Query simplify(Query input) {
-            if (input instanceof BooleanQuery == false) {
-                return input;
-            }
-            BooleanQuery result = (BooleanQuery) input;
-            if (result.clauses().size() == 0) {
-                // A ".*" clause can produce zero clauses in which case we return MatchAll
-                return new MatchAllDocsQuery();
-            }
-            if (result.clauses().size() == 1) {
-                return simplify(result.clauses().get(0).getQuery());
-            }
-
-            // We may have a mix of MatchAll and concrete queries - assess if we can simplify
-            int matchAllCount = 0;
-            int verifyCount = 0;
-            boolean allConcretesAreOptional = true;
-            for (BooleanClause booleanClause : result.clauses()) {
-                Query q = booleanClause.getQuery();
-                if (q instanceof MatchAllDocsQuery) {
-                    matchAllCount++;
-                } else if (q instanceof MatchAllButRequireVerificationQuery) {
-                    verifyCount++;
-                } else {
-                    // Concrete query
-                    if (booleanClause.getOccur() != Occur.SHOULD) {
-                        allConcretesAreOptional = false;
-                    }
-                }
-            }
-
-            if ((allConcretesAreOptional && matchAllCount > 0)) {
-                // Any match all expression takes precedence over all optional concrete queries.
-                return new MatchAllDocsQuery();
-            }
-
-            if ((allConcretesAreOptional && verifyCount > 0)) {
-                // Any match all expression that needs verification takes precedence over all optional concrete queries.
-                return new MatchAllButRequireVerificationQuery();
-            }
-
-            // We have some mandatory concrete queries - strip out the superfluous match all expressions
-            if (allConcretesAreOptional == false && matchAllCount + verifyCount > 0) {
-                BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-                for (BooleanClause booleanClause : result.clauses()) {
-                    if (isMatchAll(booleanClause.getQuery()) == false) {
-                        rewritten.add(booleanClause);
-                    }
-                }
-                return simplify(rewritten.build());
-            }
-            return result;
-        }
-
-
-        static boolean isMatchAll(Query q) {
-            return q instanceof MatchAllDocsQuery || q instanceof MatchAllButRequireVerificationQuery;
-        }
-
         protected void getNgramTokens(Set<String> tokens, String fragment) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
@@ -674,7 +607,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (tokenSize < 2 || token.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
                 // there's something concrete to be searched but it's too short
                 // Require verification.
-                bqBuilder.add(new BooleanClause(new MatchAllButRequireVerificationQuery(), occur));
+                bqBuilder.add(new BooleanClause(new MatchAllDocsQuery(), occur));
                 return;
             }
             if (tokenSize == NGRAM_SIZE) {
@@ -731,11 +664,11 @@ public class WildcardFieldMapper extends FieldMapper {
 
                         if (tokenSize == NGRAM_SIZE) {
                             TermQuery tq = new TermQuery(new Term(name(), token));
-                            bqBuilder.add(new BooleanClause(tq, Occur.MUST));
+                            bqBuilder.add(new BooleanClause(tq, Occur.FILTER));
                         } else {
                             PrefixQuery wq = new PrefixQuery(new Term(name(), token));
                             wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-                            bqBuilder.add(new BooleanClause(wq, Occur.MUST));
+                            bqBuilder.add(new BooleanClause(wq, Occur.FILTER));
                         }
                     }
                     BooleanQuery bq = bqBuilder.build();
@@ -745,16 +678,12 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             }
             Automaton automaton =  TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper);
-            AutomatonQueryOnBinaryDv slowQuery = new AutomatonQueryOnBinaryDv(name(), lower + "-" + upper, automaton);
 
             if (accelerationQuery == null) {
-                return slowQuery;
+                return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+                    name(), lower + "-" + upper, automaton);
             }
-
-            BooleanQuery.Builder qBuilder = new BooleanQuery.Builder();
-            qBuilder.add(accelerationQuery, Occur.MUST);
-            qBuilder.add(slowQuery, Occur.MUST);
-            return qBuilder.build();
+            return new BinaryDvConfirmedAutomatonQuery(accelerationQuery, name(), lower + "-" + upper, automaton);
         }
 
         @Override
@@ -768,7 +697,6 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             String searchTerm = BytesRefs.toString(value);
             try {
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
                 //The approximation query can have a prefix and any number of ngrams.
                 BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
 
@@ -824,9 +752,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
 
                 BooleanQuery ngramQ = approxBuilder.build();
-                if (ngramQ.clauses().size()>0) {
-                    bqBuilder.add(ngramQ, Occur.MUST);
-                }
 
                 // Verification query
                 FuzzyQuery fq = new FuzzyQuery(
@@ -836,9 +761,12 @@ public class WildcardFieldMapper extends FieldMapper {
                     maxExpansions,
                     transpositions
                 );
-                bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, fq.getAutomata().automaton), Occur.MUST);
+                if (ngramQ.clauses().size() == 0) {
+                    return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(),
+                        name(), searchTerm, fq.getAutomata().automaton);
+                }
 
-                return bqBuilder.build();
+                return new BinaryDvConfirmedAutomatonQuery(ngramQ, name(), searchTerm, fq.getAutomata().automaton);
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }

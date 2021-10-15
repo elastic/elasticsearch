@@ -48,7 +48,7 @@ public class ForceMergeStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         String indexName = indexMetadata.getIndex().getName();
         ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
@@ -56,7 +56,7 @@ public class ForceMergeStep extends AsyncActionStep {
             .forceMerge(request, ActionListener.wrap(
                 response -> {
                     if (response.getFailedShards() == 0) {
-                        listener.onResponse(true);
+                        listener.onResponse(null);
                     } else {
                         DefaultShardOperationFailedException[] failures = response.getShardFailures();
                         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());

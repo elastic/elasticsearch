@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -46,7 +47,9 @@ public class TaskAssertions {
         assertBusy(() -> {
             boolean foundTask = false;
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
+                final TaskManager taskManager = transportService.getTaskManager();
+                assertTrue(taskManager.assertCancellableTaskConsistency());
+                for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {
                     if (cancellableTask.getAction().startsWith(actionPrefix)) {
                         foundTask = true;
                         assertTrue(

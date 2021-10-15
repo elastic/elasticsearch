@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Types.forciblyCast;
+
 /**
  * This search phase can be used as an initial search phase to pre-filter search shards based on query rewriting.
  * The queries are rewritten against the shards and based on the rewrite result shards might be able to be excluded
@@ -146,8 +148,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             }
 
             CanMatchResponse result = new CanMatchResponse(canMatch, null);
-            result.setSearchShardTarget(shard == null ? new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias(),
-                shardIt.getOriginalIndices()) : shard);
+            result.setSearchShardTarget(shard == null ? new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias()) : shard);
             result.setShardIndex(shardIndex);
             fork(() -> onShardResult(result, shardIt));
         } catch (Exception e) {
@@ -185,7 +186,11 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private static Comparator<Integer> shardComparator(GroupShardsIterator<SearchShardIterator> shardsIts,
                                                        MinAndMax<?>[] minAndMaxes,
                                                        SortOrder order) {
-        final Comparator<Integer> comparator = Comparator.comparing(index -> minAndMaxes[index], MinAndMax.getComparator(order));
+        final Comparator<Integer> comparator = Comparator.comparing(
+            index -> minAndMaxes[index],
+            forciblyCast(MinAndMax.getComparator(order))
+        );
+
         return comparator.thenComparing(index -> shardsIts.get(index));
     }
 
@@ -197,7 +202,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         CanMatchSearchPhaseResults(int size) {
             super(size);
             possibleMatches = new FixedBitSet(size);
-            minAndMaxes = new MinAndMax[size];
+            minAndMaxes = new MinAndMax<?>[size];
         }
 
         @Override

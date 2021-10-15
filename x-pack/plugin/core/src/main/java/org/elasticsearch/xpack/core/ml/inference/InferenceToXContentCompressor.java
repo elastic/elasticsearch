@@ -15,13 +15,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.core.ml.inference.utils.SimpleBoundedInputStream;
 
@@ -37,9 +37,9 @@ import java.util.zip.GZIPOutputStream;
  */
 public final class InferenceToXContentCompressor {
     private static final int BUFFER_SIZE = 4096;
-    // Either 10% of the configured JVM heap, or 1 GB, which ever is smaller
+    // Either 25% of the configured JVM heap, or 1 GB, which ever is smaller
     private static final long MAX_INFLATED_BYTES = Math.min(
-        (long)((0.10) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
+        (long)((0.25) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
         ByteSizeValue.ofGb(1).getBytes());
 
     private InferenceToXContentCompressor() {}
@@ -47,6 +47,12 @@ public final class InferenceToXContentCompressor {
     public static <T extends ToXContentObject> BytesReference deflate(T objectToCompress) throws IOException {
         BytesReference reference = XContentHelper.toXContent(objectToCompress, XContentType.JSON, false);
         return deflate(reference);
+    }
+
+    public static <T> T inflateUnsafe(BytesReference compressedBytes,
+                                      CheckedFunction<XContentParser, T, IOException> parserFunction,
+                                      NamedXContentRegistry xContentRegistry) throws IOException {
+        return inflate(compressedBytes, parserFunction, xContentRegistry, Long.MAX_VALUE);
     }
 
     public static <T> T inflate(BytesReference compressedBytes,

@@ -243,18 +243,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                                               final ActionListener<PersistentTask<?>> listener) {
                 fail("Shouldn't be called during Cluster State cancellation");
             }
-
-            @Override
-            public void validateLocalAbortSupported() {
-                if (isLocalAbortSupported() == false) {
-                    fail("this test should not cover local abort");
-                }
-            }
-
-            @Override
-            public boolean isLocalAbortSupported() {
-                return randomBoolean();
-            }
         };
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
@@ -341,15 +329,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 capturedLocalAbortReason.set(localAbortReason);
                 assertThat(taskFailure, nullValue());
             }
-
-            @Override
-            public void validateLocalAbortSupported() {
-            }
-
-            @Override
-            public boolean isLocalAbortSupported() {
-                return true;
-            }
         };
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
@@ -435,18 +414,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                 assertThat(localAbortReason, nullValue());
                 listener.onResponse(mock(PersistentTask.class));
                 latch.countDown();
-            }
-
-            @Override
-            public void validateLocalAbortSupported() {
-                if (isLocalAbortSupported() == false) {
-                    fail("this test should not cover local abort");
-                }
-            }
-
-            @Override
-            public boolean isLocalAbortSupported() {
-                return randomBoolean();
             }
         };
 

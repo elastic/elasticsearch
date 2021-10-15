@@ -27,9 +27,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -220,6 +220,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 .kill();
             iterator.remove();
         }
+    }
+
+    public boolean isNodeDying() {
+        return nodeDying;
     }
 
     /**
@@ -747,13 +751,12 @@ public class AutodetectProcessManager implements ClusterStateListener {
             msgBuilder.append("] with latest_record_timestamp [");
             Date snapshotLatestRecordTimestamp = modelSnapshot.getLatestRecordTimeStamp();
             msgBuilder.append(snapshotLatestRecordTimestamp == null ? "N/A" :
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(
-                            snapshotLatestRecordTimestamp.getTime()));
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(snapshotLatestRecordTimestamp.toInstant()));
         }
         msgBuilder.append("], job latest_record_timestamp [");
         Date jobLatestRecordTimestamp = autodetectParams.dataCounts().getLatestRecordTimeStamp();
         msgBuilder.append(jobLatestRecordTimestamp == null ? "N/A"
-                : XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(jobLatestRecordTimestamp.getTime()));
+                : XContentElasticsearchExtension.DEFAULT_FORMATTER.format(jobLatestRecordTimestamp.toInstant()));
         msgBuilder.append("]");
         String msg = msgBuilder.toString();
         logger.info("[{}] {}", jobId, msg);

@@ -55,7 +55,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -332,8 +332,8 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.div(" +
-                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))", FakePainlessScriptPlugin::fail);
+            scripts.put("InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0 -> InternalQlScriptUtils.nullSafeFilter("
+                + "InternalQlScriptUtils.eq(InternalQlScriptUtils.div(params.v1,X0),params.v2)))", FakePainlessScriptPlugin::fail);
             return scripts;
         }
 

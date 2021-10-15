@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -58,7 +59,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
-import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomReason;
+import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -270,7 +271,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
-                    unassignedInfo = new UnassignedInfo(randomReason(), randomAlphaOfLength(10));
+                    unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(10));
                 }
                 if (availableNodeIds.isEmpty()) {
                     break;
@@ -449,14 +450,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     /**
-     * Randomly updates persistent or transient settings of the given metadata
+     * Updates persistent cluster settings of the given metadata
      */
     private Metadata randomMetadataSettings(Metadata metadata) {
-        if (randomBoolean()) {
-            return Metadata.builder(metadata).persistentSettings(randomSettings(metadata.persistentSettings())).build();
-        } else {
-            return Metadata.builder(metadata).transientSettings(randomSettings(metadata.transientSettings())).build();
-        }
+        return Metadata.builder(metadata).persistentSettings(randomSettings(metadata.persistentSettings())).build();
     }
 
     /**
@@ -702,7 +699,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public ClusterState.Custom randomCreate(String name) {
                 switch (randomIntBetween(0, 1)) {
                     case 0:
-                        return SnapshotsInProgress.of(List.of(new SnapshotsInProgress.Entry(
+                        return SnapshotsInProgress.EMPTY.withAddedEntry(new SnapshotsInProgress.Entry(
                                 new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 randomBoolean(),
                                 randomBoolean(),
@@ -714,7 +711,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 ImmutableOpenMap.of(),
                                 null,
                                 SnapshotInfoTestUtils.randomUserMetadata(),
-                                randomVersion(random()))));
+                                randomVersion(random())));
                     case 1:
                         return new RestoreInProgress.Builder().add(
                             new RestoreInProgress.Entry(

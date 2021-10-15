@@ -102,7 +102,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
-            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Void, Exception>get(
                 f -> mountSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
             assertThat(e.getMessage(),
                 is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
@@ -122,14 +122,14 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
-            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Void, Exception>get(
                 f -> mountSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
             assertThat(e.getMessage(),
                 is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         Map<String, String> ilmCustom = new HashMap<>();
@@ -151,11 +151,11 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                  getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, RESTORED_INDEX_PREFIX, indexName)) {
             MountSnapshotStep step =
                 new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX, randomStorageType());
-            assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+            PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
         }
     }
 
-    public void testResponseStatusHandling() {
+    public void testResponseStatusHandling() throws Exception {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         Map<String, String> ilmCustom = new HashMap<>();
@@ -178,7 +178,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             try (NoOpClient clientPropagatingOKResponse = getClientTriggeringResponse(responseWithOKStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingOKResponse,
                     RESTORED_INDEX_PREFIX, randomStorageType());
-                assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+                PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
             }
         }
 
@@ -187,7 +187,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             try (NoOpClient clientPropagatingACCEPTEDResponse = getClientTriggeringResponse(responseWithACCEPTEDStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingACCEPTEDResponse,
                     RESTORED_INDEX_PREFIX, randomStorageType());
-                assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+                PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
             }
         }
     }
@@ -204,24 +204,24 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-restored-partial-potato"), equalTo("my-restored-partial-potato"));
     }
 
-    public void testMountWithNoPrefix() {
+    public void testMountWithNoPrefix() throws Exception {
         doTestMountWithoutSnapshotIndexNameInState("");
     }
 
-    public void testMountWithRestorePrefix() {
+    public void testMountWithRestorePrefix() throws Exception {
         doTestMountWithoutSnapshotIndexNameInState(SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX);
     }
 
-    public void testMountWithPartialPrefix() {
+    public void testMountWithPartialPrefix() throws Exception {
         doTestMountWithoutSnapshotIndexNameInState(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX);
     }
 
-    public void testMountWithPartialAndRestoredPrefix() {
+    public void testMountWithPartialAndRestoredPrefix() throws Exception {
         doTestMountWithoutSnapshotIndexNameInState(SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX);
     }
 
-    public void doTestMountWithoutSnapshotIndexNameInState(String prefix) {
+    public void doTestMountWithoutSnapshotIndexNameInState(String prefix) throws Exception {
         {
             String indexNameSnippet = randomAlphaOfLength(10);
             String indexName = prefix + indexNameSnippet;
@@ -246,7 +246,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                          indexName, RESTORED_INDEX_PREFIX, indexNameSnippet)) {
                 MountSnapshotStep step =
                     new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX, randomStorageType());
-                assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+                PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
             }
         }
     }

@@ -667,7 +667,7 @@ public class BCrypt {
             off = 3;
         else {
             minor = salt.charAt(2);
-            if (minor != 'a' || salt.charAt(3) != '$')
+            if (valid_minor(minor) == false || salt.charAt(3) != '$')
                 throw new IllegalArgumentException ("Invalid salt revision");
             off = 4;
         }
@@ -725,6 +725,17 @@ public class BCrypt {
         rs.append(encode_base64(hashed,
                 bf_crypt_ciphertext.length * 4 - 1));
         return rs.toString();
+    }
+
+    static boolean valid_minor(char minor) {
+        switch (minor) {
+            case 'a':
+            case 'b':
+            case 'y':
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**

@@ -9,17 +9,19 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
-        extends InternalMultiBucketAggregation.InternalBucket implements GeoGrid.Bucket, Comparable<InternalGeoGridBucket> {
+public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregation.InternalBucket
+    implements
+        GeoGrid.Bucket,
+        Comparable<InternalGeoGridBucket> {
 
     protected long hashAsLong;
     protected long docCount;
@@ -89,9 +91,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
-        return hashAsLong == bucket.hashAsLong &&
-            docCount == bucket.docCount &&
-            Objects.equals(aggregations, bucket.aggregations);
+        return hashAsLong == bucket.hashAsLong && docCount == bucket.docCount && Objects.equals(aggregations, bucket.aggregations);
     }
 
     @Override

@@ -133,24 +133,9 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param shardGenerations      updated shard generations
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
-     * @param clusterMetadata       cluster metadata
-     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
-     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
-     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
+     * @param finalizeSnapshotContext finalization context
      */
-    void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    );
+    void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext);
 
     /**
      * Deletes snapshots
@@ -309,7 +294,7 @@ public interface Repository extends LifecycleComponent {
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        @Nullable String shardGeneration,
+        @Nullable ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     );
 
@@ -320,6 +305,15 @@ public interface Repository extends LifecycleComponent {
     default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         return userMetadata;
     }
+
+    /**
+     * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed
+     * by a call to stop {@link #close()}.
+     * Waiting for ongoing operations should be implemented here instead of in {@link #stop()} or {@link #close()} hooks of this interface
+     * as these are expected to be called on the cluster state applier thread (which must not block) if a repository is removed from the
+     * cluster. This method is intended to be called on node shutdown instead as a means to ensure no repository operations are leaked.
+     */
+    void awaitIdle();
 
     static boolean assertSnapshotMetaThread() {
         final String threadName = Thread.currentThread().getName();

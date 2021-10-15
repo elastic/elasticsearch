@@ -47,4 +47,3 @@ public class RestModifyDataStreamAction extends BaseRestHandler {
     }
 
 }
-

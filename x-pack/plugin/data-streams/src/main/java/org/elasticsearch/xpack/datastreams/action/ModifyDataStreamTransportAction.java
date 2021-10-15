@@ -23,8 +23,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.ModifyDataStreamsAction;
 
-public class ModifyDataStreamTransportAction
-    extends AcknowledgedTransportMasterNodeAction<MetadataDataStreamsService.ModifyDataStreamRequest> {
+public class ModifyDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<
+    MetadataDataStreamsService.ModifyDataStreamRequest> {
 
     private final MetadataDataStreamsService metadataDataStreamsService;
 

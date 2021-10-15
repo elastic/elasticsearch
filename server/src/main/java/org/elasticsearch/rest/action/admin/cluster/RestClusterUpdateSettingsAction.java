@@ -28,8 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);
-    static final String TRANSIENT_SETTINGS_DEPRECATION_MESSAGE = "[transientSettings removal]" +
-        " Updating cluster settings through transientSettings is deprecated. Prefer using persistent settings instead.";
+    static final String TRANSIENT_SETTINGS_DEPRECATION_MESSAGE = "[transient settings removal]" +
+        " Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.";
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";

@@ -927,7 +927,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 } else if (warnings.size() > 1) {
                     return true;
                 } else {
-                    return warnings.get(0).startsWith("[transientSettings removal]") == false;
+                    return warnings.get(0).startsWith("[transient settings removal]") == false;
                 }
             }));
 

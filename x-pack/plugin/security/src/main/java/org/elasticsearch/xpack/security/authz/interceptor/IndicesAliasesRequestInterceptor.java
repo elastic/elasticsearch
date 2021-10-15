@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -52,7 +51,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
         if (requestInfo.getRequest() instanceof IndicesAliasesRequest) {
             final IndicesAliasesRequest request = (IndicesAliasesRequest) requestInfo.getRequest();
             final AuditTrail auditTrail = auditTrailService.get();
-            var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
+            final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             IndicesAccessControl indicesAccessControl =
                 threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
@@ -63,7 +62,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                         if (indexAccessControl != null) {
                             final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                             final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                            if ((fls || dls) && licenseChecker.get()) {
+                            if ((fls || dls) && isDlsLicensed) {
                                 listener.onFailure(new ElasticsearchSecurityException("Alias requests are not allowed for " +
                                     "users who have field or document level security enabled on one of the indices",
                                     RestStatus.BAD_REQUEST));

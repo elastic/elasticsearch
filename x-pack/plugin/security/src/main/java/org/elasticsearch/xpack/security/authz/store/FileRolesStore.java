@@ -13,7 +13,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -178,14 +177,15 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
-                var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
+
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     descriptor.getName());
-                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && licenseChecker.get() == false) {
+                        } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && isDlsLicensed == false) {
                             logger.warn("role [{}] uses document and/or field level security, which is not enabled by the current license" +
                                     ". this role will be ignored", descriptor.getName());
                             // we still put the role in the map to avoid unnecessary negative lookups

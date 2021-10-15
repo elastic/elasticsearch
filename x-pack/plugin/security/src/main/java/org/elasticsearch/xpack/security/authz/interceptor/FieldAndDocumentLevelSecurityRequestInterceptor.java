@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -48,7 +47,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
             // TODO: should we check is DLS/FLS feature allowed here
             if (supports(indicesRequest)) {
-                var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 final IndicesAccessControl indicesAccessControl
                     = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
@@ -57,7 +56,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                     if (indexAccessControl != null) {
                         final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((flsEnabled || dlsEnabled) && licenseChecker.get()) {
+                        if ((flsEnabled || dlsEnabled) && isDlsLicensed) {
                             logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
                                 "document level access controls [{}]. disabling conflicting features",
                                 index, flsEnabled, dlsEnabled);

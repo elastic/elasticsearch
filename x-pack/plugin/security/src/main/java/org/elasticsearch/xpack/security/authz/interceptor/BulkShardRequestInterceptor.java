@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -52,14 +51,14 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
             // TODO replace if condition with assertion
             if (indexAccessControl != null) {
-                var licenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState));
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {
                         boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                        if ((fls || dls) && licenseChecker.get()) {
+                        if ((fls || dls) && isDlsLicensed) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
                             bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +

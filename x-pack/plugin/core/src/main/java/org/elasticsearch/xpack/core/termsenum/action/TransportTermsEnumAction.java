@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -411,15 +410,12 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         ThreadContext threadContext
     ) throws IOException {
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-            // We don't track usage here since it is already tracked earlier in the interceptor
-            var dlsLicenseChecker = new MemoizedSupplier<>(() -> DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
-
             if (indexAccessControl != null) {
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if (dls && dlsLicenseChecker.get()) {
+                if (dls && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
                     // Check to see if any of the roles defined for the current user rewrite to match_all
 
                     SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);

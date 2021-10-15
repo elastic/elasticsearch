@@ -47,6 +47,9 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
     {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
+            // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
+            // can contain a long list of indices
+            // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
             if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
                 logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
                 final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
@@ -54,12 +57,12 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                     final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
                     final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
                     boolean incompatibleLicense = false;
-                    if (dlsFlsUsage == IndicesAccessControl.DlsFlsUsage.FLS || dlsFlsUsage == IndicesAccessControl.DlsFlsUsage.BOTH) {
+                    if (dlsFlsUsage.hasFieldLevelSecurity()) {
                         if (false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }
                     }
-                    if (dlsFlsUsage == IndicesAccessControl.DlsFlsUsage.DLS || dlsFlsUsage == IndicesAccessControl.DlsFlsUsage.BOTH) {
+                    if (dlsFlsUsage.hasDocumentLevelSecurity()) {
                         if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                             incompatibleLicense = true;
                         }

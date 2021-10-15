@@ -100,9 +100,40 @@ public class IndicesAccessControl {
 
     public enum DlsFlsUsage {
         NONE,
-        DLS,
-        FLS,
-        BOTH
+
+        DLS() {
+            @Override
+            public boolean hasDocumentLevelSecurity() {
+                return true;
+            }
+        },
+
+        FLS() {
+            @Override
+            public boolean hasFieldLevelSecurity() {
+                return true;
+            }
+        },
+
+        BOTH() {
+            @Override
+            public boolean hasFieldLevelSecurity() {
+                return true;
+            }
+
+            @Override
+            public boolean hasDocumentLevelSecurity() {
+                return true;
+            }
+        };
+
+        public boolean hasFieldLevelSecurity() {
+            return false;
+        }
+
+        public boolean hasDocumentLevelSecurity() {
+            return false;
+        }
     }
 
     /**

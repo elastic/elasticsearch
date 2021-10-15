@@ -95,7 +95,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("missing required [knn] section in search body"));
     }
 
-    public void testNumCandsExceedsK() throws IOException {
+    public void testNumCandsLessThanK() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent()).startObject()
             .startObject(KnnSearchRequestBuilder.KNN_SECTION_FIELD.getPreferredName())
@@ -160,7 +160,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             vector[i] = randomFloat();
         }
 
-        int k = randomInt(100);
+        int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k, 1000);
         return new KnnSearch(field, vector, k, numCands);
     }

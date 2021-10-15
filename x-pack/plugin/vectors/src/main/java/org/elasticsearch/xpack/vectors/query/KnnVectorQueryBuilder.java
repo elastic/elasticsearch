@@ -70,7 +70,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             .field("field", fieldName)
             .field("vector", queryVector)
             .field("num_cands", numCands);
-        printBoostAndQueryName(builder);
         builder.endObject();
     }
 
@@ -104,13 +103,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(queryVector));
+        return Objects.hash(fieldName, Arrays.hashCode(queryVector), numCands);
     }
 
     @Override
     protected boolean doEquals(KnnVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
-            Arrays.equals(queryVector, other.queryVector);
+            Arrays.equals(queryVector, other.queryVector) &&
+            numCands == other.numCands;
     }
 
     @Override

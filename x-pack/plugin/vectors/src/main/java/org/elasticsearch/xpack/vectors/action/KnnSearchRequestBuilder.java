@@ -213,7 +213,7 @@ class KnnSearchRequestBuilder {
          * @param field the name of the vector field to search against
          * @param queryVector the query vector
          * @param k the final number of nearest neighbors to return as top hits
-         * @param numCands the number of nearest neighbor candidates to consider per segment
+         * @param numCands the number of nearest neighbor candidates to consider per shard
          */
         KnnSearch(String field, float[] queryVector, int k, int numCands) {
             this.field = field;
@@ -223,6 +223,8 @@ class KnnSearchRequestBuilder {
         }
 
         void build(SearchSourceBuilder builder) {
+            // We perform validation here instead of the constructor because it makes the errors
+            // much clearer. Otherwise, the error message is deeply nested under parsing exceptions.
             if (k < 1) {
                 throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
             }

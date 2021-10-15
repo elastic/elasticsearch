@@ -18,10 +18,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -32,6 +33,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -76,6 +78,9 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
         false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE =
+        LicensedFeature.momentary("monitoring", "cluster-alerts", License.OperationMode.STANDARD);
 
     protected final Settings settings;
 

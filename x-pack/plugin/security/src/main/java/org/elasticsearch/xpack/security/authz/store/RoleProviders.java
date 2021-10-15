@@ -57,7 +57,7 @@ public class RoleProviders {
         this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
         this.fileRolesStore.addListener(this::onRoleModification);
         this.nativeRolesStore = Objects.requireNonNull(nativeRolesStore);
-        this.customRoleProviders = customRoleProviders;
+        this.customRoleProviders = Objects.requireNonNull(customRoleProviders);
 
         this.licenseState = licenseState;
         this.licenseState.addListener(this::onLicenseChange);

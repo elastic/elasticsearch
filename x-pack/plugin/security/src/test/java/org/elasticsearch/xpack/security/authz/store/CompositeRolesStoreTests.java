@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -825,10 +824,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final MockLicenseState xPackLicenseState = MockLicenseState.createMock();
         when(xPackLicenseState.isAllowed(Security.CUSTOM_ROLE_PROVIDERS_FEATURE)).thenReturn(false);
         final AtomicReference<LicenseStateListener> licenseListener = new AtomicReference<>(null);
-        doAnswer(inv -> {
-            licenseListener.set((LicenseStateListener) inv.getArguments()[0]);
-            return null;
-        }).when(xPackLicenseState).addListener(Mockito.any());
+        MockLicenseState.acceptListeners(xPackLicenseState, licenseListener::set);
 
         final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = Map.of(

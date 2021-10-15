@@ -9,7 +9,10 @@ package org.elasticsearch.license;
 
 import org.mockito.Mockito;
 
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+
+import static org.mockito.Mockito.doAnswer;
 
 /** A license state that may be mocked by testing because the internal methods are made public */
 public class MockLicenseState extends XPackLicenseState {
@@ -39,4 +42,11 @@ public class MockLicenseState extends XPackLicenseState {
         return mock;
     }
 
+    public static void acceptListeners(MockLicenseState licenseState, Consumer<LicenseStateListener> addListener) {
+        doAnswer(inv -> {
+            final LicenseStateListener listener = (LicenseStateListener) inv.getArguments()[0];
+            addListener.accept(listener);
+            return null;
+        }).when(licenseState).addListener(Mockito.any());
+    }
 }

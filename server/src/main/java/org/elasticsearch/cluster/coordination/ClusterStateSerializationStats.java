@@ -22,59 +22,59 @@ public class ClusterStateSerializationStats implements Writeable, ToXContentObje
     public static final ClusterStateSerializationStats EMPTY = new ClusterStateSerializationStats(0L, 0L, 0L, 0L, 0L, 0L);
 
     private final long fullStateCount;
-    private final long totalUncompressedFullStateSize;
-    private final long totalCompressedFullStateSize;
+    private final long totalUncompressedFullStateBytes;
+    private final long totalCompressedFullStateBytes;
     private final long diffCount;
-    private final long totalUncompressedDiffSize;
-    private final long totalCompressedDiffSize;
+    private final long totalUncompressedDiffBytes;
+    private final long totalCompressedDiffBytes;
 
     public ClusterStateSerializationStats(
         long fullStateCount,
-        long totalUncompressedFullStateSize,
-        long totalCompressedFullStateSize,
+        long totalUncompressedFullStateBytes,
+        long totalCompressedFullStateBytes,
         long diffCount,
-        long totalUncompressedDiffSize,
-        long totalCompressedDiffSize
+        long totalUncompressedDiffBytes,
+        long totalCompressedDiffBytes
     ) {
         this.fullStateCount = fullStateCount;
-        this.totalUncompressedFullStateSize = totalUncompressedFullStateSize;
-        this.totalCompressedFullStateSize = totalCompressedFullStateSize;
+        this.totalUncompressedFullStateBytes = totalUncompressedFullStateBytes;
+        this.totalCompressedFullStateBytes = totalCompressedFullStateBytes;
         this.diffCount = diffCount;
-        this.totalUncompressedDiffSize = totalUncompressedDiffSize;
-        this.totalCompressedDiffSize = totalCompressedDiffSize;
+        this.totalUncompressedDiffBytes = totalUncompressedDiffBytes;
+        this.totalCompressedDiffBytes = totalCompressedDiffBytes;
     }
 
     public ClusterStateSerializationStats(StreamInput in) throws IOException {
         this.fullStateCount = in.readVLong();
-        this.totalUncompressedFullStateSize = in.readVLong();
-        this.totalCompressedFullStateSize = in.readVLong();
+        this.totalUncompressedFullStateBytes = in.readVLong();
+        this.totalCompressedFullStateBytes = in.readVLong();
         this.diffCount = in.readVLong();
-        this.totalUncompressedDiffSize = in.readVLong();
-        this.totalCompressedDiffSize = in.readVLong();
+        this.totalUncompressedDiffBytes = in.readVLong();
+        this.totalCompressedDiffBytes = in.readVLong();
     }
 
     public long getFullStateCount() {
         return fullStateCount;
     }
 
-    public long getTotalUncompressedFullStateSize() {
-        return totalUncompressedFullStateSize;
+    public long getTotalUncompressedFullStateBytes() {
+        return totalUncompressedFullStateBytes;
     }
 
-    public long getTotalCompressedFullStateSize() {
-        return totalCompressedFullStateSize;
+    public long getTotalCompressedFullStateBytes() {
+        return totalCompressedFullStateBytes;
     }
 
     public long getDiffCount() {
         return diffCount;
     }
 
-    public long getTotalUncompressedDiffSize() {
-        return totalUncompressedDiffSize;
+    public long getTotalUncompressedDiffBytes() {
+        return totalUncompressedDiffBytes;
     }
 
-    public long getTotalCompressedDiffSize() {
-        return totalCompressedDiffSize;
+    public long getTotalCompressedDiffBytes() {
+        return totalCompressedDiffBytes;
     }
 
     @Override
@@ -82,13 +82,13 @@ public class ClusterStateSerializationStats implements Writeable, ToXContentObje
         builder.startObject();
         builder.startObject("full_states");
         builder.field("count", fullStateCount);
-        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedFullStateSize));
-        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedFullStateSize));
+        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedFullStateBytes));
+        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedFullStateBytes));
         builder.endObject();
         builder.startObject("diffs");
         builder.field("count", diffCount);
-        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedDiffSize));
-        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedDiffSize));
+        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedDiffBytes));
+        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedDiffBytes));
         builder.endObject();
         builder.endObject();
         return builder;
@@ -97,11 +97,11 @@ public class ClusterStateSerializationStats implements Writeable, ToXContentObje
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(fullStateCount);
-        out.writeVLong(totalUncompressedFullStateSize);
-        out.writeVLong(totalCompressedFullStateSize);
+        out.writeVLong(totalUncompressedFullStateBytes);
+        out.writeVLong(totalCompressedFullStateBytes);
         out.writeVLong(diffCount);
-        out.writeVLong(totalUncompressedDiffSize);
-        out.writeVLong(totalCompressedDiffSize);
+        out.writeVLong(totalUncompressedDiffBytes);
+        out.writeVLong(totalCompressedDiffBytes);
     }
 
 }

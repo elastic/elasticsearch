@@ -965,8 +965,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     .findAny();
                 assertTrue(optionalStats.isPresent());
                 final ClusterStateSerializationStats serializationStats = optionalStats.get().getClusterStateSerializationStats();
-                assertThat(serializationStats.toString(), serializationStats.getTotalUncompressedFullStateSize(), greaterThan(0L));
-                assertThat(serializationStats.toString(), serializationStats.getTotalCompressedFullStateSize(), greaterThan(4L));
+                assertThat(serializationStats.toString(), serializationStats.getTotalUncompressedFullStateBytes(), greaterThan(0L));
+                assertThat(serializationStats.toString(), serializationStats.getTotalCompressedFullStateBytes(), greaterThan(4L));
             }
 
             logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
@@ -996,19 +996,19 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             assertThat(serializationStats1.getDiffCount(), equalTo(serializationStats0.getDiffCount() + 1));
             assertThat(
-                serializationStats1.getTotalUncompressedDiffSize(),
+                serializationStats1.getTotalUncompressedDiffBytes(),
                 greaterThan(serializationStats0.getDiffCount()));
             assertThat(
-                serializationStats1.getTotalCompressedDiffSize(),
+                serializationStats1.getTotalCompressedDiffBytes(),
                 greaterThan(serializationStats0.getDiffCount() + 4 /* compressed data starts with 4 byte header */));
 
             assertThat(serializationStats1.getFullStateCount(), equalTo(serializationStats0.getFullStateCount()));
             assertThat(
-                serializationStats1.getTotalUncompressedFullStateSize(),
-                equalTo(serializationStats0.getTotalUncompressedFullStateSize()));
+                serializationStats1.getTotalUncompressedFullStateBytes(),
+                equalTo(serializationStats0.getTotalUncompressedFullStateBytes()));
             assertThat(
-                serializationStats1.getTotalCompressedFullStateSize(),
-                equalTo(serializationStats0.getTotalCompressedFullStateSize()));
+                serializationStats1.getTotalCompressedFullStateBytes(),
+                equalTo(serializationStats0.getTotalCompressedFullStateBytes()));
         }
     }
 

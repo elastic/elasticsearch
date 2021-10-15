@@ -210,19 +210,19 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            final long uncompressedSize;
+            final long uncompressedBytes;
             try (StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
                 CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
             ) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(true);
                 clusterState.writeTo(stream);
-                uncompressedSize = stream.position();
+                uncompressedBytes = stream.position();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
             }
             final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
-            serializationStatsTracker.serializedFullState(uncompressedSize, result.length());
+            serializationStatsTracker.serializedFullState(uncompressedBytes, result.length());
             logger.trace(
                 "serialized full cluster state version [{}] for node version [{}] with size [{}]",
                 clusterState.version(),
@@ -242,19 +242,19 @@ public class PublicationTransportHandler {
         final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
         boolean success = false;
         try {
-            final long uncompressedSize;
+            final long uncompressedBytes;
             try (StreamOutput stream = new PositionTrackingOutputStreamStreamOutput(
                 CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream)))
             ) {
                 stream.setVersion(nodeVersion);
                 stream.writeBoolean(false);
                 diff.writeTo(stream);
-                uncompressedSize = stream.position();
+                uncompressedBytes = stream.position();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
             }
             final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
-            serializationStatsTracker.serializedDiff(uncompressedSize, result.length());
+            serializationStatsTracker.serializedDiff(uncompressedBytes, result.length());
             logger.trace(
                 "serialized cluster state diff for version [{}] for node version [{}] with size [{}]",
                 clusterStateVersion,
@@ -444,33 +444,33 @@ public class PublicationTransportHandler {
     private static class SerializationStatsTracker {
 
         private long fullStateCount;
-        private long totalUncompressedFullStateSize;
-        private long totalCompressedFullStateSize;
+        private long totalUncompressedFullStateBytes;
+        private long totalCompressedFullStateBytes;
 
         private long diffCount;
-        private long totalUncompressedDiffSize;
-        private long totalCompressedDiffSize;
+        private long totalUncompressedDiffBytes;
+        private long totalCompressedDiffBytes;
 
-        public synchronized void serializedFullState(long uncompressedSize, int compressedSize) {
+        public synchronized void serializedFullState(long uncompressedBytes, int compressedBytes) {
             fullStateCount += 1;
-            totalUncompressedFullStateSize += uncompressedSize;
-            totalCompressedFullStateSize += compressedSize;
+            totalUncompressedFullStateBytes += uncompressedBytes;
+            totalCompressedFullStateBytes += compressedBytes;
         }
 
-        public synchronized void serializedDiff(long uncompressedSize, int compressedSize) {
+        public synchronized void serializedDiff(long uncompressedBytes, int compressedBytes) {
             diffCount += 1;
-            totalUncompressedDiffSize += uncompressedSize;
-            totalCompressedDiffSize += compressedSize;
+            totalUncompressedDiffBytes += uncompressedBytes;
+            totalCompressedDiffBytes += compressedBytes;
         }
 
         public synchronized ClusterStateSerializationStats getSerializationStats() {
             return new ClusterStateSerializationStats(
                 fullStateCount,
-                totalUncompressedFullStateSize,
-                totalCompressedFullStateSize,
+                totalUncompressedFullStateBytes,
+                totalCompressedFullStateBytes,
                 diffCount,
-                totalUncompressedDiffSize,
-                totalCompressedDiffSize);
+                totalUncompressedDiffBytes,
+                totalCompressedDiffBytes);
         }
     }
 

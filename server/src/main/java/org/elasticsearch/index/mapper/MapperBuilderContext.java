@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.Index;
 
 /**
  * Holds context for building Mapper objects from their Builders

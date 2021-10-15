@@ -64,10 +64,10 @@ Node-level configuration related to indexing:
 Information about ingest pipelines and processors.
 
 `jvm`::
-JVM information including its name, its version, and its configuration.
+JVM information, including its name, its version, and its configuration.
 
 `os`::
-Operating system information including its name and version.
+Operating system information, including its name and version.
 
 `plugins`::
 +
@@ -84,7 +84,7 @@ process
 --
 
 `process`::
-Process information including the numeric process ID.
+Process information, including the numeric process ID.
 
 `settings`::
 Lists all node settings in use as defined in the `elasticsearch.yml` file.
@@ -93,7 +93,7 @@ Lists all node settings in use as defined in the `elasticsearch.yml` file.
 Information about the configuration of each thread pool.
 
 `transport`::
-Information about the transport interface of this node.
+Information about the transport interface of the node.
 ====
 
 If you use the full `GET /_nodes/<node_id>/<metric>` form of this API then you

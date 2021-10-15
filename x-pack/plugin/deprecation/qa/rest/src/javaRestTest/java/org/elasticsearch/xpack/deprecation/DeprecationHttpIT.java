@@ -376,8 +376,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     ),
                     allOf(
                         hasEntry("event.code", "transient_settings"),
-                        hasEntry("message", "[transient settings removal] Updating cluster settings through transientSettings" +
-                            " is deprecated. Use persistent settings instead.")
+                        hasEntry(
+                            "message",
+                            "[transient settings removal] Updating cluster settings through transientSettings"
+                                + " is deprecated. Use persistent settings instead."
+                        )
                     )
                 )
             );

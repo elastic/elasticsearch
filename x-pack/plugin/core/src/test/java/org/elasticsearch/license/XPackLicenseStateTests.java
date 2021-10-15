@@ -98,7 +98,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityStandardExpired() {
@@ -107,7 +106,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityBasic() {
@@ -116,7 +114,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
     }
 
     public void testSecurityGold() {
@@ -125,7 +122,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityGoldExpired() {
@@ -134,7 +130,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityPlatinum() {
@@ -143,7 +138,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityPlatinumExpired() {
@@ -152,7 +146,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testSecurityAckBasicToNotGoldOrStandard() {

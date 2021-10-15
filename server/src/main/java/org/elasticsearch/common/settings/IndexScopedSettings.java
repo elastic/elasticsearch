@@ -60,7 +60,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
             IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
-            IndexMetadata.INDEX_ROUTING_PATH,
             IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
             IndexMetadata.INDEX_READ_ONLY_SETTING,
             IndexMetadata.INDEX_BLOCKS_READ_SETTING,
@@ -185,6 +184,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
         result.add(IndexSettings.MODE);
+        result.add(IndexMetadata.INDEX_ROUTING_PATH);
         return Set.copyOf(result);
     }
 

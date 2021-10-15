@@ -93,7 +93,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
 
         licenseState = TestUtils.newTestLicenseState();
@@ -112,7 +111,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
 
@@ -125,7 +123,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(BASIC, true, null);
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
 
@@ -140,7 +137,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
@@ -153,7 +149,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
@@ -166,7 +161,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
@@ -179,7 +173,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
@@ -192,7 +185,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
@@ -205,7 +197,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
         assertThat(licenseState.isSecurityEnabled(), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }

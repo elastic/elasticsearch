@@ -9,8 +9,8 @@ your application to {es} 7.16.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_716_disk_threshold_enabled_operator_only>>
 * <<breaking_716_ilm_changes>>
-
 * <<breaking_716_monitoring_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
@@ -31,6 +31,28 @@ Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_716_settings_changes]]
+==== Settings changes
+
+[[breaking_716_disk_threshold_enabled_operator_only]]
+.Disk threshold enabled setting is operator only
+[%collapsible]
+====
+*Details* +
+Disabling <<cluster-routing-disk-threshold,disk thresholds>> in orchestrated
+environments can have negative impact on the orchestration systems ability to
+move nodes around and also does not work with orchestration. The
+`cluster.routing.allocation.disk.threshold_enabled` has therefore been changed
+to be an <<operator-only-dynamic-cluster-settings, operator only>> setting.
+
+This breaks any attempt to dynamically update this setting in orchestrated
+environments such as Elasticsearch Service and Elastic Cloud Enterprise.
+
+====
+// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecated-7.16]]

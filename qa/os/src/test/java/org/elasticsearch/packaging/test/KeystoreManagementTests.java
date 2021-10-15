@@ -84,7 +84,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
-        // We don't add a user here. We explicitly disable security for packages for now after installation. We will update in a followup
+        setFileSuperuser(FILE_REALM_SUPERUSER, FILE_REALM_SUPERUSER_PASSWORD);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
@@ -179,8 +179,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
-        rmKeystoreIfExists();
-        createKeystore(KEYSTORE_PASSWORD);
+        setKeystorePassword(KEYSTORE_PASSWORD);
 
         assertPasswordProtectedKeystore();
 
@@ -191,7 +190,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, List.of(KEYSTORE_PASSWORD));
 
             startElasticsearch();
-            ServerUtils.runElasticsearchTests();
+            runElasticsearchTests();
             stopElasticsearch();
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");

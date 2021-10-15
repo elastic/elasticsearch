@@ -60,7 +60,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is("aws_key"));
         assertThat(credentials.getAWSSecretKey(), is(""));
-        assertSettingDeprecationsAndWarnings(new Setting[]{},
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{},
             false, "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not, which will be unsupported in future");
     }
 
@@ -71,7 +71,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(""));
         assertThat(credentials.getAWSSecretKey(), is("aws_secret"));
-        assertSettingDeprecationsAndWarnings(new Setting[]{},
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{},
             false, "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not, which will be unsupported in future");
     }
 

@@ -988,6 +988,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         tier = aggregatedTierPreference(settings, randomBoolean(), randomBoolean());
         assertEquals(DataTier.DATA_COLD, tier.get());
 
+        // any of the INDEX_ROUTING_.*_GROUP_PREFIX settings still result in a default if
+        // we're enforcing
+        String includeRoutingSetting = randomFrom(
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
+            IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX) + "." + randomAlphaOfLength(10);
+        settings = Settings.builder()
+            .put(includeRoutingSetting, randomAlphaOfLength(10))
+            .build();
+        tier = aggregatedTierPreference(settings, false, true);
+        assertEquals(DataTier.DATA_CONTENT, tier.get());
+        // (continued from above) but not if we aren't
+        tier = aggregatedTierPreference(settings, false, false);
+        assertTrue(tier.isEmpty());
+
         // an explicit null gets an empty tier if we're not enforcing
         settings = Settings.builder().putNull(DataTier.TIER_PREFERENCE).build();
         tier = aggregatedTierPreference(settings, randomBoolean(), false);

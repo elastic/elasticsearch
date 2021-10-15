@@ -141,6 +141,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -1718,7 +1719,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
-        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
+        final SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(store.directory());
+        final Map<String, String> userData = segmentCommitInfos.getUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
         assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
@@ -1727,12 +1729,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
             "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                 + " is not found in commit";
+        final org.apache.lucene.util.Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
+        // This relies in the previous minor having another lucene version 
+        assert commitLuceneVersion.onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion) == false ||
+            userData.containsKey(Engine.ES_VERSION) && Version.fromString(userData.get(Engine.ES_VERSION)).onOrBefore(Version.CURRENT) :
+            "commit point has an invalid ES_VERSION value. commit point lucene version [" + commitLuceneVersion + "]," +
+                " ES_VERSION [" + userData.get(Engine.ES_VERSION) + "]";
         return true;
     }
 
     private void onNewEngine(Engine newEngine) {
         assert Thread.holdsLock(engineMutex);
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
+        refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
+        refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
     }
 
     /**
@@ -3539,6 +3549,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             // we're not yet ready for reads, just ignore refresh cycles
             listener.accept(false);
+        }
+    }
+
+    /**
+     * Add a listener for refreshes.
+     *
+     * @param checkpoint the seqNo checkpoint to listen for
+     * @param listener for the refresh.
+     */
+    public void addRefreshListener(long checkpoint, ActionListener<Void> listener) {
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under postRecoveryMutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (postRecoveryMutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(checkpoint, listener);
+        } else {
+            // we're not yet ready for reads, fail to notify client
+            listener.onFailure(new IllegalIndexShardStateException(shardId, state, "Read not allowed on IndexShard"));
         }
     }
 

@@ -56,10 +56,9 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
      * geoip processor instance is using the related {@link DatabaseReaderLazyLoader} instance
      */
     public void test() throws Exception {
-        Path geoIpModulesDir = createTempDir();
         Path geoIpConfigDir = createTempDir();
         Path geoIpTmpDir = createTempDir();
-        DatabaseRegistry databaseRegistry = createRegistry(geoIpModulesDir, geoIpConfigDir, geoIpTmpDir);
+        DatabaseRegistry databaseRegistry = createRegistry(geoIpConfigDir, geoIpTmpDir);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, clusterService);
@@ -71,8 +70,8 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         databaseRegistry.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(databaseRegistry);
 
-        final GeoIpProcessor processor1 = factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
-        final GeoIpProcessor processor2 = factory.create(null, "_tag", null,
+        final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
+        final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(null, "_tag", null,
             new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb")));
 
         final AtomicBoolean completed = new AtomicBoolean(false);
@@ -164,13 +163,13 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             assertThat(lazyLoader.current(), equalTo(0));
         }
         // Avoid accumulating many temp dirs while running with -Dtests.iters=X
-        IOUtils.rm(geoIpModulesDir, geoIpConfigDir, geoIpTmpDir);
+        IOUtils.rm(geoIpConfigDir, geoIpTmpDir);
     }
 
-    private static DatabaseRegistry createRegistry(Path geoIpModulesDir, Path geoIpConfigDir, Path geoIpTmpDir) throws IOException {
-        copyDatabaseFiles(geoIpModulesDir);
+    private static DatabaseRegistry createRegistry(Path geoIpConfigDir, Path geoIpTmpDir) throws IOException {
         GeoIpCache cache = new GeoIpCache(0);
-        LocalDatabases localDatabases = new LocalDatabases(geoIpModulesDir, geoIpConfigDir, cache);
+        LocalDatabases localDatabases = new LocalDatabases(geoIpConfigDir, cache);
+        copyDatabaseFiles(geoIpConfigDir, localDatabases);
         DatabaseRegistry databaseRegistry =
             new DatabaseRegistry(geoIpTmpDir, mock(Client.class), cache, localDatabases, Runnable::run);
         databaseRegistry.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));

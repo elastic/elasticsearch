@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheServi
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -226,6 +228,30 @@ public class FrozenCacheServiceTests extends ESTestCase {
                     + "] to be positive ["
                     + cacheSize
                     + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
+            )
+        );
+    }
+
+    public void testMultipleDataPathsRejectedOnFrozenNodes() {
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), List.of("a", "b"))
+            .build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
+        );
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                "setting ["
+                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+                    + "="
+                    + new ByteSizeValue(size(500)).getStringRep()
+                    + "] is not permitted on nodes with multiple data paths [a,b]"
             )
         );
     }

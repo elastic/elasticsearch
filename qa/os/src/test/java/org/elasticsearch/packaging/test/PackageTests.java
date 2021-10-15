@@ -249,7 +249,7 @@ public class PackageTests extends PackagingTestCase {
 
                 startElasticsearch();
 
-                final String nodesStatsResponse = makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+                final String nodesStatsResponse = makeRequest("http://localhost:9200/_nodes/stats");
                 assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
 
                 // 40% of 850MB

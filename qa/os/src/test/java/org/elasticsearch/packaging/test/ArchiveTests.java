@@ -520,9 +520,9 @@ public class ArchiveTests extends PackagingTestCase {
 
             startElasticsearch();
 
-            final String nodesStatsResponse = makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+            final String nodesStatsResponse = makeRequest("http://localhost:9200/_nodes/stats");
             assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest("http://localhost:9200/_nodes");
             // 40% of 850MB
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":356515840"));
 

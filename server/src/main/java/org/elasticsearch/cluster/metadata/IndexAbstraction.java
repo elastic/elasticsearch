@@ -179,6 +179,23 @@ public interface IndexAbstraction {
         public List<String> getAliases() {
             return aliases;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ConcreteIndex that = (ConcreteIndex) o;
+            return isHidden == that.isHidden &&
+                isSystem == that.isSystem &&
+                concreteIndexName.equals(that.concreteIndexName) &&
+                Objects.equals(aliases, that.aliases) &&
+                Objects.equals(dataStream, that.dataStream);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(concreteIndexName, isHidden, isSystem, aliases, dataStream);
+        }
     }
 
     /**
@@ -322,6 +339,24 @@ public interface IndexAbstraction {
         private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Alias alias = (Alias) o;
+            return isHidden == alias.isHidden &&
+                isSystem == alias.isSystem &&
+                dataStreamAlias == alias.dataStreamAlias &&
+                aliasName.equals(alias.aliasName) &&
+                referenceIndexMetadatas.equals(alias.referenceIndexMetadatas) &&
+                Objects.equals(writeIndex, alias.writeIndex);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(aliasName, referenceIndexMetadatas, writeIndex, isHidden, isSystem, dataStreamAlias);
+        }
     }
 
     class DataStream implements IndexAbstraction {
@@ -382,6 +417,20 @@ public interface IndexAbstraction {
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStream that = (DataStream) o;
+            return dataStream.equals(that.dataStream) &&
+                Objects.equals(referencedByDataStreamAliases, that.referencedByDataStreamAliases);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(dataStream, referencedByDataStreamAliases);
         }
     }
 

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.tsdb;
+package org.elasticsearch.timeseries.support;
 
 import io.github.nik9000.mapmatcher.MapMatcher;
 
@@ -22,6 +22,8 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.timeseries.support.TimeSeriesMetrics;
+import org.elasticsearch.timeseries.support.TimeSeriesMetricsService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 

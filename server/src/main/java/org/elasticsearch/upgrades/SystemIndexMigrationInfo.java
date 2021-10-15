@@ -136,7 +136,12 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when the hook is finished.
      */
-    void indicesMigrationComplete(Map<String, Object> metadata, ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+    void indicesMigrationComplete(
+        Map<String, Object> metadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
         owningFeature.getPostMigrationFunction().indicesMigrationComplete(metadata, clusterService, client, listener);
     }
 

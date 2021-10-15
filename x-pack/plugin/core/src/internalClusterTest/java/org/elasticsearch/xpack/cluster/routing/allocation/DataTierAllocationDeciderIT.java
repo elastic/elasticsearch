@@ -127,6 +127,25 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         ensureYellow(index);
     }
 
+    public void testRequestSettingOverriddenIfEnforced() {
+        startContentOnlyNode();
+        ensureGreen();
+        enforceDefaultTierPreference(true);
+
+        client().admin().indices().prepareCreate(index)
+            .setWaitForActiveShards(0)
+            .setSettings(Settings.builder()
+                .putNull(DataTier.TIER_PREFERENCE)) // will be overridden to data_content
+            .get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
+
+        // index should be yellow
+        logger.info("--> waiting for {} to be yellow", index);
+        ensureYellow(index);
+    }
+
     /**
      * When a new index is created from source metadata (as during a shrink), the data tier
      * default setting should *not* be applied. This test checks that behavior.
@@ -208,6 +227,28 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
         assertThat(idxSettings.keySet().contains(DataTier.TIER_PREFERENCE), equalTo(false));
 
+        ensureYellow(index);
+    }
+
+    public void testTemplateOverriddenIfEnforced() {
+        startContentOnlyNode();
+        enforceDefaultTierPreference(true);
+
+        Template t = new Template(Settings.builder()
+            .putNull(DataTier.TIER_PREFERENCE)
+            .build(), null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t).build();
+        client().execute(PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
+
+        client().admin().indices().prepareCreate(index).setWaitForActiveShards(0).get();
+
+        Settings idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(index);
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo("data_content"));
+
+        // index should be yellow
         ensureYellow(index);
     }
 

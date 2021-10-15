@@ -159,15 +159,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         );
     }
 
-    protected final void checkQueryScriptContext(SearchExecutionContext context) {
+    protected final void applyScriptContext(SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
             );
         }
         if (isResultDeterministic == false) {
-            // disable request cache
-            context.getClient();
+            context.failIfFrozen();
         }
     }
 

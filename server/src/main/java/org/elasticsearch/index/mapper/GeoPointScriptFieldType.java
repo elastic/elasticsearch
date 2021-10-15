@@ -101,7 +101,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkQueryScriptContext(context);
+        applyScriptContext(context);
         return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 

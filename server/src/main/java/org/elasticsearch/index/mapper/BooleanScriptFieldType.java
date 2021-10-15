@@ -108,7 +108,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkQueryScriptContext(context);
+        applyScriptContext(context);
         return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -179,13 +179,13 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-        checkQueryScriptContext(context);
+        applyScriptContext(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
     }
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkQueryScriptContext(context);
+        applyScriptContext(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
     }
 
@@ -212,11 +212,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
                 // Either true or false
                 return existsQuery(context);
             }
-            checkQueryScriptContext(context);
+            applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), true);
         }
         if (falseAllowed) {
-            checkQueryScriptContext(context);
+            applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
         return new MatchNoDocsQuery("neither true nor false allowed");

@@ -547,7 +547,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * class cannot be bypassed. This is important so we can trust when this
      * class says a request can be cached.
      */
-    protected final void failIfFrozen() {
+    public final void failIfFrozen() {
         this.cacheable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");

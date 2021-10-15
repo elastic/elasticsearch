@@ -254,7 +254,7 @@ def commonPackageConfig(String type, String architecture) {
   }
 }
 
-// this is package indepdendent configuration
+// this is package independent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary 'Distributed RESTful search engine built for the cloud'

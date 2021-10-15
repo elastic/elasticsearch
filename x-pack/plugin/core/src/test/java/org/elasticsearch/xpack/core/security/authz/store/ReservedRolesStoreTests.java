@@ -539,7 +539,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
 
         // Data telemetry reads mappings, metadata and stats of indices
-        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*", "logs-*").forEach((index) -> {
+        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*").forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertViewIndexMetadata(kibanaRole, index);

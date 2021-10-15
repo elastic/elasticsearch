@@ -152,8 +152,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         /*
          * This is called on the Transport tread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport
-         * thread busy. So as son as we have the indexing pressure in we fork
-         * to one of the write thread pools.
+         * thread busy. Then, as soon as we have the indexing pressure in we fork
+         * to one of the write thread pools. We do this because juggling the
+         * bulk request can get expensive for a few reasons:
+         * 1. Figuring out which shard should receive a bulk request might require
+         *    parsing the _source.
+         * 2. When dispatching the sub-requests to shards we may have to compress
+         *    them. LZ4 is super fast, but slow enough that it's best not to do it
+         *    on the transport thread, especially for large sub-requests.
+         *
+         * We *could* detect these cases and only fork in then, but that is complex
+         * to get right and the fork is fairly low overhead.
          */
         final int indexingOps = bulkRequest.numberOfActions();
         final long indexingBytes = bulkRequest.ramBytesUsed();

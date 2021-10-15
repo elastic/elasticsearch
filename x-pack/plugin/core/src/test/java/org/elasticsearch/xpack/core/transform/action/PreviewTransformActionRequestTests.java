@@ -57,6 +57,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             null,
             null,
             null,
+            null,
             null
         );
         return new Request(config);

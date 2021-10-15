@@ -57,7 +57,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -235,7 +234,7 @@ import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseComplianceRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
@@ -338,6 +337,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -616,7 +616,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
                 new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                new DlsFlsLicenseComplianceRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
             ));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
@@ -1239,7 +1239,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                     // check license last, once we know FLS is actually used
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }

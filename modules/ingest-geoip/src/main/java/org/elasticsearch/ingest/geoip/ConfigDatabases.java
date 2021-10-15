@@ -33,20 +33,20 @@ import java.util.stream.Stream;
  * Keeps track of user provided databases in the ES_HOME/config/ingest-geoip directory.
  * This directory is monitored and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
-final class LocalDatabases implements Closeable {
+final class ConfigDatabases implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(LocalDatabases.class);
+    private static final Logger LOGGER = LogManager.getLogger(ConfigDatabases.class);
 
     private final GeoIpCache cache;
     private final Path geoipConfigDir;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
-    LocalDatabases(Environment environment, GeoIpCache cache) {
+    ConfigDatabases(Environment environment, GeoIpCache cache) {
         this(environment.configFile().resolve("ingest-geoip"), cache);
     }
 
-    LocalDatabases(Path geoipConfigDir, GeoIpCache cache) {
+    ConfigDatabases(Path geoipConfigDir, GeoIpCache cache) {
         this.cache = cache;
         this.geoipConfigDir = geoipConfigDir;
         this.configDatabases = new ConcurrentHashMap<>();

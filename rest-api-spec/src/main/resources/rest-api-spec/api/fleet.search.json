@@ -13,15 +13,15 @@
     "url":{
       "paths":[
         {
-          "path":"/{target}/_fleet/_search",
+          "path":"/{index}/_fleet/_search",
           "methods":[
             "GET",
             "POST"
           ],
           "parts":{
-            "target":{
+            "index":{
               "type":"string",
-              "description":"The name of the search target."
+              "description":"The index name to search."
             }
           }
         }

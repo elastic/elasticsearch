@@ -20,15 +20,15 @@
           ]
         },
         {
-          "path":"/{target}/_fleet/_msearch",
+          "path":"/{index}/_fleet/_msearch",
           "methods":[
             "GET",
             "POST"
           ],
           "parts":{
-            "target":{
+            "index":{
               "type":"string",
-              "description":"The name of the search target to use as default"
+              "description":"The index name to use as the default"
             }
           }
         }

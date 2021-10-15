@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -125,7 +126,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             } else {
                 clusterState = strategy.reroute(clusterState, "reroute");
             }
-            if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
+            if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
         }
@@ -148,18 +149,18 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         do {
             iterations++;
             clusterState = strategy.reroute(clusterState, "reroute");
-            if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
+            if (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size() > 0) {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
 
-        } while (clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||
-                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
+        } while (shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size() != 0 ||
+            shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
         logger.info("Done Balancing after [{}] iterations. State:\n{}", iterations, clusterState);
         // we stop after 200 iterations if it didn't stabelize by then something is likely to be wrong
         assertThat("max num iteration exceeded", iterations, Matchers.lessThan(200));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(0));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
-        int shards = clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size();
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(0));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        int shards = shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size();
         assertThat(shards, equalTo(totalNumShards));
         final int numNodes = clusterState.nodes().getSize();
         final int upperBound = (int) Math.round(((shards / numNodes) * 1.10));

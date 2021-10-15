@@ -115,8 +115,8 @@ PUT _slm/policy/nightly-snapshots
 // TESTSETUP
 
 <1> When to take snapshots, written in <<schedule-cron,Cron syntax>>.
-<2> Snapshot name. Use <<api-date-math-index-names,date math>> to include the
-    current date or time in the name.
+<2> Snapshot name. Supports <<api-date-math-index-names,date math>>. To prevent
+    naming conflicts, the policy also appends a UUID to each snapshot name.
 <3> <<snapshots-register-repository,Registered snapshot repository>> used to
     store the policy's snapshots.
 <4> Data streams and indices to include in the policy's snapshots. This

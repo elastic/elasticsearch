@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -35,22 +36,22 @@ import static org.mockito.Mockito.when;
 
 public class CCRFeatureSetTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private ClusterService clusterService;
 
     @Before
     public void init() {
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         clusterService = mock(ClusterService.class);
     }
 
     public void testAvailable() {
         CCRFeatureSet featureSet = new CCRFeatureSet(Settings.EMPTY, licenseState, clusterService);
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
+        when(licenseState.isAllowed(CcrConstants.CCR_FEATURE)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
+        when(licenseState.isAllowed(CcrConstants.CCR_FEATURE)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
 
         featureSet = new CCRFeatureSet(Settings.EMPTY, null, clusterService);

@@ -17,6 +17,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
@@ -26,6 +27,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -41,6 +44,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,11 +65,13 @@ import java.util.stream.Collectors;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
     private final Logger logger;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     private final SearchRequest request;
+
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
@@ -85,7 +91,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final Map<SearchShardIterator, Integer> shardItIndexMap;
+    private final SearchShardIterator[] shardIterators;
+    private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -115,16 +122,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
-        this.shardItIndexMap = new HashMap<>();
 
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        List<SearchShardIterator> naturalOrder = new ArrayList<>(iterators);
-        CollectionUtil.timSort(naturalOrder);
-        for (int i = 0; i < naturalOrder.size(); i++) {
-            shardItIndexMap.put(naturalOrder.get(i), i);
+        Map<SearchShardIterator, Integer> shardMap = new HashMap<>();
+        List<SearchShardIterator> searchIterators = new ArrayList<>(iterators);
+        CollectionUtil.timSort(searchIterators);
+        for (int i = 0; i < searchIterators.size(); i++) {
+            shardMap.put(searchIterators.get(i), i);
         }
+        this.shardIndexMap = Collections.unmodifiableMap(shardMap);
+        this.shardIterators = searchIterators.toArray(new SearchShardIterator[0]);
 
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
@@ -221,8 +230,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             for (int i = 0; i < shardsIts.size(); i++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(i);
                 assert shardRoutings.skip() == false;
-                assert shardItIndexMap.containsKey(shardRoutings);
-                int shardIndex = shardItIndexMap.get(shardRoutings);
+                assert shardIndexMap.containsKey(shardRoutings);
+                int shardIndex = shardIndexMap.get(shardRoutings);
                 performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
             }
         }
@@ -287,8 +296,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          */
         if (shard == null) {
             assert assertExecuteOnStartThread();
-            SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(),
-                shardIt.getClusterAlias(), shardIt.getOriginalIndices());
+            SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
             onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
             final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
@@ -609,6 +617,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
+    public OriginalIndices getOriginalIndices(int shardIndex) {
+        return shardIterators[shardIndex].getOriginalIndices();
+    }
+
+    @Override
     public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
         final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
         if (pointInTimeBuilder != null) {
@@ -674,7 +687,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 try {
                     SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
                     Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                    sendReleaseSearchContext(entry.getContextId(), connection, getOriginalIndices(entry.getShardIndex()));
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.trace("failed to release context", inner);
@@ -723,9 +736,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
-            getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),
-            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
+        final Map<String, long[]> indexToWaitForCheckpoints = request.getWaitForCheckpoints();
+        final TimeValue waitForCheckpointsTimeout = request.getWaitForCheckpointsTimeout();
+        final long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardIt.shardId().getIndex().getName(), EMPTY_LONG_ARRAY);
+
+        long waitForCheckpoint;
+        if (waitForCheckpoints.length == 0) {
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        } else {
+            assert waitForCheckpoints.length > shardIndex;
+            waitForCheckpoint = waitForCheckpoints[shardIndex];
+        }
+        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request,
+            shardIt.shardId(), shardIndex, getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(),
+            shardIt.getClusterAlias(), shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(), waitForCheckpoint,
+            waitForCheckpointsTimeout);
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.

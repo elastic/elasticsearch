@@ -8,7 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.List;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -17,6 +22,8 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
@@ -51,5 +58,23 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
         assertThat(e.getCause().getMessage(),
                 containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
+    }
+
+    public void testFetchRoutingFieldValue() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source("1", b -> {}, "abcd")).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.lookup()).thenReturn(lookup);
+            RoutingFieldMapper.RoutingFieldType ft = (RoutingFieldMapper.RoutingFieldType) mapperService.fieldType("_routing");
+            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), List.of()));
+        });
     }
 }

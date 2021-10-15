@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
@@ -158,7 +157,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

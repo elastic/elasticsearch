@@ -8,27 +8,38 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
@@ -189,8 +200,49 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertNotNull(fields.get("_doc_count"));
         assertEquals(100, ((Integer) fields.get("_doc_count").getValue()).intValue());
 
+        String docId = randomAlphaOfLength(12);
+        String routing = randomAlphaOfLength(12);
+        long version = randomLongBetween(1, 100);
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper()
+                .parse(source(docId, b -> b.field("integer_field", "value"), routing));
+            parsedDocument.version().setLongValue(version);
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            List<FieldAndFormat> fieldList = org.elasticsearch.core.List.of(
+                new FieldAndFormat("_id", null),
+                new FieldAndFormat("_index", null),
+                new FieldAndFormat("_version", null),
+                new FieldAndFormat("_routing", null),
+                new FieldAndFormat("_ignored", null)
+            );
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                newSearchExecutionContext(mapperService, (ft, index, sl) -> fieldDataLookup().apply(ft, sl)),
+                fieldList
+            );
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setSegmentAndDocument(readerContext, 0);
+
+            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fetchedFields.size(), equalTo(5));
+            assertEquals(docId, fetchedFields.get("_id").getValue());
+            assertEquals(routing, fetchedFields.get("_routing").getValue());
+            assertEquals("test", fetchedFields.get("_index").getValue());
+            assertEquals(version, ((Long) fetchedFields.get("_version").getValue()).longValue());
+            assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
+        });
+
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
-        for (String fieldname : new String[] { "_id", "_index", "_seq_no", "_routing", "_ignored" }) {
+        for (String fieldname : org.elasticsearch.core.List.of(
+            TypeFieldMapper.NAME,
+            SeqNoFieldMapper.NAME,
+            SourceFieldMapper.NAME,
+            FieldNamesFieldMapper.NAME
+        )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }
@@ -950,7 +1002,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("field").field("type", "keyword").endObject()
-            .startObject("integer_field").field("type", "integer").endObject()
+            .startObject("integer_field").field("type", "integer").field("ignore_malformed", "true").endObject()
             .startObject("date_field").field("type", "date").endObject()
             .startObject("geo_point").field("type", "geo_point").endObject()
             .startObject("float_range").field("type", "float_range").endObject()
@@ -969,18 +1021,25 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     private static SearchExecutionContext newSearchExecutionContext(MapperService mapperService) {
+        return newSearchExecutionContext(mapperService, null);
+    }
+
+    private static SearchExecutionContext newSearchExecutionContext(
+        MapperService mapperService,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup
+    ) {
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
-            null,
+            indexFieldDataLookup,
             mapperService,
             mapperService.mappingLookup(),
             null,

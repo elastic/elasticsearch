@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -236,7 +237,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
 
-        for (ShardRouting shard : state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +
@@ -258,7 +259,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         // The transient settings still exist in the state
         assertThat(state.metadata().transientSettings(), equalTo(exclude));
 
-        for (ShardRouting shard : state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED)) {
+        for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
             logger.info("--> shard on {} - {}", node, shard);
             assertTrue("shard on " + node + " but should only be on the include node list: " +

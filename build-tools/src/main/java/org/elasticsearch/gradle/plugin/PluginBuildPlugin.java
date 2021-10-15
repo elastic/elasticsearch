@@ -30,6 +30,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
@@ -43,12 +44,11 @@ import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.jvm.tasks.Jar;
-import org.gradle.api.artifacts.dsl.DependencyHandler;
-import org.gradle.api.tasks.SourceSet;
 
 import java.io.File;
 import java.io.IOException;
@@ -73,18 +73,12 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JarHellPlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
 
-        PluginPropertiesExtension extension = project.getExtensions().create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
+        PluginPropertiesExtension extension = project.getExtensions()
+            .create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
         configureDependencies(project);
 
         final TaskProvider<Zip> bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
-            project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add dependent modules to the test cluster
-                if (project1.findProject(":modules:" + pluginName) != null) {
-                    NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                    testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
-                }
-            });
             final PluginPropertiesExtension extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
             String name = extension1.getName();
@@ -125,7 +119,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         // allow running ES with this plugin in the foreground of a build
         var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        var runCluster = testClusters.register("runtTask", c -> {
+        var runCluster = testClusters.register("runTask", c -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 c.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {
@@ -188,25 +182,26 @@ public class PluginBuildPlugin implements Plugin<Project> {
         final File templateFile = new File(project.getBuildDir(), "templates/plugin-descriptor.properties");
 
         // create tasks to build the properties file for this plugin
-        final TaskProvider<Task> copyPluginPropertiesTemplate = project.getTasks().register("copyPluginPropertiesTemplate", new Action<Task>() {
-            @Override
-            public void execute(Task task) {
-                task.getOutputs().file(templateFile);
-                // intentionally an Action and not a lambda to avoid issues with up-to-date check
-                task.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        InputStream resourceTemplate = PluginBuildPlugin.class.getResourceAsStream("/" + templateFile.getName());
-                        try {
-                            String templateText = IOUtils.toString(resourceTemplate, StandardCharsets.UTF_8.name());
-                            FileUtils.write(templateFile, templateText, "UTF-8");
-                        } catch (IOException e) {
-                            throw new GradleException("Unable to copy plugin properties", e);
+        final TaskProvider<Task> copyPluginPropertiesTemplate = project.getTasks()
+            .register("copyPluginPropertiesTemplate", new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    task.getOutputs().file(templateFile);
+                    // intentionally an Action and not a lambda to avoid issues with up-to-date check
+                    task.doLast(new Action<Task>() {
+                        @Override
+                        public void execute(Task task) {
+                            InputStream resourceTemplate = PluginBuildPlugin.class.getResourceAsStream("/" + templateFile.getName());
+                            try {
+                                String templateText = IOUtils.toString(resourceTemplate, StandardCharsets.UTF_8.name());
+                                FileUtils.write(templateFile, templateText, "UTF-8");
+                            } catch (IOException e) {
+                                throw new GradleException("Unable to copy plugin properties", e);
+                            }
                         }
-                    }
-                });
-            }
-        });
+                    });
+                }
+            });
         final TaskProvider<Copy> buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
             copy.dependsOn(copyPluginPropertiesTemplate);
             copy.from(templateFile);

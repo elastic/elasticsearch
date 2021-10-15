@@ -11,6 +11,7 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -84,6 +85,7 @@ public class DiscoveryModule {
         ThreadPool threadPool,
         BigArrays bigArrays,
         TransportService transportService,
+        Client client,
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService,
         MasterService masterService,
@@ -159,6 +161,7 @@ public class DiscoveryModule {
                 clusterSettings,
                 bigArrays,
                 transportService,
+                client,
                 namedWriteableRegistry,
                 allocationService,
                 masterService,

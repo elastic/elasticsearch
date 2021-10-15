@@ -17,7 +17,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
@@ -129,7 +128,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 }
             };
 
-            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null);
             ReaderContext readerWithoutScroll = new ReaderContext(
                 newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
 
@@ -277,7 +276,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                     return searcher;
                 }
             };
-            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null);
             ReaderContext readerContext = new ReaderContext(
                 newContextId(), indexService, indexShard, searcherSupplier, randomNonNegativeLong(), false);
 

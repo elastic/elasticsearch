@@ -47,7 +47,10 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
@@ -355,9 +358,17 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             null
         );
 
+        final DeprecationIssue otherExpectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Transient cluster settings are in the process of being removed.",
+            "https://ela.st/es-deprecation-7-transient-cluster-settings",
+            "Use persistent settings to define your cluster settings instead.",
+            false, null);
+
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
-        assertThat(issues, hasSize(1));
-        assertThat(issues.get(0), equalTo(expectedIssue));
+
+        assertThat(issues, hasSize(2));
+        assertThat(issues, hasItem(expectedIssue));
+        assertThat(issues, hasItem(otherExpectedIssue));
 
         final String expectedWarning = String.format(Locale.ROOT,
             "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +

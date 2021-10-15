@@ -38,14 +38,11 @@ public class ConfigurationTests extends PackagingTestCase {
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }
-            // Packaged installations don't get autoconfigured yet
-            // TODO: Remove this in https://github.com/elastic/elasticsearch/pull/75144
-            String protocol = distribution.isPackage() ? "http" : "https";
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {
                 final String nameResponse = ServerUtils.makeRequest(
-                    Request.Get(protocol + "://localhost:9200/_cat/nodes?h=name"),
+                    Request.Get("https://localhost:9200/_cat/nodes?h=name"),
                     "test_superuser",
                     "test_superuser_password",
                     ServerUtils.getCaCert(confPath)

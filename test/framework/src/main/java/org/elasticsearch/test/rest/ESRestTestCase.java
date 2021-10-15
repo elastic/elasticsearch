@@ -920,6 +920,17 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (mustClear) {
             Request request = new Request("PUT", "/_cluster/settings");
+
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).startsWith("[transient settings removal]") == false;
+                }
+            }));
+
             request.setJsonEntity(Strings.toString(clearCommand));
             adminClient().performRequest(request);
         }

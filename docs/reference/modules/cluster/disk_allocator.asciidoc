@@ -157,7 +157,7 @@ gigabytes free, and updating the information about the cluster every minute:
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.allocation.disk.watermark.low": "100gb",
     "cluster.routing.allocation.disk.watermark.high": "50gb",
     "cluster.routing.allocation.disk.watermark.flood_stage": "10gb",

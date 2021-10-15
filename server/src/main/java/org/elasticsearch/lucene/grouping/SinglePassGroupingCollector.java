@@ -194,7 +194,8 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         }
 
         if (groupMap.size() <= groupOffset) {
-            return null;
+            TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
+            return new TopFieldGroups(groupField, totalHits, new ScoreDoc[0], groupSort.getSort(), new Object[0]);
         }
 
         if (orderedGroups == null) {

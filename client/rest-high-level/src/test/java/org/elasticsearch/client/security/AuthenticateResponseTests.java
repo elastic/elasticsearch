@@ -61,10 +61,11 @@ public class AuthenticateResponseTests extends ESTestCase {
         final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final boolean enabled = randomBoolean();
-
-        final String authenticationRealmType = randomFrom("service_account");
+        final String authenticationRealmName = randomAlphaOfLength(5);
+        final String authenticationRealmType = randomFrom(
+            "service_account");
         final AuthenticateResponse.RealmInfo authenticationRealm =
-            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), authenticationRealmType);
+            new AuthenticateResponse.RealmInfo(authenticationRealmName, authenticationRealmType);
 
         final AuthenticateResponse.RealmInfo lookupRealm;
         final Map<String, Object> tokenInfo;
@@ -113,49 +114,41 @@ public class AuthenticateResponseTests extends ESTestCase {
             case 1:
                 return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(),
                     originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 2:
                 final List<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), wrongRoles, originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
-                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 3:
                 final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.getMetadata());
                 wrongMetadata.put("wrong_string", randomAlphaOfLengthBetween(0, 4));
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), wrongMetadata,
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
-                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 4:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName() + "wrong", originalUser.getEmail()), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 5:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail() + "wrong"), response.enabled(),
-                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getAuthenticationRealm(), response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 6:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled() == false, response.getAuthenticationRealm(),
-                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 7:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
-                    response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 8:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(),
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), response.getLookupRealm(),
-                    response.getAuthenticationType(), response.getToken(),
-                    response.getApiKeyInfo());
+                    response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 9:
                 return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),

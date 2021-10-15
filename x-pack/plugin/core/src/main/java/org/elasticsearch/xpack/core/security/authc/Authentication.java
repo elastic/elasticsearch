@@ -35,7 +35,7 @@ public class Authentication implements ToXContentObject {
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
 
-    private final User user; // user contains metadata
+    private final User user;
     private final RealmRef authenticatedBy;
     private final RealmRef lookedUpBy;
     private final Version version;
@@ -70,8 +70,8 @@ public class Authentication implements ToXContentObject {
             this.lookedUpBy = null;
         }
         this.version = in.getVersion();
-        this.type = AuthenticationType.values()[in.readVInt()];
-        this.metadata = in.readMap();
+        type = AuthenticationType.values()[in.readVInt()];
+        metadata = in.readMap();
         this.verifyApiKeyInfoAndCreateApiKeyInfoMap(); // authentication.api_key={"id":"ab12", "name":"my-key"}
     }
 

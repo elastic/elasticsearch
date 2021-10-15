@@ -30,7 +30,7 @@ public class DelegatePkiAuthenticationResponseTests extends
     AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse,
         DelegatePkiAuthenticationResponse> {
 
-        @Override
+    @Override
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance(
         XContentType xContentType) {
         return new org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse(randomAlphaOfLength(6),

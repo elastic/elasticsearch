@@ -34,7 +34,7 @@ public class CreateTokenResponseTests extends ESTestCase {
             Arrays.asList(randomAlphaOfLength(9))),
             true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7)),
             new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), "realm",
-            Map.of("servicetoken1", randomAlphaOfLengthBetween(3, 8)),
+            null,
             new AuthenticateResponse.ApiKeyInfo(
                 randomAlphaOfLength(16),                         // mandatory
                 randomBoolean() ? randomAlphaOfLength(20) : null // optional

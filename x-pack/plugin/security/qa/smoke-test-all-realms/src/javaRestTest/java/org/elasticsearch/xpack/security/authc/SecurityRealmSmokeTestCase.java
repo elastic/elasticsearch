@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
-import org.hamcrest.core.Every;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -37,15 +36,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {

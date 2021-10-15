@@ -55,7 +55,6 @@ public final class AuthenticateResponse implements ToXContentObject {
             new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
                 (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8],
             (Map<String, Object>) a[9], (ApiKeyInfo) a[10]));
-
     static {
         final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
             a -> new RealmInfo((String) a[0], (String) a[1]));
@@ -89,16 +88,6 @@ public final class AuthenticateResponse implements ToXContentObject {
     private final Map<String, Object> token;
     @Nullable
     private final ApiKeyInfo apikeyinfo; // authentication.api_key={"id":"abc123","name":"my-api-key"}
-
-//    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-//                                RealmInfo lookupRealm, String authenticationType) {
-//        this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null, null);
-//    }
-//
-//    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-//                                RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token) {
-//        this(user, enabled, authenticationRealm, lookupRealm, authenticationType, token, null);
-//    }
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
                                 RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token,

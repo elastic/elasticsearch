@@ -445,7 +445,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param shouldAssertExpectedLogLevel
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, boolean shouldAssertExpectedLogLevel, final String... warnings) {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, boolean shouldAssertExpectedLogLevel,
+                                                              final String... warnings) {
         assertWarnings(
             true,
             shouldAssertExpectedLogLevel,

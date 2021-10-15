@@ -44,8 +44,6 @@ public class XPackLicenseState {
         SECURITY_AUDITING(OperationMode.GOLD, false),
         SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
 
-        MACHINE_LEARNING(OperationMode.PLATINUM, true),
-
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.

@@ -169,6 +169,10 @@ public class MetadataDataStreamsService {
         extends AcknowledgedRequest<ModifyDataStreamRequest>
         implements IndicesRequest, ToXContentObject {
 
+        // relevant only for authorizing the request, so require every specified
+        // index to exist, expand wildcards only to open indices, prohibit
+        // wildcard expressions that resolve to zero indices, and do not attempt
+        // to resolve expressions as aliases
         private static final IndicesOptions INDICES_OPTIONS =
             IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 

@@ -52,7 +52,8 @@ the upgrade is finished.
 * When {es} {security-features} are enabled, your {transform} remembers the 
 roles of the user who created or updated it last. In contrast to 
 <<update-transform,update transform>>, upgrade {transforms} does not change the 
-stored roles, therefore it needs to be run by a super user.
+stored roles, therefore it can be run by a super user without impacting existing 
+permissions.
 
 ====
 

@@ -343,11 +343,11 @@ public class BwcVersions {
     }
 
     public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
-        getIndexCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
+        getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
-        getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v"+v.toString()));
+        getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public List<Version> getWireCompatible() {
@@ -364,11 +364,11 @@ public class BwcVersions {
     }
 
     public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
-        getWireCompatible().forEach(v -> versionAction.accept(v, "v"+v.toString()));
+        getWireCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     public void withWireCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
-        getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v"+v.toString()));
+        getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
     private List<Version> filterSupportedVersions(List<Version> wireCompat) {

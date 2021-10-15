@@ -95,7 +95,7 @@ public class PermissionsIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_cluster/settings");
         XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
         pollIntervalEntity.startObject();
-        pollIntervalEntity.startObject("transient");
+        pollIntervalEntity.startObject("persistent");
         pollIntervalEntity.field(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
         pollIntervalEntity.endObject();
         pollIntervalEntity.endObject();

@@ -192,7 +192,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     private NodeEnvironment newSinglePathNodeEnvironment() throws IOException {
         Settings build = Settings.builder()
             .put(buildEnvSettings(Settings.EMPTY))
-            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }

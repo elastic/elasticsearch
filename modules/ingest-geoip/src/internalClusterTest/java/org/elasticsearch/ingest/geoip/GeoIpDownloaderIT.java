@@ -19,6 +19,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -93,6 +95,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
+        deleteDatabasesInConfigDirectory();
+
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder()
@@ -107,6 +111,18 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             if (task != null) {
                 GeoIpTaskState state = (GeoIpTaskState) task.getState();
                 assertThat(state.getDatabases(), anEmptyMap());
+            }
+        });
+        assertBusy(() -> {
+            GeoIpDownloaderStatsAction.Response  response =
+                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            assertThat(response.getStats().getDatabasesCount(), equalTo(0));
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getConfigDatabases(), empty());
+                assertThat(nodeResponse.getDatabases(), empty());
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
+                    empty());
             }
         });
         assertBusy(() -> {
@@ -263,7 +279,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79074")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
@@ -273,10 +288,20 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // verify before updating dbs
         {
-            SimulateDocumentBaseResult result = simulatePipeline();
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            assertBusy(() -> {
+                SimulateDocumentBaseResult result = simulatePipeline();
+                assertThat(result.getFailure(), nullValue());
+                assertThat(result.getIngestDocument(), notNullValue());
+
+                IngestDocument doc = result.getIngestDocument();
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-city"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-asn"));
+                assertThat(doc.getSourceAndMetadata(), hasKey("ip-country"));
+
+                assertThat(doc.getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
+                assertThat(doc.getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+                assertThat(doc.getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            });
         }
 
         // Enable downloader:
@@ -312,7 +337,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79074")
     public void testStartWithNoDatabases() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         putPipeline();
@@ -330,31 +354,24 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         // Enable downloader:
         Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-        {
-            assertBusy(() -> {
-                SimulateDocumentBaseResult result = simulatePipeline();
-                assertThat(result.getFailure(), nullValue());
-                assertThat(result.getIngestDocument(), notNullValue());
-                Map<?, ?> source = result.getIngestDocument().getSourceAndMetadata();
-                assertThat(source, not(hasKey("tags")));
-                assertThat(source, hasKey("ip-city"));
-                assertThat(source, hasKey("ip-asn"));
-                assertThat(source, hasKey("ip-country"));
-
-                assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
-                assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
-                assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));
-            });
-        }
+        verifyUpdatedDatabase();
     }
 
     private void verifyUpdatedDatabase() throws Exception {
         assertBusy(() -> {
             SimulateDocumentBaseResult result = simulatePipeline();
             assertThat(result.getFailure(), nullValue());
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+            assertThat(result.getIngestDocument(), notNullValue());
+
+            Map<?, ?> source = result.getIngestDocument().getSourceAndMetadata();
+            assertThat(source, not(hasKey("tags")));
+            assertThat(source, hasKey("ip-city"));
+            assertThat(source, hasKey("ip-asn"));
+            assertThat(source, hasKey("ip-country"));
+
+            assertThat(((Map<?, ?>) source.get("ip-city")).get("city_name"), equalTo("Linköping"));
+            assertThat(((Map<?, ?>) source.get("ip-asn")).get("organization_name"), equalTo("Bredband2 AB"));
+            assertThat(((Map<?, ?>) source.get("ip-country")).get("country_name"), equalTo("Sweden"));
         });
     }
 
@@ -483,6 +500,32 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(),
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb"));
+                assertThat(nodeResponse.getDatabases(), empty());
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
+                    empty());
+            }
+        });
+    }
+
+    private void deleteDatabasesInConfigDirectory() throws Exception {
+        StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
+            .map(Environment::configFile)
+            .map(path -> path.resolve("ingest-geoip"))
+            .distinct()
+            .forEach(path -> {
+                try {
+                    IOUtils.rm(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+        assertBusy(() -> {
+            GeoIpDownloaderStatsAction.Response  response =
+                client().execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request()).actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getConfigDatabases(), empty());
             }
         });
     }

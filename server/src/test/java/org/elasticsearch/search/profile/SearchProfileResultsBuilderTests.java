@@ -89,6 +89,6 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
     }
 
     private static SearchShardTarget randomTarget() {
-        return new SearchShardTarget(randomAlphaOfLength(5), new ShardId(randomAlphaOfLength(5), "uuid", randomInt(6)), null, null);
+        return new SearchShardTarget(randomAlphaOfLength(5), new ShardId(randomAlphaOfLength(5), "uuid", randomInt(6)), null);
     }
 }

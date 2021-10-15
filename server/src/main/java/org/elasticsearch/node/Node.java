@@ -627,6 +627,7 @@ public class Node implements Closeable {
                 settings,
                 bigArrays,
                 transportService,
+                client,
                 namedWriteableRegistry,
                 networkService,
                 clusterService.getMasterService(),

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -279,7 +280,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Marking the shard as started");
-        newState = startShardsAndReroute(strategy, clusterState, routingNodes.shardsWithState(INITIALIZING));
+        newState = startShardsAndReroute(strategy, clusterState, shardsWithState(routingNodes, INITIALIZING));
         assertThat(newState, not(equalTo(clusterState)));
 
         clusterState = newState;

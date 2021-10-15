@@ -40,14 +40,12 @@ plugins {
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
-  id 'elasticsearch.formatting'
   id 'elasticsearch.local-distribution'
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  id "com.diffplug.spotless" version "5.15.1" apply false
 }
 
 /**
@@ -338,6 +336,7 @@ allprojects {
     }
   }
 
+  apply plugin: 'elasticsearch.formatting'
 }
 
 
@@ -426,4 +425,10 @@ tasks.register("buildReleaseArtifacts").configure {
   dependsOn allprojects.findAll { it.path.startsWith(':distribution:docker') == false && it.path.startsWith(':ml-cpp') == false }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
+}
+
+tasks.named("spotlessApply").configure {
+  dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
+  dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }

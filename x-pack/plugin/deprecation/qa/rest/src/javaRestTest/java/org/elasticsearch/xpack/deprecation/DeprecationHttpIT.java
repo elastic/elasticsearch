@@ -59,7 +59,6 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79038")
 public class DeprecationHttpIT extends ESRestTestCase {
 
     /**
@@ -90,12 +89,22 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
             List<Map<String, Object>> documents = getIndexedDeprecations();
             logger.warn(documents);
+            // if data stream is still present, that means that previous test (could be different class) created a deprecation
+            // hence resetting again
+            resetDeprecationIndexAndCache();
             fail("Index should be removed on startup");
         }, 30, TimeUnit.SECONDS);
     }
 
     @After
     public void cleanUp() throws Exception {
+        resetDeprecationIndexAndCache();
+
+        // switch logging setting to default
+        configureWriteDeprecationLogsToIndex(null);
+    }
+
+    private void resetDeprecationIndexAndCache() throws Exception {
         // making sure the deprecation indexing cache is reset and index is deleted
         assertBusy(() -> {
             try {
@@ -106,9 +115,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
 
         }, 30, TimeUnit.SECONDS);
-
-        // switch logging setting to default
-        configureWriteDeprecationLogsToIndex(null);
     }
 
     /**

@@ -115,7 +115,7 @@ public class MetadataDataStreamsService {
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                index.getWriteIndex(),
+                metadata.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
                 false);
@@ -124,18 +124,19 @@ public class MetadataDataStreamsService {
         }
 
         // add index to data stream
-        builder.put(dataStream.getDataStream().addBackingIndex(metadata, index.getWriteIndex().getIndex()));
+        builder.put(dataStream.getDataStream().addBackingIndex(metadata, index.getWriteIndex()));
     }
 
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
         var dataStream = validateDataStream(metadata, dataStreamName);
         var index = validateIndex(metadata, indexName);
-        builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex().getIndex()));
+        var writeIndex = metadata.index(index.getWriteIndex());
+        builder.put(dataStream.getDataStream().removeBackingIndex(writeIndex.getIndex()));
 
         // un-hide index
-        builder.put(IndexMetadata.builder(index.getWriteIndex())
-            .settings(Settings.builder().put(index.getWriteIndex().getSettings()).put("index.hidden", "false").build())
-            .settingsVersion(index.getWriteIndex().getSettingsVersion() + 1));
+        builder.put(IndexMetadata.builder(writeIndex)
+            .settings(Settings.builder().put(writeIndex.getSettings()).put("index.hidden", "false").build())
+            .settingsVersion(writeIndex.getSettingsVersion() + 1));
     }
 
     private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {
@@ -146,12 +147,12 @@ public class MetadataDataStreamsService {
         return (IndexAbstraction.DataStream) dataStream;
     }
 
-    private static IndexAbstraction.Index validateIndex(Metadata metadata, String indexName) {
+    private static IndexAbstraction validateIndex(Metadata metadata, String indexName) {
         IndexAbstraction index = metadata.getIndicesLookup().get(indexName);
         if (index == null || index.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
-        return (IndexAbstraction.Index) index;
+        return index;
     }
 
     public static final class ModifyDataStreamRequest extends ClusterStateUpdateRequest<ModifyDataStreamRequest> {

@@ -72,7 +72,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         long used = stats.getTotal().getStore().getSizeInBytes();
         long minShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).min().orElseThrow();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
-        long enoughSpace = used + WATERMARK_BYTES + 1;
+        long enoughSpace = used + HIGH_WATERMARK_BYTES + 1;
 
         setTotalSpace(dataNodeName, enoughSpace);
         GetAutoscalingCapacityAction.Response response = capacity();

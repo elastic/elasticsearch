@@ -300,6 +300,7 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            null,
             TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig(),
             null,
             null
@@ -341,6 +342,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,
@@ -394,6 +396,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,

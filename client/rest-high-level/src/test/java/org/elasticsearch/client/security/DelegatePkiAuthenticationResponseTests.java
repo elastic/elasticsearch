@@ -30,7 +30,7 @@ public class DelegatePkiAuthenticationResponseTests extends
     AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse,
         DelegatePkiAuthenticationResponse> {
 
-    @Override
+        @Override
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance(
         XContentType xContentType) {
         return new org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse(randomAlphaOfLength(6),
@@ -100,7 +100,15 @@ public class DelegatePkiAuthenticationResponseTests extends
             authentication.getAuthenticatedBy().getName(): authentication.getLookedUpBy().getName(),
             authentication.getLookedUpBy() == null?
                 authentication.getAuthenticatedBy().getType(): authentication.getLookedUpBy().getType());
+        final AuthenticateResponse.ApiKeyInfo apiKeyInfo;
+        if (Authentication.AuthenticationType.API_KEY.equals(authentication.getAuthenticationType())) {
+            final String apiKeyId   = (String) authentication.getMetadata().get(ApiKeyServiceField.API_KEY_ID_KEY);   // mandatory
+            final String apiKeyName = (String) authentication.getMetadata().get(ApiKeyServiceField.API_KEY_NAME_KEY); // optional
+            apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(apiKeyId, apiKeyName);
+        } else {
+            apiKeyInfo = null;
+        }
         return new AuthenticateResponse(cUser, user.enabled(), authenticatedBy, lookedUpBy,
-            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT), null, null);
+            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT), null, apiKeyInfo);
     }
 }

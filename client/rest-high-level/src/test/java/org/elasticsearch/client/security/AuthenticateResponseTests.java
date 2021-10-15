@@ -82,7 +82,9 @@ public class AuthenticateResponseTests extends ESTestCase {
 
         final AuthenticateResponse.ApiKeyInfo apiKeyInfo;
         if ("api_key".equals(authenticationType)) {
-            apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(randomAlphaOfLength(16), randomAlphaOfLength(20));
+            final String apiKeyId = randomAlphaOfLength(16);                            // mandatory
+            final String apiKeyName = randomBoolean() ? randomAlphaOfLength(20) : null; // optional
+            apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(apiKeyId, apiKeyName);
         } else {
             apiKeyInfo = null;
         }
@@ -178,7 +180,10 @@ public class AuthenticateResponseTests extends ESTestCase {
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     response.getLookupRealm(), response.getAuthenticationType(), response.getToken(),
                     response.getApiKeyInfo() == null
-                        ? new AuthenticateResponse.ApiKeyInfo(randomAlphaOfLength(16), randomAlphaOfLength(20)) : null
+                        ? new AuthenticateResponse.ApiKeyInfo(
+                            randomAlphaOfLength(16),                         // mandatory
+                            randomBoolean() ? randomAlphaOfLength(20) : null // optional
+                        ) : null
                 );
             default:
                 fail("Random number " + randomSwitchCase + " did not match any switch cases");

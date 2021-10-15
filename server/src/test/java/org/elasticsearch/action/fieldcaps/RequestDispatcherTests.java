@@ -1043,7 +1043,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
 
     static Version randomOldVersion() {
         final Version previousVersion = VersionUtils.getPreviousVersion(GROUP_REQUESTS_VERSION);
-        return VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
+        return VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, previousVersion);
     }
 
     static ClusterService mockClusterService(ClusterState clusterState) {

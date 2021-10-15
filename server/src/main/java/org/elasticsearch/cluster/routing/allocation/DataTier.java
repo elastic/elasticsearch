@@ -50,7 +50,7 @@ public class DataTier {
     // it will be removed as a breaking change in some future version, likely 9.0.
     public static final String ENFORCE_DEFAULT_TIER_PREFERENCE = "cluster.routing.allocation.enforce_default_tier_preference";
     public static final Setting<Boolean> ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING =
-        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, false, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting(ENFORCE_DEFAULT_TIER_PREFERENCE, true, Property.Dynamic, Property.NodeScope);
 
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
 

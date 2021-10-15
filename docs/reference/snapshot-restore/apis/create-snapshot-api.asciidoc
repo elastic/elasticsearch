@@ -157,7 +157,7 @@ default. If `include_global_state` is `false`, the snapshot includes no feature
 states by default.
 +
 To exclude all feature states, regardless of the `include_global_state` value,
-use an empty array (`[]`) or `none`.
+specify an empty array (`[]`) or `none`.
 
 `metadata`::
 (Optional, object)

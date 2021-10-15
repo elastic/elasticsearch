@@ -252,12 +252,14 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .format(runDate.minusSeconds(randomIntBetween(0, 2)).plusNanos(randomIntBetween(0, 999999)));
                 source.append("\"metric-timestamp\":\"").append(metricDateString).append("\",");
 
+                final Instant timestamp = runDate.plusNanos(randomIntBetween(0, 999999));
                 String dateString = formatTimestmap(dateType)
-                    .format(runDate.plusNanos(randomIntBetween(0, 999999)));
+                    .format(timestamp);
 
                 source.append("\"timestamp\":\"").append(dateString).append("\",");
                 // for data streams
-                source.append("\"@timestamp\":\"").append(dateString).append("\",");
+                //dynamic field results in a date type
+                source.append("\"@timestamp\":\"").append(formatTimestmap("date").format(timestamp)).append("\",");
                 source.append("\"run\":").append(run);
                 source.append("}");
 

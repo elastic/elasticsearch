@@ -50,14 +50,18 @@ public class BaseEnrollmentTokenGenerator {
 
     static List<String> getFilteredAddresses(List<String> addresses) throws Exception {
         List<String> filteredAddresses = new ArrayList<>();
+        final List<String> localAddresses = new ArrayList<>();
         for (String boundAddress : addresses){
             InetAddress inetAddress = getInetAddressFromString(boundAddress);
-            if (inetAddress.isLoopbackAddress() != true) {
+            if (inetAddress.isLoopbackAddress()) {
+                localAddresses.add(boundAddress);
+            } else if (inetAddress.isAnyLocalAddress() == false) {
                 filteredAddresses.add(boundAddress);
             }
         }
+        // If there are no non-local addresses, add local addresses to the token
         if (filteredAddresses.isEmpty()) {
-            filteredAddresses = addresses;
+            filteredAddresses = localAddresses;
         }
         // Sort the list prioritizing IPv4 addresses when possible, as it is more probable to be reachable when token consumer iterates
         // addresses for the initial node and it is less surprising for users to see in the UI or config
@@ -76,7 +80,14 @@ public class BaseEnrollmentTokenGenerator {
                 return 0;
             }
         });
-        return filteredAddresses;
+        return filteredAddresses.stream().distinct().collect(Collectors.toList());
+    }
+
+    static String getIpFromPublishAddress(String publishAddress) {
+        if (publishAddress.contains("/")) {
+            return publishAddress.split("/")[1];
+        }
+        return publishAddress;
     }
 
     private static InetAddress getInetAddressFromString(String address) throws Exception {

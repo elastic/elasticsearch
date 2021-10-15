@@ -53,7 +53,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -279,12 +278,11 @@ public class SecurityIndexManager implements ClusterStateListener {
     private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexOrAliasName);
         if (indexAbstraction != null) {
-            final List<IndexMetadata> indices = indexAbstraction.getIndices();
+            final List<Index> indices = indexAbstraction.getIndices();
             if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
-                throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
-                        indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
+                throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " + indices);
             }
-            return indices.get(0);
+            return metadata.index(indices.get(0));
         }
         return null;
     }

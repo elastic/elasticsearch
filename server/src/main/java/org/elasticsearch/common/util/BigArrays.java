@@ -191,7 +191,7 @@ public class BigArrays {
 
         @Override
         public void fill(long fromIndex, long toIndex, int value) {
-            assert fromIndex >= 0 && fromIndex < size();
+            assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigIntArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }
@@ -242,7 +242,7 @@ public class BigArrays {
 
         @Override
         public void fill(long fromIndex, long toIndex, long value) {
-            assert fromIndex >= 0 && fromIndex < size();
+            assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigLongArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }
@@ -293,7 +293,7 @@ public class BigArrays {
 
         @Override
         public void fill(long fromIndex, long toIndex, double value) {
-            assert fromIndex >= 0 && fromIndex < size();
+            assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigDoubleArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }
@@ -344,7 +344,7 @@ public class BigArrays {
 
         @Override
         public void fill(long fromIndex, long toIndex, float value) {
-            assert fromIndex >= 0 && fromIndex < size();
+            assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigFloatArray.fill(array, (int) fromIndex, (int) toIndex, value);
         }

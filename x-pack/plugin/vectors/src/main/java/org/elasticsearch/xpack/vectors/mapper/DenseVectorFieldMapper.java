@@ -8,6 +8,8 @@
 
 package org.elasticsearch.xpack.vectors.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
@@ -16,7 +18,10 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.mapper.VectorFieldMapper;
+import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -41,17 +46,21 @@ import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends VectorFieldMapper {
+public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVectorsFormatFieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
+    public static final IndexOptions DEFAULT_INDEX_OPTIONS = new HnswIndexOptions(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     private static final byte INT_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -75,7 +84,7 @@ public class DenseVectorFieldMapper extends VectorFieldMapper {
         private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
                 "similarity", false, m -> toType(m).similarity, null, VectorSimilarity.class);
         private final Parameter<IndexOptions> indexOptions = new Parameter<>("index_options", false, () -> null,
-            (n, c, o) -> VectorFieldMapper.parseVectorIndexOptions(n, o), m -> toType(m).indexOptions);
+            (n, c, o) ->  o == null ? null : parseIndexOptions(n, o), m -> toType(m).indexOptions);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final Version indexVersionCreated;
@@ -105,10 +114,10 @@ public class DenseVectorFieldMapper extends VectorFieldMapper {
                 dims.getValue(),
                 indexed.getValue(),
                 similarity.getValue(),
+                indexOptions.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                indexOptions.getValue());
+                copyTo.build());
         }
     }
 
@@ -119,6 +128,71 @@ public class DenseVectorFieldMapper extends VectorFieldMapper {
         public final VectorSimilarityFunction function;
         VectorSimilarity(VectorSimilarityFunction function) {
             this.function = function;
+        }
+    }
+
+    abstract static class IndexOptions implements ToXContent {
+        final String type;
+        IndexOptions(String type) {
+            this.type = type;
+        }
+    }
+
+    static class HnswIndexOptions extends IndexOptions {
+        private final int m;
+        private final int efConstruction;
+
+        static IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+            Object mNode = indexOptionsMap.remove("m");
+            Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+            if (mNode == null) {
+                throw new MapperParsingException("[index_options] of type [hnsw] requires field [m] to be configured");
+            }
+            if (efConstructionNode == null) {
+                throw new MapperParsingException("[index_options] of type [hnsw] requires field [ef_construction] to be configured");
+            }
+            int m = XContentMapValues.nodeIntegerValue(mNode);
+            int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+            MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+            if (m == DEFAULT_MAX_CONN && efConstruction == DEFAULT_BEAM_WIDTH) {
+                return DEFAULT_INDEX_OPTIONS;
+            } else {
+                return new HnswIndexOptions(m, efConstruction);
+            }
+        }
+
+        private HnswIndexOptions(int m, int efConstruction) {
+            super("hnsw");
+            this.m = m;
+            this.efConstruction = efConstruction;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("m", m);
+            builder.field("ef_construction", efConstruction);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            HnswIndexOptions that = (HnswIndexOptions) o;
+            return m == that.m && efConstruction == that.efConstruction;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, m, efConstruction);
+        }
+
+        @Override
+        public String toString() {
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + " }";
         }
     }
 
@@ -191,15 +265,17 @@ public class DenseVectorFieldMapper extends VectorFieldMapper {
     private final int dims;
     private final boolean indexed;
     private final VectorSimilarity similarity;
+    private final IndexOptions indexOptions;
     private final Version indexCreatedVersion;
 
     private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims, boolean indexed,
-                                   VectorSimilarity similarity, Version indexCreatedVersion, MultiFields multiFields,
-                                   CopyTo copyTo, VectorFieldMapper.IndexOptions indexOptions) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, indexOptions);
+                                   VectorSimilarity similarity, IndexOptions indexOptions,
+                                   Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.dims = dims;
         this.indexed = indexed;
         this.similarity = similarity;
+        this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
     }
 
@@ -294,5 +370,30 @@ public class DenseVectorFieldMapper extends VectorFieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
+    }
+
+    public static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
+        @SuppressWarnings("unchecked")
+        Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
+        Object typeNode = indexOptionsMap.remove("type");
+        if (typeNode == null) {
+            throw new MapperParsingException("[index_options] requires field [type] to be configured");
+        }
+        String type = XContentMapValues.nodeStringValue(typeNode);
+        if (type.equals("hnsw")) {
+            return HnswIndexOptions.parseIndexOptions(fieldName, indexOptionsMap);
+        } else {
+            throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
+        }
+    }
+
+    @Override
+    public KnnVectorsFormat getKnnVectorsFormatForField() {
+        if (indexOptions == null || indexOptions == DEFAULT_INDEX_OPTIONS) {
+            return null; // use default format
+        } else {
+            HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
+            return new Lucene90HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+        }
     }
 }

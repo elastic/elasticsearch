@@ -68,9 +68,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("index", true).field("similarity", "dot_product");
             if (indexOptionsSet) {
                 b.startObject("index_options");
-                b.field("type", "hnsw");
-                b.field("m", 5);
-                b.field("ef_construction", 50);
+                    b.field("type", "hnsw");
+                    b.field("m", 5);
+                    b.field("ef_construction", 50);
                 b.endObject();
             }
         }
@@ -107,16 +107,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "dense_vector")
                 .field("dims", 4)
                 .field("index", true)
-                .field("similarity", "dot_product")
-                .startObject("index_options")
-                    .field("m", 5)
-                    .field("ef_construction", 80)
-                .endObject()),
+                .field("similarity", "dot_product")),
             fieldMapping(b -> b.field("type", "dense_vector")
                 .field("dims", 4)
                 .field("index", true)
                 .field("similarity", "dot_product")
                 .startObject("index_options")
+                    .field("type" , "hnsw")
+                    .field("m", 5)
+                    .field("ef_construction", 80)
                 .endObject()));
     }
 
@@ -241,8 +240,45 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .field("type", "dense_vector")
                 .field("dims", 3)
                 .startObject("index_options")
+                    .field("type", "hnsw")
+                    .field("m", 5)
+                    .field("ef_construction", 100)
                 .endObject())));
         assertThat(e.getMessage(), containsString("Field [index_options] requires field [index] to be configured"));
+
+        e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b
+                .field("type", "dense_vector")
+                .field("dims", 3)
+                .field("similarity", "l2_norm")
+                .field("index", true)
+                .startObject("index_options")
+                .endObject())));
+        assertThat(e.getMessage(), containsString("[index_options] requires field [type] to be configured"));
+
+        e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b
+                .field("type", "dense_vector")
+                .field("dims", 3)
+                .field("similarity", "l2_norm")
+                .field("index", true)
+                .startObject("index_options")
+                    .field("type", "hnsw")
+                    .field("ef_construction", 100)
+                .endObject())));
+        assertThat(e.getMessage(), containsString("[index_options] of type [hnsw] requires field [m] to be configured"));
+
+        e = expectThrows(MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b
+                .field("type", "dense_vector")
+                .field("dims", 3)
+                .field("similarity", "l2_norm")
+                .field("index", true)
+                .startObject("index_options")
+                    .field("type", "hnsw")
+                    .field("m", 5)
+                .endObject())));
+        assertThat(e.getMessage(), containsString("[index_options] of type [hnsw] requires field [ef_construction] to be configured"));
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -329,21 +365,20 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
     }
 
-    protected void mappingWithCustomIndexOptions(XContentBuilder b, int m, int efConstruction) throws IOException {
-        b.field("type", "dense_vector");
-        b.field("dims", 4);
-        b.field("index", true);
-        b.field("similarity", "dot_product");
-        b.startObject("index_options");
-            b.field("m", m) ;
-            b.field("ef_construction", efConstruction);
-        b.endObject();
-    }
-
     public void testKnnVectorsFormat() throws IOException {
-        int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
-        int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
-        MapperService mapperService = createMapperService(fieldMapping(b -> mappingWithCustomIndexOptions(b, m, efConstruction)));
+        final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
+        final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 4);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+                b.field("type", "hnsw");
+                b.field("m", m);
+                b.field("ef_construction", efConstruction);
+            b.endObject();
+        }));
         CodecService codecService = new CodecService(mapperService);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMappingCodec.class));

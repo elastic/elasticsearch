@@ -18,7 +18,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
- * {@link PerFieldMappingCodec This postings format} is the default
+ * {@link PerFieldMappingCodec This Lucene codec} provides the default
  * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the
  * {@link MapperService} to lookup a {@link PostingsFormat} and {@link KnnVectorsFormat} per field. This
  * allows users to change the low level postings format and vectors format for individual fields

@@ -236,8 +236,8 @@ public final class MappingLookup {
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         Mapper fieldMapper = fieldMappers.get(field);
-        if (fieldMapper instanceof VectorFieldMapper) {
-            return ((VectorFieldMapper) fieldMapper).getKnnVectorsFormatForField();
+        if (fieldMapper instanceof PerFieldKnnVectorsFormatFieldMapper) {
+            return ((PerFieldKnnVectorsFormatFieldMapper) fieldMapper).getKnnVectorsFormatForField();
         } else {
             return null;
         }

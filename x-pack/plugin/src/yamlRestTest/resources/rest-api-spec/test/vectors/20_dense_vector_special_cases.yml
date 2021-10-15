@@ -22,6 +22,7 @@ setup:
                 index_options:
                   type: hnsw
                   m: 15
+                  ef_construction: 50
 
 ---
 "Indexing of Dense vectors should error when dims don't match defined in the mapping":

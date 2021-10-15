@@ -263,7 +263,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         } else {
             settings = new SettingsConfig();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             metadata = in.readMap();
         } else {
             metadata = null;
@@ -446,7 +446,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             settings.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {

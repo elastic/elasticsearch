@@ -141,8 +141,8 @@
 "Master cluster applier stats":
   - skip:
       features: [arbitrary_key]
-      version: "- 7.99.99"
-      reason: "not yet backported to 7.x branch"
+      version: "- 7.15.99"
+      reason: "Cluster state applier stats available since 7.16.0"
 
   - do:
       nodes.info:
@@ -163,8 +163,8 @@
 "Master serialization stats":
   - skip:
       features: [arbitrary_key]
-      version: "- 7.99.99"
-      reason: "master serialization stats added in 8.0.0"
+      version: "- 7.15.99"
+      reason: "master serialization stats added in 7.16.0"
 
   - do:
       nodes.info:

@@ -131,6 +131,24 @@ setting or the `xpack.security.transport.ssl.certificate` and
 provided, {es} will generate warnings in the deprecation log.
 ====
 
+[[tls-ssl-http-cert-required]]
+.A `xpack.security.http.ssl` certificate and key will be required to enable SSL for the HTTP layer.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the HTTP layer without also configuring a certificate and key
+through use of the `xpack.security.http.ssl.keystore.path` setting or
+the `xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
+settings generates warnings in the deprecation log. In 8.0, this configuration
+will result in errors.
+*Impact* +
+If `xpack.security.http.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
 [discrete]
 [[breaking_715_indices_deprecations]]
 ==== Indices deprecations

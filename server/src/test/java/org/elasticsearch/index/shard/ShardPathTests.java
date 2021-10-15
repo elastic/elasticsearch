@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 public class ShardPathTests extends ESTestCase {
@@ -237,9 +239,8 @@ public class ShardPathTests extends ESTestCase {
                 }
                 ShardPath.deleteLeftoverShardDirectory(logger, env, lock, idxSettings, shardPaths -> {
                     List<Path> envPathList = Arrays.asList(envPaths);
-                    assertEquals(envPaths.length, shardPaths.length);
                     for (Path path : shardPaths) {
-                        assertThat(envPathList, contains(path));
+                        assertThat(envPathList, hasItem(path));
                     }
                 });
                 for (Path path : envPaths) {

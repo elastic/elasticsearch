@@ -480,6 +480,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
             }
             createIndex(indexName, indexSettings.build());
+            ensureGreen(indexName);
 
             int numDocs = randomIntBetween(300, 1000);
             indexDocs(indexName, numDocs, numDocs);
@@ -777,6 +778,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                 .build()
         );
+        ensureGreen(indexName);
 
         int numDocs = randomIntBetween(300, 1000);
         indexDocs(indexName, 0, numDocs);
@@ -867,6 +869,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             assertThat(stats, is(notNullValue()));
             assertThat(stats.getSeqNoStats(), is(notNullValue()));
 
+            assertThat(stats.getSeqNoStats().getMaxSeqNo(), is(greaterThan(-1L)));
+            assertThat(stats.getSeqNoStats().getGlobalCheckpoint(), is(greaterThan(-1L)));
             assertThat(Strings.toString(stats.getSeqNoStats()),
                 stats.getSeqNoStats().getMaxSeqNo(), equalTo(stats.getSeqNoStats().getGlobalCheckpoint()));
         }, 60, TimeUnit.SECONDS);

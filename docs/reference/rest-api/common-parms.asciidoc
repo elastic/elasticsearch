@@ -970,6 +970,10 @@ The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
 
+tag::transform-metadata[]
+Defines optional {transform} metadata.
+end::transform-metadata[]
+
 tag::transform-retention[]
 Defines a retention policy for the {transform}. Data that meets the defined
 criteria is deleted from the destination index.

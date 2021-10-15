@@ -393,8 +393,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+        int shardRequestIndex = shardItIndexMap.get(shardIt);
         return new CanMatchRequest.Shard(shardIt.getOriginalIndices().indices(), shardIt.shardId(),
-            shardItIndexMap.get(shardIt), filter, indexBoost, shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
+            shardRequestIndex, filter, indexBoost, shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(),
+            ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex));
     }
 
     private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {

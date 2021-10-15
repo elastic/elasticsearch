@@ -697,7 +697,7 @@ public class TransportStartDataFrameAnalyticsAction
             // Create the system index explicitly.  Although the master node would create it automatically on first use,
             // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
             // might use outdated mappings.
-            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
+            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSystemIndexDescriptor(),
                 MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT, indexCheckListener);
         }
 

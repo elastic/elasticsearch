@@ -581,6 +581,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
                 dataStream = dataStream.rollover(state.metadata(), uuid);
+
+                // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
+                // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.
+                // This is highly desirable so fixing this to clear the in-sync allocation ids will require a more elaborate solution,
+                // ensuring at least that when replicas are involved, we still respect the low watermark. This is therefore left as is
+                // for now with the intention to fix in a follow-up.
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
                     .index(dataStream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))

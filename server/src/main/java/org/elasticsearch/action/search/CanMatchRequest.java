@@ -50,6 +50,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
     private final String clusterAlias;
     private final String[] indices;
     private final IndicesOptions indicesOptions;
+    private final TimeValue waitForCheckpointsTimeout;
 
     public static class Shard implements Writeable {
         private final String[] indices;
@@ -59,6 +60,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         private final float indexBoost;
         private final ShardSearchContextId readerId;
         private final TimeValue keepAlive;
+        private final long waitForCheckpoint;
 
         public Shard(String[] indices,
                      ShardId shardId,
@@ -66,7 +68,8 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
                      AliasFilter aliasFilter,
                      float indexBoost,
                      ShardSearchContextId readerId,
-                     TimeValue keepAlive) {
+                     TimeValue keepAlive,
+                     long waitForCheckpoint) {
             this.indices = indices;
             this.shardId = shardId;
             this.shardRequestIndex = shardRequestIndex;
@@ -74,6 +77,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             this.indexBoost = indexBoost;
             this.readerId = readerId;
             this.keepAlive = keepAlive;
+            this.waitForCheckpoint = waitForCheckpoint;
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         }
 
@@ -85,6 +89,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             indexBoost = in.readFloat();
             readerId = in.readOptionalWriteable(ShardSearchContextId::new);
             keepAlive = in.readOptionalTimeValue();
+            waitForCheckpoint = in.readLong();
             assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         }
 
@@ -97,6 +102,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             out.writeFloat(indexBoost);
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+            out.writeLong(waitForCheckpoint);
         }
 
         public int getShardRequestIndex() {
@@ -133,6 +139,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         this.numberOfShards = numberOfShards;
         this.nowInMillis = nowInMillis;
         this.clusterAlias = clusterAlias;
+        this.waitForCheckpointsTimeout = searchRequest.getWaitForCheckpointsTimeout();
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct()
             .toArray(String[]::new);
     }
@@ -148,6 +155,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         numberOfShards = in.readVInt();
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
+        waitForCheckpointsTimeout = in.readTimeValue();
         shards = in.readList(Shard::new);
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct()
             .toArray(String[]::new);
@@ -165,6 +173,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         out.writeVInt(numberOfShards);
         out.writeVLong(nowInMillis);
         out.writeOptionalString(clusterAlias);
+        out.writeTimeValue(waitForCheckpointsTimeout);
         out.writeList(shards);
     }
 
@@ -180,7 +189,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
             new OriginalIndices(r.indices, indicesOptions), r.shardId, r.shardRequestIndex, numberOfShards, searchType,
             source, requestCache, r.aliasFilter, r.indexBoost, allowPartialSearchResults, scroll,
-            nowInMillis, clusterAlias, r.readerId, r.keepAlive
+            nowInMillis, clusterAlias, r.readerId, r.keepAlive, r.waitForCheckpoint, waitForCheckpointsTimeout
         );
         shardSearchRequest.setParentTask(getParentTask());
         return shardSearchRequest;

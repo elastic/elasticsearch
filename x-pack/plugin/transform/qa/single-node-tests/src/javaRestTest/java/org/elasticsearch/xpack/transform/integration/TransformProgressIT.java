@@ -165,6 +165,7 @@ public class TransformProgressIT extends ESRestTestCase {
             null,
             null,
             null,
+            null,
             null
         );
 

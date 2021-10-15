@@ -49,8 +49,6 @@ public class XPackLicenseState {
 
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
 
-        CCR(OperationMode.PLATINUM, true),
-
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);

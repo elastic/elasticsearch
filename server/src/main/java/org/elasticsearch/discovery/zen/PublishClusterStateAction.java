@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
+import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -647,6 +648,7 @@ public class PublishClusterStateAction {
         return new PublishClusterStateStats(
             fullClusterStateReceivedCount.get(),
             incompatibleClusterStateDiffReceivedCount.get(),
-            compatibleClusterStateDiffReceivedCount.get());
+            compatibleClusterStateDiffReceivedCount.get(),
+            ClusterStateSerializationStats.EMPTY);
     }
 }

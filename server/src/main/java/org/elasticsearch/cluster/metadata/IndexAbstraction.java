@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -194,9 +195,10 @@ public interface IndexAbstraction {
 
         public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
-            this.referenceIndexMetadatas = indices.stream()
-                .map(IndexMetadata::getIndex)
-                .collect(Collectors.toList());
+            this.referenceIndexMetadatas = new ArrayList<>(indices.size());
+            for (IndexMetadata imd : indices) {
+                this.referenceIndexMetadatas.add(imd.getIndex());
+            }
 
             List<IndexMetadata> writeIndices = indices.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
@@ -224,14 +226,10 @@ public interface IndexAbstraction {
             validateAliasProperties(indices);
         }
 
-        public Alias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
-                     List<IndexMetadata> indicesOfAllDataStreams,
-                     IndexMetadata writeIndexOfWriteDataStream) {
+        public Alias(DataStreamAlias dataStreamAlias, List<Index> indicesOfAllDataStreams, Index writeIndexOfWriteDataStream) {
             this.aliasName = dataStreamAlias.getName();
-            this.referenceIndexMetadatas = indicesOfAllDataStreams.stream()
-                .map(imd -> imd.getIndex())
-                .collect(Collectors.toList());
-            this.writeIndex = writeIndexOfWriteDataStream != null ? writeIndexOfWriteDataStream.getIndex() : null;
+            this.referenceIndexMetadatas = indicesOfAllDataStreams;
+            this.writeIndex = writeIndexOfWriteDataStream;
             this.isHidden = false;
             this.isSystem = false;
             this.dataStreamAlias = true;
@@ -329,18 +327,11 @@ public interface IndexAbstraction {
     class DataStream implements IndexAbstraction {
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
-        private final List<Index> dataStreamIndices;
-        private final Index writeIndex;
         private final List<String> referencedByDataStreamAliases;
 
         public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream,
-                          List<IndexMetadata> dataStreamIndices,
                           List<String> aliases) {
             this.dataStream = dataStream;
-            this.dataStreamIndices = dataStreamIndices.stream()
-                .map(IndexMetadata::getIndex)
-                .collect(Collectors.toList());
-            this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1).getIndex();
             this.referencedByDataStreamAliases = aliases;
         }
 
@@ -356,11 +347,11 @@ public interface IndexAbstraction {
 
         @Override
         public List<Index> getIndices() {
-            return dataStreamIndices;
+            return dataStream.getIndices();
         }
 
         public Index getWriteIndex() {
-            return writeIndex;
+            return dataStream.getWriteIndex();
         }
 
         @Override

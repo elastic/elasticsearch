@@ -1569,34 +1569,29 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dataStreamMetadata != null && indices.size() > 0) {
                 Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
                 for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                    List<IndexMetadata> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
+                    List<Index> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
                         .map(name -> {
                             List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
                             aliases.add(alias.getName());
                             return dataStreamMetadata.dataStreams().get(name);
                         })
                         .flatMap(ds -> ds.getIndices().stream())
-                        .map(index -> indices.get(index.getName()))
                         .collect(Collectors.toList());
-                    IndexMetadata writeIndexOfWriteDataStream = null;
+                    Index writeIndexOfWriteDataStream = null;
                     if (alias.getWriteDataStream() != null) {
                         DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
-                        writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
+                        writeIndexOfWriteDataStream = writeDataStream.getWriteIndex();
                     }
                     IndexAbstraction existing = indicesLookup.put(alias.getName(),
                         new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
                     assert existing == null : "duplicate data stream alias for " + alias.getName();
                 }
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
-                    List<IndexMetadata> backingIndices = dataStream.getIndices().stream()
-                        .map(index -> indices.get(index.getName()))
-                        .collect(Collectors.toList());
-                    assert backingIndices.isEmpty() == false;
-                    assert backingIndices.contains(null) == false;
+                    assert dataStream.getIndices().isEmpty() == false;
 
                     List<String> aliases = dataStreamToAliasLookup.getOrDefault(dataStream.getName(), List.of());
                     IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, backingIndices, aliases));
+                        new IndexAbstraction.DataStream(dataStream, aliases));
                     assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                     for (Index i : dataStream.getIndices()) {

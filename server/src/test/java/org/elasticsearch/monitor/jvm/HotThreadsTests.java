@@ -439,7 +439,7 @@ public class HotThreadsTests extends ESTestCase {
             assertEquals(0, accumulator.getWaitedTime());
         }
 
-        // Fake sleep, e.g don't sleep call the mock again
+        // Fake sleep, e.g. don't sleep call the mock again
 
         Map<Long, HotThreads.ThreadTimeAccumulator> afterValidInfos = hotThreads.getAllValidThreadInfos(mockedMXBean, mockedSunThreadInfo,
             mockCurrentThreadId);
@@ -529,7 +529,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(3)
             .ignoreIdleThreads(false);
 
-        // Setup the mocks
+        // Set up the mocks
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
 
         long[] topThreadIds = new long[]{threadIds[threadIds.length - 1], threadIds[threadIds.length - 2]};

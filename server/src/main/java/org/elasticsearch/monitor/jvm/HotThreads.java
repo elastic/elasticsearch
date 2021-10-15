@@ -215,6 +215,11 @@ public class HotThreads {
 
         // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times
         setThreadWaitBlockTimeMonitoringEnabled(threadBean, true);
+        try {
+            // We need to sleep a bit to let the JVM register correctly that we have enabled
+            // thread lock monitoring
+            Thread.sleep(500);
+        } catch (InterruptedException ignore) {}
 
         try {
             // Capture before and after thread state with timings
@@ -261,10 +266,15 @@ public class HotThreads {
                         long cpuTime = topThread.getCpuTime();
                         long runnableTime = topThread.getRunnableTime();
                         double percentCpu = getTimeSharePercentage(cpuTime);
-                        double percentRunnable = getTimeSharePercentage(runnableTime);
+                        double percentWait = getTimeSharePercentage(topThread.getWaitedTime());
+                        double percentBlocked = getTimeSharePercentage(topThread.getBlockedTime());
+                        double percentOther = Math.max(0, 100.0 - percentBlocked - percentWait - percentCpu);
+                        if (cpuTime == 0L) {
+                            percentOther = 0;
+                        }
                         sb.append(String.format(Locale.ROOT,
-                            "%n%4.1f%% [cpu=%4.1f%%, other=%4.1f%%] (%s out of %s) %s usage by thread '%s'%n",
-                            percentRunnable, percentCpu, percentRunnable - percentCpu,
+                            "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
+                            percentOther + percentCpu, percentCpu, percentOther,
                             TimeValue.timeValueNanos(runnableTime), interval, type.getTypeValue(), threadName));
                         break;
                     default:
@@ -347,12 +357,19 @@ public class HotThreads {
         private long allocatedBytes;
 
         ThreadTimeAccumulator(ThreadInfo info, TimeValue maxTime, long cpuTime, long allocatedBytes) {
-            this.blockedTime = info.getBlockedTime() * 1_000_000; // Convert to nanos to standardize
-            this.waitedTime = info.getWaitedTime() * 1_000_000; // Convert to nanos to standardize
+
+            System.out.println(String.format("%n%s: %d %d %d", info.getThreadName(), info.getWaitedTime()*1_000_000, info.getBlockedTime()*1_000_000, cpuTime));
+
+            this.blockedTime = millisecondsToNanos(info.getBlockedTime()); // Convert to nanos to standardize
+            this.waitedTime = millisecondsToNanos(info.getWaitedTime()); // Convert to nanos to standardize
             this.cpuTime = cpuTime;
             this.allocatedBytes = allocatedBytes;
             this.threadId = info.getThreadId();
             this.maxTime = maxTime;
+        }
+
+        private long millisecondsToNanos(long millis) {
+            return millis * 1_000_000;
         }
 
         void subtractPrevious(ThreadTimeAccumulator previous) {
@@ -376,7 +393,12 @@ public class HotThreads {
         }
 
         public long getRunnableTime() {
-            return maxTime.nanos() - getWaitedTime() - getBlockedTime();
+            // If the thread didn't have any CPU movement, we can't really tell if it's
+            // not running, or it has been asleep forever.
+            if (getCpuTime() == 0) {
+                return 0;
+            }
+            return Math.max(maxTime.nanos() - getWaitedTime() - getBlockedTime(), 0);
         }
 
         public long getBlockedTime() {

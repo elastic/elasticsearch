@@ -11,17 +11,21 @@ package org.elasticsearch.upgrades;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -39,17 +43,26 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final Settings settings;
     private final String mapping;
     private final String origin;
+    private final SystemIndices.Feature owningFeature;
 
     private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
         SystemIndexMigrationInfo::getFeatureName
     ).thenComparing(SystemIndexMigrationInfo::getCurrentIndexName);
 
-    private SystemIndexMigrationInfo(IndexMetadata currentIndex, String featureName, Settings settings, String mapping, String origin) {
+    private SystemIndexMigrationInfo(
+        IndexMetadata currentIndex,
+        String featureName,
+        Settings settings,
+        String mapping,
+        String origin,
+        SystemIndices.Feature owningFeature
+    ) {
         this.currentIndex = currentIndex;
         this.featureName = featureName;
         this.settings = settings;
         this.mapping = mapping;
         this.origin = origin;
+        this.owningFeature = owningFeature;
     }
 
     /**
@@ -99,6 +112,32 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getOrigin() {
         return origin;
+    }
+
+    /**
+     * Invokes the pre-migration hook for the feature that owns this index.
+     * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
+     * @param clusterService For retrieving the state.
+     * @param client For performing any update operations necessary to prepare for the upgrade.
+     * @param listener Call {@link ActionListener#onResponse(Object)} when preparation for migration is complete.
+     */
+    void prepareForIndicesMigration(
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Map<String, Object>> listener) {
+        owningFeature.getPreMigrationFunction().prepareForIndicesMigration(clusterService, client, listener);
+    }
+
+    /**
+     * Invokes the post-migration hooks for the feature that owns this index.
+     * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+     * @param metadata The metadata that was passed into the listener by the pre-migration hook.
+     * @param clusterService For retrieving the state.
+     * @param client For performing any update operations necessary to prepare for the upgrade.
+     * @param listener Call {@link ActionListener#onResponse(Object)} when the hook is finished.
+     */
+    void indicesMigrationComplete(Map<String, Object> metadata, ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        owningFeature.getPostMigrationFunction().indicesMigrationComplete(metadata, clusterService, client, listener);
     }
 
     /**
@@ -160,7 +199,8 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             feature.getName(),
             settings,
             mapping,
-            descriptor.getOrigin());
+            descriptor.getOrigin(),
+            feature);
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {

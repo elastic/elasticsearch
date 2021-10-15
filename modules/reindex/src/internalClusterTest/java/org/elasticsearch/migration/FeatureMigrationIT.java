@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -51,7 +52,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -82,6 +85,33 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
 
         ensureGreen();
+
+        preMigrationHook.set(clusterState -> {
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("stringKey", "stringValue");
+            metadata.put("intKey", 42);
+            {
+                Map<String, Object> innerMetadata = new HashMap<>();
+                innerMetadata.put("innerKey", "innerValue");
+
+                metadata.put("mapKey", innerMetadata);
+            }
+            metadata.put("listKey", Arrays.asList(1, 2, 3, 4));
+            return metadata;
+        });
+
+        postMigrationHook.set((clusterState, metadata) -> {
+            assertThat(
+                metadata,
+                hasEntry("stringKey", "stringValue")
+            );
+            assertThat(metadata, hasEntry("intKey", 42));
+            assertThat(metadata, hasEntry("listKey", Arrays.asList(1,2,3,4)));
+            assertThat(metadata, hasKey("mapKey"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> innerMap = (Map<String, Object>) metadata.get("mapKey");
+            assertThat(innerMap, hasEntry("innerKey", "innerValue"));
+        });
 
         PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
         PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
@@ -163,6 +193,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             docs.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
+        IndicesStatsResponse indexStats = client().admin().indices().prepareStats(indexName).setDocs(true).get();
+        assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
     private static final String VERSION_META_KEY = "version";
@@ -173,6 +205,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
     private static final String ORIGIN = FeatureMigrationIT.class.getSimpleName();
     private static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
     private static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
+
+    private static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+    private static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
 
     private static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
     private static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
@@ -260,20 +295,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
     }
 
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
-
-        private AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook;
-        private AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook;
-
         public TestPlugin() {
 
-        }
-
-        public void setPreMigrationHook(Function<ClusterState, Map<String, Object>> preMigrationHook) {
-            this.preMigrationHook.set(preMigrationHook);
-        }
-
-        public void setPostMigrationHook(BiConsumer<ClusterState, Map<String, Object>> postMigrationHook) {
-            this.postMigrationHook.set(postMigrationHook);
         }
 
         @Override
@@ -293,7 +316,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
         @Override
         public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-            listener.onResponse(this.preMigrationHook.get().apply(clusterService.state()));
+            listener.onResponse(preMigrationHook.get().apply(clusterService.state()));
         }
 
         @Override
@@ -303,7 +326,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             Client client,
             ActionListener<Boolean> listener
         ) {
-            this.postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
+            postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
             listener.onResponse(true);
         }
     }

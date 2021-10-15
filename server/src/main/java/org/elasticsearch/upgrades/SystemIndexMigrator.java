@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -77,6 +78,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     // a synchronized/concurrent collection or an AtomicReference because we often need to do compound operations, which are much simpler
     // with `synchronized` blocks than when only the collection accesses are protected.
     private final Queue<SystemIndexMigrationInfo> migrationQueue = new LinkedList<>();
+    private final AtomicReference<Map<String, Object>> currentFeatureCallbackMetadata = new AtomicReference<>();
 
     public SystemIndexMigrator(
         Client client,
@@ -104,30 +106,31 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     public void run(SystemIndexMigrationTaskState taskState) {
         ClusterState clusterState = clusterService.state();
 
-        final String nextIndexName;
-        final String featureName;
+        final String stateIndexName;
+        final String stateFeatureName;
 
         if (taskState != null) {
-            nextIndexName = taskState.getCurrentIndex();
-            featureName = taskState.getCurrentFeature();
+            currentFeatureCallbackMetadata.set(taskState.getFeatureCallbackMetadata());
+            stateIndexName = taskState.getCurrentIndex();
+            stateFeatureName = taskState.getCurrentFeature();
 
-            SystemIndices.Feature feature = systemIndices.getFeatures().get(featureName);
+            SystemIndices.Feature feature = systemIndices.getFeatures().get(stateFeatureName);
             if (feature == null) {
                 markAsFailed(
                     new IllegalStateException(
-                        "cannot migrate feature [" + featureName + "] because that feature is not installed on this node"
+                        "cannot migrate feature [" + stateFeatureName + "] because that feature is not installed on this node"
                     )
                 );
                 return;
             }
 
-            if (nextIndexName != null && clusterState.metadata().hasIndex(nextIndexName) == false) {
-                markAsFailed(new IndexNotFoundException(nextIndexName, "cannot migrate because that index does not exist"));
+            if (stateIndexName != null && clusterState.metadata().hasIndex(stateIndexName) == false) {
+                markAsFailed(new IndexNotFoundException(stateIndexName, "cannot migrate because that index does not exist"));
                 return;
             }
         } else {
-            nextIndexName = null;
-            featureName = null;
+            stateIndexName = null;
+            stateFeatureName = null;
         }
 
         synchronized (migrationQueue) {
@@ -161,29 +164,29 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
             // The queue we just generated *should* be the same one as was generated on the last node, so the first entry in the queue
             // should be the same as is in the task state
-            if (nextIndexName != null && featureName != null && migrationQueue.isEmpty() == false) {
+            if (stateIndexName != null && stateFeatureName != null && migrationQueue.isEmpty() == false) {
                 SystemIndexMigrationInfo nextMigrationInfo = migrationQueue.peek();
                 // This should never, ever happen in testing mode, but could conceivably happen if there are different sets of plugins
                 // installed on the previous node vs. this one.
-                assert nextMigrationInfo.getFeatureName().equals(featureName)
-                    && nextMigrationInfo.getCurrentIndexName().equals(nextIndexName) : "index name ["
-                        + nextIndexName
+                assert nextMigrationInfo.getFeatureName().equals(stateFeatureName)
+                    && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) : "index name ["
+                        + stateIndexName
                         + "] or feature name ["
-                        + featureName
+                        + stateFeatureName
                         + "] from task state did not match first index ["
                         + nextMigrationInfo.getCurrentIndexName()
                         + "] and feature ["
                         + nextMigrationInfo.getFeatureName()
                         + "] of locally computed queue, see logs";
-                if (nextMigrationInfo.getCurrentIndexName().equals(nextIndexName) == false) {
-                    if (clusterState.metadata().hasIndex(nextIndexName) == false) {
+                if (nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) == false) {
+                    if (clusterState.metadata().hasIndex(stateIndexName) == false) {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
                                 new ParameterizedMessage(
                                     "failed to resume system index migration from index [{}], that index is not present in the cluster",
-                                    nextIndexName
-                                ).toString()
+                                    stateIndexName
+                                ).getFormattedMessage()
                             )
                         );
                     }
@@ -191,11 +194,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         new ParameterizedMessage(
                             "resuming system index migration with index [{}], which does not match index given in last task state [{}]",
                             nextMigrationInfo.getCurrentIndexName(),
-                            nextIndexName
+                            stateIndexName
                         )
                     );
                 }
-
             }
         }
 
@@ -203,7 +205,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         cleanUpPreviousMigration(
             taskState,
             clusterState,
-            state -> prepareNextIndex(state, state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop))
+            state -> prepareNextIndex(state, state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop), stateFeatureName)
         );
     }
 
@@ -252,22 +254,60 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             && (bulkResponse.getSearchFailures() == null
                 || bulkResponse.getSearchFailures()
                     .isEmpty()) : "If this assertion gets triggered it means the validation in migrateSingleIndex isn't working right";
-        SystemIndexMigrationInfo migrationInfo = currentMigrationInfo();
+        SystemIndexMigrationInfo lastMigrationInfo = currentMigrationInfo();
+        logger.info(
+            "finished migrating old index [{}] from feature [{}] to new index [{}]",
+            lastMigrationInfo.getCurrentIndexName(),
+            lastMigrationInfo.getFeatureName(),
+            lastMigrationInfo.getNextIndexName()
+        );
+        assert migrationQueue != null && migrationQueue.isEmpty() == false;
+        synchronized (migrationQueue) {
+            migrationQueue.remove();
+        }
+        SystemIndexMigrationInfo nextMigrationInfo = currentMigrationInfo();
+        if (nextMigrationInfo == null || nextMigrationInfo.getFeatureName().equals(lastMigrationInfo.getFeatureName()) == false) {
+            // The next feature name is different than the last one, so we just finished a feature - time to invoke its post-migration hook
+            lastMigrationInfo.indicesMigrationComplete(
+                currentFeatureCallbackMetadata.get(),
+                clusterService,
+                baseClient,
+                ActionListener.wrap(successful -> {
+                    if (successful == false) {
+                        // GWB> Should we actually fail in this case instead of plugging along?
+                        logger.warn(
+                            "post-migration hook for feature [{}] indicated failure; feature migration metadata prior to failure was [{}]",
+                            lastMigrationInfo.getFeatureName(),
+                            currentFeatureCallbackMetadata.get()
+                        );
+                    }
+                    recordIndexMigrationSuccess(lastMigrationInfo);
+                }, this::markAsFailed)
+            );
+        } else {
+            recordIndexMigrationSuccess(lastMigrationInfo);
+        }
+    }
+
+    private void recordIndexMigrationSuccess(SystemIndexMigrationInfo lastMigrationInfo) {
         MigrationResultsUpdateTask updateTask = MigrationResultsUpdateTask.upsert(
-            migrationInfo.getFeatureName(),
+            lastMigrationInfo.getFeatureName(),
             SingleFeatureMigrationResult.success(),
-            ActionListener.wrap(state -> {
-                synchronized (migrationQueue) {
-                    assert migrationQueue != null && migrationQueue.isEmpty() == false;
-                    migrationQueue.remove();
-                }
-                prepareNextIndex(state, clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop));
-            }, this::markAsFailed)
+            ActionListener.wrap(
+                state -> {
+                    prepareNextIndex(
+                        state,
+                        clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
+                        lastMigrationInfo.getFeatureName()
+                    );
+                },
+                this::markAsFailed
+            )
         );
         updateTask.submit(clusterService);
     }
 
-    private void prepareNextIndex(ClusterState clusterState, Consumer<ClusterState> listener) {
+    private void prepareNextIndex(ClusterState clusterState, Consumer<ClusterState> listener, String lastFeatureName) {
         synchronized (migrationQueue) {
             assert migrationQueue != null;
             if (migrationQueue.isEmpty()) {
@@ -279,12 +319,31 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
         final SystemIndexMigrationInfo migrationInfo = currentMigrationInfo();
         assert migrationInfo != null : "the queue of indices to migrate should have been checked for emptiness before calling this method";
+        logger.info(
+            "preparing to migrate old index [{}] from feature [{}] to new index [{}]",
+            migrationInfo.getCurrentIndexName(),
+            migrationInfo.getFeatureName(),
+            migrationInfo.getNextIndexName()
+        );
+        final AtomicReference<Map<String, Object>> updatedTaskStateFeatureMetadata = new AtomicReference<>();
+        if (migrationInfo.getFeatureName().equals(lastFeatureName) == false) {
+            // And then invoke the pre-migration hook for the next one.
+            migrationInfo.prepareForIndicesMigration(
+                clusterService,
+                baseClient,
+                ActionListener.wrap(updatedTaskStateFeatureMetadata::set, this::markAsFailed)
+            );
+        } else {
+            // Otherwise, just re-use what we already have.
+            updatedTaskStateFeatureMetadata.set(currentFeatureCallbackMetadata.get());
+        }
         final SystemIndexMigrationTaskState newTaskState = new SystemIndexMigrationTaskState(
             migrationInfo.getCurrentIndexName(),
             migrationInfo.getFeatureName(),
-            null // GWB> Replace this with the object we get from the pre-ugprade callback
+            updatedTaskStateFeatureMetadata.get()
         );
         logger.debug("updating task state to [{}]", Strings.toString(newTaskState));
+        currentFeatureCallbackMetadata.set(updatedTaskStateFeatureMetadata.get());
         updatePersistentTaskState(newTaskState, ActionListener.wrap(task -> {
             assert newTaskState.equals(task.getState()) : "task state returned by update method did not match submitted task state";
             logger.debug("new task state [{}] accepted", Strings.toString(newTaskState));
@@ -311,7 +370,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
         Index oldIndex = imd.getIndex();
         String newIndexName = migrationInfo.getNextIndexName();
-        logger.debug("migrating index {} to new index {}", oldIndexName, newIndexName);
+        logger.info("migrating index [{}] to new index [{}]", oldIndexName, newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
             Exception versionException = checkNodeVersionsReadyForMigration(clusterState);
@@ -320,12 +379,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
             createIndex(migrationInfo, ActionListener.wrap(shardsAcknowledgedResponse -> {
-                logger.debug("Got create index response: [{}]", Strings.toString(shardsAcknowledgedResponse));
+                logger.info("Got create index response: [{}]", Strings.toString(shardsAcknowledgedResponse));
                 setWriteBlock(
                     oldIndex,
                     true,
                     ActionListener.wrap(setReadOnlyResponse -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.debug("Got reindex response: [{}]", Strings.toString(bulkByScrollResponse));
+                        logger.info("Got reindex response: [{}]", Strings.toString(bulkByScrollResponse));
                         if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
                             || (bulkByScrollResponse.getSearchFailures() != null
                                 && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
@@ -438,9 +497,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationQueue.clear();
         }
         String featureName = Optional.ofNullable(migrationInfo).map(SystemIndexMigrationInfo::getFeatureName).orElse("<unknown feature>");
-        String indexName = Optional.ofNullable(migrationInfo)
-            .map(SystemIndexMigrationInfo::getCurrentIndexName)
-            .orElse("<unknown index>");
+        String indexName = Optional.ofNullable(migrationInfo).map(SystemIndexMigrationInfo::getCurrentIndexName).orElse("<unknown index>");
 
         MigrationResultsUpdateTask.upsert(
             featureName,

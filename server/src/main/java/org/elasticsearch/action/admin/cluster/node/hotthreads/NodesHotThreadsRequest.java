@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +42,13 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
      */
     public NodesHotThreadsRequest(String... nodesIds) {
         super(nodesIds);
+    }
+
+    /**
+     * Get hot threads from the given node, for use if the node isn't a stable member of the cluster.
+     */
+    public NodesHotThreadsRequest(DiscoveryNode node) {
+        super(node);
     }
 
     public int threads() {

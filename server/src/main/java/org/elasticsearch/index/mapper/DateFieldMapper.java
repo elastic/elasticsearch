@@ -321,13 +321,15 @@ public final class DateFieldMapper extends FieldMapper {
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(),
-            ignoreMalformedByDefault, c.indexVersionCreated(), c.getIndexSettings().getIndex().getName());
+            ignoreMalformedByDefault, c.indexVersionCreated(),
+            c.getIndexSettings() != null ? c.getIndexSettings().getIndex().getName() : null);
     });
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(),
-            ignoreMalformedByDefault, c.indexVersionCreated(), c.getIndexSettings().getIndex().getName());
+            ignoreMalformedByDefault, c.indexVersionCreated(),
+            c.getIndexSettings() != null ? c.getIndexSettings().getIndex().getName() : null);
     });
 
     public static final class DateFieldType extends MappedFieldType {

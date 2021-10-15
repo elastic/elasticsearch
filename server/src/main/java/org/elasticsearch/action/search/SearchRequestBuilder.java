@@ -135,6 +135,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Wait for checkpoints configured for a concrete index, will require that the search request only
+     * be executed after the checkpoints are available for search due to a refresh.
+     */
+    public SearchRequestBuilder setWaitForCheckpoints(Map<String, long[]> waitForCheckpoints) {
+        request.setWaitForCheckpoints(waitForCheckpoints);
+        return this;
+    }
+
+    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
      * <p>
      * For example indices that don't exist.

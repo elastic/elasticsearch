@@ -183,7 +183,7 @@ data paths you should follow the following process.
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.allocation.exclude._name": "target-node-name"
   }
 }
@@ -208,7 +208,7 @@ of every shard assigned to at least one of the other nodes in your cluster.
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.allocation.exclude._name": null
   }
 }

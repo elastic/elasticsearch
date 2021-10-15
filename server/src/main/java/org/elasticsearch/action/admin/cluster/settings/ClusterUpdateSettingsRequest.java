@@ -65,7 +65,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     }
 
     /**
-     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * @deprecated Transient settings are in the process of being removed. Use
      * persistent settings to update your cluster settings instead.
      */
     @Deprecated
@@ -80,7 +80,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      *
-     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * @deprecated Transient settings are in the process of being removed. Use
      * persistent settings to update your cluster settings instead.
      */
     @Deprecated
@@ -92,7 +92,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      *
-     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * @deprecated Transient settings are in the process of being removed. Use
      * persistent settings to update your cluster settings instead.
      */
     @Deprecated
@@ -104,7 +104,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      *
-     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * @deprecated Transient settings are in the process of being removed. Use
      * persistent settings to update your cluster settings instead.
      */
     @Deprecated
@@ -116,7 +116,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      *
-     * @deprecated Transient settings are in the process of being removed. Prefer using
+     * @deprecated Transient settings are in the process of being removed. Use
      * persistent settings to update your cluster settings instead.
      */
     @Deprecated

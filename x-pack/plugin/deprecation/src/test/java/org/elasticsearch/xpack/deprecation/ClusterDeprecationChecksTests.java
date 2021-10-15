@@ -31,7 +31,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Transient cluster settings are in the process of being removed.",
                 "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Prefer using persistent settings to define your cluster settings instead.",
+                "Use persistent settings to define your cluster settings instead.",
                 false, null)
         ));
 

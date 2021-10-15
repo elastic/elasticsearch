@@ -43,7 +43,7 @@ setup:
 ---
 "Basic kNN search":
   - do:
-      search_knn:
+      knn_search:
         index: test
         body:
           fields: [ "name" ]
@@ -62,7 +62,7 @@ setup:
 ---
 "Basic kNN search with no index":
   - do:
-      search_knn:
+      knn_search:
         body:
           fields: [ "name" ]
           knn:

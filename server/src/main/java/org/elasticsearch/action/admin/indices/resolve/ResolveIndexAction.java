@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -504,7 +505,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 includeDataStreams);
             SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
             for (String s : resolvedIndexAbstractions) {
-                enrichIndexAbstraction(s, lookup, indices, aliases, dataStreams);
+                enrichIndexAbstraction(metadata, s, lookup, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
@@ -529,42 +530,41 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private static void enrichIndexAbstraction(String indexAbstraction, SortedMap<String, IndexAbstraction> lookup,
+        private static void enrichIndexAbstraction(Metadata metadata, String indexAbstraction, SortedMap<String, IndexAbstraction> lookup,
                                                    List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
                                                    List<ResolvedDataStream> dataStreams) {
             IndexAbstraction ia = lookup.get(indexAbstraction);
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX:
-                        IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
-
-                        String[] aliasNames = index.getWriteIndex().getAliases().keySet().stream().sorted().toArray(String[]::new);
+                        IndexMetadata writeIndex = metadata.index(ia.getWriteIndex());
+                        String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
 
                         List<String> attributes = new ArrayList<>();
-                        attributes.add(index.getWriteIndex().getState() == IndexMetadata.State.OPEN ? "open" : "closed");
+                        attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? "open" : "closed");
                         if (ia.isHidden()) {
                             attributes.add("hidden");
                         }
-                        final boolean isFrozen = Boolean.parseBoolean(ia.getWriteIndex().getSettings().get("index.frozen"));
+                        final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
                         if (isFrozen) {
                             attributes.add("frozen");
                         }
                         attributes.sort(String::compareTo);
 
                         indices.add(new ResolvedIndex(
-                            index.getName(),
+                            ia.getName(),
                             aliasNames,
                             attributes.toArray(Strings.EMPTY_ARRAY),
-                            index.getParentDataStream() == null ? null : index.getParentDataStream().getName()));
+                            ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()));
                         break;
                     case ALIAS:
-                        String[] indexNames = ia.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        String[] indexNames = ia.getIndices().stream().map(Index::getName).toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                         break;
                     case DATA_STREAM:
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;
-                        String[] backingIndices = dataStream.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
                         dataStreams.add(new ResolvedDataStream(
                             dataStream.getName(),
                             backingIndices,

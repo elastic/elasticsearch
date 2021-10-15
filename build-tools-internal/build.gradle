@@ -6,13 +6,6 @@
  * Side Public License, v 1.
  */
 
-
-import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.gradle.plugins.ide.eclipse.model.AccessRule
-import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.plugins.ide.eclipse.model.ProjectDependency
-
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
@@ -170,7 +163,7 @@ gradlePlugin {
  *         Java version                                                      *
  *****************************************************************************/
 
-def minCompilerJava = versions.get("minimumJava")
+def minCompilerJava = versions.get("minimumCompilerJava")
 targetCompatibility = minCompilerJava
 sourceCompatibility = minCompilerJava
 

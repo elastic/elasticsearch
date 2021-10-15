@@ -550,6 +550,8 @@ public class Setting<T> implements ToXContentObject {
         if (secureSettings != null && secureSettings.getSettingNames().contains(key)) {
             throw new IllegalArgumentException("Setting [" + key + "] is a non-secure setting" +
                 " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
+          
+          
         }
         final String found = settings.get(key);
         if (found != null) {
@@ -564,12 +566,15 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.";
-            if (this.isDeprecatedWarningOnly()) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
-            } else {
-                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+            List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
+            if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
+                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version.";
+                if (this.isDeprecatedWarningOnly()) {
+                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                } else {
+                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+                }
             }
         }
     }

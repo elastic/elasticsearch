@@ -1280,6 +1280,23 @@ public class SettingTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSettingWarningOnly }, true);
     }
 
+    public void testCheckForDeprecationWithSkipSetting() {
+        final String settingName = "foo.bar";
+        final String settingValue = "blat";
+        final Setting<String> setting = Setting.simpleString(settingName, settingValue);
+        final Settings settings = Settings.builder().put(settingName, settingValue).build();
+        setting.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.Deprecated);
+        deprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSetting }, false);
+        final Settings settingsWithSkipDeprecationSetting = Settings.builder().put(settingName, settingValue)
+            .putList("deprecation.skip_deprecated_settings", settingName)
+            .build();
+        deprecatedSetting.checkDeprecation(settingsWithSkipDeprecationSetting);
+        ensureNoWarnings();
+    }
+
     public void testDeprecationPropertyValidation() {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             Setting.boolSetting(

@@ -331,7 +331,7 @@ server log.
 --------------------------------------------------
 PUT _cluster/settings
 {
-  "transient": {
+  "persistent": {
     "logger.org.elasticsearch.ingest.common.GrokProcessor": "debug"
   }
 }

@@ -154,9 +154,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startHotOnlyNode();
 
-        // don't inject a tier preference when the source index is being created
-        enforceDefaultTierPreference(false);
-
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
@@ -164,10 +161,6 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(DataTier.TIER_PREFERENCE, "data_warm"))
             .get();
-
-        // even with enforcement, we don't inject a tier preference on resizes/shrinks/clone,
-        // so regardless of whether this is on or off, no tier preference will be added
-        enforceDefaultTierPreference(randomBoolean());
 
         client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
         client().admin().indices().prepareResizeIndex(index, index + "-shrunk")

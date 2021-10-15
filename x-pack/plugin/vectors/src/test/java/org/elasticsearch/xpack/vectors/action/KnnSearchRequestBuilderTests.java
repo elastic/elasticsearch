@@ -107,7 +107,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder, Map.of()));
-        assertThat(e.getMessage(), containsString("[num_cands] cannot be less than [k]"));
+        assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
     public void testNumCandsExceedsLimit() throws IOException {
@@ -122,7 +122,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .endObject();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder, Map.of()));
-        assertThat(e.getMessage(), containsString("[num_cands] cannot exceed [10000]"));
+        assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
     }
 
     public void testInvalidK() throws IOException {

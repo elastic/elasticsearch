@@ -178,7 +178,7 @@ class KnnSearchRequestBuilder {
         private static final int NUM_CANDS_LIMIT = 10000;
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
-        static final ParseField NUM_CANDS_FIELD = new ParseField("num_cands");
+        static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
         static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
 
         private static final ConstructingObjectParser<KnnSearch, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {

@@ -69,7 +69,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         builder.startObject(NAME)
             .field("field", fieldName)
             .field("vector", queryVector)
-            .field("num_cands", numCands);
+            .field("num_candidates", numCands);
         builder.endObject();
     }
 

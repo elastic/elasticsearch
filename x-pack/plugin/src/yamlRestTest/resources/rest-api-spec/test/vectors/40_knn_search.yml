@@ -43,7 +43,7 @@ setup:
 ---
 "Basic kNN search":
   - do:
-      vectors.knn_search:
+      search_knn:
         index: test
         body:
           fields: [ "name" ]
@@ -51,7 +51,7 @@ setup:
             field: vector
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             k: 2
-            num_cands: 3
+            num_candidates: 3
 
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
@@ -62,14 +62,14 @@ setup:
 ---
 "Basic kNN search with no index":
   - do:
-      vectors.knn_search:
+      search_knn:
         body:
           fields: [ "name" ]
           knn:
             field: vector
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             k: 1
-            num_cands: 1
+            num_candidates: 1
 
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}
@@ -86,5 +86,5 @@ setup:
             knn:
               field: vector
               query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
-              num_cands: 1
+              num_candidates: 1
   - match: { error.root_cause.0.type: "illegal_argument_exception" }

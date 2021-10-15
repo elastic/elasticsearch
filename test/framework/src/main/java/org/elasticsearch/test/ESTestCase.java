@@ -431,6 +431,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
+        filtered.add("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing" +
+            " multiple disks. This feature will be removed in a future release.");
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {

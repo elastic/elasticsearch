@@ -221,6 +221,7 @@ through use of the `xpack.security.http.ssl.keystore.path` setting or
 the `xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
 settings generates warnings in the deprecation log. In 8.0, this configuration
 will result in errors.
+
 *Impact* +
 If `xpack.security.http.ssl.enabled` is set to `true`, provide a
 certificate and key using the `xpack.security.http.ssl.keystore.path`

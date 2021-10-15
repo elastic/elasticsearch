@@ -73,6 +73,10 @@ public class Role {
         return runAs;
     }
 
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return indices.hasFieldOrDocumentLevelSecurity();
+    }
+
     /**
      * @param restrictedIndices An automaton that can determine whether a string names
      *                          a restricted index. For simple unit tests, this can be

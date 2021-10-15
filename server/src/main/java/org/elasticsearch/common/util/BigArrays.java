@@ -184,8 +184,8 @@ public class BigArrays {
         @Override
         public int increment(long index, int inc) {
             assert index >= 0 && index < size();
-            final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
-            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, ret + inc);
+            final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2) + inc;
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, ret);
             return ret;
         }
 
@@ -235,8 +235,8 @@ public class BigArrays {
         @Override
         public long increment(long index, long inc) {
             assert index >= 0 && index < size();
-            final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
-            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, ret + inc);
+            final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3) + inc;
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, ret);
             return ret;
         }
 
@@ -286,8 +286,8 @@ public class BigArrays {
         @Override
         public double increment(long index, double inc) {
             assert index >= 0 && index < size();
-            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
-            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, ret + inc);
+            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3) + inc;
+            VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, ret);
             return ret;
         }
 
@@ -337,8 +337,8 @@ public class BigArrays {
         @Override
         public float increment(long index, float inc) {
             assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
-            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret + inc);
+            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2) + inc;
+            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret);
             return ret;
         }
 

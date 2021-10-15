@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -27,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -88,6 +90,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startColdOnlyNode();
         ensureGreen();
+        enforceDefaultTierPreference(false);
 
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
@@ -132,6 +135,9 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startWarmOnlyNode();
         startHotOnlyNode();
 
+        // don't inject a tier preference when the source index is being created
+        enforceDefaultTierPreference(false);
+
         client().admin().indices().prepareCreate(index)
             .setWaitForActiveShards(0)
             .setSettings(Settings.builder()
@@ -139,6 +145,10 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(DataTier.TIER_PREFERENCE, "data_warm"))
             .get();
+
+        // even with enforcement, we don't inject a tier preference on resizes/shrinks/clone,
+        // so regardless of whether this is on or off, no tier preference will be added
+        enforceDefaultTierPreference(randomBoolean());
 
         client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.READ_ONLY, index).get();
         client().admin().indices().prepareResizeIndex(index, index + "-shrunk")
@@ -164,6 +174,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     public void testTemplateOverridesDefaults() {
         startWarmOnlyNode();
+        enforceDefaultTierPreference(false);
 
         Template t = new Template(Settings.builder()
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".box", "warm")
@@ -330,5 +341,11 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
             .put("node.attr.box", "frozen")
             .build();
         internalCluster().startNode(nodeSettings);
+    }
+
+    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.transientSettings(Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE, enforceDefaultTierPreference).build());
+        assertAcked(client().admin().cluster().updateSettings(request).actionGet());
     }
 }

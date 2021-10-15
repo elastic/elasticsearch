@@ -632,12 +632,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     threadPool.executor(executorName).submit(new ActionRunnable<>(listener) {
                         @Override
                         protected void doRun() throws Exception {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
-                                @Override
-                                protected void doRun() throws Exception {
-                                    performBulkRequests();                            
-                                }
-                            });
+                            performBulkRequests();
                         }
                     });
                 }

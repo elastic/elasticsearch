@@ -16,12 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.engine.frozen.FrozenEngine;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;

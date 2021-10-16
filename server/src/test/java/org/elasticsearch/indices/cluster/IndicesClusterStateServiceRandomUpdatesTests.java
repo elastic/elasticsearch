@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -341,7 +342,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
             String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3));
+                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT);
             if (randomBoolean()) {
                 int min = randomInt(2);
                 int max = min + randomInt(3);

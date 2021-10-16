@@ -62,7 +62,12 @@ public class ModifyDataStreamsTransportAction extends AcknowledgedTransportMaste
 
     @Override
     protected ClusterBlockException checkBlock(ModifyDataStreamsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        if (globalBlock != null) {
+            return globalBlock;
+        }
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
 }

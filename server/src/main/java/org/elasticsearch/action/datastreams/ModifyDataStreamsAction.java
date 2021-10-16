@@ -11,14 +11,13 @@ package org.elasticsearch.action.datastreams;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,9 +50,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         private static final IndicesOptions INDICES_OPTIONS =
             IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
-        private List<DataStreamAction> actions;
-
-        public Request() {}
+        private final List<DataStreamAction> actions;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -72,10 +69,6 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         public List<DataStreamAction> getActions() {
             return actions;
-        }
-
-        public void setActions(List<DataStreamAction> actions) {
-            this.actions = Collections.unmodifiableList(actions);
         }
 
         @Override
@@ -98,10 +91,13 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             return null;
         }
 
-        public static final ObjectParser<Request, Void> PARSER =
-            new ObjectParser<>("data_stream_actions", Request::new);
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            "data_stream_actions",
+            args -> new Request(((List<DataStreamAction>) args[0]))
+        );
         static {
-            PARSER.declareObjectArray(Request::setActions, DataStreamAction.PARSER, new ParseField("actions"));
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), DataStreamAction.PARSER, new ParseField("actions"));
         }
 
         @Override

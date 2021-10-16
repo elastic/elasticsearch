@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -88,7 +86,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         if (false == Strings.hasText(index)) {
             throw new IllegalArgumentException("[index] is required");
         }
-        this.type = type;
+        this.type = Objects.requireNonNull(type, "[type] must not be null");
         this.dataStream = dataStream;
         this.index = index;
     }

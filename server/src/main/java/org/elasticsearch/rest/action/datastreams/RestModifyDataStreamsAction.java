@@ -34,15 +34,15 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ModifyDataStreamsAction.Request modifyDsRequest = new ModifyDataStreamsAction.Request();
-        modifyDsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", modifyDsRequest.masterNodeTimeout()));
-        modifyDsRequest.timeout(request.paramAsTime("timeout", modifyDsRequest.timeout()));
+        ModifyDataStreamsAction.Request modifyDsRequest;
         try (XContentParser parser = request.contentParser()) {
-            ModifyDataStreamsAction.Request.PARSER.parse(parser, modifyDsRequest, null);
+            modifyDsRequest = ModifyDataStreamsAction.Request.PARSER.parse(parser, null);
         }
         if (modifyDsRequest.getActions() == null || modifyDsRequest.getActions().isEmpty()) {
-            throw new IllegalArgumentException("no data stream actions specified");
+            throw new IllegalArgumentException("no data stream actions specified, at least one must be specified");
         }
+        modifyDsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", modifyDsRequest.masterNodeTimeout()));
+        modifyDsRequest.timeout(request.paramAsTime("timeout", modifyDsRequest.timeout()));
         return channel -> client.execute(ModifyDataStreamsAction.INSTANCE, modifyDsRequest, new RestToXContentListener<>(channel));
     }
 

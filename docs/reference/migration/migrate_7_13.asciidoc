@@ -188,7 +188,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 +
 You can use the {ref}/cat-allocation.html[cat allocation API] to track progress
 of this data migration. If some shards do not migrate then the
@@ -213,7 +212,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 
 6. Discard the data held by the stopped node by deleting the contents of its
 data paths.

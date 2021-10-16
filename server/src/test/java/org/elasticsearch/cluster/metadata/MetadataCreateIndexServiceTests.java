@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTierTests;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -1100,6 +1101,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertWarnings("[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
             "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
             "as it offers superior or equivalent performance to [simplefs].");
+    }
+
+    public void testDeprecateNoTierPreference() {
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        ClusterState clusterState = DataTierTests.clusterStateWithoutAllDataRoles();
+        aggregateIndexSettings(clusterState, request, Settings.EMPTY,
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet(), false);
+        assertWarnings("[test] creating index with an empty [index.routing.allocation.include._tier_preference] setting, " +
+            "and TODO TODO TODO");
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

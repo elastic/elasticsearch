@@ -1,6 +1,29 @@
 [[snapshots-take-snapshot]]
 == Create a snapshot
 
+////
+[source,console]
+----
+PUT _slm/policy/nightly-snapshots
+{
+  "schedule": "0 30 2 * * ?",       <1>
+  "name": "<nightly-snap-{now/d}>", <2>
+  "repository": "my_repository",    <3>
+  "config": {
+    "indices": [ "*" ],             <4>
+    "include_global_state": true    <5>
+  },
+  "retention": {                    <6>
+    "expire_after": "30d",
+    "min_count": 5,
+    "max_count": 50
+  }
+}
+----
+// TEST[setup:setup-repository]
+// TESTSETUP
+////
+
 This guide shows you how to take snapshots of a running cluster. You can later
 <<snapshots-restore-snapshot,restore a snapshot>> to recover or transfer its
 data.
@@ -59,7 +82,7 @@ You can also include only specific backing indices in a snapshot. However, the
 snapshot won't include the data stream’s metadata or its other backing indices.
 
 * A snapshot can include a data stream but exclude specific backing indices.
-When you restore the data stream, it will contain only backing indices in the
+When you restore such a data stream, it will contain only backing indices in the
 snapshot. If the stream’s original write index is not in the snapshot, the most
 recent backing index from the snapshot becomes the stream’s write index.
 
@@ -71,24 +94,87 @@ recent backing index from the snapshot becomes the stream’s write index.
 {slm-init} policy automatically takes snapshots on a preset schedule. The policy
 can also delete snapshots based on retention rules you define.
 
-To manage {slm-init} in {kib}, go to the main menu and click **Stack
-Management** > **Snapshot and Restore** > **Policies**. To create a policy,
-click **Create policy**.
-
-You can also manage
-{slm-init} using the <<snapshot-lifecycle-management-api,{slm-init} APIs>>.
-
 TIP: {ess} deployments automatically include the `cloud-snapshot-policy`
 {slm-init} policy. {ess} uses this policy to take periodic snapshots of your
 cluster. For more information, see the {cloud}/ec-snapshot-restore.html[{ess}
 snapshot documentation].
 
 [discrete]
+[[slm-security]]
+==== {slm-init} security
+
+The following <<privileges-list-cluster,cluster privileges>> control access to
+the {slm-init} actions when {es} {security-features} are enabled:
+
+`manage_slm`::
+Allows a user to perform all {slm-init} actions, including
+creating and updating policies and starting and stopping {slm-init}.
+
+`read_slm`::
+Allows a user to perform all read-only {slm-init} actions, such as getting
+policies and checking the {slm-init} status.
+
+`cluster:admin/snapshot/*`::
+Allows a user to take and delete snapshots of any index, whether or not they
+have access to that index.
+
+You can create and manage roles to assign these privileges through {kib}
+Management.
+
+To grant the privileges necessary to create and manage {slm-init} policies and
+snapshots, you can set up a role with the `manage_slm` and
+`cluster:admin/snapshot/*` cluster privileges and full access to the {slm-init}
+history indices. 
+
+For example, the following request creates an `slm-admin` role:
+
+[source,console]
+----
+POST _security/role/slm-admin
+{
+  "cluster": [ "manage_slm", "cluster:admin/snapshot/*" ],
+  "indices": [
+    {
+      "names": [ ".slm-history-*" ],
+      "privileges": [ "all" ]
+    }
+  ]
+}
+----
+// TEST[skip:security is not enabled here]
+
+To grant read-only access to {slm-init} policies and the snapshot history, 
+you can set up a role with the `read_slm` cluster privilege and read access
+to the {slm} history indices. 
+
+For example, the following request creates a `slm-read-only` role:
+
+[source,console]
+----
+POST _security/role/slm-read-only
+{
+  "cluster": [ "read_slm" ],
+  "indices": [
+    {
+      "names": [ ".slm-history-*" ],
+      "privileges": [ "read" ]
+    }
+  ]
+}
+----
+// TEST[skip:security is not enabled here]
+
+[discrete]
 [[create-slm-policy]]
 ==== Create an {slm-init} policy
 
-To create an {slm-init} policy, use {kib} or the <<slm-api-put-policy,create
-{slm-init} policy API>>.
+To manage {slm-init} in {kib}, go to the main menu and click **Stack
+Management** > **Snapshot and Restore** > **Policies**. To create a policy,
+click **Create policy**.
+
+You can also manage {slm-init} using the
+<<snapshot-lifecycle-management-api,{slm-init} APIs>>. To create a policy, use
+the <<slm-api-put-policy,create {slm-init} policy API>>.
 
 The following request creates a policy that backs up the cluster state, all data
 streams, and all indices daily at 1:30AM UTC.
@@ -111,8 +197,6 @@ PUT _slm/policy/nightly-snapshots
   }
 }
 ----
-// TEST[setup:setup-repository]
-// TESTSETUP
 
 <1> When to take snapshots, written in <<schedule-cron,Cron syntax>>.
 <2> Snapshot name. Supports <<api-date-math-index-names,date math>>. To prevent

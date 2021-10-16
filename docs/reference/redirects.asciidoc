@@ -18,7 +18,7 @@ See <<automate-snapshots-slm>>.
 [role="exclude",id="slm-and-security"]
 === Security and {slm-init}
 
-See <<snapshot-lifecycle-management-api>>.
+See <<slm-security>>.
 
 [role="exclude",id="slm-retention"]
 === Snapshot retention

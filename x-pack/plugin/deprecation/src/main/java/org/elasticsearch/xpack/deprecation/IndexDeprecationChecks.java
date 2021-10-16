@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -435,6 +437,19 @@ public class IndexDeprecationChecks {
                 false,
                 null
             );
+        }
+        return null;
+    }
+
+    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState, IndexMetadata indexMetadata) {
+        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
+            final List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
+            if (tierPreference.isEmpty()) {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "some message here",
+                    "https://www.elastic.co/some/url/here.html",
+                    "some details here", false, null);
+            }
         }
         return null;
     }

@@ -155,7 +155,8 @@ public class DeprecationChecks {
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexMatrixFiltersSetting(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata)
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata),
+            IndexDeprecationChecks::emptyDataTierPreferenceCheck
         ));
 
     /**

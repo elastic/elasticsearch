@@ -11,6 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -693,5 +697,44 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 null
             )
         ));
+    }
+
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
+            Version.CURRENT);
+    }
+
+    public void testEmptyDataTierPreference() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  ");
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+
+        {
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS,
+                c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata));
+            assertThat(issues, empty());
+        }
+
+        {
+            DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+            List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
+                newNode(0, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            );
+            for (DiscoveryNode node : nodesList) {
+                discoBuilder = discoBuilder.add(node);
+            }
+            discoBuilder.localNodeId(randomFrom(nodesList).getId());
+            discoBuilder.masterNodeId(randomFrom(nodesList).getId());
+
+            ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS,
+                c -> c.apply(clusterState, indexMetadata));
+            assertThat(issues, contains(
+                new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "some message here",
+                    "https://www.elastic.co/some/url/here.html",
+                    "some details here", false, null)
+            ));
+        }
     }
 }

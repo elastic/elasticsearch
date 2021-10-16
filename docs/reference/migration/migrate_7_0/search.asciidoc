@@ -74,7 +74,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 
 
 [discrete]

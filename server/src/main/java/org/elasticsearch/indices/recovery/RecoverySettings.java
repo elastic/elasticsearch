@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 public class RecoverySettings {
     public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
     public static final Version SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_16_0;
+    public static final Version SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION = Version.V_8_0_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
@@ -161,7 +162,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
-    private volatile int maxConcurrentSnapshotFileDownloads;
+    private volatile int getMaxConcurrentSnapshotFileDownloads;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -185,7 +186,7 @@ public class RecoverySettings {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
-        this.maxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
+        this.getMaxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
 
@@ -201,7 +202,7 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS,
-            this::setMaxConcurrentSnapshotFileDownloads);
+            this::setGetMaxConcurrentSnapshotFileDownloads);
     }
 
     public RateLimiter rateLimiter() {
@@ -297,10 +298,10 @@ public class RecoverySettings {
     }
 
     public int getMaxConcurrentSnapshotFileDownloads() {
-        return maxConcurrentSnapshotFileDownloads;
+        return getMaxConcurrentSnapshotFileDownloads;
     }
 
-    public void setMaxConcurrentSnapshotFileDownloads(int maxConcurrentSnapshotFileDownloads) {
-        this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
+    public void setGetMaxConcurrentSnapshotFileDownloads(int getMaxConcurrentSnapshotFileDownloads) {
+        this.getMaxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads;
     }
 }

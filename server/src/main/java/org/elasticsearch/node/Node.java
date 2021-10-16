@@ -79,6 +79,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.recovery.RecoverySnapshotFileDownloadsThrottler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -714,12 +715,20 @@ public class Node implements Closeable {
                             clusterService
                         );
                         final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
-                        final SnapshotFilesProvider snapshotFilesProvider =
-                            new SnapshotFilesProvider(repositoryService);
+                        final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
+                        final RecoverySnapshotFileDownloadsThrottler recoverySnapshotFileDownloadsThrottler =
+                            new RecoverySnapshotFileDownloadsThrottler(settings, settingsModule.getClusterSettings());
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
                             indicesService, recoverySettings, recoveryPlannerService));
-                        b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(threadPool,
-                            transportService, recoverySettings, clusterService, snapshotFilesProvider));
+                        b.bind(PeerRecoveryTargetService.class).toInstance(
+                            new PeerRecoveryTargetService(threadPool,
+                                transportService,
+                                recoverySettings,
+                                clusterService,
+                                snapshotFilesProvider,
+                                recoverySnapshotFileDownloadsThrottler
+                            )
+                        );
                     }
                     b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                     pluginComponents.forEach(p -> {

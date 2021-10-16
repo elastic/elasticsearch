@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
-import org.elasticsearch.xpack.core.action.ModifyDataStreamsAction;
 import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -37,14 +36,12 @@ import org.elasticsearch.xpack.datastreams.action.DataStreamsStatsTransportActio
 import org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.xpack.datastreams.action.MigrateToDataStreamTransportAction;
-import org.elasticsearch.xpack.datastreams.action.ModifyDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.xpack.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestMigrateToDataStreamAction;
-import org.elasticsearch.xpack.datastreams.rest.RestModifyDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestPromoteDataStreamAction;
 
 import java.util.List;
@@ -68,7 +65,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         var dsInfoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class);
         var migrateAction = new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class);
         var promoteAction = new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class);
-        var modifyAction = new ActionHandler<>(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamTransportAction.class);
         return List.of(
             createDsAction,
             deleteDsInfoAction,
@@ -77,8 +73,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
             dsUsageAction,
             dsInfoAction,
             migrateAction,
-            promoteAction,
-            modifyAction
+            promoteAction
         );
     }
 
@@ -98,7 +93,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         var dsStatsAction = new RestDataStreamsStatsAction();
         var migrateAction = new RestMigrateToDataStreamAction();
         var promoteAction = new RestPromoteDataStreamAction();
-        var modifyAction = new RestModifyDataStreamAction();
-        return List.of(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction, promoteAction, modifyAction);
+        return List.of(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction, promoteAction);
     }
 }

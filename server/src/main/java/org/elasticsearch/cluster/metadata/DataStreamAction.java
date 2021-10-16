@@ -72,7 +72,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         return new DataStreamAction(Type.REMOVE_BACKING_INDEX, dataStream, index);
     }
 
-    DataStreamAction(StreamInput in) throws IOException {
+    public DataStreamAction(StreamInput in) throws IOException {
         this.type = Type.fromValue(in.readByte());
         this.dataStream = in.readString();
         this.index = in.readString();

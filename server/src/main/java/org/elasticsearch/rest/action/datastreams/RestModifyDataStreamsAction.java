@@ -1,26 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.datastreams.rest;
+package org.elasticsearch.rest.action.datastreams;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.action.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestModifyDataStreamAction extends BaseRestHandler {
+public class RestModifyDataStreamsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -34,11 +34,11 @@ public class RestModifyDataStreamAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        MetadataDataStreamsService.ModifyDataStreamRequest modifyDsRequest = new MetadataDataStreamsService.ModifyDataStreamRequest();
+        ModifyDataStreamsAction.Request modifyDsRequest = new ModifyDataStreamsAction.Request();
         modifyDsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", modifyDsRequest.masterNodeTimeout()));
         modifyDsRequest.timeout(request.paramAsTime("timeout", modifyDsRequest.timeout()));
         try (XContentParser parser = request.contentParser()) {
-            MetadataDataStreamsService.ModifyDataStreamRequest.PARSER.parse(parser, modifyDsRequest, null);
+            ModifyDataStreamsAction.Request.PARSER.parse(parser, modifyDsRequest, null);
         }
         if (modifyDsRequest.getActions() == null || modifyDsRequest.getActions().isEmpty()) {
             throw new IllegalArgumentException("no data stream actions specified");

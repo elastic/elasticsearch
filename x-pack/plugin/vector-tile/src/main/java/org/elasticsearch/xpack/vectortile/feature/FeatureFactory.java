@@ -59,7 +59,7 @@ public class FeatureFactory {
     // size of the buffer in pixels for the clip envelope. we choose a values that makes sure
     // we have values outside the tile for polygon crossing the tile so the outline of the
     // tile is not part of the final result.
-    //TODO: consider exposing this parameter so users have control of the buffer's size.
+    // TODO: consider exposing this parameter so users have control of the buffer's size.
     private static final int BUFFER_SIZE_PIXELS = 5;
 
     public FeatureFactory(int z, int x, int y, int extent) {

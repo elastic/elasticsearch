@@ -58,7 +58,7 @@
   - match: { data_streams.0.indices.2.index_name: $write_index }
 
   - do:
-      catch: bad_request
+      catch: /cannot remove backing index \[.*\] of data stream \[data-stream-for-modification\] because it is the write index/
       indices.modify_data_stream:
         body:
           actions:

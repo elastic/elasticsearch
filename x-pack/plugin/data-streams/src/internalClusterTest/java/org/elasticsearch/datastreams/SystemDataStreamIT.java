@@ -114,6 +114,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
 
             // list - no header needed
             Request listAllRequest = new Request("GET", "/_data_stream");
+            listAllRequest.addParameter("expand_wildcards", "open,hidden");
             Response listAllResponse = restClient.performRequest(listAllRequest);
             assertThat(listAllResponse.getStatusLine().getStatusCode(), is(200));
             Map<String, Object> responseMap = XContentHelper.convertToMap(
@@ -158,6 +159,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
             Request statsRequest = new Request("GET", "/_data_stream/_stats");
+            statsRequest.addParameter("expand_wildcards", "open,hidden");
             Response response = restClient.performRequest(statsRequest);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
 
@@ -225,6 +227,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
             // search all
             Request search = new Request("GET", "/_search");
             search.setJsonEntity("{ \"query\": { \"match_all\": {} } }");
+            search.addParameter("expand_wildcards", "open,hidden");
 
             // no header
             Response searchResponse = restClient.performRequest(search);

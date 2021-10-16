@@ -67,11 +67,27 @@ public class IndicesAccessControl {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    public boolean hasFieldOrDocumentLevelSecurity() {
-        return indexPermissions.values().stream().anyMatch(indexAccessControl ->
-            indexAccessControl.fieldPermissions.hasFieldLevelSecurity()
-                || indexAccessControl.documentPermissions.hasDocumentLevelPermissions()
-        );
+    public DlsFlsUsage getFieldAndDocumentLevelSecurityUsage() {
+        boolean hasFls = false;
+        boolean hasDls = false;
+        for (IndexAccessControl iac : indexPermissions.values()) {
+            if (iac.fieldPermissions.hasFieldLevelSecurity()) {
+                hasFls = true;
+            }
+            if (iac.documentPermissions.hasDocumentLevelPermissions()) {
+                hasDls = true;
+            }
+            if (hasFls && hasDls) {
+                return DlsFlsUsage.BOTH;
+            }
+        }
+        if (hasFls) {
+            return DlsFlsUsage.FLS;
+        } else if (hasDls) {
+            return DlsFlsUsage.DLS;
+        } else {
+            return DlsFlsUsage.NONE;
+        }
     }
 
     public List<String> getIndicesWithFieldOrDocumentLevelSecurity() {
@@ -80,6 +96,44 @@ public class IndicesAccessControl {
                 || entry.getValue().documentPermissions.hasDocumentLevelPermissions())
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableList());
+    }
+
+    public enum DlsFlsUsage {
+        NONE,
+
+        DLS() {
+            @Override
+            public boolean hasDocumentLevelSecurity() {
+                return true;
+            }
+        },
+
+        FLS() {
+            @Override
+            public boolean hasFieldLevelSecurity() {
+                return true;
+            }
+        },
+
+        BOTH() {
+            @Override
+            public boolean hasFieldLevelSecurity() {
+                return true;
+            }
+
+            @Override
+            public boolean hasDocumentLevelSecurity() {
+                return true;
+            }
+        };
+
+        public boolean hasFieldLevelSecurity() {
+            return false;
+        }
+
+        public boolean hasDocumentLevelSecurity() {
+            return false;
+        }
     }
 
     /**

@@ -322,7 +322,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
                 node.defaultConfig.put("xpack.security.enabled", "false");
             } else {
-                if (node.getVersion().onOrAfter("8.0.0")) {
+                if (node.getVersion().onOrAfter("7.16.0")) {
                     node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
                 }
             }
@@ -383,6 +383,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig();
         nodeIndex += 1;
+        if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+            if (node.getVersion().onOrAfter("7.16.0")) {
+                node.setting("cluster.deprecation_indexing.enabled", "false");
+            }
+        }
         node.start();
     }
 

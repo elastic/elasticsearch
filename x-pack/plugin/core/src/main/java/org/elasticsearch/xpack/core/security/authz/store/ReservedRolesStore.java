@@ -452,7 +452,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("metrics-endpoint.metadata_current_default", "metrics-endpoint.metadata_united_default")
+                    .indices("metrics-endpoint.metadata_current_default", ".metrics-endpoint.metadata_current_default",
+                        ".metrics-endpoint.metadata_united_default")
                     .privileges("create_index", "delete_index", "read", "index")
                     .build(),
             },

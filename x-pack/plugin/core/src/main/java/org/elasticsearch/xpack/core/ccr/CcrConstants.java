@@ -5,16 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.watcher;
+package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 
-public class WatcherConstants {
+public class CcrConstants {
 
-    public static final LicensedFeature.Momentary WATCHER_FEATURE =
-        LicensedFeature.momentary(null, "watcher", License.OperationMode.STANDARD);
+    public static final LicensedFeature.Momentary CCR_FEATURE =
+        LicensedFeature.momentary(null, "ccr", License.OperationMode.PLATINUM);
 
     // no construction
-    private WatcherConstants() {}
+    private CcrConstants() {}
 }

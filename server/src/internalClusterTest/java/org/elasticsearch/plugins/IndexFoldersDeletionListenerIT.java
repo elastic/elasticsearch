@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;
@@ -240,8 +241,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                 .build()
         );
 
-        // TODO: decide if multiple leftovers should/can be tested without MDP
-        final Index[] leftovers = new Index[1];
+        final Index[] leftovers = new Index[between(1, 3)];
         logger.debug("--> creating [{}] leftover indices on data node [{}]", leftovers.length, dataNode);
         for (int i = 0; i < leftovers.length; i++) {
             final String indexName = "index-" + i;
@@ -275,19 +275,22 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final Index index = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
         logger.debug("--> index [{}] created", index);
 
-        final Path dataPath = createTempDir();
-        final Path shardPath = dataPath.resolve(INDICES_FOLDER).resolve(index.getUUID()).resolve("0");
-        Files.createDirectories(shardPath);
+        final List<Path> dataPaths = new ArrayList<>();
         for (int i = 0; i < leftovers.length; i++) {
+            final Path dataPath = createTempDir();
+            dataPaths.add(dataPath);
+            final Path shardPath = dataPath.resolve(INDICES_FOLDER).resolve(index.getUUID()).resolve("0");
+            Files.createDirectories(shardPath);
             final Path leftoverPath = dataDirWithLeftOverShards.resolve(INDICES_FOLDER).resolve(leftovers[i].getUUID()).resolve("0");
             Files.move(leftoverPath.resolve(STATE_DIR_NAME), shardPath.resolve(STATE_DIR_NAME));
             Files.move(leftoverPath.resolve(INDEX_FOLDER_NAME), shardPath.resolve(INDEX_FOLDER_NAME));
         }
 
-        logger.debug("--> starting another data node with data path [{}]", dataPath);
+        logger.debug("--> starting another data node with data paths [{}]", dataPaths);
         dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+                .putList(Environment.PATH_DATA_SETTING.getKey(),
+                    dataPaths.stream().map(p -> p.toAbsolutePath().toString()).collect(Collectors.toList()))
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build());
         ensureStableCluster(1 + 1, masterNode);

@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -73,6 +73,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         volatile boolean failIndexCreation = false;
         boolean indexCreated = false; // set when the "real" index is created
+        Runnable beforeIndexCreation = null;
 
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
@@ -83,6 +84,9 @@ public class TransportBulkActionTests extends ESTestCase {
         @Override
         void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
+            if (beforeIndexCreation != null) {
+                beforeIndexCreation.run();
+            }
             if (failIndexCreation) {
                 listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
             } else {
@@ -260,15 +264,29 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
-    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+    public void testRejectCoordination() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
-        bulkAction.failIndexCreation = randomBoolean();
 
         try {
             threadPool.startForcingRejections();
             PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        } finally {
+            threadPool.stopForcingRejections();
+        }
+    }
+
+    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+
+        bulkAction.failIndexCreation = randomBoolean();
+        try {
+            bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
+            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            assertTrue(bulkAction.indexCreated);
         } finally {
             threadPool.stopForcingRejections();
         }

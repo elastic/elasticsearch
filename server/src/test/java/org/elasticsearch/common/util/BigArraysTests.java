@@ -200,6 +200,27 @@ public class BigArraysTests extends ESTestCase {
         array2.close();
     }
 
+    public void testIntArrayFill() {
+        final int len = randomIntBetween(1, 100000);
+        final int fromIndex = randomIntBetween(0, len - 1);
+        final int toIndex = randomBoolean()
+            ? Math.min(fromIndex + randomInt(100), len) // single page
+            : randomIntBetween(fromIndex, len); // likely multiple pages
+        final IntArray array2 = bigArrays.newIntArray(len, randomBoolean());
+        final int[] array1 = new int[len];
+        for (int i = 0; i < len; ++i) {
+            array1[i] = randomInt();
+            array2.set(i, array1[i]);
+        }
+        final int rand = randomInt();
+        Arrays.fill(array1, fromIndex, toIndex, rand);
+        array2.fill(fromIndex, toIndex, rand);
+        for (int i = 0; i < len; ++i) {
+            assertEquals(array1[i], array2.get(i));
+        }
+        array2.close();
+    }
+
     public void testLongArrayFill() {
         final int len = randomIntBetween(1, 100000);
         final int fromIndex = randomIntBetween(0, len - 1);

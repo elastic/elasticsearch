@@ -22,16 +22,18 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.RBACEngine;
 
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 
-public class DlsFlsLicenseComplianceRequestInterceptor implements RequestInterceptor {
-    private static final Logger logger = LogManager.getLogger(DlsFlsLicenseComplianceRequestInterceptor.class);
+public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
+    private static final Logger logger = LogManager.getLogger(DlsFlsLicenseRequestInterceptor.class);
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
 
-    public DlsFlsLicenseComplianceRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
+    public DlsFlsLicenseRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
     }
@@ -41,16 +43,31 @@ public class DlsFlsLicenseComplianceRequestInterceptor implements RequestInterce
         AuthorizationEngine.RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener) {
-
+        ActionListener<Void> listener)
+    {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            if (false == licenseState.isAllowed(XPackLicenseState.Feature.SECURITY_DLS_FLS)) {
-                final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
-                if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
-                    logger.trace("Role has DLS or FLS and license is incompatible. " +
-                        "Checking for whether the request touches any indices that have DLS or FLS configured");
-                    final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
-                    if (indicesAccessControl != null && indicesAccessControl.hasFieldOrDocumentLevelSecurity()) {
+            final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
+            // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
+            // can contain a long list of indices
+            // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
+            if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
+                logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
+                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
+                if (indicesAccessControl != null) {
+                    final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+                    final IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
+                    boolean incompatibleLicense = false;
+                    if (dlsFlsUsage.hasFieldLevelSecurity()) {
+                        if (false == FIELD_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                            incompatibleLicense = true;
+                        }
+                    }
+                    if (dlsFlsUsage.hasDocumentLevelSecurity()) {
+                        if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
+                            incompatibleLicense = true;
+                        }
+                    }
+                    if (incompatibleLicense) {
                         final ElasticsearchSecurityException licenseException =
                             LicenseUtils.newComplianceException("field and document level security");
                         licenseException.addMetadata(
@@ -60,6 +77,7 @@ public class DlsFlsLicenseComplianceRequestInterceptor implements RequestInterce
                     }
                 }
             }
+
         }
         listener.onResponse(null);
     }

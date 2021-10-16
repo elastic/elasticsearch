@@ -115,7 +115,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n" +
             "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n" +
@@ -131,7 +131,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n" +

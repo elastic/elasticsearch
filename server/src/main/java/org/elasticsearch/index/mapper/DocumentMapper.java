@@ -90,5 +90,6 @@ public class DocumentMapper {
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
+        settings.getMode().validateMapping(mappingLookup);
     }
 }

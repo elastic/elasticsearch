@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -711,7 +712,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (remoteShardIterators.isEmpty() == false) {
                 throw new IllegalArgumentException("Cannot use wait_for_checkpoints parameter with cross-cluster searches.");
             } else {
-                validateWaitForCheckpoint(clusterState, searchRequest, concreteLocalIndices);
+                validateAndResolveWaitForCheckpoint(clusterState, indexNameExpressionResolver, searchRequest, concreteLocalIndices);
             }
         }
 
@@ -889,24 +890,46 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    private static void validateWaitForCheckpoint(ClusterState clusterState, SearchRequest searchRequest, String[] concreteLocalIndices) {
+    private static void validateAndResolveWaitForCheckpoint(ClusterState clusterState, IndexNameExpressionResolver resolver,
+                                                            SearchRequest searchRequest, String[] concreteLocalIndices) {
         HashSet<String> searchedIndices = new HashSet<>(Arrays.asList(concreteLocalIndices));
+        HashMap<String, long[]> newWaitForCheckpoints = new HashMap<>(searchRequest.getWaitForCheckpoints().size());
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
-            int checkpointsProvided = waitForCheckpointIndex.getValue().length;
-            String index = waitForCheckpointIndex.getKey();
+            long[] checkpoints = waitForCheckpointIndex.getValue();
+            int checkpointsProvided = checkpoints.length;
+            String target = waitForCheckpointIndex.getKey();
+            Index resolved;
+            try {
+                resolved = resolver.concreteSingleIndex(clusterState, new IndicesRequest() {
+                    @Override
+                    public String[] indices() {
+                        return new String[] { target };
+                    }
+
+                    @Override
+                    public IndicesOptions indicesOptions() {
+                        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+                    }
+                });
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Failed to resolve wait_for_checkpoints target [" + target + "]. Configured target " +
+                    "must resolve to a single open index.", e);
+            }
+            String index = resolved.getName();
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
             if (searchedIndices.contains(index) == false) {
-                throw new IllegalArgumentException("Index configured with wait_for_checkpoints must be a concrete index resolved in " +
-                    "this search. Index [" + index + "] is not a concrete index resolved in this search.");
+                throw new IllegalArgumentException("Target configured with wait_for_checkpoints must be a concrete index resolved in " +
+                    "this search. Target [" + target + "] is not a concrete index resolved in this search.");
             } else if (indexMetadata == null) {
                 throw new IllegalArgumentException("Cannot find index configured for wait_for_checkpoints parameter [" + index + "].");
             } else if (indexMetadata.getNumberOfShards() != checkpointsProvided) {
-                throw new IllegalArgumentException("Index configured with wait_for_checkpoints must search the same number of shards as " +
-                    "checkpoints provided. [" + checkpointsProvided + "] checkpoints provided. Index [" + index + "] has " +
-                    "["  + indexMetadata.getNumberOfShards() + "] shards.");
-
+                throw new IllegalArgumentException("Target configured with wait_for_checkpoints must search the same number of shards as " +
+                    "checkpoints provided. [" + checkpointsProvided + "] checkpoints provided. Target [" + target + "] which resolved to " +
+                    "index [" + index + "] has " + "["  + indexMetadata.getNumberOfShards() + "] shards.");
             }
+            newWaitForCheckpoints.put(index, checkpoints);
         }
+        searchRequest.setWaitForCheckpoints(Collections.unmodifiableMap(newWaitForCheckpoints));
     }
 
     private static void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {

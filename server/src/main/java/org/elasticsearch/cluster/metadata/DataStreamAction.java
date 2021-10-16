@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -176,6 +179,22 @@ public class DataStreamAction implements Writeable, ToXContentObject {
     static {
         PARSER.declareObject(optionalConstructorArg(), ADD_BACKING_INDEX_PARSER, ADD_BACKING_INDEX);
         PARSER.declareObject(optionalConstructorArg(), REMOVE_BACKING_INDEX_PARSER, REMOVE_BACKING_INDEX);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        DataStreamAction other = (DataStreamAction) obj;
+        return Objects.equals(type, other.type)
+            && Objects.equals(dataStream, other.dataStream)
+            && Objects.equals(index, other.index);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, dataStream, index);
     }
 
 }

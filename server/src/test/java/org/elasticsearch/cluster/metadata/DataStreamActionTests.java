@@ -37,7 +37,7 @@ public class DataStreamActionTests extends ESTestCase {
         assertThat(parsedAction.getIndex(), equalTo(action.getIndex()));
     }
 
-    private DataStreamAction createTestInstance() {
+    public static DataStreamAction createTestInstance() {
         DataStreamAction action = new DataStreamAction(randomBoolean()
                 ? DataStreamAction.Type.ADD_BACKING_INDEX
                 : DataStreamAction.Type.REMOVE_BACKING_INDEX

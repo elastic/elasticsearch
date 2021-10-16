@@ -15,3 +15,4 @@ agent and action data. These APIs are experimental and for internal use by
 // top-level
 include::get-global-checkpoints.asciidoc[]
 include::fleet-search.asciidoc[]
+include::fleet-multi-search.asciidoc[]

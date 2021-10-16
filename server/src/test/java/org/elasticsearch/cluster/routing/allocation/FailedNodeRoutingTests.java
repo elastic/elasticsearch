@@ -132,7 +132,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(2, 4));
+                .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(2, 4))
+                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT);
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex(name));

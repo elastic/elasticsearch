@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -27,7 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.DataTier.ALL_DATA_TIERS;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
@@ -137,6 +140,35 @@ public class DataTierTests extends ESTestCase {
         assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
         assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
+    }
+
+    public static ClusterState clusterStateWithoutAllDataRoles() {
+        Set<DiscoveryNodeRole> allDataRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
+            .filter(role -> ALL_DATA_TIERS.contains(role.roleName())).collect(Collectors.toSet());
+
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
+            newNode(0, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.MASTER_ROLE)),
+            newNode(1, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_ROLE)),
+            newNode(2, org.elasticsearch.core.Map.of(), allDataRoles),
+            newNode(3, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+        );
+        for (DiscoveryNode node : nodesList) {
+            discoBuilder = discoBuilder.add(node);
+        }
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
+
+        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
+    }
+
+    public void testDataNodesWithoutAllDataRoles() {
+        ClusterState clusterState = clusterStateWithoutAllDataRoles();
+        Set<DiscoveryNode> nodes = DataTier.dataNodesWithoutAllDataRoles(clusterState);
+        assertEquals(1, nodes.size());
+        DiscoveryNode node = nodes.iterator().next();
+        assertEquals("name_3", node.getName());
+        assertEquals(org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), node.getRoles());
     }
 
     private static DiscoveryNodes buildDiscoveryNodes() {

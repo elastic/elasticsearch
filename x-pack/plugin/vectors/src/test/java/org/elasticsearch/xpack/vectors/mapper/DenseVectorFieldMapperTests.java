@@ -20,7 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.PerFieldMappingCodec;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -381,8 +381,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }));
         CodecService codecService = new CodecService(mapperService);
         Codec codec = codecService.codec("default");
-        assertThat(codec, instanceOf(PerFieldMappingCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((PerFieldMappingCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         assertThat(knnVectorsFormat, instanceOf(Lucene90HnswVectorsFormat.class));
         //TODO: add more assertions once LUCENE-10178 is implemented
     }

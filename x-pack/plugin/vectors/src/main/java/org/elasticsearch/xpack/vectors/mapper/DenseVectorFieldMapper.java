@@ -49,8 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-import static org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -60,7 +58,6 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
-    public static final IndexOptions DEFAULT_INDEX_OPTIONS = new HnswIndexOptions(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     private static final byte INT_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -131,14 +128,14 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
     }
 
-    abstract static class IndexOptions implements ToXContent {
+    private abstract static class IndexOptions implements ToXContent {
         final String type;
         IndexOptions(String type) {
             this.type = type;
         }
     }
 
-    static class HnswIndexOptions extends IndexOptions {
+    private static class HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
 
@@ -154,11 +151,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             int m = XContentMapValues.nodeIntegerValue(mNode);
             int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
             MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-            if (m == DEFAULT_MAX_CONN && efConstruction == DEFAULT_BEAM_WIDTH) {
-                return DEFAULT_INDEX_OPTIONS;
-            } else {
-                return new HnswIndexOptions(m, efConstruction);
-            }
+            return new HnswIndexOptions(m, efConstruction);
         }
 
         private HnswIndexOptions(int m, int efConstruction) {
@@ -372,7 +365,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         return new Builder(simpleName(), indexCreatedVersion).init(this);
     }
 
-    public static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
+    private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
         Object typeNode = indexOptionsMap.remove("type");
@@ -389,7 +382,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     @Override
     public KnnVectorsFormat getKnnVectorsFormatForField() {
-        if (indexOptions == null || indexOptions == DEFAULT_INDEX_OPTIONS) {
+        if (indexOptions == null) {
             return null; // use default format
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;

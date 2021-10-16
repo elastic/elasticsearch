@@ -18,24 +18,24 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
- * {@link PerFieldMappingCodec This Lucene codec} provides the default
+ * {@link PerFieldMapperCodec This Lucene codec} provides the default
  * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the
  * {@link MapperService} to lookup a {@link PostingsFormat} and {@link KnnVectorsFormat} per field. This
  * allows users to change the low level postings format and vectors format for individual fields
  * per index in real time via the mapping API. If no specific postings format or vector format is
  * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMappingCodec extends Lucene90Codec {
+public class PerFieldMapperCodec extends Lucene90Codec {
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
 
     static {
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingCodec.class) :
-            "PerFieldMappingCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
+        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class) :
+            "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingCodec(Mode compressionMode, MapperService mapperService) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService) {
         super(compressionMode);
         this.mapperService = mapperService;
     }

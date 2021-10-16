@@ -111,6 +111,11 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
         public boolean equals(Object obj) {
             if (obj == null || obj.getClass() != getClass()) {
                 return false;

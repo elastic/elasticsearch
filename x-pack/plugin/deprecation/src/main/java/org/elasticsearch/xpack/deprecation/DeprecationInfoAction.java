@@ -198,14 +198,16 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param clusterSettingsChecks The list of cluster-level checks
          * @return The list of deprecation issues found in the cluster
          */
-        public static DeprecationInfoAction.Response from(ClusterState state,
-                                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                                          Request request,
-                                                          NodesDeprecationCheckResponse nodeDeprecationResponse,
-                                                          List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
-                                                          List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
-                                                          Map<String, List<DeprecationIssue>> pluginSettingIssues,
-                                                          List<String> skipTheseDeprecatedSettings) {
+        public static DeprecationInfoAction.Response from(
+            ClusterState state,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Request request,
+            NodesDeprecationCheckResponse nodeDeprecationResponse,
+            List<DeprecationChecks.IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks,
+            List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
+            Map<String, List<DeprecationIssue>> pluginSettingIssues,
+            List<String> skipTheseDeprecatedSettings
+        ) {
             // Allow system index access here to prevent deprecation warnings when we call this API
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
             ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
@@ -217,7 +219,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetadata));
+                    c -> c.apply(state, indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }

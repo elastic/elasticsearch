@@ -97,9 +97,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<DeprecationChecks.IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (idx) -> indexIssueFound ? foundIssue : null
+                (cs, idx) -> indexIssueFound ? foundIssue : null
             ));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
@@ -170,9 +170,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 }
             ));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<DeprecationChecks.IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (idx) -> {
+                (cs, idx) -> {
                     visibleIndexSettings.set(idx.getSettings());
                     return null;
                 }

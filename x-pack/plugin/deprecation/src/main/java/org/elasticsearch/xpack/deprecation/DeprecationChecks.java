@@ -138,24 +138,24 @@ public class DeprecationChecks {
             ).collect(Collectors.toList());
         }
 
-    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
+    static List<IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::oldIndicesCheck,
-            IndexDeprecationChecks::tooManyFieldsCheck,
-            IndexDeprecationChecks::chainedMultiFieldsCheck,
-            IndexDeprecationChecks::deprecatedDateTimeFormat,
-            IndexDeprecationChecks::translogRetentionSettingCheck,
-            IndexDeprecationChecks::fieldNamesDisabledCheck,
-            IndexDeprecationChecks::checkIndexDataPath,
-            IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::storeTypeSettingCheck,
-            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
-            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
-            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
-            IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
-            IndexDeprecationChecks::checkGeoShapeMappings,
-            IndexDeprecationChecks::frozenIndexSettingCheck
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.translogRetentionSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.fieldNamesDisabledCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexDataPath(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.indexingSlowLogLevelSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.searchSlowLogLevelSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.storeTypeSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexMatrixFiltersSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata)
         ));
 
     /**
@@ -173,5 +173,10 @@ public class DeprecationChecks {
     @FunctionalInterface
     public interface NodeDeprecationCheck<A, B, C, D, R> {
         R apply(A first, B second, C third, D fourth);
+    }
+
+    @FunctionalInterface
+    public interface IndexDeprecationCheck<A, B, R> {
+        R apply(A first, B second);
     }
 }

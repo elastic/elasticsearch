@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Shell;
+import org.junit.BeforeClass;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,8 +21,15 @@ import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallatio
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
+
+    @BeforeClass
+    public static void filterDistros() {
+        assumeTrue("only archives", distribution.isArchive());
+    }
+    
     private static final Pattern PASSWORD_REGEX = Pattern.compile("Password for the elastic user is: (.+)$", Pattern.MULTILINE);
 
     public void test10AutoFormCluster() throws Exception {

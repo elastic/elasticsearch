@@ -11,14 +11,12 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,9 +47,6 @@ import java.util.function.Consumer;
  * Dispatches child field-caps requests to old/new data nodes in the local cluster that have shards of the requesting indices.
  */
 final class RequestDispatcher {
-
-    static final Version GROUP_REQUESTS_VERSION = Version.V_8_0_0;
-
     static final Logger LOGGER = LogManager.getLogger(RequestDispatcher.class);
 
     private final TransportService transportService;
@@ -128,7 +123,7 @@ final class RequestDispatcher {
         for (Map.Entry<String, IndexSelector> e : indexSelectors.entrySet()) {
             final String index = e.getKey();
             final IndexSelector indexSelector = e.getValue();
-            final List<ShardRouting> selectedShards = indexSelector.nextTarget(clusterState.nodes(), hasFilter);
+            final List<ShardRouting> selectedShards = indexSelector.nextTarget(hasFilter);
             if (selectedShards.isEmpty()) {
                 failedIndices.add(index);
             } else {
@@ -163,41 +158,18 @@ final class RequestDispatcher {
     private void sendRequestToNode(String nodeId, List<ShardId> shardIds) {
         final DiscoveryNode node = clusterState.nodes().get(nodeId);
         assert node != null;
-        if (node.getVersion().onOrAfter(GROUP_REQUESTS_VERSION)) {
-            LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
-            final ActionListener<FieldCapabilitiesNodeResponse> listener =
-                ActionListener.wrap(r -> onRequestResponse(shardIds, r), failure -> onRequestFailure(shardIds, failure));
-            final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
-                shardIds,
-                fieldCapsRequest.fields(),
-                originalIndices,
-                fieldCapsRequest.indexFilter(),
-                nowInMillis,
-                fieldCapsRequest.runtimeFields());
-            transportService.sendChildRequest(node, TransportFieldCapabilitiesAction.ACTION_NODE_NAME, nodeRequest, parentTask,
-                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new));
-        } else {
-            for (ShardId shardId : shardIds) {
-                LOGGER.debug("round {} sends field caps shard request to node {} for shardId {}", executionRound, node, shardId);
-                final ActionListener<FieldCapabilitiesIndexResponse> listener = ActionListener.wrap(
-                    r -> {
-                        final FieldCapabilitiesNodeResponse nodeResponse;
-                        if (r.canMatch()) {
-                            nodeResponse = new FieldCapabilitiesNodeResponse(
-                                Collections.singletonList(r), Collections.emptyMap(), Collections.emptySet());
-                        } else {
-                            nodeResponse = new FieldCapabilitiesNodeResponse(Collections.emptyList(), Collections.emptyMap(),
-                                Collections.singleton(shardId));
-                        }
-                        onRequestResponse(Collections.singletonList(shardId), nodeResponse);
-                    },
-                    e -> onRequestFailure(Collections.singletonList(shardId), e));
-                final FieldCapabilitiesIndexRequest shardRequest = new FieldCapabilitiesIndexRequest(fieldCapsRequest.fields(), shardId,
-                    originalIndices, fieldCapsRequest.indexFilter(), nowInMillis, fieldCapsRequest.runtimeFields());
-                transportService.sendChildRequest(node, TransportFieldCapabilitiesAction.ACTION_SHARD_NAME, shardRequest, parentTask,
-                    TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, FieldCapabilitiesIndexResponse::new));
-            }
-        }
+        LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
+        final ActionListener<FieldCapabilitiesNodeResponse> listener =
+            ActionListener.wrap(r -> onRequestResponse(shardIds, r), failure -> onRequestFailure(shardIds, failure));
+        final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
+            shardIds,
+            fieldCapsRequest.fields(),
+            originalIndices,
+            fieldCapsRequest.indexFilter(),
+            nowInMillis,
+            fieldCapsRequest.runtimeFields());
+        transportService.sendChildRequest(node, TransportFieldCapabilitiesAction.ACTION_NODE_NAME, nodeRequest, parentTask,
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new));
     }
 
     private void afterRequestsCompleted(int numRequests) {
@@ -274,7 +246,7 @@ final class RequestDispatcher {
             failures.remove(shardId);
         }
 
-        synchronized List<ShardRouting> nextTarget(DiscoveryNodes discoveryNodes, boolean withQueryFilter) {
+        synchronized List<ShardRouting> nextTarget(boolean withQueryFilter) {
             if (nodeToShards.isEmpty()) {
                 return Collections.emptyList();
             }
@@ -306,21 +278,8 @@ final class RequestDispatcher {
             } else {
                 assert unmatchedShardIds.isEmpty();
                 final Map.Entry<String, List<ShardRouting>> node = nodeIt.next();
-                // If the target node is on the new version, then we can ask it to process all its copies in a single request
-                // and the target node will process at most one valid copy. Otherwise, we should ask for a single copy to avoid
-                // sending multiple requests.
-                final DiscoveryNode discoNode = discoveryNodes.get(node.getKey());
-                if (discoNode.getVersion().onOrAfter(GROUP_REQUESTS_VERSION)) {
-                    nodeIt.remove();
-                    return node.getValue();
-                } else {
-                    final List<ShardRouting> shards = node.getValue();
-                    final ShardRouting selectedShard = shards.remove(0);
-                    if (shards.isEmpty()) {
-                        nodeIt.remove();
-                    }
-                    return Collections.singletonList(selectedShard);
-                }
+                nodeIt.remove();
+                return node.getValue();
             }
         }
     }

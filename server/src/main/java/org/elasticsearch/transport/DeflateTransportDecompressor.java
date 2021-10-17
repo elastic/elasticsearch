@@ -18,18 +18,19 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.function.Supplier;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
 public class DeflateTransportDecompressor implements TransportDecompressor {
 
     private final Inflater inflater;
-    private final PageCacheRecycler recycler;
+    private final Supplier<Recycler.V<byte[]>> recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
     private boolean hasSkippedHeader = false;
 
-    public DeflateTransportDecompressor(PageCacheRecycler recycler) {
+    public DeflateTransportDecompressor(Supplier<Recycler.V<byte[]>> recycler) {
         this.recycler = recycler;
         inflater = new Inflater(true);
         pages = new ArrayDeque<>(4);
@@ -55,7 +56,9 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
                 final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
                 if (isNewPage) {
                     pageOffset = 0;
-                    pages.add(recycler.bytePage(false));
+                    Recycler.V<byte[]> newPage = recycler.get();
+                    assert newPage.v().length >= PageCacheRecycler.BYTE_PAGE_SIZE;
+                    pages.add(newPage);
                 }
                 final Recycler.V<byte[]> page = pages.getLast();
 

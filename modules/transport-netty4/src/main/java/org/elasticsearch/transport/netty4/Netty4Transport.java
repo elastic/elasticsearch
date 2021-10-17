@@ -9,6 +9,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -27,6 +28,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Releasables;
@@ -48,6 +50,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketOption;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -81,6 +84,7 @@ public class Netty4Transport extends TcpTransport {
     private final ByteSizeValue receivePredictorMin;
     private final ByteSizeValue receivePredictorMax;
     private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private final Supplier<Recycler.V<byte[]>> recycler;
     private volatile Bootstrap clientBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
 
@@ -91,6 +95,26 @@ public class Netty4Transport extends TcpTransport {
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.recycler = () -> {
+            ByteBuf buffer = NettyAllocator.getAllocator().buffer(PageCacheRecycler.BYTE_PAGE_SIZE);
+            // TODO: Buffer offset
+            return new Recycler.V<>() {
+                @Override
+                public byte[] v() {
+                    return buffer.array();
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return true;
+                }
+
+                @Override
+                public void close() {
+                    buffer.release();
+                }
+            };
+        };
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);

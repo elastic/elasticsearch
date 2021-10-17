@@ -17,14 +17,18 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.function.Supplier;
 
 public class DeflateTransportDecompressorTests extends ESTestCase {
+
+    private final Supplier<Recycler.V<byte[]>> recycler = () -> PageCacheRecycler.NON_RECYCLING_INSTANCE.bytePage(false);
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -35,7 +39,7 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(recycler);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
             assertTrue(decompressor.isEOS());
@@ -57,7 +61,7 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(recycler);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
             assertTrue(decompressor.isEOS());
@@ -86,7 +90,7 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(recycler);
 
             int split1 = (int) (bytes.length() * 0.3);
             int split2 = (int) (bytes.length() * 0.65);

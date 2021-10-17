@@ -16,16 +16,20 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.lessThan;
 
 public class Lz4TransportDecompressorTests extends ESTestCase {
+
+    private final Supplier<Recycler.V<byte[]>> recycler = () -> PageCacheRecycler.NON_RECYCLING_INSTANCE.bytePage(false);
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -36,7 +40,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
             ReleasableBytesReference releasableBytesReference = decompressor.pollDecompressedPage(true);
@@ -68,7 +72,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             // Since 200 / 255 data is repeated, we should get a compression ratio of at least 50%
             assertThat(bytes.length(), lessThan(uncompressedLength / 2));
 
-            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
 
@@ -125,7 +129,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             // Since 200 / 255 data is repeated, we should get a compression ratio of at least 50%
             assertThat(bytes.length(), lessThan(uncompressedLength / 2));
 
-            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(recycler);
 
             int split1 = (int) (bytes.length() * 0.3);
             int split2 = (int) (bytes.length() * 0.65);

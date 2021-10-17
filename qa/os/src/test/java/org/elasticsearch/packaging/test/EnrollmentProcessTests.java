@@ -29,7 +29,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             sh,
             distribution(),
             getRootTempDir().resolve("elasticsearch-node1"),
-            getCurrentVersion()
+            getCurrentVersion(),
+            true
         );
         verifyArchiveInstallation(installation, distribution());
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
@@ -50,7 +51,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             sh,
             distribution(),
             getRootTempDir().resolve("elasticsearch-node2"),
-            getCurrentVersion()
+            getCurrentVersion(),
+            true
         );
         // auto-configure security using the enrollment token
         installation.executables().enrollToExistingCluster.run("--enrollment-token " + enrollmentToken);

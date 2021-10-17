@@ -42,7 +42,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version SLM_POLICY_FILTERING_VERSION = Version.V_7_16_0;
 
-    public static final Version FROM_SORT_VALUE_VERSION = Version.V_8_0_0;
+    public static final Version FROM_SORT_VALUE_VERSION = Version.V_7_16_0;
 
     public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_7_14_0;
 

@@ -80,7 +80,6 @@ properties to help streamline them:
 --
 
 [role="xpack"]
-[testenv="basic"]
 [[enrich-setup]]
 === Set up an enrich processor
 

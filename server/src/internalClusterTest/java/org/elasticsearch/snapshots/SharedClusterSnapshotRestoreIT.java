@@ -30,9 +30,11 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -1150,11 +1152,26 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         );
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
-        assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
+        assertAcked(
+            prepareCreate(
+                "test-idx",
+                2,
+                Settings.builder().put("number_of_replicas", 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(2, 10))
+            )
+        );
         indexRandomDocs("test-idx", 100);
 
         // Pick one node and block it
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
+        String blockedNodeId = clusterService().state()
+            .getNodes()
+            .getDataNodes()
+            .values()
+            .stream()
+            .filter(n -> n.getName().equals(blockedNode))
+            .map(DiscoveryNode::getId)
+            .findFirst()
+            .orElse("");
 
         logger.info("--> snapshot");
         client.admin()
@@ -1167,7 +1184,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo");
-        Thread.sleep(100);
+
+        awaitClusterState(
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .flatMap(s -> s.shards().stream())
+                .filter(e -> e.getValue().nodeId().equals(blockedNodeId) == false)
+                .allMatch(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
+        );
 
         logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus("test-repo").execute().actionGet();

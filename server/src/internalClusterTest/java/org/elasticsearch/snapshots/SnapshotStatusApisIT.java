@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -406,11 +408,12 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    @Repeat
     public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
         createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
         String indexName = "test-idx-1";
-        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(1, 10)).build());
+        createIndexWithContent(indexName, indexSettingsNoReplicas(randomIntBetween(2, 10)).build());
         ensureGreen();
 
         ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
@@ -418,7 +421,18 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo");
         awaitNumberOfSnapshotsInProgress(1);
-        Thread.sleep(100);
+
+        logger.info("--> wait for snapshots to get to a consistent state");
+        awaitClusterState(state -> {
+            List<SnapshotsInProgress.ShardState> statuses = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .flatMap(s -> s.shards().stream())
+                .map(e -> e.getValue().state())
+                .collect(Collectors.toList());
+            return statuses.size() > 1
+                && statuses.stream().filter(s -> s == SnapshotsInProgress.ShardState.SUCCESS).count() == statuses.size() - 1
+                && statuses.stream().filter(s -> s == SnapshotsInProgress.ShardState.INIT).count() == 1;
+        });
 
         GetSnapshotsResponse response1 = client().admin()
             .cluster()

@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 
@@ -207,6 +208,70 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .execute()
                 .actionGet()
         );
+    }
+
+    public void testFilterBySLMPolicy() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        createNSnapshots(repoName, randomIntBetween(1, 5));
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
+        final String snapshotWithPolicy = "snapshot-with-policy";
+        final String policyName = "some-policy";
+        final SnapshotInfo withPolicy = assertSuccessful(
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+                .setUserMetadata(org.elasticsearch.core.Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+
+        assertThat(getAllSnapshotsForPolicies(policyName), is(org.elasticsearch.core.List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("some-*"), is(org.elasticsearch.core.List.of(withPolicy)));
+        assertThat(getAllSnapshotsForPolicies("*", "-" + policyName), empty());
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-" + policyName), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "-*"), is(snapshotsWithoutPolicy));
+        assertThat(getAllSnapshotsForPolicies("no-such-policy"), empty());
+        assertThat(getAllSnapshotsForPolicies("no-such-policy*"), empty());
+
+        final String snapshotWithOtherPolicy = "snapshot-with-other-policy";
+        final String otherPolicyName = "other-policy";
+        final SnapshotInfo withOtherPolicy = assertSuccessful(
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+                .setUserMetadata(org.elasticsearch.core.Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
+                .setWaitForCompletion(true)
+                .execute()
+        );
+        assertThat(getAllSnapshotsForPolicies("*"), is(org.elasticsearch.core.List.of(withOtherPolicy, withPolicy)));
+        assertThat(
+            getAllSnapshotsForPolicies(policyName, otherPolicyName),
+            is(org.elasticsearch.core.List.of(withOtherPolicy, withPolicy))
+        );
+        assertThat(
+            getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"),
+            is(org.elasticsearch.core.List.of(withOtherPolicy, withPolicy))
+        );
+
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, policyName, otherPolicyName), is(allSnapshots));
+        assertThat(getAllSnapshotsForPolicies(GetSnapshotsRequest.NO_POLICY_PATTERN, "*"), is(allSnapshots));
+    }
+
+    private static List<SnapshotInfo> getAllSnapshotsForPolicies(String... policies) {
+        return clusterAdmin().prepareGetSnapshots("*")
+            .setSnapshots("*")
+            .setPolicies(policies)
+            .setSort(GetSnapshotsRequest.SortBy.NAME)
+            .get()
+            .getSnapshots();
     }
 
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {

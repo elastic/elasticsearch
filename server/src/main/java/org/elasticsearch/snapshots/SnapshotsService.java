@@ -149,6 +149,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version INDEX_DETAILS_INTRODUCED = Version.V_7_13_0;
 
+    public static final String POLICY_ID_METADATA_FIELD = "policy";
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";

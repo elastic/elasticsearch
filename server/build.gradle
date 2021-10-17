@@ -62,6 +62,9 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   api "org.elasticsearch:jna:${versions.jna}"
 
+  // multi-platform (Windows too) terminal detection and output formatting
+  api "org.fusesource.jansi:jansi:2.3.4"
+
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
@@ -155,8 +158,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'org.fusesource.jansi.Ansi',
-            'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.BlockingWaitStrategy',
             'com.lmax.disruptor.BusySpinWaitStrategy',
             'com.lmax.disruptor.EventFactory',

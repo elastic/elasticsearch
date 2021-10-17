@@ -666,7 +666,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
     }
 
-    private static Predicate<SnapshotInfo> filterBySLMPolicies(String[] slmPolicies) {
+    private static Tuple<Predicate<SnapshotInfo>, BiPredicate<SnapshotId, RepositoryData>> filterBySLMPolicies(String[] slmPolicies) {
         final List<String> includePatterns = new ArrayList<>();
         final List<String> excludePatterns = new ArrayList<>();
         boolean seenWildcard = false;
@@ -686,7 +686,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
         final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
         final boolean matchWithoutPolicy = matchNoPolicy;
-        return snapshotInfo -> {
+        return Tuple.tuple(snapshotInfo -> {
             final Map<String, Object> metadata = snapshotInfo.userMetadata();
             final String policy;
             if (metadata == null) {
@@ -695,14 +695,30 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
                 policy = policyFound instanceof String ? (String) policyFound : null;
             }
-            if (policy == null) {
-                return matchWithoutPolicy;
+            return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
+        }, (snapshotId, repositoryData) -> {
+            final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
+            final String policy;
+            if (details == null || (details.getSlmPolicy() == null)) {
+                // no SLM policy recorded
+                return true;
+            } else {
+                final String policyFound = details.getSlmPolicy();
+                // empty string means that snapshot was not created by an SLM policy
+                policy = policyFound.isEmpty() ? null : policyFound;
             }
-            if (Regex.simpleMatch(includes, policy) == false) {
-                return false;
-            }
-            return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
-        };
+            return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
+        });
+    }
+
+    private static boolean matchPolicy(String[] includes, String[] excludes, boolean matchWithoutPolicy, @Nullable String policy) {
+        if (policy == null) {
+            return matchWithoutPolicy;
+        }
+        if (Regex.simpleMatch(includes, policy) == false) {
+            return false;
+        }
+        return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
     }
 
     private static Predicate<SnapshotInfo> filterByLongOffset(ToLongFunction<SnapshotInfo> extractor, long after, SortOrder order) {
@@ -759,19 +775,23 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             Predicate<SnapshotInfo> snapshotPredicate = null;
             final String[] slmPolicies = request.policies();
             final String fromSortValue = request.fromSortValue();
+            BiPredicate<SnapshotId, RepositoryData> preflightPredicate = null;
             if (slmPolicies.length > 0) {
-                snapshotPredicate = filterBySLMPolicies(slmPolicies);
+                final Tuple<Predicate<SnapshotInfo>, BiPredicate<SnapshotId, RepositoryData>> predicates = filterBySLMPolicies(slmPolicies);
+                snapshotPredicate = predicates.v1();
+                preflightPredicate = predicates.v2();
             }
             final GetSnapshotsRequest.SortBy sortBy = request.sort();
             final SortOrder order = request.order();
             if (fromSortValue == null) {
-                preflightPredicate = null;
+                this.preflightPredicate = preflightPredicate;
             } else {
                 final Predicate<SnapshotInfo> fromSortValuePredicate;
+                final BiPredicate<SnapshotId, RepositoryData> preflightPred;
                 switch (sortBy) {
                     case START_TIME:
                         final long after = Long.parseLong(fromSortValue);
-                        preflightPredicate = order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
+                        preflightPred = order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
                             final long startTime = getStartTime(snapshotId, repositoryData);
                             return startTime == -1 || after <= startTime;
                         } : (snapshotId, repositoryData) -> {
@@ -781,14 +801,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         fromSortValuePredicate = filterByLongOffset(SnapshotInfo::startTime, after, order);
                         break;
                     case NAME:
-                        preflightPredicate = order == SortOrder.ASC
+                        preflightPred = order == SortOrder.ASC
                             ? (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) <= 0
                             : (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) >= 0;
                         fromSortValuePredicate = null;
                         break;
                     case DURATION:
                         final long afterDuration = Long.parseLong(fromSortValue);
-                        preflightPredicate = order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
+                        preflightPred = order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
                             final long duration = getDuration(snapshotId, repositoryData);
                             return duration == -1 || afterDuration <= duration;
                         } : (snapshotId, repositoryData) -> {
@@ -799,22 +819,22 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         break;
                     case INDICES:
                         final int afterIndexCount = Integer.parseInt(fromSortValue);
-                        preflightPredicate = order == SortOrder.ASC
+                        preflightPred = order == SortOrder.ASC
                             ? (snapshotId, repositoryData) -> afterIndexCount <= indexCount(snapshotId, repositoryData)
                             : (snapshotId, repositoryData) -> afterIndexCount >= indexCount(snapshotId, repositoryData);
                         fromSortValuePredicate = null;
                         break;
                     case REPOSITORY:
                         // already handled in #maybeFilterRepositories
-                        preflightPredicate = null;
+                        preflightPred = null;
                         fromSortValuePredicate = null;
                         break;
                     case SHARDS:
-                        preflightPredicate = null;
+                        preflightPred = null;
                         fromSortValuePredicate = filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(fromSortValue), order);
                         break;
                     case FAILED_SHARDS:
-                        preflightPredicate = null;
+                        preflightPred = null;
                         fromSortValuePredicate = filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(fromSortValue), order);
                         break;
                     default:
@@ -825,6 +845,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     snapshotPredicate = fromSortValuePredicate;
                 } else if (fromSortValuePredicate != null) {
                     snapshotPredicate = fromSortValuePredicate.and(snapshotPredicate);
+                }
+                if (preflightPredicate == null) {
+                    this.preflightPredicate = preflightPred;
+                } else {
+                    if (preflightPred != null) {
+                        this.preflightPredicate = preflightPredicate.and(preflightPred);
+                    } else {
+                        this.preflightPredicate = preflightPredicate;
+                    }
                 }
             }
             this.snapshotPredicate = snapshotPredicate;

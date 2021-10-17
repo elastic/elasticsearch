@@ -319,7 +319,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         writeIndexGen(
             repository,
             repositoryData.withExtraDetails(
-                Collections.singletonMap(snapshotId, new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1))
+                Collections.singletonMap(
+                    snapshotId,
+                    new RepositoryData.SnapshotDetails(SnapshotState.PARTIAL, Version.CURRENT, -1, -1, null)
+                )
             ),
             repositoryData.getGenId()
         );
@@ -376,7 +379,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                 Version.CURRENT,
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                randomAlphaOfLength(10)
             );
             repoData = repoData.addSnapshot(
                 snapshotId,

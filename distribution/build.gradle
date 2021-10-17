@@ -397,9 +397,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           eachFile { it.setMode(0755) }
           if (testDistro == false) {
             from(defaultBinFiles)
-          } else {
-            from(defaultBinFiles)
-              include 'x-pack-env', 'x-pack-security-env'
           }
           if (distributionType != 'zip') {
             exclude '*.bat'

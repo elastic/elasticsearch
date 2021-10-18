@@ -285,9 +285,11 @@ public class AuthorizationService {
         throws ElasticsearchSecurityException {
         // Check operator privileges
         // TODO: audit?
-        final ElasticsearchSecurityException operatorException = operatorPrivilegesService.check(action, originalRequest, threadContext);
+        final ElasticsearchSecurityException operatorException =
+            operatorPrivilegesService.check(authentication, action, originalRequest, threadContext);
         if (operatorException != null) {
-            throw denialException(authentication, action, originalRequest, operatorException);
+            throw denialException(authentication, action, originalRequest,
+                "because it requires operator privileges", operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
     }

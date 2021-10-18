@@ -22,6 +22,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
+
 import javax.inject.Inject;
 
 /**
@@ -90,6 +91,12 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             );
 
             task.dependsOn(validateChangelogsTask);
+        });
+
+        project.getTasks().register("pruneChangelogs", PruneChangelogsTask.class).configure(task -> {
+            task.setGroup("Documentation");
+            task.setDescription("Removes changelog files that have been used in a previous release");
+            task.setChangelogs(yamlFiles);
         });
 
         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));

@@ -4,14 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.search.TotalHits;
@@ -234,11 +226,12 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     protected void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
         final Index restoredIndex = resolveIndex(indexName);
+        final String customDataPath = resolveCustomDataPath(indexName);
         final ShardId shardId = new ShardId(restoredIndex, 0);
         boolean shardFolderFound = false;
         for (String node : internalCluster().getNodeNames()) {
             final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, null);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
                 assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));

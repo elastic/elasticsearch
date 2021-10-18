@@ -34,7 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -724,7 +724,11 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchRequest initSearchRequest() {
         List<String> indices = Arrays.asList(INDEX_NAME, "my_remote_cluster:" + INDEX_NAME);
         Collections.shuffle(indices, random());
-        return new SearchRequest(indices.toArray(new String[0]));
+        final SearchRequest request = new SearchRequest(indices.toArray(new String[0]));
+        if (randomBoolean()) {
+            request.setPreFilterShardSize(between(1, 20));
+        }
+        return request;
     }
 
     private static void duelSearch(SearchRequest searchRequest, Consumer<SearchResponse> responseChecker) throws Exception {

@@ -9,17 +9,15 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -28,7 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 
@@ -37,7 +34,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.LOGSTASH;
-import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +59,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                 Settings.builder().putNull(MonitoringService.ENABLED.getKey())
                                   .putNull("xpack.monitoring.exporters._local.type")
                                   .putNull("xpack.monitoring.exporters._local.enabled")
@@ -96,7 +91,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }
 
             // local exporter is now enabled
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             if (randomBoolean()) {
                 // export some documents now, before starting the monitoring service
@@ -120,7 +115,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 });
 
                 checkMonitoringTemplates();
-                checkMonitoringPipelines();
                 checkMonitoringDocs();
             }
 
@@ -174,7 +168,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }, 30L, TimeUnit.SECONDS);
 
             checkMonitoringTemplates();
-            checkMonitoringPipelines();
             checkMonitoringDocs();
         } finally {
             stopMonitoring();
@@ -231,28 +224,12 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     }
 
     /**
-     * Checks that the monitoring ingest pipelines have been created by the local exporter
-     */
-    private void checkMonitoringPipelines() {
-        final Set<String> expectedPipelines =
-                Arrays.stream(PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toSet());
-
-        final GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("xpack_monitoring_*").get();
-
-        // actual pipelines
-        final Set<String> pipelines = response.pipelines().stream().map(PipelineConfiguration::getId).collect(Collectors.toSet());
-
-        assertEquals("Missing expected pipelines", expectedPipelines, pipelines);
-        assertTrue("monitoring ingest pipeline not found", response.isFound());
-    }
-
-    /**
      * Checks that the monitoring documents all have the cluster_uuid, timestamp and source_node
      * fields and belongs to the right data or timestamped index.
      */
     private void checkMonitoringDocs() {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
-        String customTimeFormat = response.getState().getMetadata().transientSettings()
+        String customTimeFormat = response.getState().getMetadata().persistentSettings()
                 .get("xpack.monitoring.exporters._local.index.name.time_format");
         assertEquals(indexTimeFormat, customTimeFormat);
         if (customTimeFormat == null) {

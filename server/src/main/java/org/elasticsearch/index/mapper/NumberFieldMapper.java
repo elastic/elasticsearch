@@ -32,8 +32,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -144,14 +144,13 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter)
-                .addValidator(v -> {
-                    if (v != null && hasDocValues.getValue() == false) {
-                        throw new IllegalArgumentException(
-                            "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
-                        );
-                    }
-                });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
+                if (v != null && hasDocValues.getValue() == false) {
+                    throw new IllegalArgumentException(
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                    );
+                }
+            }).precludesParameters(dimension);
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
@@ -1041,6 +1040,21 @@ public class NumberFieldMapper extends FieldMapper {
             return type.name;
         }
 
+        /**
+         * This method reinterprets a double precision value based on the maximum precision of the stored number field.  Mostly this
+         * corrects for unrepresentable values which have different approximations when cast from floats than when parsed as doubles.
+         * It may seem strange to convert a double to a double, and it is.  This function's goal is to reduce the precision
+         * on the double in the case that the backing number type would have parsed the value differently.  This is to address
+         * the problem where (e.g.) 0.04F &lt; 0.04D, which causes problems for range aggregations.
+         */
+        public double reduceToStoredPrecision(double value) {
+            if (Double.isInfinite(value)) {
+                // Trying to parse infinite values into ints/longs throws. Understandably.
+                return value;
+            }
+          return type.parse(value, false).doubleValue();
+        }
+
         public NumericType numericType() {
             return type.numericType();
         }
@@ -1153,7 +1167,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final boolean dimension;
     private final ScriptCompiler scriptCompiler;
     private final Script script;
-    private final TimeSeriesParams.MetricType metricType;
+    private final MetricType metricType;
 
     private NumberFieldMapper(
             String simpleName,
@@ -1262,8 +1276,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
-            .dimension(dimension)
+        return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).dimension(dimension)
             .metric(metricType)
             .init(this);
     }

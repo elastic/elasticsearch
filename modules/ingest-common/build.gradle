@@ -29,7 +29,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
   module ':modules:lang-mustache'
@@ -46,4 +46,13 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
+}
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    //marked as not needing compatible api
+    'ingest/200_default_pipeline/Test index with default pipeline',
+    'ingest/240_required_pipeline/Test index with final pipeline',
+    'ingest/240_required_pipeline/Test final pipeline when target index is changed',
+  ].join(',')
 }

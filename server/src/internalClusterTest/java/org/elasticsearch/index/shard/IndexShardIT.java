@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -66,7 +66,6 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -117,11 +116,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    @Override
-    protected boolean forbidPrivateIndexSettings() {
-        return false;
-    }
-
     public void testLockTryingToDelete() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -129,11 +123,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
         final Index index = cs.state().metadata().index("test").getIndex();
-        Path shardPath = env.availableShardPath(new ShardId(index, 0));
-        logger.info("--> path: [{}]", shardPath);
+        Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
+        logger.info("--> paths: [{}]", (Object)shardPaths);
         // Should not be able to acquire the lock because it's already open
         try {
-            NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPath);
+            NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPaths);
             fail("should not have been able to acquire the lock");
         } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));
@@ -220,11 +214,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
-        Version createdVersion =
-            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
         Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_DATA_PATH, idxPath)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
             .build();
         createIndex("test", idxSettings);
         ensureGreen("test");
@@ -262,14 +253,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
-        logger.info("--> creating legacy index [{}] with data_path [{}]", index, indexDataPath);
-        Version createdVersion =
-            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_8_0_0));
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion)
-            .build();
-        createIndex(index, settings);
+        logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
+        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 

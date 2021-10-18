@@ -19,10 +19,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
@@ -128,7 +129,7 @@ public class MetadataIndexAliasesService {
                 // Handle the actions that do data streams aliases separately:
                 DataStream dataStream = metadata.dataStream(action.getIndex());
                 if (dataStream != null) {
-                    NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
+                    NewAliasValidator newAliasValidator = (alias, indexRouting, searchRouting, filter, writeIndex) -> {
                         aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, lookup);
                         if (Strings.hasLength(filter)) {
                             for (Index index : dataStream.getIndices()) {
@@ -136,6 +137,7 @@ public class MetadataIndexAliasesService {
                                 if (imd == null) {
                                     throw new IndexNotFoundException(action.getIndex());
                                 }
+                                IndexSettings.MODE.get(imd.getSettings()).validateAlias(indexRouting, searchRouting);
                                 validateFilter(indicesToClose, indices, action, imd, alias, filter);
                             }
                         }
@@ -151,8 +153,9 @@ public class MetadataIndexAliasesService {
                     throw new IndexNotFoundException(action.getIndex());
                 }
                 validateAliasTargetIsNotDSBackingIndex(currentState, action);
-                NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
+                NewAliasValidator newAliasValidator = (alias, indexRouting, searchRouting, filter, writeIndex) -> {
                     aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, lookup);
+                    IndexSettings.MODE.get(index.getSettings()).validateAlias(indexRouting, searchRouting);
                     if (Strings.hasLength(filter)) {
                         validateFilter(indicesToClose, indices, action, index, alias, filter);
                     }
@@ -222,7 +225,7 @@ public class MetadataIndexAliasesService {
         if (indexAbstraction.getParentDataStream() != null) {
             throw new IllegalArgumentException("The provided index [" + action.getIndex()
                 + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                + "]. Data streams and their backing indices don't support alias operations.");
+                + "]. Data stream backing indices don't support alias operations.");
         }
     }
 }

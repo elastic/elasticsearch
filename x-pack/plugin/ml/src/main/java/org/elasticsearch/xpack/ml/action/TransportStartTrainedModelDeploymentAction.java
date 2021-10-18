@@ -25,7 +25,8 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,6 +36,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -74,11 +76,12 @@ public class TransportStartTrainedModelDeploymentAction
     private final TrainedModelAllocationService trainedModelAllocationService;
     private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
+    protected volatile int maxLazyMLNodes;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(TransportService transportService, Client client, ClusterService clusterService,
                                                       ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
-                                                      IndexNameExpressionResolver indexNameExpressionResolver,
+                                                      IndexNameExpressionResolver indexNameExpressionResolver, Settings settings,
                                                       TrainedModelAllocationService trainedModelAllocationService,
                                                       NamedXContentRegistry xContentRegistry, MlMemoryTracker memoryTracker) {
         super(StartTrainedModelDeploymentAction.NAME, transportService, clusterService, threadPool, actionFilters,
@@ -89,13 +92,19 @@ public class TransportStartTrainedModelDeploymentAction
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAllocationService = Objects.requireNonNull(trainedModelAllocationService);
+        this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+    }
+
+    private void setMaxLazyMLNodes(int value) {
+        this.maxLazyMLNodes = value;
     }
 
     @Override
     protected void masterOperation(Task task, StartTrainedModelDeploymentAction.Request request, ClusterState state,
                                    ActionListener<CreateTrainedModelAllocationAction.Response> listener) throws Exception {
         logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
@@ -148,7 +157,12 @@ public class TransportStartTrainedModelDeploymentAction
 
                 getModelBytes(trainedModelConfig, ActionListener.wrap(
                     modelBytes -> {
-                        TaskParams taskParams = new TaskParams(trainedModelConfig.getModelId(), modelBytes);
+                        TaskParams taskParams = new TaskParams(
+                            trainedModelConfig.getModelId(),
+                            modelBytes,
+                            request.getInferenceThreads(),
+                            request.getModelThreads()
+                        );
                         PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
                             PersistentTasksCustomMetadata.TYPE);
                         memoryTracker.refresh(persistentTasks, ActionListener.wrap(
@@ -198,7 +212,7 @@ public class TransportStartTrainedModelDeploymentAction
         AllocationStatus.State state,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes);
         trainedModelAllocationService.waitForAllocationCondition(modelId, predicate, timeout,
             new TrainedModelAllocationService.WaitForAllocationListener() {
                 @Override
@@ -254,10 +268,12 @@ public class TransportStartTrainedModelDeploymentAction
         // for logging
         private final String modelId;
         private final AllocationStatus.State waitForState;
+        private final int maxLazyMLNodes;
 
-        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState) {
+        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState, int maxLazyMLNodes) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.waitForState = waitForState;
+            this.maxLazyMLNodes = maxLazyMLNodes;
         }
 
         @Override
@@ -292,10 +308,16 @@ public class TransportStartTrainedModelDeploymentAction
                 );
                 return true;
             }
+            Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
+            List<DiscoveryNode> nodes = clusterState.nodes()
+                .getAllNodes()
+                .stream()
+                .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
+                .filter(TaskParams::mayAllocateToNode)
+                .collect(Collectors.toList());
 
             // No nodes allocated at all!
-            // TODO when we support autoscaling for this, check for `maxLazyNodes` setting
-            if (nodesAndState.isEmpty()) {
+            if (nodesAndState.isEmpty() && maxLazyMLNodes <= nodes.size()) {
                 String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
                     + trainedModelAllocation.getReason()
                     + "]";
@@ -309,13 +331,6 @@ public class TransportStartTrainedModelDeploymentAction
                 return true;
             }
 
-            Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
-            List<DiscoveryNode> nodes = clusterState.nodes()
-                .getAllNodes()
-                .stream()
-                .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
-                .filter(TaskParams::mayAllocateToNode)
-                .collect(Collectors.toList());
             AllocationStatus allocationStatus = trainedModelAllocation.calculateAllocationStatus(nodes).orElse(null);
             if (allocationStatus == null || allocationStatus.calculateState().compareTo(waitForState) >= 0) {
                 return true;

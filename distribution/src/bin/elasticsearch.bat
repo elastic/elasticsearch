@@ -6,6 +6,7 @@ setlocal enableextensions
 SET params='%*'
 SET checkpassword=Y
 SET enrolltocluster=N
+SET attemptautoconfig=Y
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
@@ -22,21 +23,26 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 
 	IF "!current!" == "-h" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 	IF "!current!" == "--help" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 
 	IF "!current!" == "-V" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 	IF "!current!" == "--version" (
 		SET checkpassword=N
+		SET attemptautoconfig=N
 	)
 
 	IF "!previous!" == "--enrollment-token" (
 	    SET enrollmenttoken=!current!
 		SET enrolltocluster=Y
+		SET attemptautoconfig=N
 	)
 
 	IF "!silent!" == "Y" (
@@ -59,7 +65,6 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 		GOTO loop
 	)
 )
-echo new parameters: !newparams!
 
 CALL "%~dp0elasticsearch-env.bat" || exit /b 1
 IF ERRORLEVEL 1 (
@@ -88,6 +93,23 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
+
+IF "%attemptautoconfig%"=="Y" (
+    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
+      -Des.path.home="%ES_HOME%" ^
+      -Des.path.conf="%ES_PATH_CONF%" ^
+      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
+      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
+      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.ConfigInitialNode" !newparams!
+    SET SHOULDEXIT=Y
+    IF !ERRORLEVEL! EQU 0 SET SHOULDEXIT=N
+    IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N
+    IF !ERRORLEVEL! EQU 78 SET SHOULDEXIT=N
+    IF !ERRORLEVEL! EQU 80 SET SHOULDEXIT=N
+    IF "!SHOULDEXIT!"=="Y" (
+        exit /b !ERRORLEVEL!
+    )
+)
 
 IF "!enrolltocluster!"=="Y" (
     ECHO.!KEYSTORE_PASSWORD!|CALL "%~dp0elasticsearch-enroll-node.bat" --enrollment-token "%enrollmenttoken%"

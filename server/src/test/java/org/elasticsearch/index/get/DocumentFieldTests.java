@@ -12,9 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -36,9 +36,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class DocumentFieldTests extends ESTestCase {
 
     public void testToXContent() {
-        DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
-        String output = Strings.toString(documentField);
+        DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"), Arrays.asList("ignored1", "ignored2"));
+        String output = Strings.toString(documentField.getValidValuesWriter());
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
+        String ignoredOutput = Strings.toString(documentField.getIgnoredValuesWriter());
+        assertEquals("{\"field\":[\"ignored1\",\"ignored2\"]}", ignoredOutput);
     }
 
     public void testEqualsAndHashcode() {
@@ -52,7 +54,12 @@ public class DocumentFieldTests extends ESTestCase {
         DocumentField documentField = tuple.v1();
         DocumentField expectedDocumentField = tuple.v2();
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(documentField, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            documentField.getValidValuesWriter(),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
         //test that we can parse what we print out
         DocumentField parsedDocumentField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -65,7 +72,7 @@ public class DocumentFieldTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(expectedDocumentField, parsedDocumentField);
-        BytesReference finalBytes = toXContent(parsedDocumentField, xContentType, humanReadable);
+        BytesReference finalBytes = toXContent(parsedDocumentField.getValidValuesWriter(), xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 

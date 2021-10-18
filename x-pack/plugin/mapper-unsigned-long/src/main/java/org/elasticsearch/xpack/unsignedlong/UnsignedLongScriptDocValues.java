@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.unsignedlong;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
 
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 
 public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
+
     private final SortedNumericDocValues in;
     private long[] values = new long[0];
     private int count;
@@ -50,8 +50,7 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
     }
 
     public long getValue() {
-        throwIfEmpty();
-        return format(0);
+        return get(0);
     }
 
     @Override
@@ -65,34 +64,11 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
      * that the underlying value can be treated as a primitive long as that method returns either a {@code long} or a {@code BigInteger}.
      */
     protected long format(int index) {
-        return shiftedLong(values[index]);
-    }
-
-    // Package private for use in UnsignedLongField
-    static long shiftedLong(long unshifted) {
-        return unshifted ^ MASK_2_63;
+        return values[index] ^ MASK_2_63;
     }
 
     @Override
     public int size() {
         return count;
     }
-
-    @Override
-    public long getLongValue() {
-        throwIfEmpty();
-        return format(0);
-    }
-
-    @Override
-    public double getDoubleValue() {
-        throwIfEmpty();
-        return format(0);
-    }
-
-    @Override
-    public Field<Long> toField(String fieldName) {
-        return new UnsignedLongField(fieldName, this);
-    }
-
 }

@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -47,13 +46,11 @@ public class VariablesTests extends ESTestCase {
         assertThat(model, notNullValue());
         assertThat(model.size(), is(1));
 
-        JodaCompatibleZonedDateTime jodaJavaExecutionTime =
-            new JodaCompatibleZonedDateTime(executionTime.toInstant(), ZoneOffset.UTC);
         assertThat(ObjectPath.eval("ctx", model), instanceOf(Map.class));
         assertThat(ObjectPath.eval("ctx.id", model), is(wid.value()));
         // NOTE: we use toString() here because two ZonedDateTime are *not* equal, we need to check with isEqual
         // for date/time equality, but no hamcrest matcher exists for that
-        assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(jodaJavaExecutionTime.toString()));
+        assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(executionTime.toString()));
         assertThat(ObjectPath.eval("ctx.trigger", model), is(event.data()));
         assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));
         assertThat(ObjectPath.eval("ctx.metadata", model), is(metatdata));

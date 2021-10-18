@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -422,7 +422,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         TimeValue newPollInterval = TimeValue.timeValueHours(randomLongBetween(6, 1000));
         Settings newIntervalSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL,
             newPollInterval.getStringRep()).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(newIntervalSettings));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(newIntervalSettings));
         {
             TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
             assertThat(schedule.getInterval(), equalTo(newPollInterval));

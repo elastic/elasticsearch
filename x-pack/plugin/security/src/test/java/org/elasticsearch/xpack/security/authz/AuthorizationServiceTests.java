@@ -364,7 +364,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ElasticsearchSecurityException operatorPrivilegesException =
             new ElasticsearchSecurityException("Operator privileges check failed");
         if (shouldFailOperatorPrivilegesCheck) {
-            when(operatorPrivilegesService.check(action, request, threadContext)).thenAnswer(invocationOnMock -> {
+            when(operatorPrivilegesService.check(authentication, action, request, threadContext)).thenAnswer(invocationOnMock -> {
                 operatorPrivilegesChecked.set(true);
                 return operatorPrivilegesException;
             });
@@ -376,7 +376,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizationInfo.onResponse(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
             indicesPermissions.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
 
-            assertNull(verify(operatorPrivilegesService).check(action, request, threadContext));
+            assertNull(verify(operatorPrivilegesService).check(authentication, action, request, threadContext));
 
             if (listenerBody != null) {
                 listenerBody.run();

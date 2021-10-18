@@ -285,7 +285,11 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 }, this::markAsFailed)
             );
         } else {
-            recordIndexMigrationSuccess(lastMigrationInfo);
+            prepareNextIndex(
+                clusterService.state(),
+                state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop),
+                lastMigrationInfo.getFeatureName()
+            );
         }
     }
 

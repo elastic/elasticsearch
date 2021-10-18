@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -52,11 +53,14 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FeatureMigrationIT extends ESIntegTestCase {
@@ -88,7 +92,10 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         ensureGreen();
 
         SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
-        preMigrationHook.set(clusterState -> {
+        SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
+        TestPlugin.preMigrationHook.set(clusterState -> {
+            // Check that the ordering of these calls is correct.
+            assertThat(postUpgradeHookCalled.get(), nullValue());
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("stringKey", "stringValue");
             metadata.put("intKey", 42);
@@ -103,8 +110,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             return metadata;
         });
 
-        SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
-        postMigrationHook.set((clusterState, metadata) -> {
+        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+            assertThat(preUpgradeHookCalled.get(), is(true));
+
             assertThat(
                 metadata,
                 hasEntry("stringKey", "stringValue")
@@ -115,6 +123,10 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             @SuppressWarnings("unchecked")
             Map<String, Object> innerMap = (Map<String, Object>) metadata.get("mapKey");
             assertThat(innerMap, hasEntry("innerKey", "innerValue"));
+
+            // We shouldn't have any results in the cluster state as no features have fully finished yet.
+            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            assertThat(currentResults, nullValue());
             postUpgradeHookCalled.set(true);
         });
 
@@ -140,11 +152,18 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
         Metadata finalMetadata = client().admin().cluster().prepareState().get().getState().metadata();
+        // Check that the results metadata is what we expect.
+        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
+        assertThat(currentResults, notNullValue());
+        assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
+        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
+        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
+
         assertIndexHasCorrectProperties(finalMetadata, ".int-man-old-reindexed-for-8", INTERNAL_MANAGED_FLAG_VALUE, true, true);
         assertIndexHasCorrectProperties(finalMetadata, ".int-unman-old-reindexed-for-8", INTERNAL_UNMANAGED_FLAG_VALUE, false, true);
         assertIndexHasCorrectProperties(finalMetadata, ".ext-man-old-reindexed-for-8", EXTERNAL_MANAGED_FLAG_VALUE, true, false);
         assertIndexHasCorrectProperties(finalMetadata, ".ext-unman-old-reindexed-for-8", EXTERNAL_UNMANAGED_FLAG_VALUE, false, false);
-
     }
 
     public void assertIndexHasCorrectProperties(
@@ -161,6 +180,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         final Map<String, Object> meta = (Map<String, Object>) mapping.get("_meta");
         assertThat(meta.get(DESCRIPTOR_MANAGED_META_KEY), is(isManaged));
         assertThat(meta.get(DESCRIPTOR_INTERNAL_META_KEY), is(isInternal));
+
+        assertThat(imd.isSystem(), is(true));
 
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
         assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
@@ -205,23 +226,20 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
-    private static final String VERSION_META_KEY = "version";
-    private static final Version META_VERSION = Version.CURRENT;
-    private static final String DESCRIPTOR_MANAGED_META_KEY = "desciptor_managed";
-    private static final String DESCRIPTOR_INTERNAL_META_KEY = "descriptor_internal";
-    private static final String FEATURE_NAME = FeatureMigrationIT.class.getSimpleName();
-    private static final String ORIGIN = FeatureMigrationIT.class.getSimpleName();
-    private static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
-    private static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
+    static final String VERSION_META_KEY = "version";
+    static final Version META_VERSION = Version.CURRENT;
+    static final String DESCRIPTOR_MANAGED_META_KEY = "desciptor_managed";
+    static final String DESCRIPTOR_INTERNAL_META_KEY = "descriptor_internal";
+    static final String FEATURE_NAME = "A-test-feature"; // Sorts alphabetically before the feature from MultiFeatureMigrationIT
+    static final String ORIGIN = FeatureMigrationIT.class.getSimpleName();
+    static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
+    static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
 
-    private static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-    private static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
-
-    private static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
-    private static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
-    private static final int EXTERNAL_MANAGED_FLAG_VALUE = 3;
-    private static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
-    private static final SystemIndexDescriptor INTERNAL_MANAGED = SystemIndexDescriptor.builder()
+    static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
+    static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
+    static final int EXTERNAL_MANAGED_FLAG_VALUE = 3;
+    static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
+    static final SystemIndexDescriptor INTERNAL_MANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".int-man-*")
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(".int-man-old")
@@ -234,7 +252,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setMinimumNodeVersion(Version.V_7_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
-    private static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
+    static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".int-unman-*")
         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
@@ -243,7 +261,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setMinimumNodeVersion(Version.V_7_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
-    private static final SystemIndexDescriptor EXTERNAL_MANAGED = SystemIndexDescriptor.builder()
+    static final SystemIndexDescriptor EXTERNAL_MANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-man-*")
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
@@ -256,7 +274,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setMinimumNodeVersion(Version.V_7_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
-    private static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
+    static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
@@ -266,7 +284,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 
-    private static Settings createSimpleSettings(Version creationVersion, int flagSettingValue) {
+    static Settings createSimpleSettings(Version creationVersion, int flagSettingValue) {
         return Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -275,7 +293,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             .build();
     }
 
-    private static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal) {
+    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {
@@ -303,6 +321,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
     }
 
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+        public static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+        public static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+
         public TestPlugin() {
 
         }

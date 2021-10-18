@@ -271,7 +271,7 @@ public class HotThreads {
         if (type == ReportType.CPU && sortOder == SortOrder.DEFAULT)  {
             CollectionUtil.introSort(topThreads,
                 Comparator.comparingLong(ThreadTimeAccumulator::getRunnableTime)
-                    .thenComparingLong(ThreadTimeAccumulator.valueGetterForReportType(type)).reversed());
+                    .thenComparingLong(ThreadTimeAccumulator::getCpuTime).reversed());
         } else {
             CollectionUtil.introSort(topThreads,
                 Comparator.comparingLong(ThreadTimeAccumulator.valueGetterForReportType(type)).reversed());

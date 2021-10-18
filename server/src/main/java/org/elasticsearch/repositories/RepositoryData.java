@@ -1102,6 +1102,11 @@ public final class RepositoryData {
             return endTimeMillis;
         }
 
+        /**
+         * @return the SLM policy that the snapshot was created by or an empty string if it was not created by an SLM policy or
+         *         {@code null} if unknown.
+         */
+        @Nullable
         public String getSlmPolicy() {
             return slmPolicy;
         }

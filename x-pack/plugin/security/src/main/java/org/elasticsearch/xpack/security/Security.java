@@ -378,6 +378,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
+    public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE =
+        LicensedFeature.momentary(null, "security-delegated-authorization", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary AUTHORIZATION_ENGINE_FEATURE =
+        LicensedFeature.momentary(null, "security-authorization-engine", License.OperationMode.PLATINUM);
+
     // Custom role providers are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
         LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);

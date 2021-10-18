@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -39,14 +39,7 @@ public class InboundPipeline implements Releasable {
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
-    public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
-                           Supplier<CircuitBreaker> circuitBreaker,
-                           Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-                           BiConsumer<TcpChannel, InboundMessage> messageHandler) {
-        this(version, statsTracker, () -> recycler.bytePage(false), relativeTimeInMillis, circuitBreaker, registryFunction, messageHandler);
-    }
-
-    public InboundPipeline(Version version, StatsTracker statsTracker, Supplier<Recycler.V<byte[]>> recycler, LongSupplier relativeTimeInMillis,
+    public InboundPipeline(Version version, StatsTracker statsTracker, Supplier<Recycler.V<BytesRef>> recycler, LongSupplier relativeTimeInMillis,
                            Supplier<CircuitBreaker> circuitBreaker,
                            Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler) {

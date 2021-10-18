@@ -25,12 +25,13 @@ import java.util.zip.Inflater;
 public class DeflateTransportDecompressor implements TransportDecompressor {
 
     private final Inflater inflater;
-    private final Supplier<Recycler.V<byte[]>> recycler;
-    private final ArrayDeque<Recycler.V<byte[]>> pages;
-    private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
+    private final Supplier<Recycler.V<BytesRef>> recycler;
+    private final ArrayDeque<Recycler.V<BytesRef>> pages;
+    private int pageOffset = 0;
+    private int pageLength = 0;
     private boolean hasSkippedHeader = false;
 
-    public DeflateTransportDecompressor(Supplier<Recycler.V<byte[]>> recycler) {
+    public DeflateTransportDecompressor(Supplier<Recycler.V<BytesRef>> recycler) {
         this.recycler = recycler;
         inflater = new Inflater(true);
         pages = new ArrayDeque<>(4);
@@ -53,22 +54,23 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
             bytesConsumed += ref.length;
             boolean continueInflating = true;
             while (continueInflating) {
-                final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
+                final boolean isNewPage = pageOffset == pageLength;
                 if (isNewPage) {
+                    Recycler.V<BytesRef> newPage = recycler.get();
                     pageOffset = 0;
-                    Recycler.V<byte[]> newPage = recycler.get();
-                    assert newPage.v().length >= PageCacheRecycler.BYTE_PAGE_SIZE;
+                    pageLength = newPage.v().length;
+                    assert newPage.v().length > 0;
                     pages.add(newPage);
                 }
-                final Recycler.V<byte[]> page = pages.getLast();
+                final Recycler.V<BytesRef> page = pages.getLast();
 
-                byte[] output = page.v();
+                BytesRef output = page.v();
                 try {
-                    int bytesInflated = inflater.inflate(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
+                    int bytesInflated = inflater.inflate(output.bytes, output.offset + pageOffset, pageLength - pageOffset);
                     pageOffset += bytesInflated;
                     if (isNewPage) {
                         if (bytesInflated == 0) {
-                            Recycler.V<byte[]> removed = pages.pollLast();
+                            Recycler.V<BytesRef> removed = pages.pollLast();
                             assert removed == page;
                             removed.close();
                             pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -102,15 +104,17 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
         } else if (pages.size() == 1) {
             if (isEOS) {
                 assert isEOS();
-                Recycler.V<byte[]> page = pages.pollFirst();
-                ReleasableBytesReference reference = new ReleasableBytesReference(new BytesArray(page.v(), 0, pageOffset), page);
+                Recycler.V<BytesRef> page = pages.pollFirst();
+                BytesArray delegate = new BytesArray(page.v().bytes, page.v().offset, pageOffset);
+                ReleasableBytesReference reference = new ReleasableBytesReference(delegate, page);
+                pageLength = 0;
                 pageOffset = 0;
                 return reference;
             } else {
                 return null;
             }
         } else {
-            Recycler.V<byte[]> page = pages.pollFirst();
+            Recycler.V<BytesRef> page = pages.pollFirst();
             return new ReleasableBytesReference(new BytesArray(page.v()), page);
         }
     }
@@ -123,7 +127,7 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
     @Override
     public void close() {
         inflater.end();
-        for (Recycler.V<byte[]> page : pages) {
+        for (Recycler.V<BytesRef> page : pages) {
             page.close();
         }
     }

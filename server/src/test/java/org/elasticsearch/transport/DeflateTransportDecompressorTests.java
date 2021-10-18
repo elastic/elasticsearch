@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -28,7 +29,7 @@ import java.util.function.Supplier;
 
 public class DeflateTransportDecompressorTests extends ESTestCase {
 
-    private final Supplier<Recycler.V<byte[]>> recycler = () -> PageCacheRecycler.NON_RECYCLING_INSTANCE.bytePage(false);
+    private final Supplier<Recycler.V<BytesRef>> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {

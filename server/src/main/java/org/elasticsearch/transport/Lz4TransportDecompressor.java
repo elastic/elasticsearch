@@ -114,12 +114,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
      */
     private int decompressedLength;
 
-    private final Supplier<Recycler.V<byte[]>> recycler;
-    private final ArrayDeque<Recycler.V<byte[]>> pages;
-    private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
+    private final Supplier<Recycler.V<BytesRef>> recycler;
+    private final ArrayDeque<Recycler.V<BytesRef>> pages;
+    private int pageOffset = 0;
+    private int pageLength = 0;
     private boolean hasSkippedESHeader = false;
 
-    public Lz4TransportDecompressor(Supplier<Recycler.V<byte[]>> recycler) {
+    public Lz4TransportDecompressor(Supplier<Recycler.V<BytesRef>> recycler) {
         this.decompressor = Compression.Scheme.lz4Decompressor();
         this.recycler = recycler;
         this.pages = new ArrayDeque<>(4);
@@ -131,15 +132,17 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
             return null;
         } else if (pages.size() == 1) {
             if (isEOS) {
-                Recycler.V<byte[]> page = pages.pollFirst();
-                ReleasableBytesReference reference = new ReleasableBytesReference(new BytesArray(page.v(), 0, pageOffset), page);
+                Recycler.V<BytesRef> page = pages.pollFirst();
+                BytesArray delegate = new BytesArray(page.v().bytes, page.v().offset, pageOffset);
+                ReleasableBytesReference reference = new ReleasableBytesReference(delegate, page);
+                pageLength = 0;
                 pageOffset = 0;
                 return reference;
             } else {
                 return null;
             }
         } else {
-            Recycler.V<byte[]> page = pages.pollFirst();
+            Recycler.V<BytesRef> page = pages.pollFirst();
             return new ReleasableBytesReference(new BytesArray(page.v()), page);
         }
     }
@@ -151,7 +154,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
     @Override
     public void close() {
-        for (Recycler.V<byte[]> page : pages) {
+        for (Recycler.V<BytesRef> page : pages) {
             page.close();
         }
     }
@@ -278,17 +281,18 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         int bytesToCopy = decompressedLength;
                         int uncompressedOffset = 0;
                         while (bytesToCopy > 0) {
-                            final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
+                            final boolean isNewPage = pageOffset == pageLength;
                             if (isNewPage) {
+                                Recycler.V<BytesRef> newPage = recycler.get();
                                 pageOffset = 0;
-                                Recycler.V<byte[]> newPage = recycler.get();
-                                assert newPage.v().length >= PageCacheRecycler.BYTE_PAGE_SIZE;
+                                pageLength = newPage.v().length;
+                                assert newPage.v().length > 0;
                                 pages.add(newPage);
                             }
-                            final Recycler.V<byte[]> page = pages.getLast();
+                            final Recycler.V<BytesRef> page = pages.getLast();
 
-                            int toCopy = Math.min(bytesToCopy, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
-                            System.arraycopy(decompressed, uncompressedOffset, page.v(), pageOffset, toCopy);
+                            int toCopy = Math.min(bytesToCopy, pageLength - pageOffset);
+                            System.arraycopy(decompressed, uncompressedOffset, page.v().bytes, page.v().offset + pageOffset, toCopy);
                             pageOffset += toCopy;
                             bytesToCopy -= toCopy;
                             uncompressedOffset += toCopy;

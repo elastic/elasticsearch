@@ -123,8 +123,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MAX_JOB_BYTES,
             false);
         assertNull(result.getExecutorNode());
-        assertThat(result.getExplanation(), containsString("node is full. Number of opened jobs ["
-            + maxRunningJobsPerNode + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
+        assertThat(result.getExplanation(), containsString(
+            "node is full. Number of opened jobs and allocated native inference processes [" + maxRunningJobsPerNode
+                + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
     }
 
     public void testSelectLeastLoadedMlNodeForDataFrameAnalyticsJob_maxCapacityCountLimiting() {
@@ -153,8 +154,9 @@ public class JobNodeSelectorTests extends ESTestCase {
             MAX_JOB_BYTES,
             false);
         assertNull(result.getExecutorNode());
-        assertThat(result.getExplanation(), containsString("node is full. Number of opened jobs ["
-            + maxRunningJobsPerNode + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
+        assertThat(result.getExplanation(), containsString(
+            "node is full. Number of opened jobs and allocated native inference processes [" + maxRunningJobsPerNode
+                + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
     }
 
     public void testSelectLeastLoadedMlNodeForAnomalyDetectorJob_maxCapacityMemoryLimiting() {

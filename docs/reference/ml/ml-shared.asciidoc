@@ -1003,9 +1003,11 @@ Configures a zero-shot classification task. Zero-shot classification allows for
 text classification to occur without pre-determined labels. At inference time,
 it is possible to adjust the labels to classify. This makes this type of model
 and task exceptionally flexible.
-
++
+--
 If consistently classifying the same labels, it may be better to use a fine turned
 text classification model.
+--
 end::inference-config-zero-shot-classification[]
 
 tag::inference-config-zero-shot-classification-classification-labels[]

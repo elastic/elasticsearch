@@ -6,7 +6,7 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.The `use_ingest` setting on Monitoring exporter configurations has been removed.
+.The `use_ingest` setting on Monitoring exporter configurations is deprecated.
 [%collapsible]
 ====
 *Details* +
@@ -19,7 +19,7 @@ be removed in a future release.
 Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.
 ====
 
-.The `index.pipeline.master_timeout` setting on Monitoring HTTP exporter configurations has been removed.
+.The `index.pipeline.master_timeout` setting on Monitoring HTTP exporter configurations is deprecated.
 [%collapsible]
 ====
 *Details* +
@@ -32,7 +32,7 @@ had no function and are no longer created. This setting will be removed in a fut
 Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting.
 ====
 
-.The `index.template.create_legacy_templates` setting on Monitoring HTTP exporter configurations has been removed.
+.The `index.template.create_legacy_templates` setting on Monitoring HTTP exporter configurations is deprecated.
 [%collapsible]
 ====
 *Details* +

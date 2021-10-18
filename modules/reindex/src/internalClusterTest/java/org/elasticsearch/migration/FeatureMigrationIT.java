@@ -8,6 +8,7 @@
 
 package org.elasticsearch.migration;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
@@ -86,6 +87,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
         ensureGreen();
 
+        SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
         preMigrationHook.set(clusterState -> {
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("stringKey", "stringValue");
@@ -97,9 +99,11 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 metadata.put("mapKey", innerMetadata);
             }
             metadata.put("listKey", Arrays.asList(1, 2, 3, 4));
+            preUpgradeHookCalled.set(true);
             return metadata;
         });
 
+        SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
         postMigrationHook.set((clusterState, metadata) -> {
             assertThat(
                 metadata,
@@ -111,6 +115,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             @SuppressWarnings("unchecked")
             Map<String, Object> innerMap = (Map<String, Object>) metadata.get("mapKey");
             assertThat(innerMap, hasEntry("innerKey", "innerValue"));
+            postUpgradeHookCalled.set(true);
         });
 
         PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
@@ -130,6 +135,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             logger.info(Strings.toString(statusResponse));
             assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED));
         });
+
+        assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
+        assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
         Metadata finalMetadata = client().admin().cluster().prepareState().get().getState().metadata();
         assertIndexHasCorrectProperties(finalMetadata, ".int-man-old-reindexed-for-8", INTERNAL_MANAGED_FLAG_VALUE, true, true);

@@ -1758,7 +1758,8 @@ public class IngestServiceTests extends ESTestCase {
 
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
         String updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
-        PutPipelineRequest request = new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        PutPipelineRequest request =
+            new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
         ClusterState updatedState = IngestService.innerPut(request, clusterState);
 
         PipelineConfiguration updatedConfig =

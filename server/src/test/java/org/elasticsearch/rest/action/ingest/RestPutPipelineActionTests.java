@@ -101,7 +101,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         boolean wasInvoked = false;
         final Integer expectedVersion;
 
-        public RequestVerifier(Integer expectedVersion) {
+        RequestVerifier(Integer expectedVersion) {
             this.expectedVersion = expectedVersion;
         }
 

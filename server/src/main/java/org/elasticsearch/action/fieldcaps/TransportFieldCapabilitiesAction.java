@@ -71,7 +71,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
-         transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.SEARCH_COORDINATION,
+        transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.SEARCH_COORDINATION,
             FieldCapabilitiesNodeRequest::new, new NodeTransportHandler());
     }
 

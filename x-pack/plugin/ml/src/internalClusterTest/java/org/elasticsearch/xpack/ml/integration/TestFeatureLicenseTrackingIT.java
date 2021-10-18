@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.ML_FEATURE_FAMILY;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_FEATURE_FAMILY;
 import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildClassification;
 import static org.elasticsearch.xpack.ml.integration.ModelInferenceActionIT.buildTrainedModelConfigBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;

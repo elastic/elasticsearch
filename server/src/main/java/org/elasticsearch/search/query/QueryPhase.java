@@ -286,16 +286,6 @@ public class QueryPhase {
         // For sort optimization SortField.Type must match with the type of indexed points (Type.LONG and LongPoint)
         // Some fields there is no match (e.g. integer field uses SortField.Type.LONG, but indexed as IntegerPoint)
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldMapper.DateFieldType == false)) return;
-
-        // TODO: Enable the sort optimization with point for search_after and scroll requests when LUCENE-10119 is integrated.
-        if (searchContext.sort() != null && searchContext.sort().sort.getSort().length == 1) {
-            if (searchContext.searchAfter() != null) {
-                return;
-            }
-            if (searchContext.scrollContext() != null && searchContext.scrollContext().lastEmittedDoc != null) {
-                return;
-            }
-        }
         sortField.setCanUsePoints();
     }
 

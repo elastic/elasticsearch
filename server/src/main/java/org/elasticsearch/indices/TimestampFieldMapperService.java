@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -83,12 +84,16 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final Metadata metadata = event.state().metadata();
+        final ImmutableOpenMap<String, IndexMetadata> indices = metadata.indices();
+        if (indices == event.previousState().metadata().indices()) {
+            return;
+        }
 
         // clear out mappers for indices that no longer exist or whose timestamp range is no longer known
         fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.index(index)) == false);
 
         // capture mappers for indices that do exist
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        for (IndexMetadata indexMetadata : indices.values()) {
             final Index index = indexMetadata.getIndex();
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {

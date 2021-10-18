@@ -40,6 +40,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.SKIP_DEPRECATIONS_SETTING;
 
 /**
  * The plugin class for the Deprecation API
@@ -48,7 +49,7 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
     public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
         "cluster.deprecation_indexing.enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -98,12 +99,12 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
         final RateLimitingFilter rateLimitingFilterForIndexing = new RateLimitingFilter();
         // enable on start.
-        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.getDefault(environment.settings()));
+        rateLimitingFilterForIndexing.setUseXOpaqueId(USE_X_OPAQUE_ID_IN_FILTERING.get(environment.settings()));
 
         final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client,
             environment.settings(),
             rateLimitingFilterForIndexing,
-            WRITE_DEPRECATION_LOGS_TO_INDEX.getDefault(environment.settings()) //pass the default on startup
+            WRITE_DEPRECATION_LOGS_TO_INDEX.get(environment.settings()) //pass the default on startup
         );
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING,
@@ -116,6 +117,9 @@ public class Deprecation extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(USE_X_OPAQUE_ID_IN_FILTERING, WRITE_DEPRECATION_LOGS_TO_INDEX);
+        return List.of(
+            USE_X_OPAQUE_ID_IN_FILTERING,
+            WRITE_DEPRECATION_LOGS_TO_INDEX,
+            SKIP_DEPRECATIONS_SETTING);
     }
 }

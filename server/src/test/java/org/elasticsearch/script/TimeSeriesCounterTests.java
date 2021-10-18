@@ -194,10 +194,38 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(1, ts.count(now, totalDuration));
     }
 
+    public void testSumFuture() {
+        ts.inc(now);
+        assertEquals(0, ts.count(now + (3 * TWENTY_FOUR), TWENTY_FOUR));
+    }
+
+    public void testSumPast() {
+        ts.inc(now);
+        assertEquals(0, ts.count(now - (2 * TWENTY_FOUR), TWENTY_FOUR));
+    }
+
     public void testNegativeConstructor() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
             () -> new TimeSeriesCounter(-1L, -2L, -3L, t));
         assertEquals("totalDuration [-1], lowSecPerEpoch [-2], highSecPerEpoch[-3] must be greater than zero", err.getMessage());
+    }
+
+    public void testHighEpochTooSmallConstructor() {
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
+            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, FIFTEEN + 1, t));
+        assertEquals("highSecPerEpoch [" + (FIFTEEN + 1) + "] must be less than lowSecPerEpoch [" + FIFTEEN + "]", err.getMessage());
+    }
+
+    public void testDurationNotDivisibleByLow() {
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
+            () -> new TimeSeriesCounter(TWENTY_FOUR, 25 * MINUTE, FIVE, t));
+        assertEquals("totalDuration [" + TWENTY_FOUR + "] must be divisible by lowSecPerEpoch [" + (25 * MINUTE) + "]", err.getMessage());
+    }
+
+    public void testLowDivisibleByHigh() {
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
+            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, 10 * MINUTE, t));
+        assertEquals("lowSecPerEpoch [" + FIFTEEN + "] must be divisible by highSecPerEpoch [" + (10 * MINUTE) + "]", err.getMessage());
     }
 
     void inc() {

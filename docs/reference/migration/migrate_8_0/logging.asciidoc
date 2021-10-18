@@ -23,4 +23,20 @@ Previously, {es}'s JSON logs used a custom schema.
 If your application parses {es}'s JSON logs, update it to support the new ECS
 format.
 ====
+
+
+.{es} plaintext logs (except server) are removed
+[%collapsible]
+====
+*Details* +
+{es} no longer emits plaintext search slow logs, indexing slow logs and deprecation logs.
+All of these are available in JSON format.
+
+Server logs are available in both JSON and plaintext format.
+
+*Impact* +
+If your application parses {es}'s plaintext logs, update it to support the new ECS
+JSON logs.
+====
+
 // end::notable-breaking-changes[]

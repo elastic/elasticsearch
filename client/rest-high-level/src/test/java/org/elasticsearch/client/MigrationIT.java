@@ -41,7 +41,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         List<DeprecationInfoResponse.DeprecationIssue> nodeSettingsIssues = response.getNodeSettingsIssues();
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             nodeSettingsIssues = nodeSettingsIssues.stream()
-                .filter(each -> each.getMessage().equals("Java 11 is required") == false)
+                .filter(each -> each.getMessage().equals("Java 11 is required in 8.0") == false)
                 .collect(Collectors.toList());
         }
 

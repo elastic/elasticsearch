@@ -43,10 +43,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -60,6 +57,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
@@ -88,8 +88,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1670,6 +1670,125 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(consumer.getExecutionCount(), equalTo(0L));
         assertThat(listener.getSuccessCount(), equalTo(1L));
         assertThat(listener.getFailureCount(), equalTo(0L));
+    }
+
+    public void testPutPipelineWithVersionedUpdateWithoutExistingPipeline() throws Exception {
+        String pipelineId = randomAlphaOfLength(5);
+        ClusterState clusterState = ClusterState.EMPTY_STATE;
+
+        final Integer version = randomInt();
+        String pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        PutPipelineRequest request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
+                version,
+                pipelineId
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateDoesNotMatchExistingPipeline() {
+        String pipelineId = randomAlphaOfLength(5);
+        final Integer version = randomInt();
+        String pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        PipelineConfiguration existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(org.elasticsearch.core.Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        final Integer requestedVersion = randomValueOtherThan(version, ESTestCase::randomInt);
+        PutPipelineRequest request =
+            new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, requestedVersion);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
+                requestedVersion,
+                pipelineId,
+                version
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateSpecifiesSameVersion() throws Exception {
+        String pipelineId = randomAlphaOfLength(5);
+        final Integer version = randomInt();
+        String pipelineString = "{\"version\": " + version + ", \"processors\": []}";
+        PipelineConfiguration existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(org.elasticsearch.core.Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        PutPipelineRequest request = new PutPipelineRequest(pipelineId, new BytesArray(pipelineString), XContentType.JSON, version);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IngestService.innerPut(request, clusterState));
+        assertThat(
+            e.getMessage(),
+            equalTo(String.format(
+                Locale.ROOT,
+                "cannot update pipeline [%s] with the same version [%s]",
+                pipelineId,
+                version
+            ))
+        );
+    }
+
+    public void testPutPipelineWithVersionedUpdateSpecifiesValidVersion() throws Exception {
+        String pipelineId = randomAlphaOfLength(5);
+        final Integer existingVersion = randomInt();
+        String pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
+        PipelineConfiguration existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(org.elasticsearch.core.Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
+        String updatedPipelineString = "{\"version\": " + specifiedVersion + ", \"processors\": []}";
+        PutPipelineRequest request =
+            new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        ClusterState updatedState = IngestService.innerPut(request, clusterState);
+
+        PipelineConfiguration updatedConfig =
+            ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        assertThat(updatedConfig, notNullValue());
+        assertThat(updatedConfig.getVersion(), equalTo(specifiedVersion));
+    }
+
+    public void testPutPipelineWithVersionedUpdateIncrementsVersion() throws Exception {
+        String pipelineId = randomAlphaOfLength(5);
+        final Integer existingVersion = randomInt();
+        String pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
+        PipelineConfiguration existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().putCustom(
+                    IngestMetadata.TYPE,
+                    new IngestMetadata(org.elasticsearch.core.Map.of(pipelineId, existingPipeline))
+                ).build()
+            ).build();
+
+        String updatedPipelineString = "{\"processors\": []}";
+        PutPipelineRequest request =
+            new PutPipelineRequest(pipelineId, new BytesArray(updatedPipelineString), XContentType.JSON, existingVersion);
+        ClusterState updatedState = IngestService.innerPut(request, clusterState);
+
+        PipelineConfiguration updatedConfig =
+            ((IngestMetadata) updatedState.metadata().custom(IngestMetadata.TYPE)).getPipelines().get(pipelineId);
+        assertThat(updatedConfig, notNullValue());
+        assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
     }
 
     private static Tuple<String, Object> randomMapEntry() {

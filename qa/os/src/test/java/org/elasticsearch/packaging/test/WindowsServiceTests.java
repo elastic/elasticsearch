@@ -84,6 +84,17 @@ public class WindowsServiceTests extends PackagingTestCase {
                     + "}"
             );
             logger.error(logs.stdout);
+            Result deprecationLogs = sh.run(
+                "$files = Get-ChildItem \""
+                    + installation.logs
+                    + "\\elasticsearch_deprecation.json\"; "
+                    + "Write-Output $files; "
+                    + "foreach ($file in $files) {"
+                    + "    Write-Output \"$file\"; "
+                    + "    Get-Content \"$file\" "
+                    + "}"
+            );
+            logger.error(deprecationLogs.stdout);
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout + "\nstderr: " + result.stderr);

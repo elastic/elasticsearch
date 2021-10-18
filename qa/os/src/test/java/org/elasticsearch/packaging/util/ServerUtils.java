@@ -226,12 +226,12 @@ public class ServerUtils {
 
     public static void runElasticsearchTests() throws Exception {
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/1?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON)
         );
 
         makeRequest(
-            Request.Post("http://localhost:9200/library/book/2?refresh=true&pretty")
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON)
         );
 
@@ -264,6 +264,12 @@ public class ServerUtils {
                 Files.write(yml, yaml, CREATE, APPEND);
             }
         }
+    }
+
+    public static void disableDeprecationLogIndexing(Installation installation) throws IOException {
+        List<String> yaml = Collections.singletonList("cluster.deprecation_indexing.enabled: false");
+        Path yml = installation.config("elasticsearch.yml");
+        Files.write(yml, yaml, CREATE, APPEND);
     }
 
     public static void enableGeoIpDownloader(Installation installation) throws IOException {

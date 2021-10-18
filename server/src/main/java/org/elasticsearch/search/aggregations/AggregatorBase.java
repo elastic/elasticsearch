@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
 import org.elasticsearch.search.aggregations.metrics.SumAggregator;
@@ -39,7 +38,6 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    protected final DocCountProvider docCountProvider;
     private final AggregationContext context;
     private final Map<String, Object> metadata;
 
@@ -104,7 +102,6 @@ public abstract class AggregatorBase extends Aggregator {
             }
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
-        docCountProvider = new DocCountProvider();
     }
 
     /**
@@ -223,10 +220,7 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementations that like the perform an operation before the leaf collectors
      * of children aggregators are instantiated for the next segment.
      */
-    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
-        // Set LeafReaderContext to the doc_count provider
-        docCountProvider.setLeafReaderContext(ctx);
-    }
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {}
 
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.

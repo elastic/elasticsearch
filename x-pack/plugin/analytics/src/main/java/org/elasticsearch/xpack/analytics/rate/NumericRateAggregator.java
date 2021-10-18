@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -22,6 +23,9 @@ import java.io.IOException;
 import java.util.Map;
 
 public class NumericRateAggregator extends AbstractRateAggregator {
+
+    private final DocCountProvider docCountProvider;
+
     public NumericRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
@@ -32,12 +36,17 @@ public class NumericRateAggregator extends AbstractRateAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, valuesSourceConfig, rateUnit, rateMode, context, parent, metadata);
+        docCountProvider = new DocCountProvider();
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
+        if (computeRateOnDocs) {
+            docCountProvider.setLeafReaderContext(ctx);
+        }
+
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

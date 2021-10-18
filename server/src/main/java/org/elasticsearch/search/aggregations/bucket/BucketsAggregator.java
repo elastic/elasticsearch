@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -39,6 +40,7 @@ import java.util.function.ToLongFunction;
 public abstract class BucketsAggregator extends AggregatorBase {
     private final IntConsumer multiBucketConsumer;
     private LongArray docCounts;
+    protected final DocCountProvider docCountProvider;
 
     public BucketsAggregator(
         String name,
@@ -51,6 +53,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         super(name, factories, context, parent, bucketCardinality, metadata);
         multiBucketConsumer = context.multiBucketConsumer();
         docCounts = bigArrays().newLongArray(1, true);
+        docCountProvider = new DocCountProvider();
     }
 
     /**
@@ -414,5 +417,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
             parent = parent.parent();
         }
         return false;
+    }
+
+    @Override
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
+        // Set LeafReaderContext to the doc_count provider
+        docCountProvider.setLeafReaderContext(ctx);
     }
 }

@@ -45,6 +45,12 @@ setup:
         body:
           - '{"index": {}}'
           - '{"timestamp": "2021-09-14T22:33:37.477Z", "_doc_count": 10}'
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:35:37.477Z", "_doc_count": 5}'
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:35:38.477Z", "_doc_count": 1}'
+          - '{"index": {}}'
+          - '{"timestamp": "2021-09-14T22:36:08.477Z"}'
   - do:
       search:
         size: 0
@@ -60,5 +66,9 @@ setup:
                   rate:
                     unit: minute
 
-  - length: { aggregations.by_date.buckets: 1 }
+  - length: { aggregations.by_date.buckets: 4 }
   - match: { aggregations.by_date.buckets.0.rate.value: 10.0 }
+  - match: { aggregations.by_date.buckets.1.rate.value: 0.0 }
+  - match: { aggregations.by_date.buckets.2.rate.value: 6.0 }
+  - match: { aggregations.by_date.buckets.3.rate.value: 1.0 }
+

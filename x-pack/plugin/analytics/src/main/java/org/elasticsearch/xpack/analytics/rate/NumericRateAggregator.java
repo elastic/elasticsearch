@@ -13,7 +13,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,10 +38,6 @@ public class NumericRateAggregator extends AbstractRateAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
-        final DocCountProvider docCountProvider = new DocCountProvider();
-        // Set LeafReaderContext to the doc_count provider
-        docCountProvider.setLeafReaderContext(ctx);
-
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -55,7 +50,8 @@ public class NumericRateAggregator extends AbstractRateAggregator {
                 kahanSummation.reset(sum, compensation);
 
                 if (computeRateOnDocs) {
-                    kahanSummation.add(docCountProvider.getDocCount(doc));
+                    final int docCount = docCountProvider.getDocCount(doc);
+                    kahanSummation.add(docCount);
                 } else if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
 

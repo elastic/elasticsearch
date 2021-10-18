@@ -59,7 +59,7 @@ public class HotThreads {
 
     // NOTE: these are JVM dependent and JVM version dependent
     private static final List<String> knownJDKInternalThreads = Arrays.asList(
-        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper"
+        "Signal Dispatcher", "Finalizer", "Reference Handler", "Notification Thread", "Common-Cleaner", "process reaper", "DestroyJavaVM"
     );
 
     public enum ReportType {
@@ -212,13 +212,11 @@ public class HotThreads {
         return result;
     }
 
-    private void setThreadWaitBlockTimeMonitoringEnabled(ThreadMXBean threadBean, boolean enabled) {
+    private boolean isThreadWaitBlockTimeMonitoringEnabled(ThreadMXBean threadBean) {
         if (threadBean.isThreadContentionMonitoringSupported()) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadBean.setThreadContentionMonitoringEnabled(enabled);
-                return null;
-            });
+            return threadBean.isThreadContentionMonitoringEnabled();
         }
+        return false;
     }
 
     private double getTimeSharePercentage(long time) {
@@ -245,59 +243,62 @@ public class HotThreads {
             .append(ignoreIdleThreads)
             .append(":\n");
 
-        // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times
-        setThreadWaitBlockTimeMonitoringEnabled(threadBean, true);
-        try {
-            // We need to sleep a bit to let the JVM register correctly that we have enabled
-            // thread lock monitoring
-            Thread.sleep(500);
-        } catch (InterruptedException ignore) {}
+        // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times. If we weren't
+        // able to enable this functionality during bootstrap, we should default to the legacy sort by CPU time.
+        if (isThreadWaitBlockTimeMonitoringEnabled(threadBean) == false) {
+            sortOder = SortOrder.LEGACY;
+        }
 
-        try {
-            // Capture before and after thread state with timings
-            Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
-            Thread.sleep(interval.millis());
-            Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
+        // Capture before and after thread state with timings
+        Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
+        Thread.sleep(interval.millis());
+        Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
-            latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
+        latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
 
-            // Sort by delta CPU time on thread.
-            List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
+        // Sort by delta CPU time on thread.
+        List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
 
-            ToLongFunction<HotThreads.ThreadTimeAccumulator> sortFunction = (sortOder == SortOrder.DEFAULT) ?
-                ThreadTimeAccumulator.sortFuncForReportType(type) : ThreadTimeAccumulator.valueGetterForReportType(type);
+        if (type == ReportType.CPU && sortOder == SortOrder.DEFAULT)  {
+            CollectionUtil.introSort(topThreads,
+                Comparator.comparingLong(ThreadTimeAccumulator::getRunnableTime)
+                    .thenComparingLong(ThreadTimeAccumulator.valueGetterForReportType(type)).reversed());
+        } else {
+            CollectionUtil.introSort(topThreads,
+                Comparator.comparingLong(ThreadTimeAccumulator.valueGetterForReportType(type)).reversed());
+        }
 
-            CollectionUtil.introSort(topThreads, Comparator.comparingLong(sortFunction).reversed());
-            topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
-            long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
+        topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
+        long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
 
-            // analyse N stack traces for the top threads
-            ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreadIds);
+        // analyse N stack traces for the top threads
+        ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreadIds);
 
-            for (int t = 0; t < topThreads.size(); t++) {
-                String threadName = null;
-                for (ThreadInfo[] info : allInfos) {
-                    if (info != null && info[t] != null) {
-                        if (ignoreIdleThreads && isIdleThread(info[t])) {
-                            info[t] = null;
-                            continue;
-                        }
-                        threadName = info[t].getThreadName();
-                        break;
+        for (int t = 0; t < topThreads.size(); t++) {
+            String threadName = null;
+            for (ThreadInfo[] info : allInfos) {
+                if (info != null && info[t] != null) {
+                    if (ignoreIdleThreads && isIdleThread(info[t])) {
+                        info[t] = null;
+                        continue;
                     }
+                    threadName = info[t].getThreadName();
+                    break;
                 }
-                if (threadName == null) {
-                    continue; // thread is not alive yet or died before the first snapshot - ignore it!
-                }
+            }
+            if (threadName == null) {
+                continue; // thread is not alive yet or died before the first snapshot - ignore it!
+            }
 
-                ThreadTimeAccumulator topThread = topThreads.get(t);
+            ThreadTimeAccumulator topThread = topThreads.get(t);
 
-                switch (type) {
-                    case MEM:
-                        sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
-                            new ByteSizeValue(topThread.getAllocatedBytes()), threadName));
-                        break;
-                    case CPU:
+            switch (type) {
+                case MEM:
+                    sb.append(String.format(Locale.ROOT, "%n%s memory allocated by thread '%s'%n",
+                        new ByteSizeValue(topThread.getAllocatedBytes()), threadName));
+                    break;
+                case CPU:
+                    if (isThreadWaitBlockTimeMonitoringEnabled(threadBean)) {
                         long runnableTime = topThread.getRunnableTime();
                         double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
                         double percentOther = getTimeSharePercentage(topThread.getOtherTime());
@@ -305,61 +306,64 @@ public class HotThreads {
                             "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
                             percentOther + percentCpu, percentCpu, percentOther,
                             TimeValue.timeValueNanos(runnableTime), interval, type.getTypeValue(), threadName));
-                        break;
-                    default:
+                    } else {
                         long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
                         double percent = getTimeSharePercentage(time);
                         sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
                             percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
-                        break;
-                }
+                    }
+                    break;
+                default:
+                    long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
+                    double percent = getTimeSharePercentage(time);
+                    sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                        percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
+                    break;
+            }
 
-                // for each snapshot (2nd array index) find later snapshot for same thread with max number of
-                // identical StackTraceElements (starting from end of each)
-                boolean[] done = new boolean[threadElementsSnapshotCount];
-                for (int i = 0; i < threadElementsSnapshotCount; i++) {
-                    if (done[i]) continue;
-                    int maxSim = 1;
-                    boolean[] similars = new boolean[threadElementsSnapshotCount];
-                    for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
-                        if (done[j]) continue;
-                        int similarity = similarity(allInfos[i][t], allInfos[j][t]);
-                        if (similarity > maxSim) {
-                            maxSim = similarity;
-                            similars = new boolean[threadElementsSnapshotCount];
-                        }
-                        if (similarity == maxSim) similars[j] = true;
+            // for each snapshot (2nd array index) find later snapshot for same thread with max number of
+            // identical StackTraceElements (starting from end of each)
+            boolean[] done = new boolean[threadElementsSnapshotCount];
+            for (int i = 0; i < threadElementsSnapshotCount; i++) {
+                if (done[i]) continue;
+                int maxSim = 1;
+                boolean[] similars = new boolean[threadElementsSnapshotCount];
+                for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
+                    if (done[j]) continue;
+                    int similarity = similarity(allInfos[i][t], allInfos[j][t]);
+                    if (similarity > maxSim) {
+                        maxSim = similarity;
+                        similars = new boolean[threadElementsSnapshotCount];
                     }
-                    // print out trace maxSim levels of i, and mark similar ones as done
-                    int count = 1;
-                    for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
-                        if (similars[j]) {
-                            done[j] = true;
-                            count++;
-                        }
+                    if (similarity == maxSim) similars[j] = true;
+                }
+                // print out trace maxSim levels of i, and mark similar ones as done
+                int count = 1;
+                for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
+                    if (similars[j]) {
+                        done[j] = true;
+                        count++;
                     }
-                    if (allInfos[i][t] != null) {
-                        final StackTraceElement[] show = allInfos[i][t].getStackTrace();
-                        if (count == 1) {
-                            sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
-                            for (StackTraceElement frame : show) {
-                                sb.append(String.format(Locale.ROOT, "    %s%n", frame));
-                            }
-                        } else {
-                            sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",
-                                count, threadElementsSnapshotCount, maxSim));
-                            for (int l = show.length - maxSim; l < show.length; l++) {
-                                sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
-                            }
+                }
+                if (allInfos[i][t] != null) {
+                    final StackTraceElement[] show = allInfos[i][t].getStackTrace();
+                    if (count == 1) {
+                        sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
+                        for (StackTraceElement frame : show) {
+                            sb.append(String.format(Locale.ROOT, "    %s%n", frame));
+                        }
+                    } else {
+                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n",
+                            count, threadElementsSnapshotCount, maxSim));
+                        for (int l = show.length - maxSim; l < show.length; l++) {
+                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }
                     }
                 }
             }
-
-            return sb.toString();
-        } finally {
-            setThreadWaitBlockTimeMonitoringEnabled(threadBean, false);
         }
+
+        return sb.toString();
     }
 
     int similarity(ThreadInfo threadInfo, ThreadInfo threadInfo0) {
@@ -465,15 +469,6 @@ public class HotThreads {
                     return ThreadTimeAccumulator::getAllocatedBytes;
             }
             throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
-        }
-
-        static ToLongFunction<ThreadTimeAccumulator> sortFuncForReportType(ReportType type) {
-            switch (type) {
-                case CPU:
-                    return ThreadTimeAccumulator::getRunnableTime;
-                default:
-                    return valueGetterForReportType(type);
-            }
         }
     }
 }

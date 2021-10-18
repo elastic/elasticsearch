@@ -42,6 +42,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.management.ManagementFactory;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -158,6 +159,18 @@ final class Bootstrap {
         JvmInfo.jvmInfo();
     }
 
+    static void initializeRuntimeMonitoring() {
+        if (ManagementFactory.getThreadMXBean().isThreadContentionMonitoringSupported() == false) {
+            LogManager.getLogger(Bootstrap.class).info("Thread wait/blocked time accounting not supported.");
+        } else {
+            try {
+                ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
+            } catch (UnsupportedOperationException monitoringUnavailable) {
+                LogManager.getLogger(Bootstrap.class).warn("Thread wait/blocked time accounting cannot be enabled.");
+            }
+        }
+    }
+
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
 
@@ -175,6 +188,9 @@ final class Bootstrap {
 
         // initialize probes before the security manager is installed
         initializeProbes();
+
+        // initialize monitoring in the JVM runtime, helps with thread wait/blocked time accounting
+        initializeRuntimeMonitoring();
 
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {

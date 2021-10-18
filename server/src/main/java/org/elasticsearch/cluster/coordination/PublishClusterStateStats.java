@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,12 +46,7 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
         fullClusterStateReceivedCount = in.readVLong();
         incompatibleClusterStateDiffReceivedCount = in.readVLong();
         compatibleClusterStateDiffReceivedCount = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            clusterStateSerializationStats = new ClusterStateSerializationStats(in);
-        } else {
-            // else just report zeroes in bwc situations
-            clusterStateSerializationStats = ClusterStateSerializationStats.EMPTY;
-        }
+        clusterStateSerializationStats = new ClusterStateSerializationStats(in);
     }
 
     @Override
@@ -60,9 +54,7 @@ public class PublishClusterStateStats implements Writeable, ToXContentObject {
         out.writeVLong(fullClusterStateReceivedCount);
         out.writeVLong(incompatibleClusterStateDiffReceivedCount);
         out.writeVLong(compatibleClusterStateDiffReceivedCount);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            clusterStateSerializationStats.writeTo(out);
-        } // else just drop these stats in bwc situations
+        clusterStateSerializationStats.writeTo(out);
     }
 
     @Override

@@ -879,8 +879,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             context.setTask(task);
 
-            // pre process
-            queryPhase.preProcess(context);
+            context.preProcess();
         } catch (Exception e) {
             context.close();
             throw e;
@@ -1095,7 +1094,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                  * the filter for nested documents or slicing so we have to
                  * delay reading it until the aggs ask for it.
                  */
-                () -> context.query() == null ? new MatchAllDocsQuery() : context.query(),
+                () -> context.rewrittenQuery() == null ? new MatchAllDocsQuery() : context.rewrittenQuery(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
                 multiBucketConsumerService.create(),
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),

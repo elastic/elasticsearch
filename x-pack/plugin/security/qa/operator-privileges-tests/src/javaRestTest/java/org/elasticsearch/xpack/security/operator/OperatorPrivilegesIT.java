@@ -70,7 +70,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
         assertThat(
             responseException.getMessage(),
-            containsString("granted by the cluster privileges [manage,all] and operator privileges")
+            containsString("because it requires operator privileges")
         );
     }
 

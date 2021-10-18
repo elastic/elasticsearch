@@ -69,19 +69,16 @@ public class FileOperatorUsersStore {
         // If not null, it will be compared exactly as well.
         // The special handling for realm name is because there can only be one file or native realm and it does
         // not matter what the name is.
-        final boolean userIsOperator = operatorUsersDescriptor.groups.stream().anyMatch(group -> {
+        return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
             final Authentication.RealmRef realm = authentication.getSourceRealm();
             final boolean match = group.usernames.contains(authentication.getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()));
-            logger.trace("Matching user [{}] against operator rule [{}] is [{}]", authentication, group, match);
-            return match; 
+            logger.trace("Matching user [{}] against operator rule [{}] is [{}]",
+                authentication.getUser(), group, match);
+            return match;
         });
-        if (false == userIsOperator) {
-            logger.trace("User [{}] is not an operator", authentication.getUser());
-        }
-        return userIsOperator;
     }
 
     // Package private for tests

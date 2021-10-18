@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -332,6 +333,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+                if (node.getVersion().onOrAfter("7.16.0")) {
+                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
+                }
+            }
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
                 commonNodeConfig(node, nodeNames, firstNode);
@@ -403,6 +409,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
         // We need to translate these settings there as there's no support to do per version config for testclusters yet
+
+        if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+            if (node.getVersion().onOrAfter("7.16.0")) {
+                node.settings.put("cluster.deprecation_indexing.enabled", "false");
+            }
+        }
+
         if (node.getVersion().onOrAfter("7.0.0")) {
             if (node.settings.containsKey("xpack.security.authc.realms.file1.type")) {
                 node.settings.remove("xpack.security.authc.realms.file1.type");

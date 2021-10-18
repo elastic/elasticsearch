@@ -724,7 +724,11 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchRequest initSearchRequest() {
         List<String> indices = Arrays.asList(INDEX_NAME, "my_remote_cluster:" + INDEX_NAME);
         Collections.shuffle(indices, random());
-        return new SearchRequest(indices.toArray(new String[0]));
+        final SearchRequest request = new SearchRequest(indices.toArray(new String[0]));
+        if (randomBoolean()) {
+            request.setPreFilterShardSize(between(1, 20));
+        }
+        return request;
     }
 
     private static void duelSearch(SearchRequest searchRequest, Consumer<SearchResponse> responseChecker) throws Exception {

@@ -8,6 +8,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
@@ -43,8 +44,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -98,6 +97,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -1409,13 +1410,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         client().clearScroll(clearScrollRequest);
     }
 
-    public void testWaitOnRefresh() throws Exception {
+    public void testWaitOnRefresh() {
         createIndex("index");
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueSeconds(30));
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] {0}));
 
         final IndexResponse response = client().prepareIndex("index", "_doc").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
@@ -1423,19 +1426,21 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0, TimeValue.timeValueSeconds(30));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null);
         service.executeQueryPhase(request, task, future);
         SearchPhaseResult searchPhaseResult = future.actionGet();
         assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
     }
 
-    public void testWaitOnRefreshFailsWithRefreshesDisabled() throws Exception {
+    public void testWaitOnRefreshFailsWithRefreshesDisabled() {
         createIndex("index", Settings.builder().put("index.refresh_interval", "-1").build());
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueSeconds(30));
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] {0}));
 
         final IndexResponse response = client().prepareIndex("index", "_doc").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
@@ -1443,20 +1448,22 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0, TimeValue.timeValueSeconds(30));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null);
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(illegalArgumentException.getMessage(),
             containsString("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]"));
     }
 
-    public void testWaitOnRefreshFailsIfCheckpointNotIndexed() throws Exception {
+    public void testWaitOnRefreshFailsIfCheckpointNotIndexed() {
         createIndex("index");
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueMillis(randomIntBetween(10, 100)));
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] {1}));
 
         final IndexResponse response = client().prepareIndex("index", "_doc").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
@@ -1464,8 +1471,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 1,
-            TimeValue.timeValueMillis(randomIntBetween(10, 100)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null);
         service.executeQueryPhase(request, task, future);
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -1473,13 +1479,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             containsString("Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint=1, max_issued_seqNo=0]"));
     }
 
-    public void testWaitOnRefreshTimeout() throws Exception {
+    public void testWaitOnRefreshTimeout() {
         createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueMillis(randomIntBetween(10, 100)));
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] {0}));
 
         final IndexResponse response = client().prepareIndex("index", "_doc").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
@@ -1487,8 +1495,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0,
-            TimeValue.timeValueMillis(randomIntBetween(10, 100)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null);
         service.executeQueryPhase(request, task, future);
 
         ElasticsearchTimeoutException ex = expectThrows(ElasticsearchTimeoutException.class, future::actionGet);

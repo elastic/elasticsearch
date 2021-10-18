@@ -73,7 +73,7 @@ public class OperatorPrivileges {
                 return;
             }
             // An operator user must not be a run_as user, it also must be recognised by the operatorUserStore
-            if (authentication.getUser().isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
+            if (false == authentication.getUser().isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
                 logger.debug("Marking user [{}] as an operator", authentication.getUser());
                 threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
             }

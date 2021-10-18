@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.fusesource.jansi.AnsiPrintStream;
 import org.fusesource.jansi.AnsiType;
 
-import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -36,6 +35,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
+import static org.fusesource.jansi.Ansi.ansi;
 
 public class InitialSecurityConfigurationListener implements BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
 
@@ -121,7 +121,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         }
     }
 
-    private void outputInformationToConsole(String elasticPassword, String enrollmentToken, String caCertFingerprint, PrintStream out) {
+    private void outputInformationToConsole(String elasticPassword, String enrollmentToken, String caCertFingerprint, AnsiPrintStream out) {
         StringBuilder builder = new StringBuilder();
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
@@ -172,7 +172,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         builder.append("-----------------------------------------------------------------");
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
-        out.println(builder);
+        out.println(ansi().bold().a(builder.toString()).boldOff().toString());
     }
 
     private void outputOnError(@Nullable Exception e) {

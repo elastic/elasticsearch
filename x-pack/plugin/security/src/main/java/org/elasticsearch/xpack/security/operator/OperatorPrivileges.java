@@ -72,11 +72,8 @@ public class OperatorPrivileges {
             if (User.isInternal(authentication.getUser())) {
                 return;
             }
-            // Do not support run_as operator user, checking will fail later if this action requires operator privilege
-            if (authentication.getUser().isRunAs()) {
-                return;
-            }
-            if (fileOperatorUsersStore.isOperatorUser(authentication)) {
+            // An operator user must not be a run_as user, it also must be recognised by the operatorUserStore
+            if (authentication.getUser().isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
                 logger.debug("Marking user [{}] as an operator", authentication.getUser());
                 threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
             }

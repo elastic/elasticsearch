@@ -69,13 +69,17 @@ public class FileOperatorUsersStore {
         // If not null, it will be compared exactly as well.
         // The special handling for realm name is because there can only be one file or native realm and it does
         // not matter what the name is.
-        return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
+        final boolean userIsOperator = operatorUsersDescriptor.groups.stream().anyMatch(group -> {
             final Authentication.RealmRef realm = authentication.getSourceRealm();
             return group.usernames.contains(authentication.getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()));
         });
+        if (false == userIsOperator) {
+            logger.trace("User [{}] is not an operator", authentication.getUser());
+        }
+        return userIsOperator;
     }
 
     // Package private for tests
@@ -214,7 +218,7 @@ public class FileOperatorUsersStore {
                     operatorUsersDescriptor.groups.size(),
                     operatorUsersDescriptor.groups.stream().mapToLong(g -> g.usernames.size()).sum(),
                     file.toAbsolutePath());
-                logger.trace("operator user descriptor: [{}]", operatorUsersDescriptor);
+                logger.debug("operator user descriptor: [{}]", operatorUsersDescriptor);
                 return operatorUsersDescriptor;
             } catch (IOException | RuntimeException e) {
                 logger.error(new ParameterizedMessage("Failed to parse operator users file [{}].", file), e);

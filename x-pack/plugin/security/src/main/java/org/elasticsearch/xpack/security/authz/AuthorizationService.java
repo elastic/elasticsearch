@@ -288,7 +288,7 @@ public class AuthorizationService {
         final ElasticsearchSecurityException operatorException =
             operatorPrivilegesService.check(authentication, action, originalRequest, threadContext);
         if (operatorException != null) {
-            throw denialException(authentication, action, originalRequest, "and operator privileges", operatorException);
+            throw denialException(authentication, action, originalRequest, null, true, operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
     }
@@ -700,11 +700,17 @@ public class AuthorizationService {
 
     private ElasticsearchSecurityException denialException(Authentication authentication, String action, TransportRequest request,
                                                            Exception cause) {
-        return denialException(authentication, action, request, null, cause);
+        return denialException(authentication, action, request, null, false, cause);
     }
 
     private ElasticsearchSecurityException denialException(Authentication authentication, String action, TransportRequest request,
                                                            @Nullable String context, Exception cause) {
+        return denialException(authentication, action, request, context, false, cause);
+    }
+
+    private ElasticsearchSecurityException denialException(Authentication authentication, String action, TransportRequest request,
+                                                           @Nullable String context, boolean requiresOperatorPrivileges,
+                                                           Exception cause) {
         final User authUser = authentication.getUser().authenticatedUser();
         // Special case for anonymous user
         if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
@@ -746,6 +752,9 @@ public class AuthorizationService {
                 message = message + ", this action is granted by the index privileges ["
                     + collectionToCommaDelimitedString(privileges) + "]";
             }
+        }
+        if (requiresOperatorPrivileges) {
+            message = message + " and operator privileges";
         }
 
         logger.debug(message);

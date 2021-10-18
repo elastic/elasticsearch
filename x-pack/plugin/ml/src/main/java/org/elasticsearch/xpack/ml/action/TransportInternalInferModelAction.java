@@ -6,18 +6,23 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
@@ -68,7 +73,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         Response.Builder responseBuilder = Response.builder();
 
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
             doInfer(request, responseBuilder, listener);
         } else {
@@ -158,10 +163,23 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
-            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc)),
+            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc),
+                TimeValue.MAX_VALUE),
             ActionListener.wrap(
                 r -> listener.onResponse(r.getResults()),
-                e -> listener.onResponse(new WarningInferenceResults(e.getMessage()))
+                e -> {
+                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                    if (unwrapped instanceof ElasticsearchStatusException) {
+                        ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
+                        if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
+                            listener.onFailure(ex);
+                        } else {
+                            listener.onResponse(new WarningInferenceResults(ex.getMessage()));
+                        }
+                    } else {
+                        listener.onResponse(new WarningInferenceResults(e.getMessage()));
+                    }
+                }
             )
         );
     }

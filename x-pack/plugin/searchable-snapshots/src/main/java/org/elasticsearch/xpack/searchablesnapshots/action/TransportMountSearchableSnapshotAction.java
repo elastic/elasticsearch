@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,14 +36,13 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotAllocator;
 
@@ -71,9 +71,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     MountSearchableSnapshotRequest,
     RestoreSnapshotResponse> {
 
-    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
-        DataTierAllocationDecider.TIER_PREFERENCE_SETTING
-    );
+    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(DataTier.TIER_PREFERENCE_SETTING);
 
     private final Client client;
     private final RepositoriesService repositoriesService;
@@ -147,7 +145,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             if (minNodeVersion.before(Version.V_7_12_0)) {
                 throw new IllegalArgumentException("shared cache searchable snapshots require minimum node version " + Version.V_7_12_0);
             }
-            settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            settings.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
             // we cannot apply this setting during rolling upgrade.
@@ -233,7 +231,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
-                .put(DataTierAllocationDecider.TIER_PREFERENCE, request.storage().defaultDataTiersPreference())
+                .put(DataTier.TIER_PREFERENCE, request.storage().defaultDataTiersPreference())
                 .put(request.indexSettings())
                 .put(
                     buildIndexSettings(

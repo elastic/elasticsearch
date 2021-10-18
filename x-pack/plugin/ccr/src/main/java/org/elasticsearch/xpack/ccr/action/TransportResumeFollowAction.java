@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -444,7 +445,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
-            EngineConfig.INDEX_CODEC_SETTING);
+            EngineConfig.INDEX_CODEC_SETTING,
+            DataTier.TIER_PREFERENCE_SETTING);
 
     public static Settings filter(Settings originalSettings) {
         Settings.Builder settings = Settings.builder().put(originalSettings);

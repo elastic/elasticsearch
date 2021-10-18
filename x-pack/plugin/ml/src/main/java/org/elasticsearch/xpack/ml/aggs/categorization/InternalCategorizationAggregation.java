@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -171,7 +171,10 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     }
 
-    public static class Bucket extends InternalBucket implements MultiBucketsAggregation.Bucket, Comparable<Bucket> {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket
+        implements
+            MultiBucketsAggregation.Bucket,
+            Comparable<Bucket> {
         // Used on the shard level to keep track of sub aggregations
         long bucketOrd;
 

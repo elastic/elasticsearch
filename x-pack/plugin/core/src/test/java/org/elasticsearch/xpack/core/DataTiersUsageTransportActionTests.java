@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -697,9 +697,9 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             for (int idx = 1; idx < dataTierPrefs.length; idx++) {
                 tierBuilder.append(',').append(dataTierPrefs[idx]);
             }
-            settingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, tierBuilder.toString());
+            settingsBuilder.put(DataTier.TIER_PREFERENCE, tierBuilder.toString());
         } else if (dataTierPrefs.length == 1) {
-            settingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, dataTierPrefs[0]);
+            settingsBuilder.put(DataTier.TIER_PREFERENCE, dataTierPrefs[0]);
         }
 
         return IndexMetadata.builder(indexName)

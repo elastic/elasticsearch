@@ -29,8 +29,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -512,11 +512,6 @@ public class SearchExecutionContextTests extends ESTestCase {
                                             .getLeafSearchLookup(context);
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
-                                    }
-
-                                    @Override
-                                    public org.elasticsearch.script.field.Field<String> toField(String fieldName) {
-                                        return new org.elasticsearch.script.field.StringField(fieldName, this);
                                     }
                                 };
                             }

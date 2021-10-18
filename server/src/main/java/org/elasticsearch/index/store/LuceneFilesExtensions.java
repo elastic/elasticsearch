@@ -69,8 +69,8 @@ public enum LuceneFilesExtensions {
     TVM("tvm", "Term Vector Metadata", true, false),
     TVX("tvx", "Term Vector Index", false, false),
     // kNN vectors format
-    VEC("vec", "Vector Data", false, false),
-    VEX("vex", "Vector Index", false, false),
+    VEC("vec", "Vector Data", false, true),
+    VEX("vex", "Vector Index", false, true),
     VEM("vem", "Vector Metadata", true, false);
 
     /**

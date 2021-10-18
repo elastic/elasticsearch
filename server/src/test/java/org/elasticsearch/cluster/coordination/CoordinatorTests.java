@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -43,12 +44,14 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -79,6 +82,7 @@ import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -952,6 +956,20 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final long finalValue = randomLong();
             final Map<ClusterNode, PublishClusterStateStats> prePublishStats = cluster.clusterNodes.stream().collect(
                 Collectors.toMap(Function.identity(), cn -> cn.coordinator.stats().getPublishStats()));
+
+            if (cluster.clusterNodes.size() > 1) {
+                // at least one node must have published at least one full cluster state when other nodes joined
+                final Optional<PublishClusterStateStats> optionalStats = prePublishStats
+                    .values()
+                    .stream()
+                    .filter(stats -> stats.getClusterStateSerializationStats().getFullStateCount() > 0)
+                    .findAny();
+                assertTrue(optionalStats.isPresent());
+                final ClusterStateSerializationStats serializationStats = optionalStats.get().getClusterStateSerializationStats();
+                assertThat(serializationStats.toString(), serializationStats.getTotalUncompressedFullStateBytes(), greaterThan(0L));
+                assertThat(serializationStats.toString(), serializationStats.getTotalCompressedFullStateBytes(), greaterThan(4L));
+            }
+
             logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
             leader.submitValue(finalValue);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
@@ -966,7 +984,32 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
                 assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
                     postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
+
+                if (cn != leader) {
+                    assertEquals(cn.toString(),
+                        Strings.toString(prePublishStats.get(cn).getClusterStateSerializationStats()),
+                        Strings.toString(postPublishStats.get(cn).getClusterStateSerializationStats()));
+                }
             }
+
+            final ClusterStateSerializationStats serializationStats0 = prePublishStats.get(leader).getClusterStateSerializationStats();
+            final ClusterStateSerializationStats serializationStats1 = postPublishStats.get(leader).getClusterStateSerializationStats();
+
+            assertThat(serializationStats1.getDiffCount(), equalTo(serializationStats0.getDiffCount() + 1));
+            assertThat(
+                serializationStats1.getTotalUncompressedDiffBytes(),
+                greaterThan(serializationStats0.getDiffCount()));
+            assertThat(
+                serializationStats1.getTotalCompressedDiffBytes(),
+                greaterThan(serializationStats0.getDiffCount() + 4 /* compressed data starts with 4 byte header */));
+
+            assertThat(serializationStats1.getFullStateCount(), equalTo(serializationStats0.getFullStateCount()));
+            assertThat(
+                serializationStats1.getTotalUncompressedFullStateBytes(),
+                equalTo(serializationStats0.getTotalUncompressedFullStateBytes()));
+            assertThat(
+                serializationStats1.getTotalCompressedFullStateBytes(),
+                equalTo(serializationStats0.getTotalCompressedFullStateBytes()));
         }
     }
 
@@ -1777,6 +1820,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(reason="testing debug logging of LagDetector", value="org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();
@@ -1804,6 +1848,18 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     "node [" + brokenNode + "] is lagging at cluster state version [*], " +
                         "although publication of cluster state version [*] completed [*] ago"));
 
+                if (Constants.WINDOWS == false) {
+                    // log messages containing control characters are hidden from the log assertions framework, and this includes the
+                    // `\r` that Windows uses in its line endings, so we only see this message on systems with `\n` line endings:
+                    mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                        "hot threads from lagging node",
+                        LagDetector.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "hot threads from node [" +
+                            brokenNode.getLocalNode().descriptionWithoutAttributes() +
+                            "] lagging at version [*] despite commit of cluster state version [*]:\nHot threads at*"));
+                }
+
                 // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
                 // health checks
                 brokenNode.blackhole();
@@ -1822,7 +1878,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     });
                 cluster.getAnyLeader().submitValue(randomLong());
                 cluster.runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING) + 2 * DEFAULT_DELAY_VARIABILITY
-                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY,
+                        + defaultMillis(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING) + DEFAULT_DELAY_VARIABILITY
+                        + 2 * DEFAULT_DELAY_VARIABILITY,
                     "waiting for messages to be emitted");
 
                 mockLogAppender.assertAllExpectationsMatched();

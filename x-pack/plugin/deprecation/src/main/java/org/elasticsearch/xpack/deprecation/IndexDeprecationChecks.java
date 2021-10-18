@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Locale;
@@ -70,6 +71,23 @@ public class IndexDeprecationChecks {
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
                     "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
                     "as it offers superior or equivalent performance to [simplefs].", false, null);
+        }
+        return null;
+    }
+
+    static DeprecationIssue frozenIndexSettingCheck(IndexMetadata indexMetadata) {
+        Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings());
+        if (Boolean.TRUE.equals(isIndexFrozen)) {
+            String indexName = indexMetadata.getIndex().getName();
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "index [" + indexName +
+                    "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                false,
+                null
+            );
         }
         return null;
     }

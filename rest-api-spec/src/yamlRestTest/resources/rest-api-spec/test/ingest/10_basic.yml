@@ -1,9 +1,9 @@
 ---
-- skip:
-    version: all
-    reason: https://github.com/elastic/elasticsearch/issues/79377
-
 "Test basic pipeline crud":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/79377
+
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -31,11 +31,11 @@
         id: "my_pipeline"
 
 ---
-- skip:
-    version: all
-    reason: https://github.com/elastic/elasticsearch/issues/79377
-
 "Test Put Versioned Pipeline":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/79377
+
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

@@ -26,7 +26,8 @@ refresh. The checkpoints are indexed by shard.
 If a timeout occurs before the the checkpoint has been refreshed into Elasticsearch,
 the search request will timeout.
 
-The fleet search API only supports searches against a single index.
+The fleet search API only supports searches against a single target. If an index alias
+is supplied as the search target, it must resolve to a single concrete index.
 
 [discrete]
 [[fleet-search-partial-responses]]
@@ -41,14 +42,14 @@ timed out.
 [[fleet-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_fleet/_search`
+`GET /<target>/_fleet/_search`
 
 [[fleet-search-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Required, string)
-A single index. Index aliases are not supported.
+A single target to search. If the target is an index alias, it must resolve to a single index.
 
 [role="child_attributes"]
 [[fleet-search-api-query-parms]]

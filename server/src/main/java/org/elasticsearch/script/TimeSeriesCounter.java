@@ -100,7 +100,7 @@ public class TimeSeriesCounter {
      * Increment the counter at the given time.
      *
      * If {@code nowSec} is less than the last update, it is treated as an increment at the time of the last update
-     * unless it's before the begininng of this time series, in which case the time series is reset.
+     * unless it's before the beginning of this time series, in which case the time series is reset.
      */
     public void inc(long nowSec) {
         if (nowSec < 0) {
@@ -111,7 +111,7 @@ public class TimeSeriesCounter {
         lock.writeLock().lock();
         total.increment();
         try {
-            // Handle the busy case quickly
+            // Handle the rapid update case quickly
             if (nowSec <= adderEnd(latestSec) && nowSec >= adderStart(latestSec)) {
                 adder.increment();
             } else if (nowSec < latestSec) {

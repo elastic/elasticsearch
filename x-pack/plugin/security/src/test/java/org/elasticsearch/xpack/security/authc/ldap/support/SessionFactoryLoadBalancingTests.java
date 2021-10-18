@@ -10,6 +10,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -21,6 +22,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -40,13 +42,16 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -68,18 +73,19 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
     }
 
     public void testRoundRobin() throws Exception {
-        TestSessionFactory testSessionFactory = createSessionFactory(LdapLoadBalancing.ROUND_ROBIN);
-
-        final int numberOfIterations = randomIntBetween(1, 5);
-        for (int iteration = 0; iteration < numberOfIterations; iteration++) {
-            for (int i = 0; i < numberOfLdapServers; i++) {
-                try (LDAPConnection connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection)) {
-                    assertThat(connection.getConnectedPort(), is(ldapServers[i].getListenPort()));
+        try (TestSessionFactory testSessionFactory = createSessionFactory(LdapLoadBalancing.ROUND_ROBIN)) {
+            final int numberOfIterations = randomIntBetween(1, 5);
+            for (int iteration = 0; iteration < numberOfIterations; iteration++) {
+                for (int i = 0; i < numberOfLdapServers; i++) {
+                    try (LDAPConnection connection = LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection)) {
+                        assertThat(connection.getConnectedPort(), is(ldapServers[i].getListenPort()));
+                    }
                 }
             }
         }
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.security.authc.ldap.support:DEBUG", reason = "LDAP SDK Upgrade")
     public void testRoundRobinWithFailures() throws Exception {
         assumeTrue("at least two ldap servers should be present for this test", ldapServers.length > 1);
         logger.debug("using [{}] ldap servers, urls {}", ldapServers.length, ldapUrls());
@@ -102,6 +108,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         final List<Thread> listenThreads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(ldapServersToKill.size());
         final CountDownLatch closeLatch = new CountDownLatch(1);
+        final Set<Integer> shutdownPorts = new HashSet<>(numberToKill);
         try {
             final AtomicBoolean success = new AtomicBoolean(true);
             for (InMemoryDirectoryServer ldapServerToKill : ldapServersToKill) {
@@ -110,6 +117,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 final int port = ldapServers[index].getListenPort();
                 logger.debug("shutting down server index [{}] listening on [{}]", index, port);
                 assertTrue(ports.remove(Integer.valueOf(port)));
+                shutdownPorts.add(port);
                 ldapServers[index].shutDown(true);
 
                 // when running multiple test jvms, there is a chance that something else could
@@ -138,24 +146,59 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             // go one iteration through and attempt a bind
             for (int iteration = 0; iteration < numberOfIterations; iteration++) {
                 logger.debug("iteration [{}]", iteration);
-                for (Integer port : ports) {
-                    logger.debug("attempting connection with expected port [{}]", port);
+                int previousPort = -2;
+                for (Integer expectedPort : ports) {
+                    logger.debug("attempting connection with expected port [{}]", expectedPort);
                     LDAPConnection connection = null;
                     try {
                         do {
-                            final LDAPConnection finalConnection =
-                                LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
+                            final LDAPConnection finalConnection = LdapUtils.privilegedConnect(
+                                testSessionFactory.getServerSet()::getConnection
+                            );
                             connection = finalConnection;
-                            logger.debug("established connection with port [{}] expected port [{}]",
-                                finalConnection.getConnectedPort(), port);
-                            if (finalConnection.getConnectedPort() != port) {
-                                LDAPException e = expectThrows(LDAPException.class, () -> finalConnection.bind(new SimpleBindRequest()));
-                                assertThat(e.getMessage(), containsString("not connected"));
-                                finalConnection.close();
+                            final int connectedPort = finalConnection.getConnectedPort();
+                            logger.debug("established connection with port [{}] expected port [{}]", connectedPort, expectedPort);
+                            if (connectedPort == previousPort) {
+                                // This happens due to the behaviour in RoundRobinServerSet
+                                // The logic there increments the index into the round-robin set independent of failing servers
+                                // So if you have a set of servers [ "bad", "good-1", "good-2" ]
+                                // Then the round-robin logic produces: [ "good-1" (as a substitute for "bad") , "good-1" , "good-2" ]
+                                // This is a questionable implementation, but it's what UnboundID does, and it's hard to work around
+                                final InMemoryDirectoryServer connectedServer = ldapServersList.stream()
+                                    .filter(s -> s.getListenPort() == connectedPort)
+                                    .findFirst()
+                                    .orElseThrow();
+                                final int serverIndex = ldapServersList.indexOf(connectedServer);
+                                final InMemoryDirectoryServer previousServer = ldapServersList.get(
+                                    (serverIndex == 0 ? ldapServersList.size() : serverIndex) - 1
+                                );
+                                assertThat("Expected to have skipped over a failed server", ldapServersToKill, hasItem(previousServer));
+                            } else if (connectedPort != expectedPort) {
+                                if (shutdownPorts.contains(connectedPort)) {
+                                    // If we connected to the shutdown port, verify that it's something unbindable (our mock socket)
+                                    LDAPException e = expectThrows(
+                                        LDAPException.class,
+                                        () -> finalConnection.bind(new SimpleBindRequest())
+                                    );
+                                    assertThat(e.getMessage(), containsString("not connected"));
+                                    finalConnection.close();
+                                } else {
+                                    fail(
+                                        "Round robin scheme connected to port ["
+                                            + connectedPort
+                                            + "] but expected either the active ["
+                                            + expectedPort
+                                            + "] or one of the shutdown ["
+                                            + shutdownPorts
+                                            + "]"
+                                    );
+                                }
+                            } else {
+                                previousPort = connectedPort;
                             }
-                        } while (connection.getConnectedPort() != port);
+                        } while (connection.getConnectedPort() != expectedPort);
 
-                        assertThat(connection.getConnectedPort(), is(port));
+                        assertThat(connection.getConnectedPort(), is(expectedPort));
                     } finally {
                         if (connection != null) {
                             connection.close();
@@ -169,6 +212,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             for (Thread t : listenThreads) {
                 t.join();
             }
+            testSessionFactory.close();
         }
     }
 
@@ -282,6 +326,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             for (Thread t : listenThreads) {
                 t.join();
             }
+            testSessionFactory.close();
         }
     }
 

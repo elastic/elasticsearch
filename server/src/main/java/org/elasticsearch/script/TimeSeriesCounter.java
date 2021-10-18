@@ -173,7 +173,7 @@ public class TimeSeriesCounter {
     }
 
     void rollForwardHigh(long t) {
-        if (highDelegateEnd(latestSec) < highAuthorityStart(t)) {
+        if (highAuthorityEnd(latestSec) < highAuthorityStart(t)) {
             Arrays.fill(high, 0);
             adder.reset();
             return;

@@ -101,6 +101,71 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(0, ts.count(now + (2 * HOUR) + highResSecPerEpoch, HOUR));
     }
 
+    public void testRolloverHigh() {
+        for (int i = 0; i < ts.getHighLength(); i++) {
+            t.add(now + ((long) i * highResSecPerEpoch));
+        }
+        inc();
+        assertEquals(ts.getHighLength(), ts.count(now + lowResSecPerEpoch, lowResSecPerEpoch));
+    }
+
+    public void testRolloverHighWithGaps() {
+        long gap = 3;
+        for (int i = 0; i < ts.getHighLength(); i++) {
+            t.add(now + (gap * i * highResSecPerEpoch));
+        }
+        inc();
+        assertEquals(ts.getHighLength(), ts.count(now + (gap * lowResSecPerEpoch), (gap * lowResSecPerEpoch)));
+    }
+
+    public void testRolloverLow() {
+        for (int i = 0; i < ts.getLowLength(); i++) {
+            t.add(now + ((long) i * lowResSecPerEpoch));
+        }
+        inc();
+        assertEquals(ts.getLowLength(), ts.count(now + totalDuration, totalDuration));
+    }
+
+    public void testRolloverLowWithGaps() {
+        long gap = 3;
+        for (int i = 0; i < ts.getLowLength() / 4; i++) {
+            t.add(now + (gap * i * lowResSecPerEpoch));
+        }
+        inc();
+        assertEquals(ts.getLowLength() / 4, ts.count(now + totalDuration, totalDuration));
+    }
+
+    public void testHighLowOverlap() {
+        int highPerLow = ts.getHighLength() / 5;
+        int numLow = ts.getLowLength() / 5;
+        long latest = 0;
+        for (long i = 0; i < numLow; i++) {
+            for (long j = 0; j < highPerLow; j++) {
+                latest = now + (i * lowResSecPerEpoch) + (j * highResSecPerEpoch);
+                t.add(latest);
+            }
+        }
+        inc();
+        assertEquals(highPerLow * numLow, ts.count(latest, totalDuration));
+    }
+
+    public void testBackwardsInc() {
+        t.add(now);
+        t.add(now - highResSecPerEpoch);
+        t.add(now - lowResSecPerEpoch);
+        inc();
+        assertEquals(3, ts.count(now + highResSecPerEpoch, totalDuration));
+    }
+
+    public void testBackwardsIncReset() {
+        long twoDays = now + 2 * totalDuration;
+        ts.inc(twoDays);
+        assertEquals(1, ts.count(twoDays, totalDuration));
+        ts.inc(now);
+        assertEquals(0, ts.count(twoDays, totalDuration));
+        assertEquals(1, ts.count(now, totalDuration));
+    }
+
     void inc() {
         for (int i = 0; i < t.times.size(); i++) {
             ts.inc();

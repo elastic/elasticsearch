@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -180,7 +180,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             .stream()
             .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
             .collect(Collectors.toSet());
-        assertThat(migratingFeatures, hasItem(FEATURE_NAME));
+        assertThat(migratingFeatures, hasItems(FEATURE_NAME, SECOND_FEATURE_NAME));
 
         GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
         assertBusy(() -> {

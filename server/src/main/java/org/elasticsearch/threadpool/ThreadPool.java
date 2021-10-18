@@ -61,6 +61,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
@@ -124,6 +125,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
+        map.put(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
@@ -197,6 +199,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
                         Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000));
+        builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, true));
         builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,
             Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
 

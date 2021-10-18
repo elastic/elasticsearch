@@ -195,11 +195,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (descriptor.getAliasName() != null) {
-            // createRequest.addAlias(new Alias(descriptor.getAliasName()));
-        }
         if (descriptor.getSettings() != null) {
-            // createRequest.setSettings(descriptor.getSettings());
             createRequest.setSettings(Settings.builder().put("index.version.created", Version.CURRENT).build());
         } else {
             createRequest.setSettings(
@@ -209,9 +205,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 )
             );
         }
-        if (descriptor.getMappings() != null) {
-            // createRequest.setMapping(descriptor.getMappings());
-        } else {
+        if (descriptor.getMappings() == null) {
             createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));
         }
         CreateIndexResponse response = createRequest.get();

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 
 import java.time.Instant;
 
@@ -69,7 +70,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
             lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
         }
 
-        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(licenseState.isAllowed(XPackLicenseState.Feature.CCR),
+        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState),
             XPackSettings.CCR_ENABLED_SETTING.get(settings), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

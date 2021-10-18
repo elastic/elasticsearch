@@ -4,12 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect;
+package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -22,7 +20,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
+public class ProcessWorkerExecutorServiceTests extends ESTestCase {
+
+    private static final String TEST_PROCESS = "test";
+    private static final int QUEUE_SIZE = 100;
 
     private ThreadPool threadPool = new TestThreadPool("AutodetectWorkerExecutorServiceTests");
 
@@ -32,7 +33,7 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
     }
 
     public void testAutodetectWorkerExecutorService_SubmitAfterShutdown() {
-        AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+        ProcessWorkerExecutorService executor = createExecutorService();
 
         threadPool.generic().execute(() -> executor.start());
         executor.shutdown();
@@ -40,7 +41,7 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
     }
 
     public void testAutodetectWorkerExecutorService_TasksNotExecutedCallHandlerOnShutdown() throws Exception {
-        AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(new ThreadContext(Settings.EMPTY));
+        ProcessWorkerExecutorService executor = createExecutorService();
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -85,7 +86,7 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
     }
 
     public void testAutodetectWorkerExecutorServiceDoesNotSwallowErrors() {
-        AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+        ProcessWorkerExecutorService executor = createExecutorService();
         if (randomBoolean()) {
             executor.submit(() -> {
                 throw new Error("future error");
@@ -97,5 +98,9 @@ public class AutodetectWorkerExecutorServiceTests extends ESTestCase {
         }
         Error e = expectThrows(Error.class, () -> executor.start());
         assertThat(e.getMessage(), containsString("future error"));
+    }
+
+    private ProcessWorkerExecutorService createExecutorService() {
+        return new ProcessWorkerExecutorService(threadPool.getThreadContext(), TEST_PROCESS, QUEUE_SIZE);
     }
 }

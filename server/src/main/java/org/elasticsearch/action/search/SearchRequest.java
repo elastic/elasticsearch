@@ -241,8 +241,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             minCompatibleShardNode = null;
         }
-        // TODO: Change after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
@@ -279,9 +278,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Version.writeVersion(minCompatibleShardNode, out);
             }
         }
-        // TODO: Change after backport
-        Version waitForCheckpointsVersion = Version.V_8_0_0;
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        Version waitForCheckpointsVersion = Version.V_7_16_0;
+        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {

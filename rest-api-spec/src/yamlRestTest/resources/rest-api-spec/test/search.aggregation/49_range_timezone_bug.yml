@@ -8,7 +8,7 @@ setup:
                 mappings:
                     properties:
                         mydate:
-                            type: date
+                            type: date_nanos
                             format: "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSZZZZZ"
 
     - do:

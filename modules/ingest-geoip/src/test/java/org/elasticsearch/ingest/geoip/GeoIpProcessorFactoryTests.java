@@ -417,9 +417,18 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(geoData.get("city_name"), equalTo("Linköping"));
         }
         {
+            // No databases are available, so assume that databases still need to be downloaded and therefor not fail:
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             databaseRegistry.removeStaleEntries(List.of("GeoLite2-City.mmdb"));
             localDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
+            processor.execute(ingestDocument);
+            Map<?, ?> geoData = (Map<?, ?>) ingestDocument.getSourceAndMetadata().get("geoip");
+            assertThat(geoData, nullValue());
+        }
+        {
+            // There are database available, but not the right one, so fail:
+            databaseRegistry.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
             Exception e = expectThrows(ResourceNotFoundException.class, () -> processor.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("database file [GeoLite2-City.mmdb] doesn't exist"));
         }

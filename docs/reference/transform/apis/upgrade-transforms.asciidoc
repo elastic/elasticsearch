@@ -29,22 +29,19 @@ Requires the following privileges:
 [[upgrade-transforms-desc]]
 == {api-description-title}
 
+{transforms-cap} are compatible across minor versions and backwards compatibile 
+between major versions. However, over time, the format of {transforms} may 
+change. This API upgrades all {transforms} that can be upgraded to meet the 
+functional requirements of the latest available version. Upgrading {transforms} 
+may also enable new features and improve performance.
 
+The process converts any {transforms} with older formats into the latest format; 
+including internal data structures that store {transform} state and checkpoints. 
+Previous versions are removed which frees up resources.
 
-This API upgrades all existing {transforms} that are necessary to be upgraded.
-{transforms-cap} are compatible between different versions and backwards 
-compatibility is kept between major versions. However, it is still necessary to 
-upgrade them to meet functional requirements. Upgrading {transforms} might also 
-enable new features or improve performance.
-
-During upgrade, the {transforms} are rewritten into the latest format including 
-internal data structures that store state and checkpoints. Resources are also 
-freed up by cleaning up previous versions.
-
-If an upgrade step fails, the process stops, and an error is returned that 
-informs about the underlying issues. It might be necessary to manually resolve 
-the problems then the process can be re-run again. A summary is returned when 
-the upgrade is finished.
+If an upgrade step fails, the upgrade stops, and an error is returned about the 
+underlying issue. Resolve the issue then re-run the process again. A summary is 
+returned when the upgrade is finished.
 
 [IMPORTANT]
 ====

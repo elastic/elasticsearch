@@ -416,8 +416,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
                 randomNonNegativeLong(), randomLong(), shardsBuilder.build(), null, SnapshotInfoTestUtils.randomUserMetadata(),
                 VersionUtils.randomVersion(random())
             );
-        return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE,
-                SnapshotsInProgress.of(Collections.singletonList(entry))).build();
+        return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(entry)).build();
     }
 
     private static ClusterState addIndex(final ClusterState currentState,

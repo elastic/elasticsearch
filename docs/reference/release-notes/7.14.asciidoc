@@ -161,6 +161,8 @@ Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
 
 include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 
+include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
 [[breaking-7.14.0]]
 [float]
 === Breaking changes

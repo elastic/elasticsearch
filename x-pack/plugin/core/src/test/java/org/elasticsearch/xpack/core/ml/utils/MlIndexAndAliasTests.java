@@ -108,7 +108,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
             ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false));
+            listener.onResponse(new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false));
             return null;
         }).when(clusterAdminClient).health(any(ClusterHealthRequest.class), any(ActionListener.class));
 

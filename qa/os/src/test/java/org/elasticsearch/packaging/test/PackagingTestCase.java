@@ -430,7 +430,7 @@ public abstract class PackagingTestCase extends Assert {
             // If log file exists, then we have bootstrapped our logging and the
             // error should be in the logs
             assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
-            String logfile = FileUtils. slurp(installation.logs.resolve("elasticsearch.log"));
+            String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
 
             assertThat(logfile, anyOf(stringMatchers));
 

@@ -67,7 +67,7 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
     private static final long dockerWaitForSecurityIndex = TimeUnit.SECONDS.toMillis(25);
 
-    public static void waitForElasticsearch(Installation installation) throws Exception{
+    public static void waitForElasticsearch(Installation installation) throws Exception {
         waitForElasticsearch(installation, -1);
     }
 
@@ -95,7 +95,7 @@ public class ServerUtils {
             // with security enabled, we may or may not have setup a user/pass, so we use a more generic port being available check.
             // this isn't as good as a health check, but long term all this waiting should go away when node startup does not
             // make the http port available until the system is really ready to serve requests
-            waitForXpack(installation ,additionalDelay);
+            waitForXpack(installation, additionalDelay);
         } else {
             logger.info("Waiting for elasticsearch WITHOUT Security enabled");
             waitForElasticsearch("green", null, installation, null, null, null);
@@ -152,7 +152,7 @@ public class ServerUtils {
     // polls every two seconds for Elasticsearch to be running on 9200, possibly waiting for additional sec after Elasticsearch has started
     private static void waitForXpack(Installation installation, int additionalDelay) {
         int retries = 60;
-        int additionalPolls = additionalDelay < 0 ? 0 : additionalDelay / 2 ;
+        int additionalPolls = additionalDelay < 0 ? 0 : additionalDelay / 2;
         while (retries > 0) {
             retries -= 1;
             try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {

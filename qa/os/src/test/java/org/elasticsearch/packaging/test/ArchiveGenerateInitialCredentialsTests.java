@@ -54,7 +54,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         ServerUtils.disableSecurityAutoConfiguration(installation);
-        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 10);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 30);
         assertThat(parseElasticPassword(result.stdout), nullValue());
         assertThat(parseKibanaToken(result.stdout), nullValue());
         assertThat(parseFingerprint(result.stdout), nullValue());
@@ -77,7 +77,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
         ServerUtils.enableSecurityAutoConfiguration(installation);
-        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 10);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 30);
         assertThat(parseElasticPassword(result.stdout), notNullValue());
         assertThat(parseKibanaToken(result.stdout), notNullValue());
         assertThat(parseFingerprint(result.stdout), notNullValue());
@@ -89,7 +89,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         stopElasticsearch();
-        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 10);
+        Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true), 30);
         assertThat(parseElasticPassword(result.stdout), nullValue());
         assertThat(parseKibanaToken(result.stdout), nullValue());
         assertThat(parseFingerprint(result.stdout), nullValue());

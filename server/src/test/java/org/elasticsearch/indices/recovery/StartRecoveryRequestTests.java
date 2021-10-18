@@ -44,7 +44,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
                 randomBoolean(),
                 randomNonNegativeLong(),
                 randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
-                    SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+                    SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
+                randomBoolean());
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);

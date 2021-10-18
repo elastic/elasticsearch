@@ -215,13 +215,14 @@ public class MetadataDeleteIndexService {
                 }
                 if (canDeleteSnapshot) {
                     if (builder == null) {
+                        final int maxPendingDeletions = SnapshotDeletionsPending.MAX_PENDING_DELETIONS_SETTING.get(settings);
                         builder = new SnapshotDeletionsPending.Builder(
                             pendingDeletions,
                             evicted -> logger.warn(
                                 () -> new ParameterizedMessage(
                                     "maximum number of snapshots [{}] awaiting deletion has been reached in "
                                         + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
-                                    SnapshotDeletionsPending.MAX_PENDING_DELETIONS,
+                                    maxPendingDeletions,
                                     evicted.getSnapshotId(),
                                     Instant.ofEpochMilli(evicted.getCreationTime()).atZone(ZoneOffset.UTC),
                                     evicted.getRepositoryName(),
@@ -240,7 +241,7 @@ public class MetadataDeleteIndexService {
                 }
             }
             if (changed) {
-                return builder.build();
+                return builder.build(settings);
             }
         }
         return pendingDeletions;

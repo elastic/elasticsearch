@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,13 +33,39 @@ import static java.util.Collections.unmodifiableSortedSet;
 
 /**
  * Represents snapshots marked as to be deleted and pending deletion.
+ *
+ * Snapshots pending deletion are added to the cluster state when searchable snapshots indices with a specific setting are deleted (see
+ * MetadataDeleteIndexService#updateSnapshotDeletionsPending()). Because deleting snapshots requires a consistent view of the repository
+ * they belong to it is not possible to delete searchable snapshots indices and their backing snapshots in the same cluster state update.
+ *
+ * Hence we keep in cluster state the snapshot that should be deleted from repositories. To be able to delete them we capture the snapshot
+ * id, the snapshot name, the repository name and the repository id (if it exists) once, along with the time at which the snapshot was added
+ * to the pending deletion, in a {@link SnapshotDeletionsPending} entry.
+ *
+ *
+ * When cluster state is updated with such entries the {@link org.elasticsearch.snapshots.SnapshotsService} executes corresponding snapshot
+ * delete requests to effectively delete the snapshot from the repository. It is possible that the deletion of a snapshot failed for various
+ * reason (ex: conflicting snapshot operation, repository removed etc). In such cases the snapshot pending deletion is kept in the cluster
+ * state and the deletion will be retried on the next cluster state update. To avoid too many snapshots pending deletion stored in cluster
+ * state the number is limited to 500 and configurable through the {@link #MAX_PENDING_DELETIONS_SETTING} setting.
  */
 public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final SnapshotDeletionsPending EMPTY = new SnapshotDeletionsPending(Collections.emptySortedSet());
     public static final String TYPE = "snapshot_deletions_pending";
 
-    public static final int MAX_PENDING_DELETIONS = 500;
+    /**
+     * Setting for the maximum number of snapshots pending deletion allowed in the cluster state.
+     * <p>
+     * This setting is here to prevent the cluster to grow too large. In the case that the number of snapshots pending deletion exceeds
+     * the value of this setting the oldest entries are removed from the cluster state. Snapshots that are discarded are removed before
+     * they can be deleted from their repository and are therefore considered as "leaking" and should be logged as such as warnings.
+     */
+    public static final Setting<Integer> MAX_PENDING_DELETIONS_SETTING = Setting.intSetting(
+        "cluster.snapshot.snapshot_deletions_pending.size",
+        500,
+        Setting.Property.NodeScope
+    );
 
     /**
      * A list of snapshots to delete, sorted by creation time
@@ -46,7 +74,6 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
 
     private SnapshotDeletionsPending(SortedSet<Entry> entries) {
         this.entries = unmodifiableSortedSet(Objects.requireNonNull(entries));
-        assert entries.size() <= MAX_PENDING_DELETIONS : entries.size() + " > " + MAX_PENDING_DELETIONS;
     }
 
     public SnapshotDeletionsPending(StreamInput in) throws IOException {
@@ -221,8 +248,8 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
             this.consumer = onLimitExceeded;
         }
 
-        private void ensureLimit() {
-            while (entries.size() >= MAX_PENDING_DELETIONS) {
+        private void ensureLimit(final int maxPendingDeletions) {
+            while (entries.size() >= maxPendingDeletions) {
                 final Entry removed = entries.last();
                 entries.remove(removed);
                 if (consumer != null) {
@@ -232,13 +259,14 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
         }
 
         public Builder add(String repositoryName, String repositoryUuid, SnapshotId snapshotId, long creationTime) {
-            ensureLimit();
             entries.add(new Entry(repositoryName, repositoryUuid, snapshotId, creationTime));
             return this;
         }
 
-        public SnapshotDeletionsPending build() {
-            ensureLimit();
+        public SnapshotDeletionsPending build(Settings settings) {
+            final int maxPendingDeletions = MAX_PENDING_DELETIONS_SETTING.get(settings);
+            ensureLimit(maxPendingDeletions);
+            assert entries.size() <= maxPendingDeletions : entries.size() + " > " + maxPendingDeletions;
             return entries.isEmpty() == false ? new SnapshotDeletionsPending(entries) : EMPTY;
         }
     }

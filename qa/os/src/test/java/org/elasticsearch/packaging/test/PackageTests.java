@@ -237,6 +237,34 @@ public class PackageTests extends PackagingTestCase {
         }
     }
 
+    public void test71JvmOptionsTotalMemoryOverride() throws Exception {
+        try {
+            install();
+            assertPathsExist(installation.envFile);
+            setHeap(null);
+
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
+
+            withCustomConfig(tempConf -> {
+                // Work as though total system memory is 850MB
+                append(installation.envFile, "ES_JAVA_OPTS=\"-Des.total_memory_bytes=891289600\"");
+
+                startElasticsearch();
+
+                final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
+                assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
+
+                // 40% of 850MB
+                assertThat(sh.run("ps auwwx").stdout, containsString("-Xms340m -Xmx340m"));
+
+                stopElasticsearch();
+            });
+        } finally {
+            cleanup();
+        }
+    }
+
     public void test72TestRuntimeDirectory() throws Exception {
         try {
             install();

@@ -17,8 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -151,7 +149,14 @@ public class HotThreads {
 
     public String detect() throws Exception {
         synchronized (mutex) {
-            return innerDetect(ManagementFactory.getThreadMXBean(), SunThreadInfo.INSTANCE, Thread.currentThread().getId());
+            return innerDetect(
+                ManagementFactory.getThreadMXBean(),
+                SunThreadInfo.INSTANCE,
+                Thread.currentThread().getId(),
+                (interval) -> {
+                    Thread.sleep(interval);
+                    return null;
+                });
         }
     }
 
@@ -223,7 +228,11 @@ public class HotThreads {
         return (((double) time) / interval.nanos()) * 100;
     }
 
-    String innerDetect(ThreadMXBean threadBean, SunThreadInfo sunThreadInfo, long currentThreadId) throws Exception {
+    String innerDetect(
+        ThreadMXBean threadBean,
+        SunThreadInfo sunThreadInfo,
+        long currentThreadId,
+        SleepFunction<Long, Void> threadSleep) throws Exception {
         if (threadBean.isThreadCpuTimeSupported() == false) {
             throw new ElasticsearchException("thread CPU time is not supported on this JDK");
         }
@@ -251,7 +260,7 @@ public class HotThreads {
 
         // Capture before and after thread state with timings
         Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
-        Thread.sleep(interval.millis());
+        threadSleep.apply(interval.millis());
         Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
 
         latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
@@ -470,5 +479,10 @@ public class HotThreads {
             }
             throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', 'mem', or 'block', but was " + type);
         }
+    }
+
+    @FunctionalInterface
+    public interface SleepFunction<T, R> {
+        R apply(T t) throws InterruptedException;
     }
 }

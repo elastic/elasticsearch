@@ -27,19 +27,25 @@ calendars by using `_all`.
 `calendar_id` (required)::
   (string) Identifier for the calendar.
 
-==== Request Body
+==== Query Parameters
 
 `end`::
-    (string) Specifies to get events with timestamps earlier than this time.
+  (Optional, string) Specifies to get events with timestamps earlier than this
+  time.
 
 `from`::
-    (integer) Skips the specified number of events.
+  (Optional, integer) Skips the specified number of events. Defaults to `0`.
+
+`job_id`::
+  (Optional, string) Specifies to get events for a specific {anomaly-job}
+  identifier or job group. It must be used with a calendar identifier of `_all`.
 
 `size`::
-    (integer) Specifies the maximum number of events to obtain.
+  (Optional, integer) Specifies the maximum number of events to obtain. Defaults
+  to `100`.
 
 `start`::
-    (string) Specifies to get events with timestamps after this time.
+  (Optional, string) Specifies to get events with timestamps after this time.
 
 ==== Results
 
@@ -105,3 +111,12 @@ The API returns the following results:
 // TESTRESPONSE[s/Ly8LJGEBMTCMA-qz49st/$body.$_path/]
 
 For more information about these properties, see <<ml-event-resource>>.
+
+The following example retrieves scheduled events that occur within a specific
+period of time:
+
+[source,console]
+--------------------------------------------------
+GET _xpack/ml/calendars/planned-outages/events?start=1635638400000&end=1635724800000
+--------------------------------------------------
+// TEST[skip:setup:calendar_outages_addevent]

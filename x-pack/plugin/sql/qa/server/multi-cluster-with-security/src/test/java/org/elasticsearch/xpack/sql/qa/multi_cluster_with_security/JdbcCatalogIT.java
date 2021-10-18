@@ -18,7 +18,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Properties;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class JdbcCatalogIT extends JdbcIntegrationTestCase {
@@ -83,5 +85,23 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
                 assertFalse(rs.next());
             }
         }
+    }
+
+    @Override
+    protected Properties connectionProperties() {
+        Properties connectionProperties = new Properties();
+        connectionProperties.put("timezone", randomZone().getId());
+        // in the tests, don't be lenient towards multi values
+        connectionProperties.put("field.multi.value.leniency", "false");
+        // gradle defines
+        String user = System.getProperty("tests.rest.cluster.remote.user");
+        String pass = System.getProperty("tests.rest.cluster.remote.password");
+        if (hasText(user)) {
+            connectionProperties.put("user", user);
+        }
+        if (hasText(pass)) {
+            connectionProperties.put("password", pass);
+        }
+        return connectionProperties;
     }
 }

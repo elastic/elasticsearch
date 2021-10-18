@@ -23,7 +23,7 @@ public class RemoteClusterUtilsTests  extends ESTestCase {
 
     public void testQualifyAndJoinIndices() {
         String[] indices = {"foo", "bar", "bar*", "*foo"};
-        assertEquals("cluster:foo,cluster:bar,cluster:bar*,cluster*foo", qualifyAndJoinIndices("cluster", indices));
+        assertEquals("cluster:foo,cluster:bar,cluster:bar*,cluster:*foo", qualifyAndJoinIndices("cluster", indices));
     }
 
     public void testIsQualified() {

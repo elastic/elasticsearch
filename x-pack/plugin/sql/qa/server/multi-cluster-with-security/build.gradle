@@ -13,7 +13,7 @@ def remoteClusterReg = testClusters.register('remote-cluster') {
   setting 'node.roles', '[data,ingest,master]'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.autoconfiguration.enabled', 'false'
 
@@ -28,7 +28,7 @@ def integTestClusterReg = testClusters.register('integTest') {
     remoteClusterReg.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }
   setting 'cluster.remote.connections_per_cluster', "1"
-  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.autoconfiguration.enabled', 'false'
 

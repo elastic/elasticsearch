@@ -47,7 +47,6 @@ import java.util.stream.Collectors;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
-    public static final String ACTION_SHARD_NAME = FieldCapabilitiesAction.NAME + "[index][s]";
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -72,11 +71,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
-
         transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.MANAGEMENT,
             FieldCapabilitiesNodeRequest::new, new NodeTransportHandler());
-        transportService.registerRequestHandler(ACTION_SHARD_NAME, ThreadPool.Names.SAME,
-            FieldCapabilitiesIndexRequest::new, new ShardTransportHandler());
     }
 
     @Override
@@ -323,10 +319,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
                     for (ShardId shardId : shardIds) {
-                        final FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request.fields(), shardId,
-                            request.originalIndices(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
                         try {
-                            final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(indexRequest);
+                            final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(
+                                shardId, request.fields(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
                             if (response.canMatch()) {
                                 unmatched.clear();
                                 failures.clear();
@@ -346,13 +341,4 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             });
         }
     }
-
-    private class ShardTransportHandler implements TransportRequestHandler<FieldCapabilitiesIndexRequest> {
-        @Override
-        public void messageReceived(FieldCapabilitiesIndexRequest request, TransportChannel channel, Task task) throws Exception {
-            ActionListener<FieldCapabilitiesIndexResponse> listener = new ChannelActionListener<>(channel, ACTION_SHARD_NAME, request);
-            ActionListener.completeWith(listener, () -> fieldCapabilitiesFetcher.fetch(request));
-        }
-    }
-
 }

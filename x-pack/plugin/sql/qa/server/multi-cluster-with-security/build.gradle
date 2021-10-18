@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('eql:qa:common'))
+  testImplementation project(path: xpackModule('ql:test-fixtures'))
 }
 
 def remoteClusterReg = testClusters.register('remote-cluster') {

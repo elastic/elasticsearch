@@ -55,7 +55,8 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
             assertFalse(rs.next());
 
             es.setCatalog(LOCAL_CLUSTER_NAME);
-            expectThrows(SQLException.class, ps::executeQuery);
+            ex = expectThrows(SQLException.class, ps::executeQuery);
+            assertTrue(ex.getMessage().contains("Unknown index [" + INDEX_NAME + "]"));
         }
     }
 

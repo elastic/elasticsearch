@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.xcontent.support.filtering;
+package org.elasticsearch.xcontent.support.filtering;
 
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
-public class JsonXContentFilteringTests extends AbstractXContentFilteringTestCase {
+public class YamlFilteringGeneratorTests extends AbstractXContentFilteringTestCase {
 
     @Override
     protected XContentType getXContentType() {
-        return XContentType.JSON;
+        return XContentType.YAML;
     }
 
     @Override

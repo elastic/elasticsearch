@@ -47,7 +47,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         id = in.readString();
         source = in.readBytesReference();
         xContentType = in.readEnum(XContentType.class);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             version = in.readOptionalInt();
         } else {
             version = null;
@@ -85,7 +85,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         out.writeString(id);
         out.writeBytesReference(source);
         out.writeEnum(xContentType);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalInt(version);
         }
     }

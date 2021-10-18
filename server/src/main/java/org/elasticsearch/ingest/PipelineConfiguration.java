@@ -97,7 +97,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public Integer getVersion() {
-        var configMap = getConfigAsMap();
+        Map<String, Object> configMap = getConfigAsMap();
         if (configMap.containsKey("version")) {
             Object o = configMap.get("version");
             if (o == null) {

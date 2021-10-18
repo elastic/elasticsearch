@@ -69,22 +69,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        var verifier = new BiFunction<ActionType<AcknowledgedResponse>, ActionRequest, AcknowledgedResponse>() {
-            boolean wasInvoked = false;
-
-            @Override
-            public AcknowledgedResponse apply(ActionType<AcknowledgedResponse> actionType, ActionRequest actionRequest) {
-                wasInvoked  = true;
-                assertThat(actionRequest.getClass(), equalTo(PutPipelineRequest.class));
-                PutPipelineRequest req = (PutPipelineRequest) actionRequest;
-                assertThat(req.getId(), equalTo("my_pipeline"));
-                return null;
-            }
-
-            public boolean wasInvoked() {
-                return wasInvoked;
-            }
-        };
+        RequestVerifier verifier = new RequestVerifier(null);
         verifyingClient.setExecuteVerifier(verifier);
 
         dispatchRequest(request);
@@ -104,26 +89,36 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        var verifier = new BiFunction<ActionType<AcknowledgedResponse>, ActionRequest, AcknowledgedResponse>() {
-            boolean wasInvoked = false;
-
-            @Override
-            public AcknowledgedResponse apply(ActionType<AcknowledgedResponse> actionType, ActionRequest actionRequest) {
-                wasInvoked  = true;
-                assertThat(actionRequest.getClass(), equalTo(PutPipelineRequest.class));
-                PutPipelineRequest req = (PutPipelineRequest) actionRequest;
-                assertThat(req.getId(), equalTo("my_pipeline"));
-                assertThat(req.getVersion(), equalTo(numericValue));
-                return null;
-            }
-
-            public boolean wasInvoked() {
-                return wasInvoked;
-            }
-        };
+        RequestVerifier verifier = new RequestVerifier(numericValue);
         verifyingClient.setExecuteVerifier(verifier);
 
         dispatchRequest(request);
         assertThat(verifier.wasInvoked(), equalTo(true));
+    }
+
+    private static class RequestVerifier implements BiFunction<ActionType<AcknowledgedResponse>, ActionRequest, AcknowledgedResponse> {
+
+        boolean wasInvoked = false;
+        final Integer expectedVersion;
+
+        public RequestVerifier(Integer expectedVersion) {
+            this.expectedVersion = expectedVersion;
+        }
+
+        @Override
+        public AcknowledgedResponse apply(ActionType<AcknowledgedResponse> actionType, ActionRequest actionRequest) {
+            wasInvoked = true;
+            assertThat(actionRequest.getClass(), equalTo(PutPipelineRequest.class));
+            PutPipelineRequest req = (PutPipelineRequest) actionRequest;
+            assertThat(req.getId(), equalTo("my_pipeline"));
+            if (expectedVersion != null) {
+                assertThat(req.getVersion(), equalTo(expectedVersion));
+            }
+            return null;
+        }
+
+        public boolean wasInvoked() {
+            return wasInvoked;
+        }
     }
 }

@@ -500,12 +500,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     // visible for testing
-    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
+    public static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
         IngestMetadata currentIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
 
         BytesReference pipelineSource = request.getSource();
         if (request.getVersion() != null) {
-            var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
+            PipelineConfiguration currentPipeline = currentIngestMetadata != null
+                ? currentIngestMetadata.getPipelines().get(request.getId())
+                : null;
             if (currentPipeline == null) {
                 throw new IllegalArgumentException(String.format(
                     Locale.ROOT,
@@ -526,7 +528,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 ));
             }
 
-            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
             if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
                 throw new IllegalArgumentException(String.format(
@@ -541,7 +543,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (specifiedVersion == null) {
                 pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
                 try {
-                    var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
+                    XContentBuilder builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
                     pipelineSource = BytesReference.bytes(builder);
                 } catch (IOException e) {
                     throw new IllegalStateException(e);

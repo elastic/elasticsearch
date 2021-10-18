@@ -722,7 +722,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         }
     }
 
-    public static ClusterState clusterStateWithoutAllDataRoles() {
+    private static ClusterState clusterStateWithoutAllDataRoles() {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
             new DiscoveryNode("name_0", "node_0", buildNewFakeTransportAddress(), org.elasticsearch.core.Map.of(),

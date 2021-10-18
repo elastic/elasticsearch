@@ -279,8 +279,8 @@ public class Packages {
         return sh.runIgnoreExitCode("service elasticsearch start");
     }
 
-    public static void assertElasticsearchStarted(Shell sh, Installation installation) throws Exception {
-        waitForElasticsearch(installation);
+    public static void assertElasticsearchStarted(Shell sh, Installation installation, int additionalDelay) throws Exception {
+        waitForElasticsearch(installation, additionalDelay);
 
         if (isSystemd()) {
             sh.run("systemctl is-active elasticsearch.service");
@@ -304,7 +304,7 @@ public class Packages {
         } else {
             sh.run("service elasticsearch restart");
         }
-        assertElasticsearchStarted(sh, installation);
+        assertElasticsearchStarted(sh, installation, -1);
     }
 
     /**

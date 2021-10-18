@@ -382,9 +382,9 @@ public class Archives {
         }
     }
 
-    public static void assertElasticsearchStarted(Installation installation) throws Exception {
+    public static void assertElasticsearchStarted(Installation installation, int additionalDelay) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
-        ServerUtils.waitForElasticsearch(installation);
+        ServerUtils.waitForElasticsearch(installation, additionalDelay);
 
         assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();

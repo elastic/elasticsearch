@@ -41,7 +41,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
         Shell.Result startFirstNode = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, false),
-            30000
+            10
         );
         // Capture auto-generated password of the elastic user from the node startup output
         final String elasticPassword = parseElasticPassword(startFirstNode.stdout);
@@ -58,7 +58,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         installation.executables().enrollToExistingCluster.run("--enrollment-token " + enrollmentToken);
         verifySecurityAutoConfigured(installation);
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, false)
+            Archives.startElasticsearchWithTty(installation, sh, null, false),
+            10
         );
         assertThat(startSecondNode.exitCode, is(0));
         assertNull(parseElasticPassword(startSecondNode.stdout));

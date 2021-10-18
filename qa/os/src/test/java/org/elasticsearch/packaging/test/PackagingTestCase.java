@@ -362,15 +362,19 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
+        awaitElasticsearchStartup(result, -1);
+    }
+
+    public void awaitElasticsearchStartup(Shell.Result result, int additionalDelay) throws Exception {
         assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                Archives.assertElasticsearchStarted(installation);
+                Archives.assertElasticsearchStarted(installation, additionalDelay);
                 break;
             case DEB:
             case RPM:
-                Packages.assertElasticsearchStarted(sh, installation);
+                Packages.assertElasticsearchStarted(sh, installation, additionalDelay);
                 break;
             case DOCKER:
             case DOCKER_UBI:
@@ -385,29 +389,11 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} and return a reference to the Shell.Result from
-     * starting elasticsearch
-     */
-    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
-        awaitElasticsearchStartupWithResult(result, 0);
-        return result;
-    }
-
-    /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} milliseconds more before
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} seconds more before
      * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
      */
     public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
-        awaitElasticsearchStartup(result);
-        logger.info("asked to wait for " +  additionalDelay);
-        logger.info("BEFORE");
-        logger.info(result.stdout);
-        if (additionalDelay > 0) {
-            Thread.sleep(additionalDelay);
-        }
-        logger.info("waited for " +  additionalDelay);
-        logger.info("AFTER");
-        logger.info(result.stdout);
+        awaitElasticsearchStartup(result, additionalDelay);
         return result;
     }
 

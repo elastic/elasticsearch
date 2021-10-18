@@ -33,5 +33,8 @@ restResources {
 
 testClusters.configureEach {
     module xpackModule('core')
+    // TODO: remove the shutdown module when
+    // (https://github.com/elastic/elasticsearch/pull/79326)
+    // is merged
     module xpackModule('shutdown')
 }

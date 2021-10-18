@@ -114,7 +114,8 @@ public class IndexDeprecationChecks {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                     "Index created before 7.0",
                     "https://ela.st/es-deprecation-7-reindex",
-                    "This index was created using version: " + createdWith,
+                    "This index was created with version " + createdWith + " and is not compatible with 8.0. Reindex or remove the index " +
+                    "before upgrading.",
                     false, null);
         }
         return null;
@@ -323,12 +324,14 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkRemovedSetting(final Settings settings,
                                                 final Setting<?> removedSetting,
                                                 final String url,
+                                                final String additionalDetail,
                                                 DeprecationIssue.Level deprecationLevel) {
         return checkRemovedSetting(
             settings,
             removedSetting,
             url,
-            "setting [%s] is deprecated and will be removed in the next major version",
+            "Setting [%s] is deprecated",
+            additionalDetail,
             deprecationLevel
         );
     }
@@ -337,6 +340,7 @@ public class IndexDeprecationChecks {
                                                 final Setting<?> removedSetting,
                                                 final String url,
                                                 final String messagePattern,
+                                                final String additionalDetail,
                                                 DeprecationIssue.Level deprecationLevel) {
         if (removedSetting.exists(settings) == false) {
             return null;
@@ -346,7 +350,7 @@ public class IndexDeprecationChecks {
         final String message =
             String.format(Locale.ROOT, messagePattern, removedSettingKey);
         final String details =
-            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
+            String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetail);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
     }
 
@@ -354,6 +358,7 @@ public class IndexDeprecationChecks {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_REQUIRE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
+            "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -362,6 +367,7 @@ public class IndexDeprecationChecks {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_INCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
+            "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -370,6 +376,7 @@ public class IndexDeprecationChecks {
         return checkRemovedSetting(indexMetadata.getSettings(),
             INDEX_ROUTING_EXCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
+            "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -379,7 +386,11 @@ public class IndexDeprecationChecks {
             indexMetadata.getSettings(),
             IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
             "https://ela.st/es-deprecation-7-adjacency-matrix-filters-setting",
-            "[%s] setting will be ignored in 8.0. Use [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey() + "] instead.",
+            String.format(Locale.ROOT,"Setting [%s] is deprecated", IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()),
+            String.format(Locale.ROOT, "Set [%s] to [%s]. [%s] will be ignored in 8.0.",
+                SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(),
+                IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(indexMetadata.getSettings()),
+                IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()),
             DeprecationIssue.Level.WARNING
         );
     }
@@ -412,8 +423,8 @@ public class IndexDeprecationChecks {
         if (messages.isEmpty()) {
             return null;
         } else {
-            String message = String.format(Locale.ROOT,"mappings for index %s contains deprecated geo_shape properties that must be " +
-                "removed", indexMetadata.getIndex().getName());
+            String message = String.format(Locale.ROOT,"[%s] index uses deprecated geo_shape properties",
+                indexMetadata.getIndex().getName());
             String details = String.format(Locale.ROOT,
                 "The following geo_shape parameters must be removed from %s: [%s]", indexMetadata.getIndex().getName(),
                 messages.stream().collect(Collectors.joining("; ")));

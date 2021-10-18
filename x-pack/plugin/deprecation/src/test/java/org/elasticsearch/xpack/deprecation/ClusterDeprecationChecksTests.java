@@ -268,8 +268,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
                 "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
-                    "currently set to [" + tooLowInterval + "], but must be 1s or greater", false, null);
+                "The ILM [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] setting is set to [" + tooLowInterval + "]. " +
+                    "Set the interval to at least 1s.", false, null);
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
             assertEquals(singletonList(expected), issues);
         }
@@ -312,7 +312,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
         assertThat(issues, hasSize(1));
         assertThat(issues.get(0).getDetails(),
-            equalTo("Index templates [multiple-types] define multiple types and so will cause errors when used in index creation"));
+            equalTo("Update or remove the following index templates before upgrading to 8.0: [multiple-types]. See " +
+                "https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types."));
         assertWarnings("Index template multiple-types contains multiple typed mappings;" +
             " templates in 8x will only support a single mapping");
 
@@ -344,13 +345,12 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             String.format(Locale.ROOT,
-                "setting [%s] is deprecated and will be removed in the next major version",
+                "Setting [%s] is deprecated",
                 settingKey),
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             String.format(Locale.ROOT,
-                "the setting [%s] is currently set to [%b], remove this setting",
-                settingKey,
-                settingValue),
+                "Remove the [%s] setting. Relocating shards are always taken into account in 8.0.",
+                settingKey),
             false,
             null
         );
@@ -399,10 +399,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "index templates contain deprecated geo_shape properties that must be removed",
+                "[single-type] index template uses deprecated geo_shape properties",
                 "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                "mappings in index template single-type contains deprecated geo_shape properties. [parameter [points_only] in field " +
-                    "[location]; parameter [strategy] in field [location]]", false, null)
+                "Remove the following deprecated geo_shape properties from the mappings: [parameter [points_only] in field [location]; " +
+                    "parameter [strategy] in field [location]].", false, null)
         ));
 
         // Second, testing only a component template:
@@ -421,10 +421,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "component templates contain deprecated geo_shape properties that must be removed",
+                "[my-template] component template uses deprecated geo_shape properties",
                 "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
-                    "[location]; parameter [strategy] in field [location]]", false, null)
+                "Remove the following deprecated geo_shape properties from the mappings: [parameter [points_only] in field [location]; " +
+                    "parameter [strategy] in field [location]].", false, null)
         ));
 
         // Third, trying a component template and an index template:
@@ -437,12 +437,11 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "component templates and index templates contain deprecated geo_shape properties that must be removed",
+                "[my-template] component template and [single-type] index template use deprecated geo_shape properties",
                 "https://ela.st/es-deprecation-7-geo-shape-mappings",
-                "mappings in component template my-template contains deprecated geo_shape properties. [parameter [points_only] in field " +
-                    "[location]; parameter [strategy] in field [location]]; mappings in index template single-type contains " +
-                    "deprecated geo_shape properties. [parameter [points_only] in field [location]; parameter [strategy] in field " +
-                    "[location]]", false, null)
+                "Remove the following deprecated geo_shape properties from the mappings: [my-template: [parameter [points_only] in field" +
+                    " [location]; parameter [strategy] in field [location]]]; [single-type: [parameter [points_only] in field " +
+                    "[location]; parameter [strategy] in field [location]]].", false, null)
         ));
     }
 
@@ -479,10 +478,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "index templates contain deprecated sparse_vector fields that must be removed",
+                "[single-type] index template uses deprecated sparse_vector properties",
                 "https://ela.st/es-deprecation-7-sparse-vector",
-                "mappings in index template single-type contains deprecated sparse_vector fields: [my_sparse_vector], " +
-                    "[my_nested_sparse_vector]", false, null)
+                "Remove the following deprecated sparse_vector properties from the mappings: [my_sparse_vector]; " +
+                    "[my_nested_sparse_vector].", false, null)
         ));
 
         // Second, testing only a component template:
@@ -500,9 +499,9 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "component templates contain deprecated sparse_vector fields that must be removed",
+                "[my-template] component template uses deprecated sparse_vector properties",
                 "https://ela.st/es-deprecation-7-sparse-vector",
-                "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]", false, null)
+                "Remove the following deprecated sparse_vector properties from the mappings: [my_sparse_vector].", false, null)
         ));
 
         // Third, trying a component template and an index template:
@@ -515,11 +514,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "component templates and index templates contain deprecated sparse_vector fields that must be removed",
+                "[my-template] component template and [single-type] index template use deprecated sparse_vector properties",
                 "https://ela.st/es-deprecation-7-sparse-vector",
-                "mappings in component template [my-template] contains deprecated sparse_vector fields: [my_sparse_vector]; " +
-                    "mappings in index template single-type contains deprecated sparse_vector fields: " +
-                    "[my_sparse_vector], [my_nested_sparse_vector]", false, null)
+                "Remove the following deprecated sparse_vector properties from the mappings: [my-template: " +
+                    "[my_sparse_vector]]; [single-type: [my_sparse_vector]; [my_nested_sparse_vector]].", false, null)
         ));
     }
 

@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.fusesource.jansi.AnsiConsole;
+import org.fusesource.jansi.AnsiPrintStream;
+import org.fusesource.jansi.AnsiType;
 
 import java.io.PrintStream;
 import java.util.HashMap;
@@ -64,11 +67,17 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
 
     @Override
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        final PrintStream out = BootstrapInfo.getTerminalPrintStream();
-        // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
-        out.println();
-        if (out.checkError()) {
-            outputOnError(null);
+        final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
+        if (out == null) {
+            return;
+        }
+        AnsiType ansiType = out.getType();
+        if (ansiType == AnsiType.Redirected || // output is a pipe
+            ansiType == AnsiType.Unsupported || // could not determine terminal type
+            out.getTerminalWidth() <= 0 // hack when logs are output to a terminal inside a docker container, but the docker output
+            // itself is redirected
+        ) {
+            // TODO log
             return;
         }
         if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
@@ -104,6 +113,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
                 sslService,
                 client
             );
+            // TODO also generate and show the node enrollment token
             enrollmentTokenGenerator.createKibanaEnrollmentToken(
                 groupedActionListener.map(token -> token == null ? Map.of() : Map.of(tokenKey, token.getEncoded(), fingerprintKey,
                     token.getFingerprint()))

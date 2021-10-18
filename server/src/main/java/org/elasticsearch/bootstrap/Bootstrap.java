@@ -20,7 +20,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
@@ -37,9 +37,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
-import org.fusesource.jansi.AnsiType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -277,8 +275,7 @@ final class Bootstrap {
             final boolean quiet,
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         final boolean closeStandardStreams = (foreground == false) || quiet;
-        // force the class initializer for BootstrapInfo to run before
-        // the security manager is installed
+        // before the security manager is installed, run the BootstrapInfo class initializer and access the stdout write file descriptor
         if (false == closeStandardStreams) {
             BootstrapInfo.init(AnsiConsole.out());
         } else {

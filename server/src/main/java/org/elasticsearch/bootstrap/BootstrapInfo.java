@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.SuppressForbidden;
 import org.fusesource.jansi.AnsiPrintStream;
 
@@ -20,7 +21,7 @@ import java.util.Enumeration;
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
-    private static AnsiPrintStream terminalPrintStream;
+    private static SetOnce<AnsiPrintStream> terminalPrintStream = new SetOnce<>();
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -52,7 +53,7 @@ public final class BootstrapInfo {
     /**
      * Returns a reference to the terminal output
      */
-    public static AnsiPrintStream getTerminalPrintStream() { return terminalPrintStream; }
+    public static AnsiPrintStream getTerminalPrintStream() { return terminalPrintStream.get(); }
 
     /**
      * codebase location for untrusted scripts (provide some additional safety)
@@ -119,7 +120,7 @@ public final class BootstrapInfo {
     }
 
     public static void init(AnsiPrintStream terminalPrintStream) {
-        BootstrapInfo.terminalPrintStream = terminalPrintStream;
+        BootstrapInfo.terminalPrintStream.set(terminalPrintStream);
     }
 
 }

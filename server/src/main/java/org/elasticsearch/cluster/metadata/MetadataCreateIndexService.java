@@ -829,7 +829,7 @@ public class MetadataCreateIndexService {
                 // if we're not enforcing the tier preference, then maybe warn
                 if (preferredTiers.isEmpty()) {
                     if (DataTier.dataNodesWithoutAllDataRoles(currentState).isEmpty() == false) {
-                        DEPRECATION_LOGGER.warn(DeprecationCategory.INDICES /*maybe OTHER? */, "index_without_tier_preference",
+                        DEPRECATION_LOGGER.warn(DeprecationCategory.INDICES, "index_without_tier_preference",
                             "[{}] creating index with an empty [{}] setting, and TODO TODO TODO",
                             request.index(), DataTier.TIER_PREFERENCE);
                     }

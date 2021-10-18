@@ -39,8 +39,8 @@ public class InboundPipeline implements Releasable {
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
-    public InboundPipeline(Version version, StatsTracker statsTracker, Supplier<Recycler.V<BytesRef>> recycler, LongSupplier relativeTimeInMillis,
-                           Supplier<CircuitBreaker> circuitBreaker,
+    public InboundPipeline(Version version, StatsTracker statsTracker, Supplier<Recycler.V<BytesRef>> recycler,
+                           LongSupplier relativeTimeInMillis, Supplier<CircuitBreaker> circuitBreaker,
                            Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler) {
         this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),

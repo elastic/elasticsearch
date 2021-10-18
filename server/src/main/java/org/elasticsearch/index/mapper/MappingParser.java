@@ -106,8 +106,7 @@ public final class MappingParser {
         }
 
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper
-            = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersFunction.apply(type);
         Map<String, Object> meta = null;

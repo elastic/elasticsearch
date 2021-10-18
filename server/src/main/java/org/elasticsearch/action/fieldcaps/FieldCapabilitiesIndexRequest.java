@@ -22,26 +22,25 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 
 public class FieldCapabilitiesIndexRequest extends ActionRequest implements IndicesRequest {
 
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
-    private final String index;
     private final String[] fields;
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
-
-    private ShardId shardId;
+    private final ShardId shardId;
 
     // For serialization
     FieldCapabilitiesIndexRequest(StreamInput in) throws IOException {
         super(in);
         shardId = in.readOptionalWriteable(ShardId::new);
-        index = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_16_0)) {
+            in.readOptionalString(); // index
+        }
         fields = in.readStringArray();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             originalIndices = OriginalIndices.readOriginalIndices(in);
@@ -54,7 +53,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
-                                  String index,
+                                  ShardId shardId,
                                   OriginalIndices originalIndices,
                                   QueryBuilder indexFilter,
                                   long nowInMillis,
@@ -62,7 +61,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
-        this.index = Objects.requireNonNull(index);
+        this.shardId = shardId;
         this.fields = fields;
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
@@ -85,7 +84,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     }
 
     public String index() {
-        return index;
+        return shardId.getIndexName();
     }
 
     public QueryBuilder indexFilter() {
@@ -104,16 +103,14 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         return nowInMillis;
     }
 
-    FieldCapabilitiesIndexRequest shardId(ShardId shardId) {
-        this.shardId = shardId;
-        return this;
-    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(shardId);
-        out.writeOptionalString(index);
+        if (out.getVersion().before(Version.V_7_16_0)) {
+            out.writeOptionalString(shardId.getIndexName());
+        }
         out.writeStringArray(fields);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);

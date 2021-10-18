@@ -18,9 +18,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Response for shard level operation in {@link TransportFieldCapabilitiesAction}.
- */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;

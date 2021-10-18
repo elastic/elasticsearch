@@ -131,8 +131,8 @@ public class SearchTransportService {
 
     public void sendCanMatch(Transport.Connection connection, final CanMatchNodeRequest request, SearchTask task, final
                              ActionListener<CanMatchNodeResponse> listener) {
-        if (connection.getVersion().onOrAfter(Version.V_8_0_0) &&
-            connection.getNode().getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (connection.getVersion().onOrAfter(Version.V_7_16_0) &&
+            connection.getNode().getVersion().onOrAfter(Version.V_7_16_0)) {
             transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
                 TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new));
         } else {

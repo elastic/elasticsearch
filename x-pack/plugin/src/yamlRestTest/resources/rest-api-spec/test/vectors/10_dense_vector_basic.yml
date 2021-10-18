@@ -18,6 +18,7 @@ setup:
                 dims: 5
                 index: true
                 similarity: dot_product
+
   - do:
       index:
         index: test-index

@@ -53,13 +53,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
         final String enrollmentToken = createTokenResult.stdout;
         // installation now points to the second node
-        installation = installArchive(
-            sh,
-            distribution(),
-            getRootTempDir().resolve("elasticsearch-node2"),
-            getCurrentVersion(),
-            true
-        );
+        installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
         // auto-configure security using the enrollment token
         installation.executables().enrollToExistingCluster.run("--enrollment-token " + enrollmentToken);
         verifySecurityAutoConfigured(installation);

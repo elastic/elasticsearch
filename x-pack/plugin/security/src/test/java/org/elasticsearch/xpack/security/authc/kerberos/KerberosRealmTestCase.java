@@ -85,7 +85,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         settings = buildKerberosRealmSettings(REALM_NAME,
             writeKeyTab(dir.resolve("key.keytab"), "asa").toString(), 100, "10m", true, randomBoolean());
         licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.AUTHORIZATION_REALM_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After

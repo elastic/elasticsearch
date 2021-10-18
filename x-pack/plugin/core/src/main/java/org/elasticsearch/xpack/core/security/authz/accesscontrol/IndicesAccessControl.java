@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
  */
 public class IndicesAccessControl {
 
-    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
             Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
                     new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
@@ -249,6 +248,12 @@ public class IndicesAccessControl {
      * @return {@link IndicesAccessControl}
      */
     public IndicesAccessControl limitIndicesAccessControl(IndicesAccessControl limitedByIndicesAccessControl) {
+        if (this instanceof AllowAllIndicesAccessControl) {
+            return limitedByIndicesAccessControl;
+        } else if (limitedByIndicesAccessControl instanceof AllowAllIndicesAccessControl) {
+            return this;
+        }
+
         final boolean granted;
         if (this.granted == limitedByIndicesAccessControl.granted) {
             granted = this.granted;
@@ -275,4 +280,35 @@ public class IndicesAccessControl {
                 ", indexPermissions=" + indexPermissions +
                 '}';
     }
+
+    public static IndicesAccessControl allowAll() {
+        return AllowAllIndicesAccessControl.INSTANCE;
+    }
+
+    private static class AllowAllIndicesAccessControl extends IndicesAccessControl {
+
+        private static final IndicesAccessControl INSTANCE = new AllowAllIndicesAccessControl();
+
+        private final IndexAccessControl allowAllIndexAccessControl = new IndexAccessControl(true, null, null);
+
+        private AllowAllIndicesAccessControl() {
+            super(true, null);
+        }
+
+        @Override
+        public IndexAccessControl getIndexPermissions(String index) {
+            return allowAllIndexAccessControl;
+        }
+
+        @Override
+        public boolean isGranted() {
+            return true;
+        }
+
+        @Override
+        public Collection<?> getDeniedIndices() {
+            return Set.of();
+        }
+    }
+
 }

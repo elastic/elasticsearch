@@ -144,12 +144,7 @@ public class Environment {
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            if (dataFiles.length == 1) {
-                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0].toString());
-            } else {
-                finalSettings.putList(PATH_DATA_SETTING.getKey(),
-                    Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
-            }
+            finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());

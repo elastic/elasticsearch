@@ -195,7 +195,7 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
 
     private XPackLicenseState getLicenseState(boolean authzRealmsAllowed) {
         final MockLicenseState license = mock(MockLicenseState.class);
-        when(license.isAllowed(Security.AUTHORIZATION_REALM_FEATURE)).thenReturn(authzRealmsAllowed);
+        when(license.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(authzRealmsAllowed);
         return license;
     }
 }

@@ -42,12 +42,7 @@ public class XPackLicenseState {
      */
     public enum Feature {
         SECURITY_AUDITING(OperationMode.GOLD, false),
-        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
         SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
-
-        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
-
-        MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 

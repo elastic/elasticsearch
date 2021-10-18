@@ -142,6 +142,17 @@ public class DateFieldMapperTests extends MapperTestCase {
         testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
     }
 
+    public void testResolutionLossDeprecation() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
+            .field("type", "date")));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2018-10-03T14:42:44.123456+0000")));
+
+        assertWarnings("You are attempting to store a nanosecond resolution " +
+            "on a field [field] of type date on index [index]. " +
+            "The nanosecond part was lost. Use date_nanos field type.");
+    }
+
     private void testIgnoreMalformedForValue(String value, String expectedCause, String dateFormat) throws IOException {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping((builder)-> dateFieldMapping(builder, dateFormat)));
@@ -406,11 +417,11 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testFetchMillisFromIso8601Nanos() throws IOException {
-        assertFetch(dateMapperService(), "field", randomIs8601Nanos(MAX_ISO_DATE), null);
+        assertFetch(dateNanosMapperService(), "field", randomIs8601Nanos(MAX_NANOS), null);
     }
 
     public void testFetchMillisFromIso8601NanosFormatted() throws IOException {
-        assertFetch(dateMapperService(), "field", randomIs8601Nanos(MAX_ISO_DATE), "strict_date_optional_time_nanos");
+        assertFetch(dateNanosMapperService(), "field", randomIs8601Nanos(MAX_NANOS), "strict_date_optional_time_nanos");
     }
 
     /**
@@ -421,7 +432,8 @@ public class DateFieldMapperTests extends MapperTestCase {
      * way.
      */
     public void testFetchMillisFromRoundedNanos() throws IOException {
-        assertFetch(dateMapperService(), "field", randomDecimalNanos(MAX_ISO_DATE), null);
+        assertFetch(dateMapperService(), "field", randomDecimalMillis(MAX_ISO_DATE), null);
+        assertFetch(dateNanosMapperService(), "field", randomDecimalNanos(MAX_NANOS), null);
     }
 
     /**
@@ -534,7 +546,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         switch (((DateFieldType) ft).resolution()) {
             case MILLISECONDS:
                 if (randomBoolean()) {
-                    return randomIs8601Nanos(MAX_ISO_DATE);
+                    return randomDecimalMillis(MAX_ISO_DATE);
                 }
                 return randomLongBetween(0, Long.MAX_VALUE);
             case NANOSECONDS:
@@ -565,6 +577,10 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     private String randomDecimalNanos(long maxMillis) {
         return Long.toString(randomLongBetween(0, maxMillis)) + "." + between(0, 999999);
+    }
+
+    private String randomDecimalMillis(long maxMillis) {
+        return Long.toString(randomLongBetween(0, maxMillis));
     }
 
     public void testScriptAndPrecludedParameters() {

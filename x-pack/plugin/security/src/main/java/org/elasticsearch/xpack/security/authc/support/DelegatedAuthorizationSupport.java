@@ -82,7 +82,7 @@ public class DelegatedAuthorizationSupport {
      * with a meaningful diagnostic message.
      */
     public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
-        boolean authzOk = Security.AUTHORIZATION_REALM_FEATURE.check(licenseState);
+        boolean authzOk = Security.DELEGATED_AUTHORIZATION_FEATURE.check(licenseState);
         if (authzOk == false) {
             resultListener.onResponse(AuthenticationResult.unsuccessful(
                 DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",

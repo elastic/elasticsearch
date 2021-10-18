@@ -105,7 +105,7 @@ public class LdapRealmTests extends LdapTestCase {
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.AUTHORIZATION_REALM_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After

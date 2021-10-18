@@ -304,7 +304,7 @@ public class SamlRealmTests extends SamlTestCase {
 
     private void initializeRealms(Realm... realms) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.AUTHORIZATION_REALM_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {

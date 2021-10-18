@@ -82,7 +82,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.AUTHORIZATION_REALM_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     public void testTokenSupport() throws Exception {

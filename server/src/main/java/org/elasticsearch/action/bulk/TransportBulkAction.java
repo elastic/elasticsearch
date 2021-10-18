@@ -491,7 +491,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                     
-                    int shardId;
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
@@ -503,17 +502,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             Version indexCreated = indexMetadata.getCreationVersion();
                             indexRequest.resolveRouting(metadata);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
-                            shardId = indexRouting.indexShard(
-                                docWriteRequest.id(),
-                                docWriteRequest.routing(),
-                                indexRequest.getContentType(),
-                                indexRequest.source()
-                            );
                             break;
                         case UPDATE:
                             TransportUpdateAction.resolveAndValidateRouting(metadata, concreteIndex.getName(),
                                 (UpdateRequest) docWriteRequest);
-                            shardId = indexRouting.updateShard(docWriteRequest.id(), docWriteRequest.routing());
                             break;
                         case DELETE:
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
@@ -521,10 +513,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
                                 throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
                             }
-                            shardId = indexRouting.deleteShard(docWriteRequest.id(), docWriteRequest.routing());
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
+                    int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                         new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()

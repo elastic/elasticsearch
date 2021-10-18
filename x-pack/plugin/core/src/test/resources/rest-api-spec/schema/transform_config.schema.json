@@ -194,6 +194,11 @@
         }
       }
     },
+    "_meta": {
+      "$id": "#root/_meta",
+      "title": "Metadata",
+      "type": "object"
+    },
     "retention_policy": {
       "$id": "#root/retention_policy",
       "additionalProperties": false,

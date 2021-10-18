@@ -140,8 +140,9 @@ public class EnvironmentTests extends ESTestCase {
 
         final Path home = PathUtils.get(homePath);
 
-        final String dataPath = Environment.PATH_DATA_SETTING.get(environment.settings());
-        assertPath(dataPath, home.resolve("data"));
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(environment.settings());
+        assertThat(dataPaths, hasSize(1));
+        assertPath(dataPaths.get(0), home.resolve("data"));
 
         final String logPath = Environment.PATH_LOGS_SETTING.get(environment.settings());
         assertPath(logPath, home.resolve("logs"));

@@ -281,7 +281,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
 
         // ensure that no aliases reference index
-        IndexMetadata im = clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex();
+        IndexMetadata im = clusterMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
         if (im.getAliases().size() > 0) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT,

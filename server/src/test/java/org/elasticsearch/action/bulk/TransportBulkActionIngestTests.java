@@ -137,8 +137,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
-                final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+        void executeBulk(
+            Task task,
+            BulkRequest bulkRequest,
+            long startTimeNanos,
+            ActionListener<BulkResponse> listener,
+            String executorName,
+            AtomicArray<BulkItemResponse> responses,
+            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+        ) {
             assertTrue(indexCreated);
             isExecuted = true;
         }

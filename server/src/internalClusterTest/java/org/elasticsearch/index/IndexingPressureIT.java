@@ -161,45 +161,34 @@ public class IndexingPressureIT extends ESIntegTestCase {
             final BulkRequest secondBulkRequest = new BulkRequest();
             secondBulkRequest.add(request);
 
-            // Use the primary or the replica data node as the coordinating node this time
-            boolean usePrimaryAsCoordinatingNode = randomBoolean();
-            final ActionFuture<BulkResponse> secondFuture;
-            if (usePrimaryAsCoordinatingNode) {
-                secondFuture = client(primaryName).bulk(secondBulkRequest);
-            } else {
-                secondFuture = client(replicaName).bulk(secondBulkRequest);
-            }
+            /*
+             * Use the primary as the coordinating node this time.
+             * We never use the replica as the coordinating node because
+             * we try to go async immediately and the replica's thread
+             * pool is stuffed.
+             */
+            final ActionFuture<BulkResponse> secondFuture = client(primaryName).bulk(secondBulkRequest);
 
             final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
             final long secondBulkShardRequestSize = request.ramBytesUsed();
             final long secondBulkOps = secondBulkRequest.numberOfActions();
 
-            if (usePrimaryAsCoordinatingNode) {
-                assertBusy(() -> {
-                    assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                        greaterThan(bulkShardRequestSize + secondBulkRequestSize));
-                    assertEquals(secondBulkRequestSize, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
-                    assertEquals(secondBulkOps, primaryWriteLimits.stats().getCurrentCoordinatingOps());
-                    assertThat(primaryWriteLimits.stats().getCurrentPrimaryBytes(),
-                        greaterThan(bulkShardRequestSize + secondBulkRequestSize));
-                    assertThat(primaryWriteLimits.stats().getCurrentPrimaryOps(),
-                        equalTo(bulkOps + secondBulkOps));
+            assertBusy(() -> {
+                assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                    greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+                assertEquals(secondBulkRequestSize, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
+                assertEquals(secondBulkOps, primaryWriteLimits.stats().getCurrentCoordinatingOps());
+                assertThat(primaryWriteLimits.stats().getCurrentPrimaryBytes(),
+                    greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+                assertThat(primaryWriteLimits.stats().getCurrentPrimaryOps(),
+                    equalTo(bulkOps + secondBulkOps));
 
-                    assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                    assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
-                    assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
-                    assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
-                    assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
-                });
-            } else {
-                assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
-
-                assertEquals(secondBulkRequestSize, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertEquals(secondBulkRequestSize, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
-                assertEquals(secondBulkOps, replicaWriteLimits.stats().getCurrentCoordinatingOps());
+                assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
+                assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
-            }
+            });
             assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertBusy(() -> assertThat(replicaWriteLimits.stats().getCurrentReplicaBytes(),
                 greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));

@@ -151,8 +151,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
         assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "settings [xpack.monitoring.exporters.test.use_ingest] are deprecated and" +
-                    " will be removed in a future release",
+                "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                 expectedUrl,
                 "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
                 false, null)));
@@ -169,8 +168,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
         assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "settings [xpack.monitoring.exporters.test.index.pipeline.master_timeout] are deprecated and" +
-                    " will be removed in a future release",
+                "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are deprecated and will be removed after 8.0",
                 expectedUrl,
                 "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                 false, null)));
@@ -187,8 +185,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";
         assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "settings [xpack.monitoring.exporters.test.index.template.create_legacy_templates] are deprecated and" +
-                    " will be removed in a future release",
+                "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be " +
+                    "removed after 8.0",
                 expectedUrl,
                 "Remove the following settings from elasticsearch.yml: " +
                     "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",

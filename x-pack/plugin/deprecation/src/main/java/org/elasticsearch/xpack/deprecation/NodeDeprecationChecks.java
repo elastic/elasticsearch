@@ -108,7 +108,7 @@ public class NodeDeprecationChecks {
         final String concatSettingNames = deprecatedConcreteSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "settings [%s] are deprecated and will be removed in a future release",
+            "The [%s] settings are deprecated and will be removed after 8.0",
             concatSettingNames
         );
         final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);

@@ -423,54 +423,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
     }
 
-    public void testGeneralScriptSizeSetting() {
-        final int size = randomIntBetween(1, 4);
-        final Settings settings = Settings.builder().put("script.cache.max_size", size).build();
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
-            "https://ela.st/es-deprecation-7-script-cache-size-setting",
-            "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
-                "to [" + size + "] where * is a script context", false, null);
-        assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
-    }
-
-    public void testGeneralScriptExpireSetting() {
-        final String expire = randomIntBetween(1, 4) + "m";
-        final Settings settings = Settings.builder().put("script.cache.expire", expire).build();
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
-            "https://ela.st/es-deprecation-7-script-cache-expire-setting",
-            "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
-                "[" + expire + "] where * is a script context", false, null);
-        assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
-    }
-
-    public void testGeneralScriptCompileSettings() {
-        final String rate = randomIntBetween(1, 100) + "/" + randomIntBetween(1, 200) + "m";
-        final Settings settings = Settings.builder().put("script.max_compilations_rate", rate).build();
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
-            "https://ela.st/es-deprecation-7-script-max-compilations-rate-setting",
-            "the setting [script.max_compilations_rate] is currently set to [" + rate +
-                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context", false, null);
-        assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
-    }
-
     public void testClusterRemoteConnectSetting() {
         final boolean value = randomBoolean();
         final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), value).build();

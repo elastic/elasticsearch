@@ -82,9 +82,6 @@ public class DeprecationChecks {
                         NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
                     NodeDeprecationChecks::checkClusterRemoteConnectSetting,
                     NodeDeprecationChecks::checkNodeLocalStorageSetting,
-                    NodeDeprecationChecks::checkGeneralScriptSizeSetting,
-                    NodeDeprecationChecks::checkGeneralScriptExpireSetting,
-                    NodeDeprecationChecks::checkGeneralScriptCompileSettings,
                     (settings, pluginsAndModules, clusterState, licenseState) ->
                         NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
                     (settings, pluginsAndModules, clusterState, licenseState) ->

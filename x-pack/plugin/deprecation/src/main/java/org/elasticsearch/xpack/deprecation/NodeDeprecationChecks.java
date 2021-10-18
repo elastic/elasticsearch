@@ -311,42 +311,6 @@ class NodeDeprecationChecks {
         );
     }
 
-    public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                 final ClusterState clusterState, final XPackLicenseState licenseState) {
-        return checkDeprecatedSetting(
-            settings,
-            pluginsAndModules,
-            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
-            ScriptService.SCRIPT_CACHE_SIZE_SETTING,
-            "a script context",
-            "https://ela.st/es-deprecation-7-script-cache-size-setting"
-        );
-    }
-
-    public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                   final ClusterState clusterState, final XPackLicenseState licenseState) {
-        return checkDeprecatedSetting(
-            settings,
-            pluginsAndModules,
-            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
-            ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
-            "a script context",
-            "https://ela.st/es-deprecation-7-script-cache-expire-setting"
-        );
-    }
-
-    public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules,
-                                                                    final ClusterState clusterState, final XPackLicenseState licenseState) {
-        return checkDeprecatedSetting(
-            settings,
-            pluginsAndModules,
-            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
-            "a script context",
-            "https://ela.st/es-deprecation-7-script-max-compilations-rate-setting"
-        );
-    }
-
     public static DeprecationIssue checkLegacyRoleSettings(
         final Setting<Boolean> legacyRoleSetting,
         final Settings settings,

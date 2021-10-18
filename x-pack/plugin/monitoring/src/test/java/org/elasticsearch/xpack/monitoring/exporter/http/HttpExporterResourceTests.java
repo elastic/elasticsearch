@@ -22,9 +22,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
@@ -60,7 +61,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private final ClusterState state = mockClusterState(true);
     private final ClusterService clusterService = mockClusterService(state);
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+    private final MockLicenseState licenseState = mock(MockLicenseState.class);
     private final boolean remoteClusterHasWatcher = randomBoolean();
     private final boolean validLicense = randomBoolean();
 
@@ -585,7 +586,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         when(state.metadata()).thenReturn(metadata);
         when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)).thenReturn(validLicense);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicense);
 
         final HttpEntity entity =
                 new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}", ContentType.APPLICATION_JSON);

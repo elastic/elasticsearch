@@ -38,6 +38,9 @@
 
 ---
 "cluster health request timeout with 200 response code":
+  - skip:
+      version: " - 7.15.99"
+      reason: "return_200_for_cluster_health_timeout was added in 7.16"
   - do:
       cluster.health:
         timeout: 1ms

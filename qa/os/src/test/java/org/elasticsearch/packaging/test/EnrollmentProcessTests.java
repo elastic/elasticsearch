@@ -36,17 +36,12 @@ public class EnrollmentProcessTests extends PackagingTestCase {
     public void test10AutoFormCluster() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
-        installation = installArchive(
-            sh,
-            distribution(),
-            getRootTempDir().resolve("elasticsearch-node1"),
-            getCurrentVersion(),
-            true
-        );
+        installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node1"), getCurrentVersion(), true);
         verifyArchiveInstallation(installation, distribution());
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
         Shell.Result startFirstNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, false), 30000
+            Archives.startElasticsearchWithTty(installation, sh, null, false),
+            30000
         );
         // Capture auto-generated password of the elastic user from the node startup output
         final String elasticPassword = parseElasticPassword(startFirstNode.stdout);

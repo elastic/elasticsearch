@@ -11,25 +11,24 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,7 +62,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     /**
      * Standard {@link ParseField} for source on the inner level.
      */
-    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source", "code");
+    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source");
 
     /**
      * Standard {@link ParseField} for options on the inner level.
@@ -121,8 +120,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
          * Validates the parameters and creates an {@link StoredScriptSource}.
          *
          * @param ignoreEmpty Specify as {@code true} to ignoreEmpty the empty source check.
-         *                    This allow empty templates to be loaded for backwards compatibility.
-         *                    This allow empty templates to be loaded for backwards compatibility.
+         *                    This allow empty templates to be dropped for backwards compatibility.
          */
         private StoredScriptSource build(boolean ignoreEmpty) {
             if (lang == null) {
@@ -132,29 +130,13 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             }
 
             if (source == null) {
-                if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                    if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates",
-                            "empty templates should no longer be used");
-                    } else {
-                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_scripts",
-                            "empty scripts should no longer be used");
-                    }
+                if (ignoreEmpty) {
+                    source = "";
                 } else {
                     throw new IllegalArgumentException("must specify source for stored script");
                 }
-            } else if (source.isEmpty()) {
-                if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                    if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates",
-                            "empty templates should no longer be used");
-                    } else {
-                        deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_scripts",
-                            "empty scripts should no longer be used");
-                    }
-                } else {
-                    throw new IllegalArgumentException("source cannot be empty");
-                }
+            } else if (source.isEmpty() && ignoreEmpty == false) {
+                throw new IllegalArgumentException("source cannot be empty");
             }
 
             if (options.size() > 1 || options.size() == 1 && options.get(Script.CONTENT_TYPE_OPTION) == null) {
@@ -175,21 +157,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     /**
-     * This will parse XContent into a {@link StoredScriptSource}.  The following formats can be parsed:
+     * This will parse XContent into a {@link StoredScriptSource}.
      *
-     * The simple script format with no compiler options or user-defined params:
-     *
-     * Example:
-     * {@code
-     * {"script": "return Math.log(doc.popularity) * 100;"}
-     * }
-     *
-     * The above format requires the lang to be specified using the deprecated stored script namespace
-     * (as a url parameter during a put request).  See {@link ScriptMetadata} for more information about
-     * the stored script namespaces.
-     *
-     * The complex script format using the new stored script namespace
-     * where lang and source are required but options is optional:
+     * Examples of legal JSON:
      *
      * {@code
      * {
@@ -215,22 +185,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      * }
      *
-     * The use of "source" may also be substituted with "code" for backcompat with 5.3 to 5.5 format. For example:
-     *
-     * {@code
-     * {
-     *     "script" : {
-     *         "lang" : "<lang>",
-     *         "code" : "<source>",
-     *         "options" : {
-     *             "option0" : "<option0>",
-     *             "option1" : "<option1>",
-     *             ...
-     *         }
-     *     }
-     * }
-     * }
-     *
      * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      *
@@ -248,12 +202,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             }
 
             token = parser.nextToken();
-
-            if (token == Token.END_OBJECT) {
-                deprecationLogger.critical(DeprecationCategory.TEMPLATES, "empty_templates", "empty templates should no longer be used");
-
-                return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
-            }
 
             if (token != Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + ", expected [" +

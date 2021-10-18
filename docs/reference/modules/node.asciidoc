@@ -346,7 +346,7 @@ node.roles: [ ]
 ==== Remote-eligible node
 
 A remote-eligible node acts as a cross-cluster client and connects to
-<<modules-remote-clusters,remote clusters>>. Once connected, you can search
+<<remote-clusters,remote clusters>>. Once connected, you can search
 remote clusters using <<modules-cross-cluster-search,{ccs}>>. You can also sync
 data between clusters using <<xpack-ccr,{ccr}>>.
 

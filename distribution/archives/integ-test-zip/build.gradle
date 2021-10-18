@@ -44,8 +44,7 @@ tasks.named("integTest").configure {
    *    when running against an external cluster.
    */
   if (project.providers.systemProperty("tests.rest.cluster").forUseAtConfigurationTime().isPresent()) {
-    nonInputProperties.systemProperty 'tests.logfile',
-      "${-> testClusters.integTest.singleNode().getServerLog()}"
+    nonInputProperties.systemProperty 'tests.logfile', testClusters.named('integTest').map(c -> c.singleNode().serverLog)
   } else {
     systemProperty 'tests.logfile', '--external--'
   }

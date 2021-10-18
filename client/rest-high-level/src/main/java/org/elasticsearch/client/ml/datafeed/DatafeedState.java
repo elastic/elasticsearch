@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Locale;
 

@@ -7,22 +7,21 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -108,7 +107,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         this.name = in.readString();
         this.dataStreams = in.readStringList();
         this.writeDataStream = in.readOptionalString();
-        this.filter = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
+        this.filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
     }
 
     /**
@@ -138,6 +137,10 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
 
     public CompressedXContent getFilter() {
         return filter;
+    }
+
+    public boolean filteringRequired() {
+        return filter != null;
     }
 
     /**
@@ -276,7 +279,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+        builder.stringListField(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
         if (writeDataStream != null) {
             builder.field(WRITE_DATA_STREAM_FIELD.getPreferredName(), writeDataStream);
         }
@@ -297,13 +300,11 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            if (filter != null) {
-                out.writeBoolean(true);
-                filter.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (filter != null) {
+            out.writeBoolean(true);
+            filter.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -329,7 +330,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
             "name='" + name + '\'' +
             ", dataStreams=" + dataStreams +
             ", writeDataStream='" + writeDataStream + '\'' +
-            ", filter=" + filter.string() +
+            ", filter=" + (filter != null ? filter.string() : "null") +
             '}';
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -167,8 +166,6 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 .filter(discoNode -> discoNode.getId().equals(discoNodes.getMasterNodeId()) == false)
                 // filter out dedicated master nodes
                 .filter(discoNode -> discoNode.getRoles().equals(Set.of(DiscoveryNodeRole.MASTER_ROLE)) == false)
-                // Filter out nodes that don't have this action yet
-                .filter(discoNode -> discoNode.getVersion().onOrAfter(Version.V_7_15_0))
                 .toArray(DiscoveryNode[]::new);
             if (nodes.length == 0) {
                 throw new IllegalStateException("no suitable node was found to perform enrich policy execution");

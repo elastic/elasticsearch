@@ -11,12 +11,12 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +25,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesModeTests extends MapperServiceTestCase {
+
+    public void testConfigureIndex() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        assertSame(IndexMode.TIME_SERIES, IndexSettings.MODE.get(s));
+    }
+
     public void testPartitioned() {
         Settings s = Settings.builder()
             .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
@@ -144,5 +153,49 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
                 )
             );
         }
+    }
+
+    public void testWithoutRoutingPath() {
+        Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
+    }
+
+    public void testRequiredRouting() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(s, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
+        );
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+    }
+
+    public void testValidateAlias() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
+    }
+
+    public void testValidateAliasWithIndexRouting() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias("r", null));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
+    }
+
+    public void testValidateAliasWithSearchRouting() {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias(null, "r"));
+        assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 }

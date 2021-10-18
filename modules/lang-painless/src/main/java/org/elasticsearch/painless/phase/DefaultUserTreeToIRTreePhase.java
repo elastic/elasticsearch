@@ -154,6 +154,7 @@ import org.elasticsearch.painless.symbol.Decorations.Compound;
 import org.elasticsearch.painless.symbol.Decorations.CompoundType;
 import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
 import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.DynamicInvocation;
 import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
@@ -1802,7 +1803,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         ValueType prefixValueType = scriptScope.getDecoration(userCallNode.getPrefixNode(), ValueType.class);
         Class<?> valueType = scriptScope.getDecoration(userCallNode, ValueType.class).getValueType();
 
-        if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
+        if (scriptScope.getCondition(userCallNode, DynamicInvocation.class)) {
             InvokeCallDefNode irCallSubDefNode = new InvokeCallDefNode(userCallNode.getLocation());
 
             for (AExpression userArgumentNode : userCallNode.getArgumentNodes()) {

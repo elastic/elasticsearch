@@ -15,6 +15,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
@@ -114,7 +115,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n" +
             "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n" +
@@ -130,7 +131,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n" +
             "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n" +
@@ -156,7 +157,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
+                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {
@@ -171,6 +172,29 @@ public class PyTorchModelIT extends ESRestTestCase {
         if (failures.isEmpty() == false) {
             fail("Inference calls failed with [" + failures.stream().reduce((s1, s2) -> s1 + ", " + s2) + "]");
         }
+    }
+
+    public void testEvaluateWithResultFieldOverride() throws IOException {
+        String modelId = "test_evaluate";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        String resultsField = randomAlphaOfLength(10);
+        Response inference = infer("my words", modelId, resultsField);
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        stopDeployment(modelId);
+    }
+
+    public void testEvaluateWithMinimalTimeout() throws IOException {
+        String modelId = "test_evaluate_timeout";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        ResponseException ex = expectThrows(ResponseException.class, () -> infer("my words", modelId, TimeValue.ZERO));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        stopDeployment(modelId);
     }
 
     public void testDeleteFailureDueToDeployment() throws IOException {
@@ -418,7 +442,8 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s&wait_for=" + waitForState);
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId +
+            "/deployment/_start?timeout=40s&wait_for=" + waitForState + "&inference_threads=1&model_threads=1");
         return client().performRequest(request);
     }
 
@@ -436,10 +461,27 @@ public class PyTorchModelIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
+        request.setJsonEntity("{  " +
+            "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
+            "}");
+        return client().performRequest(request);
+    }
+
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
         request.setJsonEntity("{  " +
             "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
+            "}");
+        return client().performRequest(request);
+    }
+
+    private Response infer(String input, String modelId, String resultsField) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request.setJsonEntity("{  " +
+            "\"docs\": [{\"input\":\"" + input + "\"}],\n" +
+            "\"inference_config\": {\"pass_through\":{\"results_field\": \"" + resultsField + "\"}}\n" +
             "}");
         return client().performRequest(request);
     }

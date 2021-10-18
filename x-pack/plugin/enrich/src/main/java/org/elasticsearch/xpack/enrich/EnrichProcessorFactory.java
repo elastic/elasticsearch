@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -61,7 +60,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         }
         assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = indexAbstraction.getIndices().get(0);
+        IndexMetadata imd = metadata.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -129,17 +128,10 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         EnrichCache enrichCache
     ) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
-        return (req, handler) -> {
-            // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-            SearchResponse response = enrichCache.get(req);
-            if (response != null) {
-                handler.accept(response, null);
-            } else {
-                originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, req, ActionListener.wrap(resp -> {
-                    enrichCache.put(req, resp);
-                    handler.accept(resp, null);
-                }, e -> { handler.accept(null, e); }));
-            }
-        };
+        return (req, handler) -> enrichCache.resolveOrDispatchSearch(
+            req,
+            (searchRequest, listener) -> originClient.execute(EnrichCoordinatorProxyAction.INSTANCE, searchRequest, listener),
+            handler
+        );
     }
 }

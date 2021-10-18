@@ -17,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -39,17 +39,15 @@ public class LocalBulk extends ExportBulk {
     private final Logger logger;
     private final Client client;
     private final DateFormatter formatter;
-    private final boolean usePipeline;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    LocalBulk(String name, Logger logger, Client client, DateFormatter dateTimeFormatter, boolean usePipeline) {
+    LocalBulk(String name, Logger logger, Client client, DateFormatter dateTimeFormatter) {
         super(name, client.threadPool().getThreadContext());
         this.logger = logger;
         this.client = client;
         this.formatter = dateTimeFormatter;
-        this.usePipeline = usePipeline;
     }
 
     @Override
@@ -71,11 +69,6 @@ public class LocalBulk extends ExportBulk {
 
                 final BytesReference source = XContentHelper.toXContent(doc, XContentType.SMILE, false);
                 request.source(source, XContentType.SMILE);
-
-                // allow the use of ingest pipelines to be completely optional
-                if (usePipeline) {
-                    request.setPipeline(MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
-                }
 
                 requestBuilder.add(request);
 

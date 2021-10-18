@@ -16,8 +16,8 @@ import org.elasticsearch.client.security.support.expressiondsl.expressions.Compo
 import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public final class RoleMapperExpressionParser {
 
     /**
      * This function exists to be compatible with
-     * {@link org.elasticsearch.common.xcontent.ContextParser#parse(XContentParser, Object)}
+     * {@link org.elasticsearch.xcontent.ContextParser#parse(XContentParser, Object)}
      */
     public static RoleMapperExpression parseObject(XContentParser parser, String id) throws IOException {
         return new RoleMapperExpressionParser().parse(id, parser);

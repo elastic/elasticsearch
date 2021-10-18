@@ -433,8 +433,8 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private boolean exists(final Set<String> keys, final SecureSettings secureSettings) {
-        return keys.contains(getKey()) &&
-            (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
+        final String key = getKey();
+        return keys.contains(key) && (secureSettings == null || secureSettings.getSettingNames().contains(key) == false);
     }
 
     /**
@@ -535,12 +535,17 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
+        final String key = getKey();
         SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
-            throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
+        if (secureSettings != null && secureSettings.getSettingNames().contains(key)) {
+            throw new IllegalArgumentException("Setting [" + key + "] is a non-secure setting" +
                 " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
         }
-        return settings.get(getKey(), defaultValue.apply(settings));
+        final String found = settings.get(key);
+        if (found != null) {
+            return found;
+        }
+        return defaultValue.apply(settings);
     }
 
     /** Logs a deprecation warning if the setting is deprecated and used. */
@@ -549,10 +554,14 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            Settings.DeprecationLoggerHolder.deprecationLogger
-                .critical(DeprecationCategory.SETTINGS, key,
-                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.", key);
+
+            List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
+            if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
+                Settings.DeprecationLoggerHolder.deprecationLogger
+                    .critical(DeprecationCategory.SETTINGS, key,
+                        "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version.", key);
+            }
         }
     }
 
@@ -568,8 +577,8 @@ public class Setting<T> implements ToXContentObject {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("key", key.toString());
-        builder.field("properties", properties);
+        builder.field("key", getKey());
+        builder.enumSet("properties", properties);
         builder.field("is_group_setting", isGroupSetting());
         builder.field("default", defaultValue.apply(Settings.EMPTY));
         builder.endObject();
@@ -1567,6 +1576,9 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static List<String> parseableStringToList(String parsableString) {
+        if ("[]".equals(parsableString)) {
+            return List.of();
+        }
         // fromXContent doesn't use named xcontent or deprecation.
         try (XContentParser xContentParser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {
@@ -1581,6 +1593,9 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static String arrayToParsableString(List<String> array) {
+        if (array.isEmpty()) {
+            return "[]";
+        }
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
             builder.startArray();
@@ -1906,6 +1921,8 @@ public class Setting<T> implements ToXContentObject {
         private final String prefix;
         private final String suffix;
 
+        private final String keyString;
+
         AffixKey(String prefix) {
             this(prefix, null);
         }
@@ -1924,6 +1941,14 @@ public class Setting<T> implements ToXContentObject {
                 // the last part of this regexp is to support both list and group keys
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
+            StringBuilder sb = new StringBuilder();
+            sb.append(prefix);
+            if (suffix != null) {
+                sb.append('*');
+                sb.append('.');
+                sb.append(suffix);
+            }
+            keyString = sb.toString();
         }
 
         @Override
@@ -1968,16 +1993,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder();
-            if (prefix != null) {
-                sb.append(prefix);
-            }
-            if (suffix != null) {
-                sb.append('*');
-                sb.append('.');
-                sb.append(suffix);
-            }
-            return sb.toString();
+            return keyString;
         }
 
         @Override

@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -30,6 +31,15 @@ import java.util.stream.Stream;
  */
 public class DeprecationChecks {
 
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
+        Setting.listSetting(
+            "deprecation.skip_deprecated_settings",
+            Collections.emptyList(),
+            Function.identity(),
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+
     private DeprecationChecks() {
     }
 
@@ -43,7 +53,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
-            ClusterDeprecationChecks::checkILMFreezeActions
+            ClusterDeprecationChecks::checkILMFreezeActions,
+            ClusterDeprecationChecks::checkTransientSettingsExistence
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -143,7 +154,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
             IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
             IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
-            IndexDeprecationChecks::checkGeoShapeMappings
+            IndexDeprecationChecks::checkGeoShapeMappings,
+            IndexDeprecationChecks::frozenIndexSettingCheck
         ));
 
     /**

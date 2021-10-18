@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,12 +21,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -231,8 +230,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, DocumentMapper> updatedEntries;
         try {
             Map<String, CompressedXContent> map = new LinkedHashMap<>();
-            for (ObjectCursor<MappingMetadata> cursor : newIndexMetadata.getMappings().values()) {
-                MappingMetadata mappingMetadata = cursor.value;
+            for (MappingMetadata mappingMetadata : newIndexMetadata.getMappings().values()) {
                 map.put(mappingMetadata.type(), mappingMetadata.source());
             }
             Mappings mappings = parseMappings(map, MergeReason.MAPPING_RECOVERY);
@@ -340,8 +338,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
-        for (ObjectCursor<MappingMetadata> cursor : indexMetadata.getMappings().values()) {
-            MappingMetadata mappingMetadata = cursor.value;
+        for (MappingMetadata mappingMetadata : indexMetadata.getMappings().values()) {
             map.put(mappingMetadata.type(), mappingMetadata.source());
         }
         mergeAndApplyMappings(map, reason);

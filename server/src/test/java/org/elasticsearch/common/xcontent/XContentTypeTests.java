@@ -8,6 +8,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Locale;
 

@@ -32,8 +32,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -42,6 +40,8 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.time.Instant;
@@ -49,9 +49,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 
 public class BlobStoreCacheService extends AbstractLifecycleComponent {
@@ -72,17 +71,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
-    private final Supplier<Long> timeSupplier;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index, Supplier<Long> timeSupplier) {
+    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
         this.clusterService = clusterService;
-        this.timeSupplier = timeSupplier;
         this.index = index;
     }
 
@@ -242,12 +239,13 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         final String name,
         final ByteRange range,
         final BytesReference bytes,
+        final long timeInEpochMillis,
         final ActionListener<Void> listener
     ) {
         final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
-                Instant.ofEpochMilli(timeSupplier.get()),
+                Instant.ofEpochMilli(timeInEpochMillis),
                 Version.CURRENT,
                 repository,
                 name,
@@ -325,13 +323,14 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      * For files that are declared as metadata files in {@link LuceneFilesExtensions}, the header can be as large as the specified
      * maximum metadata length parameter {@code maxMetadataLength}. Non-metadata files have a fixed length header of maximum 1KB.
      *
+     * @param shardId the {@link ShardId} the file belongs to
      * @param fileName the name of the file
      * @param fileLength the length of the file
      * @param maxMetadataLength the maximum accepted length for metadata files
      *
      * @return the header {@link ByteRange}
      */
-    public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+    public ByteRange computeBlobCacheByteRange(ShardId shardId, String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
 
         if (useLegacyCachedBlobSizes()) {
@@ -345,7 +344,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
-                logExceedingFile(fileExtension, fileLength, maxMetadataLength);
+                logExceedingFile(shardId, fileExtension, fileLength, maxMetadataLength);
             }
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
@@ -357,13 +356,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
-    private static void logExceedingFile(LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {
-        if (logger.isWarnEnabled()) {
+    private static void logExceedingFile(ShardId shardId, LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {
+        if (logger.isInfoEnabled()) {
             try {
                 // Use of a cache to prevent too many log traces per hour
                 LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension.getExtension(), key -> {
-                    logger.warn(
-                        "file with extension [{}] is larger ([{}]) than the max. length allowed [{}] to cache metadata files in blob cache",
+                    logger.info(
+                        "{} file with extension [{}] is larger ([{}]) than the max. length allowed [{}] "
+                            + "to cache metadata files in blob cache",
+                        shardId,
                         extension,
                         length,
                         maxAllowedLength
@@ -373,7 +374,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             } catch (ExecutionException e) {
                 logger.warn(
                     () -> new ParameterizedMessage(
-                        "Failed to log information about exceeding file type [{}] with length [{}]",
+                        "{} failed to log information about exceeding file type [{}] with length [{}]",
+                        shardId,
                         extension,
                         length
                     ),

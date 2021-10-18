@@ -651,7 +651,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
-    public void testMinAgg() throws Exception {
+    public void testSingleValueAgg() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
         mvtRequest.setJsonEntity(
             "{\n"
@@ -673,6 +673,35 @@ public class VectorTileRestIT extends ESRestTestCase {
         final VectorTile.Tile.Layer metaLayer = getLayer(tile, META_LAYER);
         assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.minVal.min", 1.0);
         assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.minVal.max", 1.0);
+    }
+
+    public void testMultiValueAgg() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity(
+            "{\n"
+                + "  \"aggs\": {\n"
+                + "    \"percentilesAgg\": {\n"
+                + "      \"percentiles\": {\n"
+                + "         \"field\": \"value1\",\n"
+                + "         \"percents\": [95, 99, 99.9]\n"
+                + "        }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}"
+        );
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 28);
+        // check pipeline aggregation values
+        final VectorTile.Tile.Layer metaLayer = getLayer(tile, META_LAYER);
+        assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.95.0.min", 1.0);
+        assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.95.0.max", 1.0);
+        assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.99.0.min", 1.0);
+        assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.99.0.max", 1.0);
+        assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.99.9.min", 1.0);
+        assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.99.9.max", 1.0);
     }
 
     public void testOverlappingMultipolygon() throws Exception {
@@ -719,7 +748,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                 return;
             }
         }
-        fail("Could not find tag [" + tag + " ]");
+        fail("Could not find tag [" + tag + "]");
     }
 
     private void assertDoubleTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, double value) {
@@ -731,7 +760,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                 return;
             }
         }
-        fail("Could not find tag [" + tag + " ]");
+        fail("Could not find tag [" + tag + "]");
     }
 
     private void assertStringTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, String value) {
@@ -743,7 +772,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                 return;
             }
         }
-        fail("Could not find tag [" + tag + " ]");
+        fail("Could not find tag [" + tag + "]");
     }
 
     private VectorTile.Tile execute(Request mvtRequest) throws IOException {

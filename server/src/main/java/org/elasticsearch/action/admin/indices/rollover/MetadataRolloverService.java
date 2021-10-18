@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -54,6 +55,8 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = org.elasticsearch.core.List.of(ALIAS, DATA_STREAM);
+
+    public static final Settings HIDDEN_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -126,7 +129,7 @@ public class MetadataRolloverService {
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
             case ALIAS:
-                return resolveAliasRolloverNames((IndexAbstraction.Alias) indexAbstraction, newIndexName);
+                return resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
             case DATA_STREAM:
                 return resolveDataStreamRolloverNames(currentState, (IndexAbstraction.DataStream) indexAbstraction);
             default:
@@ -148,8 +151,8 @@ public class MetadataRolloverService {
         }
     }
 
-    private NameResolution resolveAliasRolloverNames(IndexAbstraction.Alias alias, String newIndexName) {
-        final IndexMetadata writeIndex = alias.getWriteIndex();
+    private NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
+        final IndexMetadata writeIndex = metadata.index(alias.getWriteIndex());
         final String sourceProvidedName = writeIndex.getSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME,
             writeIndex.getIndex().getName());
         final String sourceIndexName = writeIndex.getIndex().getName();
@@ -163,7 +166,7 @@ public class MetadataRolloverService {
     private NameResolution resolveDataStreamRolloverNames(ClusterState currentState, IndexAbstraction.DataStream dataStream) {
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
-        final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
+        final IndexMetadata originalWriteIndex = currentState.metadata().index(dataStream.getWriteIndex());
         final DataStream rolledDataStream = ds.rollover(currentState.getMetadata(), "uuid", minNodeVersion);
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, rolledDataStream.getWriteIndex().getName());
     }
@@ -171,12 +174,12 @@ public class MetadataRolloverService {
     private RolloverResult rolloverAlias(ClusterState currentState, IndexAbstraction.Alias alias, String aliasName,
                                          String newIndexName, CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                          boolean silent, boolean onlyValidate) throws Exception {
-        final NameResolution names = resolveAliasRolloverNames(alias, newIndexName);
+        final NameResolution names = resolveAliasRolloverNames(currentState.metadata(), alias, newIndexName);
         final String sourceIndexName = names.sourceName;
         final String rolloverIndexName = names.rolloverName;
         final String unresolvedName = names.unresolvedName;
         final Metadata metadata = currentState.metadata();
-        final IndexMetadata writeIndex = alias.getWriteIndex();
+        final IndexMetadata writeIndex = currentState.metadata().index(alias.getWriteIndex());
         final AliasMetadata aliasMetadata = writeIndex.getAliases().get(alias.getName());
         final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetadata.writeIndex());
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings()) ?
@@ -230,11 +233,11 @@ public class MetadataRolloverService {
 
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
-        final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
+        final Index originalWriteIndex = dataStream.getWriteIndex();
         DataStream rolledDataStream = ds.rollover(currentState.metadata(), "uuid", minNodeVersion);
         createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
         if (onlyValidate) {
-            return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
+            return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getName(), currentState);
         }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
@@ -249,11 +252,11 @@ public class MetadataRolloverService {
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
             .metadata(Metadata.builder(newState.metadata())
-                .put(IndexMetadata.builder(newState.metadata().index(originalWriteIndex.getIndex()))
+                .put(IndexMetadata.builder(newState.metadata().index(originalWriteIndex))
                     .putRolloverInfo(rolloverInfo)))
             .build();
 
-        return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), newState);
+        return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getName(), newState);
     }
 
     static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -276,7 +279,7 @@ public class MetadataRolloverService {
                                                                                     final String targetIndexName,
                                                                                     CreateIndexRequest createIndexRequest,
                                                                                     final SystemDataStreamDescriptor descriptor) {
-        Settings settings = descriptor != null ? Settings.EMPTY : Settings.builder().put("index.hidden", true).build();
+        Settings settings = descriptor != null ? Settings.EMPTY : HIDDEN_INDEX_SETTINGS;
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
             .dataStreamName(dataStreamName)
             .systemDataStreamDescriptor(descriptor);

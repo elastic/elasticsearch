@@ -9,9 +9,11 @@ your application to {es} 7.16.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_716_settings_changes>>
 * <<breaking_716_ilm_changes>>
-
 * <<breaking_716_monitoring_changes>>
+
+* <<breaking_716_settings_deprecations>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -32,6 +34,34 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_716_settings_changes]]
+==== Settings changes
+
+[[breaking_716_disk_threshold_enabled_operator_only]]
+.Disk threshold enabled setting is operator only
+[%collapsible]
+====
+*Details* +
+Orchestrated environments such as {ess} and Elastic Cloud Enterprise rely on
+the <<cluster-routing-disk-threshold,disk thresholds>> in {es} to operate the
+cluster correctly. For example the disk thresholds help determine how large an
+auto-scaled cluster should be. Disabling these disk thresholds prevents the
+orchestration system from working correctly, so starting in 7.16.0 the
+`cluster.routing.allocation.disk.threshold_enabled` setting is an
+<<operator-only-dynamic-cluster-settings, operator only>> setting which cannot
+be changed by end-users.
+
+*Impact* +
+Discontinue use of this setting in orchestrated environments such as {ess} and
+Elastic Cloud Enterprise. Contact the environment administrator for help with
+disk space management if needed.
++
+This change has no impact on users outside of orchestrated environments.
+====
+// end::notable-breaking-changes[]
+
 [discrete]
 [[deprecated-7.16]]
 === Deprecations
@@ -47,11 +77,114 @@ using any deprecated functionality, enable <<deprecation-logging, deprecation
 logging>>.
 
 // tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_716_tls_changes]]
+==== Security changes
+
+[[tls-ssl-transport-enabled-required]]
+.The `xpack.security.transport.ssl.enabled` setting will be required to configure `xpack.security.transport.ssl` settings.
+[%collapsible]
+====
+*Details* +
+Configuring any SSL settings for
+`xpack.security.transport.ssl` without also configuring
+`xpack.security.transport.ssl.enabled` generates warnings in the deprecation
+log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+To avoid deprecation warnings, either:
+
+* Explicitly set `xpack.security.transport.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.transport.ssl` settings
+
+If you want to enable SSL, follow the instructions to
+{ref}/security-basic-setup.html#encrypt-internode-communication[encrypt internode communications with TLS]. As part of this configuration, explicitly set
+`xpack.security.transport.ssl.enabled` as `true`.
+
+For example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.transport.ssl.enabled: true <1>
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+--------------------------------------------------
+<1> or `false`.
+====
+
+[[tls-ssl-http-enabled-required]]
+.The `xpack.security.http.ssl.enabled` setting will be required to configure `xpack.security.http.ssl` settings.
+[%collapsible]
+====
+*Details* +
+Configuring any SSL settings for `xpack.security.http.ssl` without also
+configuring `xpack.security.http.ssl.enabled` generates warnings in the
+deprecation log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+To avoid deprecation warnings, either:
+
+* Explicitly set `xpack.security.http.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.http.ssl` settings
+
+If you want to enable SSL, follow the instructions to
+{ref}/security-basic-setup-https.html#encrypt-http-communication[encrypt HTTP client communications for {es}]. As part
+of this configuration, explicitly set `xpack.security.http.ssl.enabled`
+as `true`.
+
+For example:
+[source,yaml]
+--------------------------------------------------
+xpack.security.http.ssl.enabled: true <1>
+xpack.security.http.ssl.certificate: elasticsearch.crt
+xpack.security.http.ssl.key: elasticsearch.key
+xpack.security.http.ssl.certificate_authorities: [ "corporate-ca.crt" ]
+--------------------------------------------------
+<1> or `false`.
+====
+
+[[tls-ssl-transport-cert-required]]
+.A `xpack.security.transport.ssl` certificate and key will be required to enable SSL for the transport interface.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the transport interface without also configuring a certificate
+and key through use of the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings generates warnings in the
+deprecation log. In 8.0, this configuration will result in errors.
+
+*Impact* +
+If `xpack.security.transport.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.transport.ssl.keystore.path`
+setting or the `xpack.security.transport.ssl.certificate` and
+`xpack.security.transport.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
+[[tls-ssl-http-cert-required]]
+.A `xpack.security.http.ssl` certificate and key will be required to enable SSL for the HTTP layer.
+[%collapsible]
+====
+*Details* +
+Enabling SSL for the HTTP layer without also configuring a certificate and key
+through use of the `xpack.security.http.ssl.keystore.path` setting or
+the `xpack.security.http.ssl.certificate` and `xpack.security.http.ssl.key`
+settings generates warnings in the deprecation log. In 8.0, this configuration
+will result in errors.
+
+*Impact* +
+If `xpack.security.http.ssl.enabled` is set to `true`, provide a
+certificate and key using the `xpack.security.http.ssl.keystore.path`
+setting or the `xpack.security.http.ssl.certificate` and
+`xpack.security.http.ssl.key` settings. If a certificate and key is not
+provided, {es} will generate warnings in the deprecation log.
+====
+
 [discrete]
 [[breaking_716_ilm_changes]]
 ==== {ilm-cap} ({ilm-init}) changes
 
-//tag::notable-breaking-changes[]
 [[ilm-freeze-noop]]
 .The ILM `freeze` action has been deprecated and will be a no-op in a future release.
 [%collapsible]
@@ -79,7 +212,8 @@ will be removed in 8.0.0. This parameter controls the creation of pipelines for 
 indices. These pipelines currently have no function.
 
 *Impact* +
-Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting.
+Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting
+as it will no longer be recognized in the next major release.
 ====
 
 [[monitoring-pipeline-master-timeout-setting-deprecation]]
@@ -93,7 +227,44 @@ Monitoring cluster to create pipelines. These pipelines for monitoring indices c
 have no function and will be removed in 8.0.0.
 
 *Impact* +
-Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting.
+Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting
+as it will no longer be recognized in the next major release.
 ====
 
+[[monitoring-template-create-legacy-setting-deprecation]]
+.The `index.template.create_legacy_templates` setting on Monitoring HTTP exporter configurations is deprecated.
+[%collapsible]
+====
+*Details* +
+The `xpack.monitoring.exporters.*.index.template.create_legacy_templates` property has been
+deprecated in 7.16.0. This parameter instructs the exporter to install the previous version
+of monitoring templates on the monitoring cluster. These older templates were meant to assist
+in transitioning to the current monitoring data format. They are currently empty and are no
+longer of any use.
+
+*Impact* +
+Discontinue the use of the `xpack.monitoring.exporters.*.index.template.create_legacy_templates` setting
+as it will no longer be recognized in the next major release.
+====
+
+[discrete]
+[[breaking_716_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-transient-cluster-settings]]
+.Transient cluster settings are now deprecated.
+[%collapsible]
+====
+*Details* +
+Transient cluster settings are now deprecated and will be removed in a future release. This is because transient
+cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts,
+which can forcibly happen if enough master-eligible nodes fail. In such an event, the cluster state will be recovered
+from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
+unexpectedly, leading to a potentially undesired cluster configuration.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of transient settings when modifying
+your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
+use only persistent settings.
+====
 // end::notable-breaking-changes[]

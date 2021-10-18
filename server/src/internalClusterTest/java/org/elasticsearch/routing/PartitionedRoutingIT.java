@@ -12,7 +12,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
@@ -85,7 +85,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             client().admin().indices().prepareUpdateSettings(index)
                 .setSettings(Settings.builder()
                     .put("index.routing.allocation.require._name", client().admin().cluster().prepareState().get().getState().nodes()
-                        .getDataNodes().values().toArray(DiscoveryNode.class)[0].getName())
+                        .getDataNodes().values().toArray(new DiscoveryNode[0])[0].getName())
                     .put("index.blocks.write", true)).get();
             ensureGreen();
 

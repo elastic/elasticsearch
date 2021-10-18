@@ -7,13 +7,8 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import java.io.File;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.stream.Collectors;
-
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -22,6 +17,12 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Assert;
+
+import java.io.File;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class FilePermissionsTaskTests extends GradleUnitTestCase {
 

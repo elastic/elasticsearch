@@ -14,9 +14,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -85,7 +85,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         assertThat(getTransformResponse.getTransformConfigurations().get(0).getId(), equalTo(transformId));
 
         UpdateTransformAction.Request updateTransformActionRequest = new UpdateTransformAction.Request(
-            new TransformConfigUpdate(null, null, null, null, "updated", null, null),
+            new TransformConfigUpdate(null, null, null, null, "updated", null, null, null),
             transformId, false);
         UpdateTransformAction.Response updateTransformActionResponse =
             client().execute(UpdateTransformAction.INSTANCE, updateTransformActionRequest).actionGet();

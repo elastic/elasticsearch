@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 
 /**
  * Test {@link RestoreInProgressAllocationDecider}
@@ -181,7 +182,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .nodes(discoveryNodes)
             .build();
 
-        assertEquals(2, clusterState.getRoutingTable().shardsWithState(ShardRoutingState.UNASSIGNED).size());
+        assertEquals(2, shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size());
         return clusterState;
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -171,8 +171,8 @@ public class RestGetMappingAction extends BaseRestHandler {
                 return Collections.emptySortedSet();
             }
             final Set<String> typeNames = new HashSet<>();
-            for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
-                for (final ObjectCursor<String> inner : cursor.value.keys()) {
+            for (final ImmutableOpenMap<String, MappingMetadata> value : mappingsByIndex.values()) {
+                for (final ObjectCursor<String> inner : value.keys()) {
                     typeNames.add(inner.value);
                 }
             }

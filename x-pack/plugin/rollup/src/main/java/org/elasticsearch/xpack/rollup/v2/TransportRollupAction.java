@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -37,14 +38,14 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -70,6 +71,9 @@ import java.util.Map;
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportRollupAction.class);
+
+    private static final Settings VISIBLE_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build();
+    private static final Settings WRITE_BLOCKED_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
 
     private final Client client;
     private final ClusterService clusterService;
@@ -152,16 +156,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             "rollup",
             tmpIndexName,
             tmpIndexName
-        ).settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build()).mappings(mappingAsMap);
+        ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS).mappings(mappingAsMap);
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
-        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
-        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
-            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(),
-            tmpIndexName
-        );
+        resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
+        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
 
         // 1. validate Rollup Config against Field Caps
         // 2. create hidden temporary index
@@ -320,7 +321,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             String defaultMetric = metrics.contains("value_count") ? "value_count" : metrics.get(0);
             builder.startObject(metricConfig.getField())
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics.toArray())
+                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .endObject();
         }

@@ -16,6 +16,12 @@ information, such as {es} documents or authentication details. All versions of
 this issue. You must upgrade to {es} version 7.13.4 to obtain the fix.
 https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-22145[CVE-2021-22145]
 
+[[known-issues-7.13.4]]
+[discrete]
+=== Known issues
+
+include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
 [[bug-7.13.4]]
 [float]
 === Bug fixes
@@ -43,6 +49,11 @@ All versions of {es} prior to 7.13.3 are affected by this flaw.
 You must upgrade to {es} version 7.13.3 to obtain the fix.  
 https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22144[CVE-2021-22144]
 
+[[known-issues-7.13.3]]
+[discrete]
+=== Known issues
+
+include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 [[bug-7.13.3]]
 [float]
@@ -91,6 +102,12 @@ Transform::
 
 Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 
+[[known-issues-7.13.2]]
+[discrete]
+=== Known issues
+
+include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
+
 [[bug-7.13.2]]
 [float]
 === Bug fixes
@@ -124,6 +141,32 @@ Monitoring::
 == {es} version 7.13.1
 
 Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[known-issues-7.13.1]]
+[discrete]
+=== Known issues
+
+// tag::snapshot-repo-corruption-75598-known-issue[]
+* Snapshot and restore: If a running snapshot is cancelled while a
+previously-started snapshot is still ongoing and a later snapshot is enqueued
+then there is a risk that some shard data may be lost from the repository. This
+will cause future restore operations to fail. To mitigate this problem, set
+`snapshot.max_concurrent_operations: 1` to prevent concurrent snapshot
+operations:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "snapshot.max_concurrent_operations" : 1
+  }
+}
+----
++
+This issue is fixed in {es} versions 7.14.1 and later. For more details, see
+{es-issue}75598[#75598].
+// end::snapshot-repo-corruption-75598-known-issue[]
 
 [[bug-7.13.1]]
 [discrete]

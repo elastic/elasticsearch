@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 import org.elasticsearch.rest.RestRequest;

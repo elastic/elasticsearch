@@ -324,7 +324,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX, () -> 0L);
+            super(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override
@@ -343,7 +343,7 @@ public final class TestUtils {
         }
 
         @Override
-        public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
+        public ByteRange computeBlobCacheByteRange(ShardId shardId, String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
             return ByteRange.EMPTY;
         }
     }
@@ -353,7 +353,7 @@ public final class TestUtils {
         private final ConcurrentHashMap<String, BytesArray> blobs = new ConcurrentHashMap<>();
 
         public SimpleBlobStoreCacheService() {
-            super(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX, System::currentTimeMillis);
+            super(null, mockClient(), SNAPSHOT_BLOB_CACHE_INDEX);
         }
 
         @Override

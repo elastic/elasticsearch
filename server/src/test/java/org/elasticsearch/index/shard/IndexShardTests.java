@@ -60,10 +60,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -167,8 +167,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -2739,7 +2739,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertFalse(b);
                 called.set(true);
             });
-            assertTrue(called.get());
+
+            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            shard.addRefreshListener(10, listener);
+            expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -3492,7 +3495,21 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.scheduledRefresh());
         Engine.IndexResult doc = indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         CountDownLatch latch = new CountDownLatch(1);
-        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
+        if (randomBoolean()) {
+            primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
+        } else {
+            primary.addRefreshListener(doc.getSeqNo(), new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
@@ -3504,7 +3521,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
         doc = indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         CountDownLatch latch1 = new CountDownLatch(1);
-        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
+        if (randomBoolean()) {
+            primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
+        } else {
+            primary.addRefreshListener(doc.getSeqNo(), ActionListener.wrap(latch1::countDown));
+        }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());

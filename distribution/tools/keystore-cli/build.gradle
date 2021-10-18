@@ -23,5 +23,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.common.settings.CreateKeyStoreCommand',
     'org.elasticsearch.common.settings.KeyStoreCli',
     'org.elasticsearch.common.settings.ListKeyStoreCommand',
-    'org.elasticsearch.common.settings.RemoveSettingKeyStoreCommand'
+    'org.elasticsearch.common.settings.RemoveSettingKeyStoreCommand',
+    'org.elasticsearch.common.settings.ShowKeyStoreCommand'
 }

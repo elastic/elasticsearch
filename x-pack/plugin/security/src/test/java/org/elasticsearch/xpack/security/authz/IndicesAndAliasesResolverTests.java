@@ -71,19 +71,20 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -301,7 +302,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"-index10", "-index20", "+index30"});
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
+        List<String> indices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
                 .getLocal();
         String[] expectedIndices = new String[]{"-index10", "-index20", "+index30"};
         assertThat(indices, hasSize(expectedIndices.length));
@@ -313,7 +314,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(request.indices()).thenReturn(new String[]{"index*"});
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
         assertThat(
             exception,
@@ -338,7 +339,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
 
         assertThat(
@@ -1417,8 +1418,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testUnauthorizedDateMathExpressionStrict() {
-        String expectedIndex = "datetime-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
-            new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+        String expectedIndex = "datetime-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(
+            ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
@@ -1459,8 +1460,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testMissingDateMathExpressionStrict() {
-        String expectedIndex = "foobar-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
-            new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+        String expectedIndex = "foobar-" + DateTimeFormatter.ofPattern("uuuu.MM.dd", Locale.ROOT).format(
+            ZonedDateTime.now(ZoneOffset.UTC).withDayOfMonth(1));
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,

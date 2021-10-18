@@ -25,7 +25,6 @@ import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -36,11 +35,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 
-import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,6 +64,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLContext;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -383,7 +382,8 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
@@ -1021,7 +1021,7 @@ public class HttpExporter extends Exporter {
 
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
-        final boolean canUseClusterAlerts = config.licenseState().checkFeature(Feature.MONITORING_CLUSTER_ALERTS);
+        final boolean canUseClusterAlerts = Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE.check(config.licenseState());
 
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(canUseClusterAlerts == false, canUseClusterAlerts)) {

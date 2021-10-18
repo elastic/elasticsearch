@@ -64,7 +64,6 @@ public class SearchShardIteratorTests extends ESTestCase {
         assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
         assertSame(shardId, searchShardTarget.getShardId());
         assertEquals(nodeId, searchShardTarget.getNodeId());
-        assertSame(originalIndices, searchShardTarget.getOriginalIndices());
     }
 
     public void testEqualsAndHashcode() {

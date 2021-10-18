@@ -11,6 +11,8 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -22,7 +24,7 @@ public class FieldCapabilitiesIndexRequestTests extends ESTestCase {
     public void testSerializingWithRuntimeFieldsBeforeSupportedThrows() {
         FieldCapabilitiesIndexRequest request = new FieldCapabilitiesIndexRequest(
             new String[] { "field" },
-            "index",
+            new ShardId(new Index("n/a", "index"), randomIntBetween(0, 100)),
             new OriginalIndices(new String[] { "original_index" }, IndicesOptions.LENIENT_EXPAND_OPEN),
             null,
             0L,

@@ -23,12 +23,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
@@ -103,7 +103,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
         final DiscoveryNode[] resolvedNodes;
         if (request.nodesIds() == null || request.nodesIds().length == 0) {
-            resolvedNodes = dataNodes.values().toArray(DiscoveryNode.class);
+            resolvedNodes = dataNodes.values().toArray(new DiscoveryNode[0]);
         } else {
             resolvedNodes = Arrays.stream(request.nodesIds())
                 .filter(dataNodes::containsKey)

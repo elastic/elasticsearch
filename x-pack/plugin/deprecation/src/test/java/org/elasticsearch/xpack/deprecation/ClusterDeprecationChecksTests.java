@@ -19,8 +19,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -43,11 +43,12 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
@@ -355,9 +356,17 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             null
         );
 
+        final DeprecationIssue otherExpectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Transient cluster settings are in the process of being removed.",
+            "https://ela.st/es-deprecation-7-transient-cluster-settings",
+            "Use persistent settings to define your cluster settings instead.",
+            false, null);
+
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
-        assertThat(issues, hasSize(1));
-        assertThat(issues.get(0), equalTo(expectedIssue));
+
+        assertThat(issues, hasSize(2));
+        assertThat(issues, hasItem(expectedIssue));
+        assertThat(issues, hasItem(otherExpectedIssue));
 
         final String expectedWarning = String.format(Locale.ROOT,
             "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
@@ -552,5 +561,35 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "https://ela.st/es-deprecation-7-frozen-indices",
                 "remove freeze action from the following ilm policies: [policy1,policy2]", false, null)
         ));
+    }
+
+    public void testCheckTransientSettingsExistence() {
+        Settings transientSettings = Settings.builder()
+            .put("indices.recovery.max_bytes_per_sec", "20mb")
+            .build();
+        Metadata metadataWithTransientSettings = Metadata.builder()
+            .transientSettings(transientSettings)
+            .build();
+
+        ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithTransientSettings).build();
+        DeprecationIssue issue = ClusterDeprecationChecks.checkTransientSettingsExistence(badState);
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Transient cluster settings are in the process of being removed.",
+                "https://ela.st/es-deprecation-7-transient-cluster-settings",
+                "Use persistent settings to define your cluster settings instead.",
+                false, null)
+        ));
+
+        Settings persistentSettings = Settings.builder()
+            .put("indices.recovery.max_bytes_per_sec", "20mb")
+            .build();
+        Metadata metadataWithoutTransientSettings = Metadata.builder()
+            .persistentSettings(persistentSettings)
+            .build();
+
+        ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithoutTransientSettings).build();
+        issue = ClusterDeprecationChecks.checkTransientSettingsExistence(okState);
+        assertNull(issue);
     }
 }

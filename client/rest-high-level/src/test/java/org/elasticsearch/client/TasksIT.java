@@ -21,7 +21,7 @@ import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
 

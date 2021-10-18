@@ -27,8 +27,8 @@ public interface TestClustersAware extends Task {
         }
 
         cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
-        cluster.getNodes().all(node -> node.getDistributions().stream()
-                .forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
+        cluster.getNodes()
+            .all(node -> node.getDistributions().stream().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
         cluster.getNodes().all(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }
@@ -38,4 +38,15 @@ public interface TestClustersAware extends Task {
     }
 
     default void beforeStart() {}
+
+    default void enableDebug() {
+        int debugPort = 5007;
+        for (ElasticsearchCluster cluster : getClusters()) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                getLogger().lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
+                node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
+                debugPort += 1;
+            }
+        }
+    }
 }

@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -18,10 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.search.SearchModule;
 
 import java.util.ArrayList;
@@ -48,9 +47,9 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
 public class IndexDeprecationChecks {
 
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
-        for (ObjectCursor<MappingMetadata> mappingMetadata : indexMetadata.getMappings().values()) {
-            Map<String, Object> sourceAsMap = mappingMetadata.value.sourceAsMap();
-            checker.accept(mappingMetadata.value, sourceAsMap);
+        for (MappingMetadata mappingMetadata : indexMetadata.getMappings().values()) {
+            Map<String, Object> sourceAsMap = mappingMetadata.sourceAsMap();
+            checker.accept(mappingMetadata, sourceAsMap);
         }
     }
 
@@ -386,8 +385,8 @@ public class IndexDeprecationChecks {
     }
 
     protected static boolean isGeoShapeFieldWithDeprecatedParam(Map<?, ?> property) {
-        return LegacyGeoShapeFieldMapper.CONTENT_TYPE.equals(property.get("type")) &&
-            LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream().anyMatch(deprecatedParameter ->
+        return GeoShapeFieldMapper.CONTENT_TYPE.equals(property.get("type")) &&
+            GeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream().anyMatch(deprecatedParameter ->
                 property.containsKey(deprecatedParameter)
             );
     }
@@ -395,7 +394,7 @@ public class IndexDeprecationChecks {
     protected static String formatDeprecatedGeoShapeParamMessage(String type, Map.Entry<?, ?> entry) {
         String fieldName = entry.getKey().toString();
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
-        return LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream()
+        return GeoShapeFieldMapper.DEPRECATED_PARAMETERS.stream()
             .filter(deprecatedParameter -> value.containsKey(deprecatedParameter))
             .map(deprecatedParameter -> String.format(Locale.ROOT, "parameter [%s] in field [%s]", deprecatedParameter, fieldName))
             .collect(Collectors.joining("; "));
@@ -407,7 +406,7 @@ public class IndexDeprecationChecks {
             return null;
         }
         Map<String, Object> sourceAsMap = indexMetadata.mapping().getSourceAsMap();
-        List<String> messages = findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE, sourceAsMap,
+        List<String> messages = findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE, sourceAsMap,
             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
         if (messages.isEmpty()) {
@@ -421,5 +420,22 @@ public class IndexDeprecationChecks {
             String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
+    }
+
+    static DeprecationIssue frozenIndexSettingCheck(IndexMetadata indexMetadata) {
+        Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings());
+        if (Boolean.TRUE.equals(isIndexFrozen)) {
+            String indexName = indexMetadata.getIndex().getName();
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "index [" + indexName +
+                    "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                false,
+                null
+            );
+        }
+        return null;
     }
 }

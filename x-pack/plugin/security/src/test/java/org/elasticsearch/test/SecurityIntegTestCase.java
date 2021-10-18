@@ -31,8 +31,8 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
@@ -521,7 +521,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     private static Index resolveSecurityIndex(Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
-            return indexAbstraction.getIndices().get(0).getIndex();
+            return indexAbstraction.getIndices().get(0);
         }
         return null;
     }

@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -161,7 +161,7 @@ public class PutMappingRequestTests extends ESTestCase {
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
-        assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getIndex().getName(), "index2", "index3"));
+        assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getName(), "index2", "index3"));
     }
 
     public void testResolveIndicesWithoutWriteIndexOnlyAndDataStreamsAndWriteAliases() {
@@ -181,7 +181,7 @@ public class PutMappingRequestTests extends ESTestCase {
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
-        List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
+        List<String> expectedIndices = expectedDs.getIndices().stream().map(Index::getName).collect(Collectors.toList());
         expectedIndices.addAll(org.elasticsearch.core.List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedIndices.toArray()));
@@ -204,10 +204,10 @@ public class PutMappingRequestTests extends ESTestCase {
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
-        List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
+        List<String> expectedIndices = expectedDs.getIndices().stream().map(Index::getName).collect(Collectors.toList());
         expectedIndices.addAll(org.elasticsearch.core.List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
-        assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getIndex().getName(), "index3"));
+        assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getName(), "index3"));
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndNoSingleWriteIndex() {

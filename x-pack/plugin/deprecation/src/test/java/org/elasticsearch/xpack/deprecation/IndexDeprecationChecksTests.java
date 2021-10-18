@@ -13,19 +13,18 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
@@ -44,6 +43,7 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecks.JODA_TIME_DEPRECATION_DETAILS_SUFFIX;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -222,14 +222,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which has changed meaning in 7.0",
+            "Date fields use deprecated Joda time formats",
             "https://ela.st/es-deprecation-7-java-time",
-            "This index has date fields with deprecated formats: ["+
-                "[type: _doc, field: date_time_field_Y, format: dd-CC||MM-YYYY, " +
-                "suggestion: 'C' century of era is no longer supported." +
-                "; "+
-                "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
+            "Convert [date_time_field_Y] format dd-CC||MM-YYYY to java.time." + JODA_TIME_DEPRECATION_DETAILS_SUFFIX, false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -246,12 +241,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which has changed meaning in 7.0",
+            "Date fields use deprecated Joda time formats",
             "https://ela.st/es-deprecation-7-java-time",
-            "This index has date fields with deprecated formats: ["+
-                "[type: _doc, field: date_time_field_Y, format: dd-YYYY||MM-YYYY, " +
-                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
+            "Convert [date_time_field_Y] format dd-YYYY||MM-YYYY to java.time." + JODA_TIME_DEPRECATION_DETAILS_SUFFIX, false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -268,12 +260,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which has changed meaning in 7.0",
+            "Date fields use deprecated Joda time formats",
             "https://ela.st/es-deprecation-7-java-time",
-            "This index has date fields with deprecated formats: ["+
-                "[type: _doc, field: date_time_field_Y, format: strictWeekyearWeek||MM-YYYY, " +
-                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
+            "Convert [date_time_field_Y] format strictWeekyearWeek||MM-YYYY to java.time." + JODA_TIME_DEPRECATION_DETAILS_SUFFIX,
+            false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -311,23 +301,12 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which has changed meaning in 7.0",
+            "Date fields use deprecated Joda time formats",
             "https://ela.st/es-deprecation-7-java-time",
-            "This index has date fields with deprecated formats: ["+
-                "[type: _doc, field: date_time_field_Y, format: MM-YYYY, " +
-                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.], "+
-                "[type: _doc, field: date_time_field_C, format: CC, " +
-                "suggestion: 'C' century of era is no longer supported.], "+
-                "[type: _doc, field: date_time_field_x, format: xx-MM, " +
-                "suggestion: 'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset.], "+
-                "[type: _doc, field: date_time_field_y, format: yy-MM, " +
-                "suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.], "+
-                "[type: _doc, field: date_time_field_Z, format: HH:mmZ, " +
-                "suggestion: 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.], "+
-                "[type: _doc, field: date_time_field_z, format: HH:mmz, " +
-                "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone." +
-                "]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
+            "Convert [date_time_field_Y] format MM-YYYY to java.time. Convert [date_time_field_C] format CC to java.time. Convert " +
+                "[date_time_field_x] format xx-MM to java.time. Convert [date_time_field_y] format yy-MM to java.time. Convert " +
+                "[date_time_field_Z] format HH:mmZ to java.time. Convert [date_time_field_z] format HH:mmz to java.time." +
+                JODA_TIME_DEPRECATION_DETAILS_SUFFIX, false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -345,16 +324,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetadata simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which has changed meaning in 7.0",
+            "Date fields use deprecated Joda time formats",
             "https://ela.st/es-deprecation-7-java-time",
-            "This index has date fields with deprecated formats: ["+
-                "[type: _doc, field: date_time_field, format: Y-C-x-y, " +
-                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
-                "'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
-                "'C' century of era is no longer supported.; " +
-                "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset." +
-                "]"+
-                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
+            "Convert [date_time_field] format Y-C-x-y to java.time." + JODA_TIME_DEPRECATION_DETAILS_SUFFIX, false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertThat(issues, hasItem(expected));
     }
@@ -466,9 +438,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         final String expectedUrl = "https://ela.st/es-deprecation-7-shared-path-settings";
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "setting [index.data_path] is deprecated and will be removed in a future version",
+                "Setting [index.data_path] is deprecated",
                 expectedUrl,
-                "Found index data path configured. Discontinue use of this setting.",
+                "Remove the [index.data_path] setting. This setting has had no effect since 6.0.",
                 false, null)));
     }
 
@@ -481,14 +453,16 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         final String expectedUrl = "https://ela.st/es-deprecation-7-slowlog-settings";
         assertThat(issues, containsInAnyOrder(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "setting [index.search.slowlog.level] is deprecated and will be removed in a future version",
+                "Setting [index.search.slowlog.level] is deprecated",
                 expectedUrl,
-                "Found [index.search.slowlog.level] configured. Discontinue use of this setting. Use thresholds.", false, null
+                "Remove the [index.search.slowlog.level] setting. Use the [index.*.slowlog.threshold] settings to set the log levels.",
+                false, null
             ),
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "setting [index.indexing.slowlog.level] is deprecated and will be removed in a future version",
+                "Setting [index.indexing.slowlog.level] is deprecated",
                 expectedUrl,
-                "Found [index.indexing.slowlog.level] configured. Discontinue use of this setting. Use thresholds.", false, null
+                "Remove the [index.indexing.slowlog.level] setting. Use the [index.*.slowlog.threshold] settings to set the log levels.",
+                false, null
             )));
     }
 
@@ -499,11 +473,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "[simplefs] is deprecated and will be removed in future versions",
+                "Setting [index.store.type] to [simplefs] is deprecated",
                 "https://ela.st/es-deprecation-7-simplefs-store-type",
-                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
-                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
-                    "as it offers superior or equivalent performance to [simplefs].", false, null)
+                "Use [niofs] (the default) or one of the other FS types. This is an expert-only setting that might be removed in the " +
+                    "future.", false, null)
         ));
     }
 

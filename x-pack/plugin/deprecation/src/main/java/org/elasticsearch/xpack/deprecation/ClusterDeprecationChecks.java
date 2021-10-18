@@ -230,7 +230,7 @@ public class ClusterDeprecationChecks {
                         IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+                            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage, "[", "]");
                     return Tuple.tuple(templateName, messages);
                 }
                 return null;
@@ -256,7 +256,7 @@ public class ClusterDeprecationChecks {
                             IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage, "[", "]");
                         return messages;
                     }).filter(messages -> messages.isEmpty() == false).flatMap(x -> x.stream()).collect(Collectors.toList());
                 return Tuple.tuple(templateName, messagesForTemplate);
@@ -354,7 +354,7 @@ public class ClusterDeprecationChecks {
                         IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                             mappingAsMap,
                             ClusterDeprecationChecks::isSparseVector,
-                            ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
+                            ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage, "[", "]");
                     if (messages.isEmpty() == false) {
                         return Tuple.tuple(templateName, messages);
                     }
@@ -382,7 +382,7 @@ public class ClusterDeprecationChecks {
                             IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                                 mappingAsMap,
                                 ClusterDeprecationChecks::isSparseVector,
-                                ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
+                                ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage, "[", "]");
                         return messages;
                     }).filter(messages -> messages.isEmpty() == false).flatMap(x -> x.stream()).collect(Collectors.toList());
                 return Tuple.tuple(templateName, messagesForTemplate);
@@ -450,11 +450,11 @@ public class ClusterDeprecationChecks {
             if (policiesWithFreezeActions.isEmpty() == false) {
                 String details = String.format(
                     Locale.ROOT,
-                    "remove freeze action from the following ilm policies: [%s]",
+                    "Remove the freeze action from ILM policies: [%s]",
                     policiesWithFreezeActions.stream().sorted().collect(Collectors.joining(","))
                 );
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "some ilm policies contain a freeze action, which is deprecated and will be removed in a future release",
+                    "ILM policies use the deprecated freeze action",
                     "https://ela.st/es-deprecation-7-frozen-indices",
                     details,
                     false,

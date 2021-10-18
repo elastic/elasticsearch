@@ -46,6 +46,10 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
  */
 public class IndexDeprecationChecks {
 
+    static final String JODA_TIME_DEPRECATION_DETAILS_SUFFIX = " See https://www.elastic.co/guide/en/elasticsearch/reference/master" +
+        "/migrate-to-java-time.html for details. Failure to update custom data formats to java.time could cause inconsistentencies in " +
+        "your data. Failure to properly convert x (week-year) to Y could result in data loss.";
+
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
         for (MappingMetadata mappingMetadata : indexMetadata.getMappings().values()) {
             Map<String, Object> sourceAsMap = mappingMetadata.sourceAsMap();
@@ -66,7 +70,8 @@ public class IndexDeprecationChecks {
     @SuppressWarnings("unchecked")
     static List<String> findInPropertiesRecursively(String type, Map<String, Object> parentMap,
                                                     Function<Map<?,?>, Boolean> predicate,
-                                                    BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter) {
+                                                    BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter,
+                                                    String fieldBeginMarker, String fieldEndMarker) {
         List<String> issues = new ArrayList<>();
         Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
         if (properties == null) {
@@ -75,7 +80,7 @@ public class IndexDeprecationChecks {
         for (Map.Entry<?, ?> entry : properties.entrySet()) {
             Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
             if (predicate.apply(valueMap)) {
-                issues.add("[" + fieldFormatter.apply(type, entry) + "]");
+                issues.add(fieldBeginMarker + fieldFormatter.apply(type, entry) + fieldEndMarker);
             }
 
             Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
@@ -83,15 +88,17 @@ public class IndexDeprecationChecks {
                 for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
                     Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
                     if (predicate.apply(multifieldValueMap)) {
-                        issues.add("[" + fieldFormatter.apply(type, entry) + ", multifield: " + multifieldEntry.getKey() + "]");
+                        issues.add(fieldBeginMarker + fieldFormatter.apply(type, entry) + ", multifield: " + multifieldEntry.getKey() +
+                            fieldEndMarker);
                     }
                     if (multifieldValueMap.containsKey("properties")) {
-                        issues.addAll(findInPropertiesRecursively(type, multifieldValueMap, predicate, fieldFormatter));
+                        issues.addAll(findInPropertiesRecursively(type, multifieldValueMap, predicate, fieldFormatter, fieldBeginMarker,
+                            fieldEndMarker));
                     }
                 }
             }
             if (valueMap.containsKey("properties")) {
-                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter));
+                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter, fieldBeginMarker, fieldEndMarker));
             }
         }
 
@@ -100,8 +107,9 @@ public class IndexDeprecationChecks {
 
     private static String formatDateField(String type, Map.Entry<?, ?> entry) {
         Map<?,?> value = (Map<?, ?>) entry.getValue();
-        return "type: " + type + ", field: " + entry.getKey() +", format: "+ value.get("format") +", suggestion: "
-            + JodaDeprecationPatterns.formatSuggestion((String)value.get("format"));
+        return String.format(Locale.ROOT, "Convert [%s] format %s to java.time.",
+            entry.getKey(),
+            value.get("format"));
     }
 
     private static String formatField(String type, Map.Entry<?, ?> entry) {
@@ -153,14 +161,14 @@ public class IndexDeprecationChecks {
             fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> fields.addAll(
                 findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
                     IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
-                    IndexDeprecationChecks::formatDateField))));
+                    IndexDeprecationChecks::formatDateField, "", ""))));
 
             if (fields.size() > 0) {
+                String detailsMessageBeginning = fields.stream().collect(Collectors.joining(" "));
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "Date field format uses patterns which has changed meaning in 7.0",
+                    "Date fields use deprecated Joda time formats",
                     "https://ela.st/es-deprecation-7-java-time",
-                    "This index has date fields with deprecated formats: " + fields + ". "
-                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS, false, null);
+                    detailsMessageBeginning + JODA_TIME_DEPRECATION_DETAILS_SUFFIX, false, null);
             }
         }
         return null;
@@ -176,7 +184,7 @@ public class IndexDeprecationChecks {
         List<String> issues = new ArrayList<>();
         fieldLevelMappingIssue(indexMetadata, ((mappingMetadata, sourceAsMap) -> issues.addAll(
             findInPropertiesRecursively(mappingMetadata.type(), sourceAsMap,
-                IndexDeprecationChecks::containsChainedMultiFields, IndexDeprecationChecks::formatField))));
+                IndexDeprecationChecks::containsChainedMultiFields, IndexDeprecationChecks::formatField, "[", "]"))));
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Multi-fields within multi-fields",
@@ -280,9 +288,10 @@ public class IndexDeprecationChecks {
     static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata) {
         if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
             final String message = String.format(Locale.ROOT,
-                "setting [%s] is deprecated and will be removed in a future version", IndexMetadata.INDEX_DATA_PATH_SETTING.getKey());
+                "Setting [index.data_path] is deprecated", IndexMetadata.INDEX_DATA_PATH_SETTING.getKey());
             final String url = "https://ela.st/es-deprecation-7-shared-path-settings";
-            final String details = "Found index data path configured. Discontinue use of this setting.";
+            final String details = String.format(Locale.ROOT,
+                "Remove the [%s] setting. This setting has had no effect since 6.0.", IndexMetadata.INDEX_DATA_PATH_SETTING.getKey());
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
@@ -298,10 +307,11 @@ public class IndexDeprecationChecks {
     private static DeprecationIssue slowLogSettingCheck(IndexMetadata indexMetadata, Setting<SlowLogLevel> setting) {
         if (setting.exists(indexMetadata.getSettings())) {
             final String message = String.format(Locale.ROOT,
-                "setting [%s] is deprecated and will be removed in a future version", setting.getKey());
+                "Setting [%s] is deprecated", setting.getKey());
             final String url = "https://ela.st/es-deprecation-7-slowlog-settings";
 
-            final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
+            final String details = String.format(Locale.ROOT, "Remove the [%s] setting. Use the [index.*.slowlog.threshold] settings to " +
+                    "set the log levels.",
                 setting.getKey());
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
@@ -312,11 +322,10 @@ public class IndexDeprecationChecks {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "[simplefs] is deprecated and will be removed in future versions",
+                "Setting [index.store.type] to [simplefs] is deprecated",
                 "https://ela.st/es-deprecation-7-simplefs-store-type",
-                "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
-                    "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
-                    "as it offers superior or equivalent performance to [simplefs].", false, null);
+                "Use [niofs] (the default) or one of the other FS types. This is an expert-only setting that might be removed in the " +
+                    "future.", false, null);
         }
         return null;
     }
@@ -419,7 +428,7 @@ public class IndexDeprecationChecks {
         Map<String, Object> sourceAsMap = indexMetadata.mapping().getSourceAsMap();
         List<String> messages = findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE, sourceAsMap,
             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage, "[", "]");
         if (messages.isEmpty()) {
             return null;
         } else {

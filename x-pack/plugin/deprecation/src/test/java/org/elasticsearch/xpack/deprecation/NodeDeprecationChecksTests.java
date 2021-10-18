@@ -431,10 +431,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
+            "Setting [script.cache.max_size] is deprecated",
             "https://ela.st/es-deprecation-7-script-cache-size-setting",
-            "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
-                "to [" + size + "] where * is a script context", false, null);
+            "Remove the [script.cache.max_size] setting. Set [script.context.*.cache_max_size] to [" + size + "], where * is the script " +
+                "context.", false, null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
     }
@@ -447,10 +447,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
+            "Setting [script.cache.expire] is deprecated",
             "https://ela.st/es-deprecation-7-script-cache-expire-setting",
-            "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
-                "[" + expire + "] where * is a script context", false, null);
+            "Remove the [script.cache.expire] setting. Set [script.context.*.cache_expire] to [" + expire + "], where * is the script " +
+            "context.",
+            false, null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
     }
@@ -463,10 +464,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
+            "Setting [script.max_compilations_rate] is deprecated",
             "https://ela.st/es-deprecation-7-script-max-compilations-rate-setting",
-            "the setting [script.max_compilations_rate] is currently set to [" + rate +
-                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context", false, null);
+            "Remove the [script.max_compilations_rate] setting. Set [script.context.*.max_compilations_rate] to [" + rate + "], where * " +
+                "is the script context.", false, null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
@@ -530,7 +531,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 DeprecationIssue.Level.CRITICAL,
                 "Setting [" + deprecatedSetting.getKey() + "] is deprecated",
                 "https://ela.st/es-deprecation-7-xpack-basic-feature-settings",
-                "Remove the [" + deprecatedSetting.getKey() + "] setting. Basic features are always enabled  in 8.0.", false, null
+                "Remove the [" + deprecatedSetting.getKey() + "] setting. Basic features are always enabled in 8.0.", false, null
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{deprecatedSetting});
@@ -692,9 +693,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl = "https://ela.st/es-deprecation-7-shared-path-settings";
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "setting [path.shared_data] is deprecated and will be removed in a future version",
+                "Setting [path.shared_data] is deprecated",
                 expectedUrl,
-                "Found shared data path configured. Discontinue use of this setting.",
+                "Remove the [path.shared_data] setting. This setting has had no effect since 6.0.",
                 false, null)));
     }
 
@@ -709,11 +710,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting";
         assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
-                    " will not be available in a future version",
+                "Setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated",
                 expectedUrl,
-                "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured to false." +
-                    " Discontinue use of this setting or set it to true.",
+                "Remove the [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] setting. Disk watermarks are always " +
+                    "enabled for single node clusters in 8.0.",
                 false,
                 null
             )));
@@ -960,12 +960,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "support for fractional byte size values is deprecated and will be removed in a future release",
+            "Configuring fractional byte sizes is deprecated",
             "https://ela.st/es-deprecation-7-fractional-byte-settings",
             String.format(Locale.ROOT,
-                "change the following settings to non-fractional values: [%s->%s]",
-                settingKey,
-                settingValue),
+                "Set the following to whole numbers: [%s].",
+                settingKey),
             false, null
         );
         assertThat(
@@ -987,13 +986,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.EMPTY_STATE;
         DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             String.format(Locale.ROOT,
-                "setting [%s] cannot be greater than zero on non-frozen nodes",
+                "Only frozen nodes can have a [%s] greater than zero.",
                 cacheSizeSettingKey),
             "https://ela.st/es-deprecation-7-searchable-snapshot-shared-cache-setting",
             String.format(Locale.ROOT,
-                "setting [%s] cannot be greater than zero on non-frozen nodes, and is currently set to [%s]",
-                cacheSizeSettingKey,
-                cacheSizeSettingValue),
+                "Set [%s] to zero on any node that doesn't have the [data_frozen] role.",
+                cacheSizeSettingKey),
             false,null
         );
         assertThat(
@@ -1198,7 +1196,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 new XPackLicenseState(Settings.EMPTY, () -> 0),
                 () -> randomAlphaOfLengthBetween(1, 10));
         assertNotNull(issue.getDetails());
-        assertThat(issue.getDetails(), containsString("system property must be removed"));
+        assertEquals(issue.getDetails(), "Remove the [es.unsafely_permit_handshake_from_incompatible_builds] system property. Handshakes " +
+            "from incompatible builds are not allowed in 8.0.");
         assertThat(issue.getUrl(),
             equalTo("https://ela.st/es-deprecation-7-permit-handshake-from-incompatible-builds-setting"));
     }
@@ -1225,15 +1224,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             String.format(
                 Locale.ROOT,
-                "settings [%s] are deprecated and will be removed in the next major version",
+                "Settings [%s] for the Transport client are deprecated",
                 joinedNames
             ),
             expectedUrl,
-            String.format(
-                Locale.ROOT,
-                "transport client will be removed in the next major version so transport client related settings [%s] must be removed",
-                joinedNames
-            ), false, null)));
+            "Remove all [transport.profiles] settings. The Transport client no longer exists in 8.0.", false, null)));
 
         // test for absence of deprecated exporter passwords
         issue = NodeDeprecationChecks.checkTransportClientProfilesFilterSetting(Settings.builder().build(), null, null, licenseState);

@@ -546,9 +546,9 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         DeprecationIssue issue = ClusterDeprecationChecks.checkILMFreezeActions(badState);
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "some ilm policies contain a freeze action, which is deprecated and will be removed in a future release",
+                "ILM policies use the deprecated freeze action",
                 "https://ela.st/es-deprecation-7-frozen-indices",
-                "remove freeze action from the following ilm policies: [policy1,policy2]", false, null)
+                "Remove the freeze action from ILM policies: [policy1,policy2]", false, null)
         ));
     }
 }

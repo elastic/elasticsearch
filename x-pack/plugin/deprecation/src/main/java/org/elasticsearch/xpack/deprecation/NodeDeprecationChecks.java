@@ -305,7 +305,7 @@ class NodeDeprecationChecks {
             settings,
             setting,
             "https://ela.st/es-deprecation-7-xpack-basic-feature-settings",
-            "Basic features are always enabled  in 8.0."
+            "Basic features are always enabled in 8.0."
         );
     }
 
@@ -316,7 +316,7 @@ class NodeDeprecationChecks {
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
-            "a script context",
+            "the script context.",
             "https://ela.st/es-deprecation-7-script-cache-size-setting"
         );
     }
@@ -328,7 +328,7 @@ class NodeDeprecationChecks {
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
-            "a script context",
+            "the script context.",
             "https://ela.st/es-deprecation-7-script-cache-expire-setting"
         );
     }
@@ -340,7 +340,7 @@ class NodeDeprecationChecks {
             pluginsAndModules,
             ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
-            "a script context",
+            "the script context.",
             "https://ela.st/es-deprecation-7-script-max-compilations-rate-setting"
         );
     }
@@ -453,14 +453,13 @@ class NodeDeprecationChecks {
         final String value = deprecatedSetting.get(settings).toString();
         final String message = String.format(
             Locale.ROOT,
-            "setting [%s] is deprecated in favor of grouped setting [%s]",
+            "Setting [%s] is deprecated",
             deprecatedSettingKey,
             replacementSettingKey);
         final String details = String.format(
             Locale.ROOT,
-            "the setting [%s] is currently set to [%s], instead set [%s] to [%s] where * is %s",
+            "Remove the [%s] setting. Set [%s] to [%s], where * is %s",
             deprecatedSettingKey,
-            value,
             replacementSettingKey,
             replacementValue.apply(value, settings),
             star);
@@ -541,9 +540,10 @@ class NodeDeprecationChecks {
                                                        final ClusterState clusterState, final XPackLicenseState licenseState) {
         if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
             final String message = String.format(Locale.ROOT,
-                "setting [%s] is deprecated and will be removed in a future version", Environment.PATH_SHARED_DATA_SETTING.getKey());
+                "Setting [%s] is deprecated", Environment.PATH_SHARED_DATA_SETTING.getKey());
             final String url = "https://ela.st/es-deprecation-7-shared-path-settings";
-            final String details = "Found shared data path configured. Discontinue use of this setting.";
+            final String details = String.format(Locale.ROOT,
+                "Remove the [%s] setting. This setting has had no effect since 6.0.", Environment.PATH_SHARED_DATA_SETTING.getKey());
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
@@ -555,10 +555,10 @@ class NodeDeprecationChecks {
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                String.format(Locale.ROOT, "setting [%s=false] is deprecated and will not be available in a future version", key),
+                String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
-                String.format(Locale.ROOT, "found [%s] configured to false. Discontinue use of this setting or set it to true.", key),
-                    false, null
+                String.format(Locale.ROOT, "Remove the [%s] setting. Disk watermarks are always enabled for single node clusters in 8.0.",
+                    key),false, null
             );
         }
 
@@ -699,10 +699,10 @@ class NodeDeprecationChecks {
             return null;
         }
         String url = "https://ela.st/es-deprecation-7-fractional-byte-settings";
-        String message = "support for fractional byte size values is deprecated and will be removed in a future release";
-        String details = "change the following settings to non-fractional values: [" +
-            fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey() + "->" +
-                fractionalByteSetting.getValue()).collect(Collectors.joining(", ")) + "]";
+        String message = "Configuring fractional byte sizes is deprecated";
+        String details = String.format(Locale.ROOT, "Set the following to whole numbers: [%s].",
+            fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey())
+                .collect(Collectors.joining(", ")));
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
@@ -717,11 +717,11 @@ class NodeDeprecationChecks {
             if (cacheSize.getBytes() > 0) {
                 final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
                 if (DataTier.isFrozenNode(new HashSet<>(roles)) == false) {
-                    String message = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes",
+                    String message = String.format(Locale.ROOT, "Only frozen nodes can have a [%s] greater than zero.",
                         cacheSizeSettingKey);
                     String url = "https://ela.st/es-deprecation-7-searchable-snapshot-shared-cache-setting";
-                    String details = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes, and is " +
-                        "currently set to [%s]", cacheSizeSettingKey, settings.get(cacheSizeSettingKey));
+                    String details = String.format(Locale.ROOT, "Set [%s] to zero on any node that doesn't have the [data_frozen] role.",
+                        cacheSizeSettingKey);
                     return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
                 }
             }
@@ -815,13 +815,12 @@ class NodeDeprecationChecks {
         if (permitsHandshakesFromIncompatibleBuildsSupplier.get() != null) {
             final String message = String.format(
                 Locale.ROOT,
-                "the [%s] system property is deprecated and will be removed in the next major release",
+                "Setting the [%s] system property is deprecated",
                 TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
             );
             final String details = String.format(
                 Locale.ROOT,
-                "allowing handshakes from incompatibile builds is deprecated and will be removed in the next major release; the [%s] " +
-                    "system property must be removed",
+                "Remove the [%s] system property. Handshakes from incompatible builds are not allowed in 8.0.",
                 TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
             );
             String url = "https://ela.st/es-deprecation-7-permit-handshake-from-incompatible-builds-setting";
@@ -848,14 +847,10 @@ class NodeDeprecationChecks {
         final String transportProfilesSettings = transportProfiles.stream().map(Setting::getKey).collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "settings [%s] are deprecated and will be removed in the next major version",
+            "Settings [%s] for the Transport client are deprecated",
             transportProfilesSettings
         );
-        final String details = String.format(
-            Locale.ROOT,
-            "transport client will be removed in the next major version so transport client related settings [%s] must be removed",
-            transportProfilesSettings
-        );
+        final String details = "Remove all [transport.profiles] settings. The Transport client no longer exists in 8.0.";
 
         final String url = "https://ela.st/es-deprecation-7-transport-profiles-settings";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);

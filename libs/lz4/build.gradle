@@ -28,19 +28,19 @@ if (!isEclipse) {
     java9Implementation 'org.lz4:lz4-java:1.8.0'
   }
 
-  compileJava9Java {
+  tasks.named('compileJava9Java').configure {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
 
-  forbiddenApisJava9 {
+  tasks.named('forbiddenApisJava9').configure {
     if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
       targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
     }
     replaceSignatureFiles 'jdk-signatures'
   }
 
-  jar {
+  tasks.named('jar').configure {
     metaInf {
       into 'versions/9'
       from sourceSets.java9.output

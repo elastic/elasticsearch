@@ -1588,15 +1588,22 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.message = message;
         }
 
+        @Override
         public int hashCode() {
             return Objects.hash(level, message);
         }
 
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeprecationWarning that = (DeprecationWarning) o;
             return Objects.equals(level, that.level) && Objects.equals(message, that.message);
+        }
+
+        @Override
+        public String toString() {
+            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
         }
     }
 }

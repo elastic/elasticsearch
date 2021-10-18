@@ -24,6 +24,7 @@ import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -119,10 +120,11 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
         final PutLicenseRequest request = new PutLicenseRequest();
         request.setAcknowledge(true);
         request.setLicenseDefinition(licenseDefinition);
-        Exception e = expectThrows(
+        ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> highLevelClient().license().putLicense(request, RequestOptions.DEFAULT)
         );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), stringContainsInOrder("malformed signature for license"));
     }
 

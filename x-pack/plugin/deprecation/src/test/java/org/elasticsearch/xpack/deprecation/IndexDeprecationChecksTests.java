@@ -701,7 +701,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     public void testEmptyDataTierPreference() {
         Settings.Builder settings = settings(Version.CURRENT);
         settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  ");
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings)
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 100))
+            .build();
 
         {
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS,

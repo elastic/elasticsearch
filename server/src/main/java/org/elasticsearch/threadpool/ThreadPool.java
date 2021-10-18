@@ -199,7 +199,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
                         Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, 1000, 1000, 2000));
-        builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, true));
+        builders.put(Names.SEARCH_COORDINATION, new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProcMaxAt5, 1000, false));
         builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,
             Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
 

@@ -519,7 +519,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     /**
      * Tests that we can extract paths containing non-ascii characters.
      * See {@link AbstractFilteringTestCase#testFilterSupplementaryCharactersInPaths()}
-     * for a similar test but for XContent. 
+     * for a similar test but for XContent.
      */
     public void testSupplementaryCharactersInPaths() {
         Map<String, Object> map = new HashMap<>();
@@ -533,7 +533,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     /**
      * Tests that we can extract paths which share a prefix with other paths.
      * See {@link AbstractFilteringTestCase#testFilterSharedPrefixes()}
-     * for a similar test but for XContent. 
+     * for a similar test but for XContent.
      */
     public void testSharedPrefixes() {
         Map<String, Object> map = new HashMap<>();
@@ -616,7 +616,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     /**
      * Tests that we can extract paths which have another path as a prefix.
      * See {@link AbstractFilteringTestCase#testFilterPrefix()}
-     * for a similar test but for XContent. 
+     * for a similar test but for XContent.
      */
     public void testPrefix() {
         Map<String, Object> map = new HashMap<>();

@@ -434,4 +434,17 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             ActionListener.wrap(r -> stopTask.run(), e -> stopTask.run())
         );
     }
+
+    public void failAllocation(TrainedModelDeploymentTask task, String reason) {
+        updateStoredState(
+            task.getModelId(),
+            new RoutingStateAndReason(RoutingState.FAILED, reason),
+            ActionListener.wrap(r -> logger.debug(
+                    new ParameterizedMessage("[{}] Successfully updating allocation state to [{}] with reason [{}]",
+                        task.getModelId(), RoutingState.FAILED, reason))
+            , e -> logger.error(new ParameterizedMessage("[{}] Error while updating allocation state to [{}] with reason [{}]",
+                        task.getModelId(), RoutingState.FAILED, reason), e)
+            )
+        );
+    }
 }

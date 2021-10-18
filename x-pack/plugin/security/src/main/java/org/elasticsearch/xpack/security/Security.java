@@ -354,9 +354,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security_ip_filtering", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
@@ -377,6 +377,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // Custom realms are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
+
+    public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE =
+        LicensedFeature.momentary(null, "security-delegated-authorization", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary AUTHORIZATION_ENGINE_FEATURE =
+        LicensedFeature.momentary(null, "security-authorization-engine", License.OperationMode.PLATINUM);
 
     // Custom role providers are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =

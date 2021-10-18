@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.xcontent.support.filtering;
+package org.elasticsearch.xcontent.support.filtering;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.support.AbstractFilteringTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
@@ -17,8 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.AbstractFilteringTestCase;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -141,6 +140,8 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                     case VALUE_NUMBER:
                         assertThat(jsonParser.numberType(), equalTo(testParser.numberType()));
                         assertThat(jsonParser.numberValue(), equalTo(testParser.numberValue()));
+                        break;
+                    default:
                         break;
                 }
             }

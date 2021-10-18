@@ -176,8 +176,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                             (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
                             memoryFootprintPerJob + "].]"));
                 } else {
-                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs [" +
-                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
+                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs and allocated native " +
+                        "inference processes [" + maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 

@@ -67,7 +67,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final SnapshotFilesProvider snapshotFilesProvider;
-    @Nullable
+    @Nullable // if we're not downloading files from snapshots in this recovery
     private final Releasable snapshotFileDownloadsPermit;
     private final MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();

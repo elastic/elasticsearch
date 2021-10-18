@@ -1813,19 +1813,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
 
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-                final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
-                    threadPool,
-                    transportService,
-                    recoverySettings,
-                    clusterService,
-                    snapshotFilesProvider
-                );
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
                     clusterService,
                     threadPool,
-                    recoveryTargetService,
+                    new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService, snapshotFilesProvider),
                     shardStateAction,
                     repositoriesService,
                     mock(SearchService.class),

@@ -211,6 +211,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionLongTimeout;
     private volatile boolean useSnapshotsDuringRecovery;
     private volatile int maxConcurrentSnapshotFileDownloads;
+    private volatile int maxConcurrentSnapshotFileDownloadsPerNode;
 
     private final AdjustableSemaphore maxSnapshotFileDownloadsPerNodeSemaphore;
 
@@ -237,6 +238,8 @@ public class RecoverySettings {
         }
         this.useSnapshotsDuringRecovery = INDICES_RECOVERY_USE_SNAPSHOTS_SETTING.get(settings);
         this.maxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
+        this.maxConcurrentSnapshotFileDownloadsPerNode = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.get(settings);
+        this.maxSnapshotFileDownloadsPerNodeSemaphore = new AdjustableSemaphore(this.maxConcurrentSnapshotFileDownloadsPerNode, true);
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
 
@@ -253,9 +256,6 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS,
             this::setMaxConcurrentSnapshotFileDownloads);
-
-        int maxSnapshotFileDownloadsPerNode = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.get(settings);
-        this.maxSnapshotFileDownloadsPerNodeSemaphore = new AdjustableSemaphore(maxSnapshotFileDownloadsPerNode, true);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE,
             this::setMaxConcurrentSnapshotFileDownloadsPerNode);
     }
@@ -356,19 +356,30 @@ public class RecoverySettings {
         return maxConcurrentSnapshotFileDownloads;
     }
 
-    public void setMaxConcurrentSnapshotFileDownloads(int getMaxConcurrentSnapshotFileDownloads) {
-        this.maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads;
+    public void setMaxConcurrentSnapshotFileDownloads(int maxConcurrentSnapshotFileDownloads) {
+        this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
     }
 
     private void setMaxConcurrentSnapshotFileDownloadsPerNode(int maxConcurrentSnapshotFileDownloadsPerNode) {
-        maxSnapshotFileDownloadsPerNodeSemaphore.setMaxPermits(maxConcurrentSnapshotFileDownloadsPerNode);
+        this.maxConcurrentSnapshotFileDownloadsPerNode = maxConcurrentSnapshotFileDownloadsPerNode;
+        this.maxSnapshotFileDownloadsPerNodeSemaphore.setMaxPermits(maxConcurrentSnapshotFileDownloadsPerNode);
     }
 
     @Nullable
     Releasable tryAcquireSnapshotDownloadPermits() {
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
-        if (getUseSnapshotsDuringRecovery() == false ||
-            maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads) == false) {
+        final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
+        if (getUseSnapshotsDuringRecovery() == false || permitAcquired == false) {
+            if (permitAcquired == false) {
+                logger.warn(String.format(Locale.ROOT,
+                    "Unable to acquire permit to use snapshot files during recovery, " +
+                        "this recovery will recover index files from the source node. " +
+                        "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
+                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                    this.maxConcurrentSnapshotFileDownloadsPerNode
+                    )
+                );
+            }
             return null;
         }
 

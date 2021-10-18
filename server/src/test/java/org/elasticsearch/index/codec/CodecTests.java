@@ -40,7 +40,7 @@ public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
+        assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
         assertThat(codecService.codec("default"), instanceOf(Lucene90Codec.class));
     }
 

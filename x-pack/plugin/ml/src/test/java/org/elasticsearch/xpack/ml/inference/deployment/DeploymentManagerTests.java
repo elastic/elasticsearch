@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -17,7 +16,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
-import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.junit.After;
 import org.junit.Before;
@@ -32,7 +30,6 @@ import static org.mockito.Mockito.when;
 
 public class DeploymentManagerTests extends ESTestCase {
 
-    private DeploymentManager deploymentManager;
     private ThreadPool tp;
 
     @Before
@@ -41,12 +38,6 @@ public class DeploymentManagerTests extends ESTestCase {
             "DeploymentManagerTests",
             new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME,1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool"),
             new ScalingExecutorBuilder(JOB_COMMS_THREAD_POOL_NAME,1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.job_comms_thread_pool")
-        );
-        deploymentManager = new DeploymentManager(
-            mock(Client.class),
-            xContentRegistry(),
-            tp,
-            (task, executorService, onProcessCrash) -> mock(NativePyTorchProcess.class)
         );
     }
 

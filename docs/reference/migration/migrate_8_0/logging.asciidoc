@@ -6,14 +6,21 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.Elasticsearch JSON logs to comply with ECS
+.{es} JSON logs now comply with ECS
 [%collapsible]
 ====
 *Details* +
-Elasticsearch JSON logs format will be ECS compliant see: {es-pull}47105[#47105] (issue: {es-issue}46119[#46119])
+{es}'s {ref}/logging.html[JSON logs] now comply with the
+{ecs-ref}/index.html[Elastic Common Schema (ECS)]. This includes several notable
+changes:
+
+// * Notable change
+// * Other notable change
+
+Previously, {es}'s JSON logs used a custom schema.
 
 *Impact* +
-If you have a custom tooling around ES JSON logs,
-you need to consider chaning it to be able to parse ECS JSON format.
+If your application parses {es}'s JSON logs, update it to support the new ECS
+format.
 ====
 // end::notable-breaking-changes[]

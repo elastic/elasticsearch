@@ -128,10 +128,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
                         "test",
                         "1",
                         BytesReference.bytes(
-                            XContentFactory.jsonBuilder()
-                                .startObject()
-                                .field("@timestamp", endTime + randomLongBetween(0, 10))
-                                .endObject()
+                            XContentFactory.jsonBuilder().startObject().field("@timestamp", endTime + randomLongBetween(0, 10)).endObject()
                         ),
                         XContentType.JSON
                     )

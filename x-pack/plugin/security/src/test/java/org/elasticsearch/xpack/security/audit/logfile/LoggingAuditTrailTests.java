@@ -286,7 +286,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
                         Loggers.LOG_LEVEL_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
+        commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode, clusterService).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
         if (randomBoolean()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));

@@ -18,6 +18,7 @@ import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -146,6 +147,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String NODE_ID_FIELD_NAME = "node.id";
     public static final String HOST_ADDRESS_FIELD_NAME = "host.ip";
     public static final String HOST_NAME_FIELD_NAME = "host.name";
+    public static final String CLUSTER_NAME_FIELD_NAME = "cluster.name";
+    public static final String CLUSTER_UUID_FIELD_NAME = "cluster.uuid";
     public static final String EVENT_TYPE_FIELD_NAME = "event.type";
     public static final String EVENT_ACTION_FIELD_NAME = "event.action";
     public static final String PRINCIPAL_FIELD_NAME = "user.name";
@@ -185,22 +188,26 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_address"),
-            false, Property.NodeScope, Property.Dynamic);
+        false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_name"),
-            false, Property.NodeScope, Property.Dynamic);
+        false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_name"),
-            false, Property.NodeScope, Property.Dynamic);
+        false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> EMIT_NODE_ID_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_id"), true,
-            Property.NodeScope, Property.Dynamic);
+        Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> EMIT_CLUSTER_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_cluster_name"),
+        false, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> EMIT_CLUSTER_UUID_SETTING = Setting.boolSetting(setting("audit.logfile.emit_cluster_uuid"),
+        true, Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
-            ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
-            RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGE.toString());
+        ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),
+        RUN_AS_DENIED.toString(), RUN_AS_GRANTED.toString(), SECURITY_CONFIG_CHANGE.toString());
     public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.include"),
-            DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
-            Property.NodeScope, Property.Dynamic);
+        DEFAULT_EVENT_INCLUDES, Function.identity(), value -> AuditLevel.parse(value, List.of()),
+        Property.NodeScope, Property.Dynamic);
     public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(setting("audit.logfile.events.exclude"),
-            Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
-            Property.NodeScope, Property.Dynamic);
+        Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
+        Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
             false, Property.NodeScope, Property.Dynamic);
     // actions (and their requests) that are audited as "security change" events
@@ -258,7 +265,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
-        this.entryCommonFields = new EntryCommonFields(settings, null);
+        this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
@@ -269,7 +276,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             // always read before `entryCommonFields` and `includeRequestBody`.
             this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
         }, Arrays.asList(EMIT_HOST_ADDRESS_SETTING, EMIT_HOST_NAME_SETTING, EMIT_NODE_NAME_SETTING, EMIT_NODE_ID_SETTING,
-                INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
+            EMIT_CLUSTER_NAME_SETTING, EMIT_CLUSTER_UUID_SETTING,
+            INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS, INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
@@ -1390,6 +1398,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(EMIT_HOST_NAME_SETTING);
         settings.add(EMIT_NODE_NAME_SETTING);
         settings.add(EMIT_NODE_ID_SETTING);
+        settings.add(EMIT_CLUSTER_NAME_SETTING);
+        settings.add(EMIT_CLUSTER_UUID_SETTING);
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
@@ -1624,11 +1634,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     static class EntryCommonFields {
         private final Settings settings;
         private final DiscoveryNode localNode;
+        private final ClusterService clusterService;
         final Map<String, String> commonFields;
 
-        EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode) {
+        EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode, ClusterService clusterService) {
             this.settings = settings;
             this.localNode = newLocalNode;
+            this.clusterService = clusterService;
             final Map<String, String> commonFields = new HashMap<>();
             if (EMIT_NODE_NAME_SETTING.get(settings)) {
                 final String nodeName = Node.NODE_NAME_SETTING.get(settings);
@@ -1651,16 +1663,40 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             // the default origin is local
             commonFields.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
+            final Boolean isEmitClusterNameEnabled = EMIT_CLUSTER_NAME_SETTING.get(settings);
+            final Boolean isEmitClusterUuidEnabled = EMIT_CLUSTER_UUID_SETTING.get(settings);
+            if (isEmitClusterNameEnabled || isEmitClusterUuidEnabled) {
+                ClusterState clusterState;
+                try {
+                    clusterState = this.clusterService.state(); // may throw java.lang.AssertionError during startup
+                } catch (AssertionError e) {
+                    clusterState = null; // asserts "initial cluster state not set yet"
+                }
+                if (clusterState != null) {
+                    if (isEmitClusterNameEnabled) {
+                        final String clusterName = clusterState.getClusterName().value();
+                        if (Strings.hasLength(clusterName)) {
+                            commonFields.put(CLUSTER_NAME_FIELD_NAME, clusterName);
+                        }
+                    }
+                    if (isEmitClusterUuidEnabled) {
+                        final String clusterUuId = clusterState.metadata().clusterUUID();
+                        if (Strings.hasLength(clusterUuId)) {
+                            commonFields.put(CLUSTER_UUID_FIELD_NAME, clusterUuId);
+                        }
+                    }
+                }
+            }
             this.commonFields = Collections.unmodifiableMap(commonFields);
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {
             final Settings mergedSettings = Settings.builder().put(this.settings).put(newSettings, false).build();
-            return new EntryCommonFields(mergedSettings, this.localNode);
+            return new EntryCommonFields(mergedSettings, this.localNode, this.clusterService);
         }
 
         EntryCommonFields withNewLocalNode(DiscoveryNode newLocalNode) {
-            return new EntryCommonFields(this.settings, newLocalNode);
+            return new EntryCommonFields(this.settings, newLocalNode, this.clusterService);
         }
     }
 }

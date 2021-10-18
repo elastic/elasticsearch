@@ -120,6 +120,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
         ":libs:elasticsearch-dissect",
         ":libs:elasticsearch-geo",
         ":libs:elasticsearch-grok",
+        ":libs:elasticsearch-lz4",
         ":libs:elasticsearch-nio",
         ":libs:elasticsearch-plugin-classloader",
         ":libs:elasticsearch-secure-sm",

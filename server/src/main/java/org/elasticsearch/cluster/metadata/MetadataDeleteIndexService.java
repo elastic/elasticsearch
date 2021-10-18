@@ -171,78 +171,76 @@ public class MetadataDeleteIndexService {
         final Set<Index> indicesToDelete,
         final Metadata metadata
     ) {
-        if (indicesToDelete.isEmpty() == false) {
-            final long timestamp = Instant.now().toEpochMilli();
-            SnapshotDeletionsPending.Builder builder = null;
-            boolean changed = false;
+        final long timestamp = Instant.now().toEpochMilli();
+        SnapshotDeletionsPending.Builder builder = null;
+        boolean changed = false;
 
-            for (Index indexToDelete : indicesToDelete) {
-                final Settings indexSettings = metadata.getIndexSafe(indexToDelete).getSettings();
-                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings) == false) {
-                    continue; // not a searchable snapshot index
+        for (Index indexToDelete : indicesToDelete) {
+            final Settings indexSettings = metadata.getIndexSafe(indexToDelete).getSettings();
+            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings) == false) {
+                continue; // not a searchable snapshot index
+            }
+            if (indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) == false) {
+                continue; // do not delete the snapshot when this searchable snapshot index is deleted
+            }
+            final SnapshotId snapshotId = new SnapshotId(
+                indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY),
+                indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY)
+            );
+            boolean canDeleteSnapshot = true;
+            for (IndexMetadata other : metadata) {
+                if (indexToDelete.equals(other.getIndex())) {
+                    continue; // do not check against itself
                 }
-                if (indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) == false) {
-                    continue; // do not delete the snapshot when this searchable snapshot index is deleted
+                final Settings otherSettings = other.getSettings();
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(otherSettings) == false) {
+                    continue; // other index is not a searchable snapshot index, skip
                 }
-                final SnapshotId snapshotId = new SnapshotId(
-                    indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY),
-                    indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY)
+                final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
+                if (Objects.equals(snapshotId.getUUID(), otherSnapshotUuid) == false) {
+                    continue; // other index is backed by a different snapshot, skip
+                }
+                assert otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) : other;
+                if (indicesToDelete.contains(other.getIndex())) {
+                    continue; // other index is going to be deleted as part of the same cluster state update
+                }
+                logger.debug(
+                    "snapshot [{}] cannot be marked as to delete, another index [{}] is using the snapshot",
+                    snapshotId,
+                    other.getIndex()
                 );
-                boolean canDeleteSnapshot = true;
-                for (IndexMetadata other : metadata) {
-                    if (indexToDelete.equals(other.getIndex())) {
-                        continue; // do not check against itself
-                    }
-                    final Settings otherSettings = other.getSettings();
-                    if (SearchableSnapshotsSettings.isSearchableSnapshotStore(otherSettings) == false) {
-                        continue; // other index is not a searchable snapshot index, skip
-                    }
-                    final String otherSnapshotUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY);
-                    if (Objects.equals(snapshotId.getUUID(), otherSnapshotUuid) == false) {
-                        continue; // other index is backed by a different snapshot, skip
-                    }
-                    assert otherSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false) : other;
-                    if (indicesToDelete.contains(other.getIndex())) {
-                        continue; // other index is going to be deleted as part of the same cluster state update
-                    }
-                    logger.debug(
-                        "snapshot [{}] cannot be marked as to delete, another index [{}] is using the snapshot",
-                        snapshotId,
-                        other.getIndex()
-                    );
-                    canDeleteSnapshot = false; // another index is using the same snapshot, do not delete the snapshot
-                    break;
-                }
-                if (canDeleteSnapshot) {
-                    if (builder == null) {
-                        final int maxPendingDeletions = SnapshotDeletionsPending.MAX_PENDING_DELETIONS_SETTING.get(settings);
-                        builder = new SnapshotDeletionsPending.Builder(
-                            pendingDeletions,
-                            evicted -> logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "maximum number of snapshots [{}] awaiting deletion has been reached in "
-                                        + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
-                                    maxPendingDeletions,
-                                    evicted.getSnapshotId(),
-                                    Instant.ofEpochMilli(evicted.getCreationTime()).atZone(ZoneOffset.UTC),
-                                    evicted.getRepositoryName(),
-                                    evicted.getRepositoryUuid()
-                                )
+                canDeleteSnapshot = false; // another index is using the same snapshot, do not delete the snapshot
+                break;
+            }
+            if (canDeleteSnapshot) {
+                if (builder == null) {
+                    final int maxPendingDeletions = SnapshotDeletionsPending.MAX_PENDING_DELETIONS_SETTING.get(settings);
+                    builder = new SnapshotDeletionsPending.Builder(
+                        pendingDeletions,
+                        evicted -> logger.warn(
+                            () -> new ParameterizedMessage(
+                                "maximum number of snapshots [{}] awaiting deletion has been reached in "
+                                    + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
+                                maxPendingDeletions,
+                                evicted.getSnapshotId(),
+                                Instant.ofEpochMilli(evicted.getCreationTime()).atZone(ZoneOffset.UTC),
+                                evicted.getRepositoryName(),
+                                evicted.getRepositoryUuid()
                             )
-                        );
-                    }
-                    builder.add(
-                        indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY),
-                        indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, RepositoryData.MISSING_UUID),
-                        snapshotId,
-                        timestamp
+                        )
                     );
-                    changed = true;
                 }
+                builder.add(
+                    indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY),
+                    indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY, RepositoryData.MISSING_UUID),
+                    snapshotId,
+                    timestamp
+                );
+                changed = true;
             }
-            if (changed) {
-                return builder.build(settings);
-            }
+        }
+        if (changed) {
+            return builder.build(settings);
         }
         return pendingDeletions;
     }

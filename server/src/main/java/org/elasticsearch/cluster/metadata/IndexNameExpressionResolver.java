@@ -675,8 +675,8 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 if (dataStream.getIndices() != null) {
-                    for (IndexMetadata indexMetadata : dataStream.getIndices()) {
-                        String concreteIndex = indexMetadata.getIndex().getName();
+                    for (Index index : dataStream.getIndices()) {
+                        String concreteIndex = index.getName();
                         if (norouting.contains(concreteIndex) == false) {
                             norouting.add(concreteIndex);
                             if (paramRouting != null) {

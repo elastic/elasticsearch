@@ -42,7 +42,7 @@ public class HotThreads {
     private TimeValue threadElementsSnapshotDelay = new TimeValue(10, TimeUnit.MILLISECONDS);
     private int threadElementsSnapshotCount = 10;
     private ReportType type = ReportType.CPU;
-    private SortOrder sortOder = SortOrder.DEFAULT;
+    private SortOrder sortOder = SortOrder.TOTAL;
 
     private boolean ignoreIdleThreads = true;
 
@@ -89,8 +89,8 @@ public class HotThreads {
 
     public enum SortOrder {
 
-        DEFAULT("default"),
-        LEGACY("legacy");
+        TOTAL("total"),
+        CPU("cpu");
 
         private final String order;
 
@@ -241,6 +241,12 @@ public class HotThreads {
             throw new ElasticsearchException("thread allocated memory is not supported on this JDK");
         }
 
+        // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times. If we weren't
+        // able to enable this functionality during bootstrap, we should not produce HotThreads reports.
+        if (isThreadWaitBlockTimeMonitoringEnabled(threadBean) == false) {
+            throw new ElasticsearchException("thread wait/blocked time accounting is not supported on this JDK");
+        }
+
         StringBuilder sb = new StringBuilder()
             .append("Hot threads at ")
             .append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())))
@@ -252,12 +258,6 @@ public class HotThreads {
             .append(ignoreIdleThreads)
             .append(":\n");
 
-        // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times. If we weren't
-        // able to enable this functionality during bootstrap, we should default to the legacy sort by CPU time.
-        if (isThreadWaitBlockTimeMonitoringEnabled(threadBean) == false) {
-            sortOder = SortOrder.LEGACY;
-        }
-
         // Capture before and after thread state with timings
         Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, sunThreadInfo, currentThreadId);
         threadSleep.apply(interval.millis());
@@ -268,7 +268,7 @@ public class HotThreads {
         // Sort by delta CPU time on thread.
         List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
 
-        if (type == ReportType.CPU && sortOder == SortOrder.DEFAULT)  {
+        if (type == ReportType.CPU && sortOder == SortOrder.TOTAL)  {
             CollectionUtil.introSort(topThreads,
                 Comparator.comparingLong(ThreadTimeAccumulator::getRunnableTime)
                     .thenComparingLong(ThreadTimeAccumulator::getCpuTime).reversed());
@@ -307,20 +307,13 @@ public class HotThreads {
                         new ByteSizeValue(topThread.getAllocatedBytes()), threadName));
                     break;
                 case CPU:
-                    if (isThreadWaitBlockTimeMonitoringEnabled(threadBean)) {
-                        long runnableTime = topThread.getRunnableTime();
-                        double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
-                        double percentOther = getTimeSharePercentage(topThread.getOtherTime());
-                        sb.append(String.format(Locale.ROOT,
-                            "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
-                            percentOther + percentCpu, percentCpu, percentOther,
-                            TimeValue.timeValueNanos(runnableTime), interval, type.getTypeValue(), threadName));
-                    } else {
-                        long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);
-                        double percent = getTimeSharePercentage(time);
-                        sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
-                            percent, TimeValue.timeValueNanos(time), interval, type.getTypeValue(), threadName));
-                    }
+                    double percentCpu = getTimeSharePercentage(topThread.getCpuTime());
+                    double percentOther = getTimeSharePercentage(topThread.getOtherTime());
+                    sb.append(String.format(Locale.ROOT,
+                        "%n%4.1f%% [cpu=%1.1f%%, other=%1.1f%%] (%s out of %s) %s usage by thread '%s'%n",
+                        percentOther + percentCpu, percentCpu, percentOther,
+                        TimeValue.timeValueNanos(topThread.getCpuTime() + topThread.getOtherTime()),
+                        interval, type.getTypeValue(), threadName));
                     break;
                 default:
                     long time = ThreadTimeAccumulator.valueGetterForReportType(type).applyAsLong(topThread);

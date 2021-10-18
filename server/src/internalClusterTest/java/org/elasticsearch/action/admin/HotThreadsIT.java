@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -83,10 +82,6 @@ public class HotThreadsIT extends ESIntegTestCase {
                     try {
                         assertThat(nodeHotThreads, notNullValue());
                         Map<String, NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
-
-                        for (FailedNodeException fe : nodeHotThreads.failures()) {
-                            logger.info(fe);
-                        }
 
                         assertThat(nodeHotThreads.failures(), empty());
                         assertThat(nodesMap.size(), equalTo(cluster().size()));

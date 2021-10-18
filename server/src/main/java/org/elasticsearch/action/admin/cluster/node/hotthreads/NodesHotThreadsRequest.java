@@ -25,7 +25,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
 
     int threads = 3;
     HotThreads.ReportType type = HotThreads.ReportType.CPU;
-    HotThreads.SortOrder sortOrder = HotThreads.SortOrder.DEFAULT;
+    HotThreads.SortOrder sortOrder = HotThreads.SortOrder.TOTAL;
     TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
     int snapshots = 10;
     boolean ignoreIdleThreads = true;
@@ -121,7 +121,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
         if (out.getVersion().onOrAfter(SORT_SUPPORTED_VERSION)) {
-            out.writeOptionalString(sortOrder.getOrderValue());
+            out.writeString(sortOrder.getOrderValue());
         }
     }
 }

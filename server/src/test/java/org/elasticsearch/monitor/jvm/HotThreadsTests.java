@@ -314,7 +314,7 @@ public class HotThreadsTests extends ESTestCase {
             .busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
             .interval(TimeValue.timeValueMillis(10))
-            .sortOrder(HotThreads.SortOrder.LEGACY)
+            .sortOrder(HotThreads.SortOrder.CPU)
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
@@ -331,43 +331,6 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
-
-        // Test without support for wait/blocked time accounting
-
-        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
-
-        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
-        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(false);
-
-        hotThreads = new HotThreads()
-            .busiestThreads(4)
-            .type(HotThreads.ReportType.CPU)
-            .interval(TimeValue.timeValueNanos(10))
-            .threadElementsSnapshotCount(11)
-            .ignoreIdleThreads(false);
-
-        innerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
-
-        assertThat(innerResult, containsString("Hot threads at "));
-        assertThat(innerResult, containsString("interval=10nanos, busiestThreads=4, ignoreIdleThreads=false:"));
-        assertThat(innerResult, containsString("11/11 snapshots sharing following 2 elements"));
-        assertThat(innerResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
-        assertThat(innerResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
-        assertThat(innerResult, containsString("20.0% (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
-        assertThat(innerResult, containsString("10.0% (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
-
-        // Let's ask again without progressing the CPU thread counters, e.g. resetting the mocks
-        innerResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
-
-        assertThat(innerResult, containsString("0.0% (0s out of 10nanos) cpu usage by thread 'Thread 4'"));
-        assertThat(innerResult, containsString("0.0% (0s out of 10nanos) cpu usage by thread 'Thread 3'"));
-        assertThat(innerResult, containsString("0.0% (0s out of 10nanos) cpu usage by thread 'Thread 2'"));
-        assertThat(innerResult, containsString("0.0% (0s out of 10nanos) cpu usage by thread 'Thread 1'"));
 
         HotThreads hotWaitingThreads = new HotThreads()
             .busiestThreads(4)
@@ -392,7 +355,7 @@ public class HotThreadsTests extends ESTestCase {
         hotWaitingThreads = new HotThreads()
             .busiestThreads(4)
             .type(HotThreads.ReportType.WAIT)
-            .sortOrder(HotThreads.SortOrder.LEGACY)
+            .sortOrder(HotThreads.SortOrder.CPU)
             .interval(TimeValue.timeValueMillis(50))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
@@ -432,7 +395,7 @@ public class HotThreadsTests extends ESTestCase {
         hotBlockedThreads = new HotThreads()
             .busiestThreads(4)
             .type(HotThreads.ReportType.BLOCK)
-            .sortOrder(HotThreads.SortOrder.LEGACY)
+            .sortOrder(HotThreads.SortOrder.CPU)
             .interval(TimeValue.timeValueMillis(60))
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
@@ -466,10 +429,10 @@ public class HotThreadsTests extends ESTestCase {
 
         assertThat(singleResult, containsString("  unique snapshot"));
         assertEquals(5, singleResult.split(" unique snapshot").length);
-        assertThat(singleResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
-        assertThat(singleResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
-        assertThat(singleResult, containsString("20.0% (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
-        assertThat(singleResult, containsString("10.0% (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
+        assertThat(singleResult, containsString("40.0% [cpu=40.0%, other=0.0%] (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
+        assertThat(singleResult, containsString("30.0% [cpu=30.0%, other=0.0%] (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
+        assertThat(singleResult, containsString("20.0% [cpu=20.0%, other=0.0%] (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
+        assertThat(singleResult, containsString("10.0% [cpu=10.0%, other=0.0%] (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
@@ -510,7 +473,7 @@ public class HotThreadsTests extends ESTestCase {
         hotThreads = new HotThreads()
             .busiestThreads(4)
             .type(HotThreads.ReportType.MEM)
-            .sortOrder(HotThreads.SortOrder.LEGACY)
+            .sortOrder(HotThreads.SortOrder.CPU)
             .interval(TimeValue.timeValueNanos(10))
             .threadElementsSnapshotCount(1)
             .ignoreIdleThreads(false);
@@ -527,6 +490,8 @@ public class HotThreadsTests extends ESTestCase {
     public void testEnsureInnerDetectSkipsCurrentThread() throws Exception {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
+        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
+        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(true);
 
         long mockCurrentThreadId = 5L;
         long[] threadIds = new long[]{mockCurrentThreadId}; // Matches half the intervalNanos for calculating time percentages
@@ -773,7 +738,9 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), mockCurrentThreadId, (interval) -> null);
+        Exception e = expectThrows(ElasticsearchException.class, () ->
+            hotThreads.innerDetect(mockedMXBean, mock(SunThreadInfo.class), mockCurrentThreadId, (interval) -> null));
+        assertEquals(e.getMessage(), "thread wait/blocked time accounting is not supported on this JDK");
 
         // Ensure we checked if JVM lock monitoring is enabled
         InOrder orderVerifier = inOrder(mockedMXBean);
@@ -785,6 +752,7 @@ public class HotThreadsTests extends ESTestCase {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
         when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
+        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(true);
 
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
         when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(false);
@@ -807,24 +775,5 @@ public class HotThreadsTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> hotThreads0.innerDetect(mockedMXBean, mockedSunThreadInfo, 0L, (interval) -> null));
         assertThat(exception.getMessage(), equalTo("thread allocated memory is not supported on this JDK"));
-
-        // making sure CPU type was not affected when isThreadAllocatedMemorySupported() == false
-
-        HotThreads hotThreads1 = new HotThreads()
-            .busiestThreads(4)
-            .type(HotThreads.ReportType.CPU)
-            .interval(TimeValue.timeValueNanos(10))
-            .threadElementsSnapshotCount(1)
-            .ignoreIdleThreads(false);
-
-        String innerResult = hotThreads1.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
-        assertThat(innerResult, containsString("Hot threads at "));
-        assertThat(innerResult, containsString("40.0% (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
-        assertThat(innerResult, containsString("30.0% (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
-        assertThat(innerResult, containsString("20.0% (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
-        assertThat(innerResult, containsString("10.0% (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
     }
 }

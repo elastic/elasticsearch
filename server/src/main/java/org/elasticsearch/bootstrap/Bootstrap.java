@@ -160,6 +160,8 @@ final class Bootstrap {
     }
 
     static void initializeRuntimeMonitoring() {
+        // We'll let the JVM boot without this functionality, however certain APIs like HotThreads will not
+        // function and report an error.
         if (ManagementFactory.getThreadMXBean().isThreadContentionMonitoringSupported() == false) {
             LogManager.getLogger(Bootstrap.class).info("Thread wait/blocked time accounting not supported.");
         } else {

@@ -81,6 +81,9 @@ public class BootstrapForTesting {
         // initialize probes
         Bootstrap.initializeProbes();
 
+        // initialize VM/Runtime monitoring
+        Bootstrap.initializeRuntimeMonitoring();
+
         // initialize sysprops
         BootstrapInfo.getSystemProperties();
 

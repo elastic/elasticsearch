@@ -82,7 +82,6 @@ public class HotThreadsIT extends ESIntegTestCase {
                     try {
                         assertThat(nodeHotThreads, notNullValue());
                         Map<String, NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
-
                         assertThat(nodeHotThreads.failures(), empty());
                         assertThat(nodesMap.size(), equalTo(cluster().size()));
                         for (NodeHotThreads ht : nodeHotThreads.getNodes()) {

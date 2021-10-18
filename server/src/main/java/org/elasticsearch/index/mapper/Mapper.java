@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.filter.TokenFilter;
+
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
@@ -66,4 +69,29 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Validate a {@link TokenFilter} made from {@link IndexMetadata#INDEX_ROUTING_PATH}.
+     */
+    public final void validateRoutingPath(TokenFilter filter) {
+        if (filter == TokenFilter.INCLUDE_ALL) {
+            validateMatchedRoutingPath();
+        }
+        for (Mapper m : this) {
+            TokenFilter next = filter.includeProperty(m.simpleName());
+            if (next == null) {
+                // null means "do not include"
+                continue;
+            }
+            m.validateRoutingPath(next);
+        }
+    }
+
+    /**
+     * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
+     */
+    protected void validateMatchedRoutingPath() {
+        throw new IllegalArgumentException(
+            "All fields that match routing_path must be keyword time_series_dimensions but [" + name() + "] was [" + typeName() + "]"
+        );
+    }
 }

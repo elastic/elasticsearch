@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.filter.TokenFilter;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -749,5 +751,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected boolean allowsNullValues() {
         return true;
+    }
+
+    public final void testMinimalIsInvalidInRoutingPath() throws IOException {
+        Mapper mapper = createMapperService(fieldMapping(this::minimalMapping)).mappingLookup().getMapper("field");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.validateRoutingPath(TokenFilter.INCLUDE_ALL));
+        assertThat(e.getMessage(), equalTo(minimalIsInvalidRoutingPathErrorMessage(mapper)));
+    }
+
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        return "All fields that match routing_path must be keyword time_series_dimensions but [field] was [" + mapper.typeName() + "]";
     }
 }

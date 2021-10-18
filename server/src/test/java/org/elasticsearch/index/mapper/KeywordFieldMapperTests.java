@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.filter.TokenFilter;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -578,5 +580,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean dedupAfterFetch() {
         return true;
+    }
+
+    @Override
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        return "All fields that match routing_path must be keyword time_series_dimensions but [field] was not a time_series_dimension";
+    }
+
+    public void testDimensionInRoutingPath() throws IOException {
+        Mapper mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)))
+            .mappingLookup()
+            .getMapper("field");
+        mapper.validateRoutingPath(TokenFilter.INCLUDE_ALL);  // Doesn't throw
     }
 }

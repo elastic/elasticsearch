@@ -152,10 +152,11 @@ public class ServerUtils {
     // polls every two seconds for Elasticsearch to be running on 9200, possibly waiting for additional sec after Elasticsearch has started
     private static void waitForXpack(Installation installation, int additionalDelay) {
         int retries = 60;
-        int additionalPolls = additionalDelay < 0 ? 0 : additionalDelay / 2;
+        int additionalPolls = additionalDelay <= 0 ? 0 : additionalDelay / 2;
         while (retries > 0) {
             retries -= 1;
             try (Socket s = new Socket(InetAddress.getLoopbackAddress(), 9200)) {
+                logger.info("We will wait for additional: " + additionalPolls);
                 if (additionalPolls > 0) {
                     additionalPolls -= 1;
                 } else {

@@ -289,7 +289,7 @@ public class IndicesAccessControl {
 
         private static final IndicesAccessControl INSTANCE = new AllowAllIndicesAccessControl();
 
-        private final IndexAccessControl ALLOW_ALL_INDEX_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
+        private final IndexAccessControl allowAllIndexAccessControl = new IndexAccessControl(true, null, null);
 
         private AllowAllIndicesAccessControl() {
             super(true, null);
@@ -297,7 +297,7 @@ public class IndicesAccessControl {
 
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
-            return ALLOW_ALL_INDEX_ACCESS_CONTROL;
+            return allowAllIndexAccessControl;
         }
 
         @Override

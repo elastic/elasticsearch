@@ -35,7 +35,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;

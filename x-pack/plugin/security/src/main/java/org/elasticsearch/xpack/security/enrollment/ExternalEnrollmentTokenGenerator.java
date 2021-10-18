@@ -33,6 +33,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -101,7 +102,10 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
-        return (ArrayList<String>) http.get("bound_address");
+        final List<String> addresses = new ArrayList<>();
+        addresses.addAll((Collection<? extends String>) http.get("bound_address"));
+        addresses.add(getIpFromPublishAddress((String) http.get("publish_address")));
+        return addresses;
     }
 
     static String getVersion(Map<?, ?> nodesInfo) {

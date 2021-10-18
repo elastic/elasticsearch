@@ -44,7 +44,7 @@ class KnnSearchRequestBuilder {
         PARSER.declareField(KnnSearchRequestBuilder::knnSearch, KnnSearch::parse,
             KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, request, c) -> request.fetchSource(FetchSourceContext.fromXContent(p)),
-            SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
+            SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareFieldArray(KnnSearchRequestBuilder::fields, (p, c) -> FieldAndFormat.fromXContent(p),
             SearchSourceBuilder.FETCH_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareFieldArray(KnnSearchRequestBuilder::docValueFields, (p, c) -> FieldAndFormat.fromXContent(p),

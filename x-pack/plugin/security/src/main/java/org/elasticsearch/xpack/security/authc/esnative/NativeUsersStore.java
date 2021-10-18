@@ -26,18 +26,18 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
@@ -277,10 +277,14 @@ public class NativeUsersStore {
     }
 
     /**
-     * Asynchronous method to create or update a reserved user with the given password hash. The cache for the user will be
-     * cleared after the document has been indexed
+     * Asynchronous method to create the elastic superuser with the given password hash. The cache for the user will be
+     * cleared after the document has been indexed.
      */
-    public void updateReservedUser(
+    public void createElasticUser(char[] passwordHash, ActionListener<Void> listener) {
+        updateReservedUser(ElasticUser.NAME, passwordHash, DocWriteRequest.OpType.CREATE, RefreshPolicy.IMMEDIATE, listener);
+    }
+
+    private void updateReservedUser(
         String username,
         char[] passwordHash,
         DocWriteRequest.OpType opType,
@@ -308,10 +312,6 @@ public class NativeUsersStore {
                 client::index
             );
         });
-    }
-
-    void createElasticUser(char[] passwordHash, ActionListener<Void> listener) {
-        updateReservedUser(ElasticUser.NAME, passwordHash, DocWriteRequest.OpType.CREATE, RefreshPolicy.IMMEDIATE, listener);
     }
 
     /**

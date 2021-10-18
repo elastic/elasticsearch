@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiPrintStream;
 import org.fusesource.jansi.AnsiType;
 
@@ -97,13 +98,8 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
             if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
                 && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
                 final SecureString elasticPassword = new SecureString(generatePassword(20));
-                nativeUsersStore.updateReservedUser(
-                    ElasticUser.NAME,
-                    elasticPassword.getChars(),
-                    DocWriteRequest.OpType.CREATE,
-                    WriteRequest.RefreshPolicy.IMMEDIATE,
-                    groupedActionListener.map(ignore -> Map.of(passwordKey, elasticPassword.toString()))
-                );
+                nativeUsersStore.createElasticUser(elasticPassword.getChars(), groupedActionListener.map(ignore -> Map.of(passwordKey,
+                    elasticPassword.toString())));
             } else {
                 groupedActionListener.onResponse(Map.of());
             }
@@ -122,60 +118,71 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
     }
 
     private void outputInformationToConsole(String elasticPassword, String enrollmentToken, String caCertFingerprint, AnsiPrintStream out) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
-        builder.append("-----------------------------------------------------------------");
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
+        Ansi ansi = ansi();
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        ansi.a("-".repeat(Math.max(1, out.getTerminalWidth())));
+        ansi.bold();
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
         if (null != elasticPassword) {
-            builder.append("Password for the elastic user is: ");
-            builder.append(elasticPassword);
+            ansi.a("Password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF).a(" built-in superuser:");
+            ansi.a(System.lineSeparator());
+            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.a(elasticPassword);
+            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
         } else {
-            builder.append("Unable to set the password for the elastic user automatically");
+            ansi.a("Unable to set the password for the elastic user automatically");
         }
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
         if (null != enrollmentToken) {
-            builder.append("Enrollment token for kibana, valid for the next 30 minutes:");
-            builder.append(System.lineSeparator());
-            builder.append(enrollmentToken);
-            builder.append(System.lineSeparator());
+            ansi.a("Enrollment token for ").a(Ansi.Attribute.ITALIC).a("Kibana").a(Ansi.Attribute.ITALIC_OFF).a(", valid for the next 30 minutes:");
+            ansi.a(System.lineSeparator());
+            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.a(enrollmentToken);
+            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
+            ansi.a(System.lineSeparator());
         } else {
-            builder.append("Unable to generate an enrollment token for kibana automatically");
-            builder.append(System.lineSeparator());
+            ansi.a("Unable to generate an enrollment token for Kibana automatically");
+            ansi.a(System.lineSeparator());
         }
-        builder.append(System.lineSeparator());
+        // TODO generate node enrollment tokens as well
+        ansi.a(System.lineSeparator());
         if (null != caCertFingerprint) {
-            builder.append("Fingerprint of the generated CA certificate for HTTP:");
-            builder.append(System.lineSeparator());
-            builder.append(caCertFingerprint);
-            builder.append(System.lineSeparator());
+            ansi.a("Hex-encoded SHA-256 fingerprint of the generated HTTPS CA DER-encoded certificate:");
+            ansi.a(System.lineSeparator());
+            ansi.a(Ansi.Attribute.UNDERLINE);
+            ansi.a(caCertFingerprint);
+            ansi.a(Ansi.Attribute.UNDERLINE_OFF);
+            ansi.a(System.lineSeparator());
         }
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
-        builder.append("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
-        builder.append(System.lineSeparator());
-        builder.append("in order to set or reset the password for the elastic user.");
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
-        builder.append("You can use 'bin/elasticsearch-create-enrollment-token -s kibana' at any time");
-        builder.append(System.lineSeparator());
-        builder.append("in order to get a new, valid, enrollment token for kibana.");
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
-        builder.append("You can use 'bin/elasticsearch-create-enrollment-token -s node' at any time");
-        builder.append(System.lineSeparator());
-        builder.append("in order to get a new, valid, enrollment token for new elasticsearch nodes.");
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
-        builder.append("-----------------------------------------------------------------");
-        builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
-        out.println(ansi().bold().a(builder.toString()).boldOff().toString());
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        ansi.a("You can use 'bin/elasticsearch-reset-elastic-password' at any time");
+        ansi.a(System.lineSeparator());
+        ansi.a("in order to set or reset the password for the elastic user.");
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        ansi.a("You can use 'bin/elasticsearch-create-enrollment-token -s kibana' at any time");
+        ansi.a(System.lineSeparator());
+        ansi.a("in order to get a new, valid, enrollment token for kibana.");
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        ansi.a("You can use 'bin/elasticsearch-create-enrollment-token -s node' at any time");
+        ansi.a(System.lineSeparator());
+        ansi.a("in order to get a new, valid, enrollment token for new elasticsearch nodes.");
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        ansi.boldOff();
+        ansi.a("-".repeat(Math.max(1, out.getTerminalWidth())));
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
+        out.println(ansi);
     }
 
     private void outputOnError(@Nullable Exception e) {
+        // TODO
         if (e instanceof VersionConflictEngineException == false) {
             LOGGER.info("");
             LOGGER.info("-----------------------------------------------------------------");

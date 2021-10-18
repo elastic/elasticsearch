@@ -240,6 +240,7 @@ import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorCon
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -311,6 +312,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -371,6 +373,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
+    // Custom role providers are Platinum+
+    public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
+        LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();
@@ -420,7 +426,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);
-
     }
 
     private static void runStartupChecks(Settings settings) {
@@ -580,9 +585,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             xContentRegistry);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
-        List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
+
+        final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
-            rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
+            final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> providers = extension.getRolesProviders(
+                extensionComponents
+            );
+            if (providers != null && providers.isEmpty() == false) {
+                customRoleProviders.put(extension.toString(), providers);
+            }
         }
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
@@ -604,9 +615,17 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         );
         components.add(serviceAccountService);
 
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
-            privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
-            serviceAccountService, dlsBitsetCache.get(), new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
+        final RoleProviders roleProviders = new RoleProviders(
+            reservedRolesStore,
+            fileRolesStore,
+            nativeRolesStore,
+            customRoleProviders,
+            getLicenseState()
+        );
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, roleProviders,
+            privilegeStore, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
+            serviceAccountService, dlsBitsetCache.get(), 
+            new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be

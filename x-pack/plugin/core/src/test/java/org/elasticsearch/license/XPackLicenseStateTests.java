@@ -89,7 +89,6 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityDefaults() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
     }
 
     public void testSecurityStandard() {
@@ -97,7 +96,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -106,7 +104,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -115,7 +112,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
     }
 
@@ -124,7 +120,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -133,7 +128,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -142,7 +136,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -151,7 +144,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 

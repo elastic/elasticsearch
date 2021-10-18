@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -301,12 +302,13 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (Files.exists(root) == false) {
                 return;
             }
-            Files.walk(root)
-                .filter(p -> p.toString().endsWith(suffix))
-                .map(root::relativize)
-                .filter(p -> p.getNameCount() > 1) // module-info or other things without a package can be skipped
-                .filter(p -> p.toString().startsWith("META-INF") == false)
-                .forEach(classConsumer);
+	    try (Stream<Path> stream = Files.walk(root)) {
+                stream.filter(p -> p.toString().endsWith(suffix))
+                    .map(root::relativize)
+                    .filter(p -> p.getNameCount() > 1) // module-info or other things without a package can be skipped
+                    .filter(p -> p.toString().startsWith("META-INF") == false)
+                    .forEach(classConsumer);
+            }
         }
 
         private static String getPackageName(Path path) {

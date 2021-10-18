@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class looks for plugins whose "type" is "bootstrap". Such plugins
@@ -39,29 +40,31 @@ public class BootstrapJvmOptions {
     private static List<PluginInfo> getPluginInfo(Path plugins) throws IOException {
         final List<PluginInfo> pluginInfo = new ArrayList<>();
 
-        final List<Path> pluginDirs = Files.list(plugins).collect(Collectors.toList());
+        try (Stream<Path> pluginsList = Files.list(plugins)) {
+            final List<Path> pluginDirs = pluginsList.collect(Collectors.toList());
+            for (Path pluginDir : pluginDirs) {
+                final List<String> jarFiles = new ArrayList<>();
+                final Properties props = new Properties();
+                try (Stream<Path> pluginDirList = Files.list(pluginDir)) {
+                    final List<Path> pluginFiles = pluginDirList.collect(Collectors.toList());
+                    for (Path pluginFile : pluginFiles) {
+                        final String lowerCaseName = pluginFile.getFileName().toString().toLowerCase(Locale.ROOT);
 
-        for (Path pluginDir : pluginDirs) {
-            final List<String> jarFiles = new ArrayList<>();
-            final Properties props = new Properties();
-
-            final List<Path> pluginFiles = Files.list(pluginDir).collect(Collectors.toList());
-            for (Path pluginFile : pluginFiles) {
-                final String lowerCaseName = pluginFile.getFileName().toString().toLowerCase(Locale.ROOT);
-
-                if (lowerCaseName.endsWith(".jar")) {
-                    jarFiles.add(pluginFile.toString());
-                } else if (lowerCaseName.equals("plugin-descriptor.properties")) {
-                    try (InputStream stream = Files.newInputStream(pluginFile)) {
-                        props.load(stream);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                        if (lowerCaseName.endsWith(".jar")) {
+                            jarFiles.add(pluginFile.toString());
+                        } else if (lowerCaseName.equals("plugin-descriptor.properties")) {
+                            try (InputStream stream = Files.newInputStream(pluginFile)) {
+                                props.load(stream);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        }
                     }
-                }
-            }
+		}
 
-            if (props.isEmpty() == false) {
-                pluginInfo.add(new PluginInfo(jarFiles, props));
+                if (props.isEmpty() == false) {
+                    pluginInfo.add(new PluginInfo(jarFiles, props));
+                }
             }
         }
 

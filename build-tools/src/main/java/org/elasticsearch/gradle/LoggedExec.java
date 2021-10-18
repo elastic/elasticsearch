@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -84,13 +85,13 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
             File spoolFile = new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
             out = new LazyFileOutputStream(spoolFile);
             outputLogger = logger -> {
-                try {
-                    // the file may not exist if the command never output anything
-                    if (Files.exists(spoolFile.toPath())) {
-                        Files.lines(spoolFile.toPath()).forEach(logger::error);
+                // the file may not exist if the command never output anything
+                if (Files.exists(spoolFile.toPath())) {
+                    try (Stream<String> stream = Files.lines(spoolFile.toPath())) {
+                        stream.forEach(logger::error);
+                    } catch (IOException e) {
+                        throw new RuntimeException("could not log", e);
                     }
-                } catch (IOException e) {
-                    throw new RuntimeException("could not log", e);
                 }
             };
         } else {

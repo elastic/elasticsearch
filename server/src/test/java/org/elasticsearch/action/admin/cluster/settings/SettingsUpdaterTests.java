@@ -193,15 +193,15 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         final Settings toApplyDebug = Settings.builder().put("logger.org.elasticsearch", "debug").build();
         final ClusterState afterDebug = settingsUpdater.updateSettings(clusterState, toApplyDebug, Settings.EMPTY, logger);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting }, false);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
 
         final Settings toApplyUnset = Settings.builder().putNull("logger.org.elasticsearch").build();
         final ClusterState afterUnset = settingsUpdater.updateSettings(afterDebug, toApplyUnset, Settings.EMPTY, logger);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting }, false);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
 
         // we also check that if no settings are changed, deprecation logging still occurs
         settingsUpdater.updateSettings(afterUnset, toApplyUnset, Settings.EMPTY, logger);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting }, false);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
     }
 
     public void testUpdateWithUnknownAndSettings() {

@@ -627,7 +627,7 @@ public class SettingTests extends ESTestCase {
                 .build();
         deprecatedListSetting.get(settings);
         nonDeprecatedListSetting.get(settings);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedListSetting }, false);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedListSetting });
     }
 
     public void testListSettings() {
@@ -1273,11 +1273,11 @@ public class SettingTests extends ESTestCase {
         ensureNoWarnings();
         final Setting<String> criticalDeprecatedSetting = Setting.simpleString(criticalSettingName, settingValue, Property.Deprecated);
         criticalDeprecatedSetting.checkDeprecation(settings);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ criticalDeprecatedSetting }, true);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ criticalDeprecatedSetting });
         final Setting<String> deprecatedSettingWarningOnly =
             Setting.simpleString(warningSettingName, settingValue, Property.DeprecatedWarning);
         deprecatedSettingWarningOnly.checkDeprecation(settings);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSettingWarningOnly }, true);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSettingWarningOnly });
     }
 
     public void testCheckForDeprecationWithSkipSetting() {
@@ -1289,7 +1289,7 @@ public class SettingTests extends ESTestCase {
         ensureNoWarnings();
         final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.Deprecated);
         deprecatedSetting.checkDeprecation(settings);
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSetting }, false);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSetting });
         final Settings settingsWithSkipDeprecationSetting = Settings.builder().put(settingName, settingValue)
             .putList("deprecation.skip_deprecated_settings", settingName)
             .build();

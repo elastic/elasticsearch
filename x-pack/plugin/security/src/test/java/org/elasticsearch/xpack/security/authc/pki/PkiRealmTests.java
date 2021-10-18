@@ -442,7 +442,7 @@ public class PkiRealmTests extends ESTestCase {
                 TestEnvironment.newEnvironment(settings), new ThreadContext(settings)), mock(UserRoleMapper.class));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace(REALM_NAME)
-        }, false);
+        });
     }
 
     public void testCertificateWithOnlyCnExtractsProperly() throws Exception {
@@ -500,7 +500,7 @@ public class PkiRealmTests extends ESTestCase {
 
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace("pki1")
-        }, false);
+        });
     }
 
     public void testDelegatedAuthorization() throws Exception {

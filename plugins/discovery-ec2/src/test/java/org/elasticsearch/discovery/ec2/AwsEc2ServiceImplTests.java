@@ -14,6 +14,8 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +63,8 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertThat(credentials.getAWSAccessKeyId(), is("aws_key"));
         assertThat(credentials.getAWSSecretKey(), is(""));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{},
-            false, "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not, which will be unsupported in future");
+            new DeprecationWarning(DeprecationLogger.CRITICAL, "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is " +
+                "not, which will be unsupported in future"));
     }
 
     public void testDeprecationOfLoneSecretKey() {
@@ -72,7 +75,8 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertThat(credentials.getAWSAccessKeyId(), is(""));
         assertThat(credentials.getAWSSecretKey(), is("aws_secret"));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{},
-            false, "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not, which will be unsupported in future");
+            new DeprecationWarning(DeprecationLogger.CRITICAL, "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is " +
+                "not, which will be unsupported in future"));
     }
 
     public void testRejectionOfLoneSessionToken() {

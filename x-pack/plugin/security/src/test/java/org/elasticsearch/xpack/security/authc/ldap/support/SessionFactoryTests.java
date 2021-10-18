@@ -96,7 +96,7 @@ public class SessionFactoryTests extends ESTestCase {
             LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
             assertThat(options.getResponseTimeoutMillis(), is(equalTo(7000L)));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{SessionFactorySettings.TIMEOUT_TCP_READ_SETTING.apply("ldap")
-                    .getConcreteSettingForNamespace("response_settings")}, false);
+                    .getConcreteSettingForNamespace("response_settings")});
         }
         {
             Settings settings = Settings.builder()

@@ -595,7 +595,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                     .getConcreteSettingForNamespace(realmIdentifier.getName()));
         }
         if (deprecatedSettings.size() > 0) {
-            assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[deprecatedSettings.size()]), false);
+            assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[deprecatedSettings.size()]));
         }
     }
 

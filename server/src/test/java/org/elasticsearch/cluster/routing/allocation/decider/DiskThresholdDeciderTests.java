@@ -1009,7 +1009,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 " actual free: [20.0%]"));
 
         if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(diskSettings)) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE }, false);
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE });
         }
     }
 
@@ -1025,7 +1025,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             equalTo("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is not allowed," +
                 " only true is valid"));
 
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE }, false);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE });
     }
 
     public void testDiskThresholdWithSnapshotShardSizes() {

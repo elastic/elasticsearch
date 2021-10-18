@@ -35,7 +35,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
@@ -441,69 +440,70 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
-     *  @param settings the settings that are expected to be deprecated
-     * @param shouldAssertExpectedLogLevel
+     * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, boolean shouldAssertExpectedLogLevel,
-                                                              final String... warnings) {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
         assertWarnings(
             true,
-            shouldAssertExpectedLogLevel,
             Stream.concat(
                 Arrays
                     .stream(settings)
                     .map(setting -> {
-                        String prefix;
-                        String suffix;
-                        if (shouldAssertExpectedLogLevel) {
-                            prefix = String.format(Locale.ROOT, "%s Elasticsearch-%s%s-%s \"",
-                                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL.intLevel() :
-                                    Level.WARN.intLevel(),
-                                Version.CURRENT.toString(),
-                                Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                                Build.CURRENT.hash());
-                            suffix = "\"";
-                        }
-                        else {
-                            prefix = "";
-                            suffix = "";
-                        }
                         String warningMessage = String.format(
                             Locale.ROOT, "[%s] setting was deprecated in Elasticsearch and will be " +
                                 "removed in a future release! See the breaking changes documentation for the next major version.",
                             setting.getKey());
-                        return prefix + warningMessage + suffix;
+                        return new DeprecationWarning(setting.getProperties().contains(Setting.Property.Deprecated) ?
+                            DeprecationLogger.CRITICAL : Level.WARN, warningMessage);
                     }),
                 Arrays.stream(warnings))
-                .toArray(String[]::new));
+                .toArray(DeprecationWarning[]::new));
     }
 
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
+     * are assumed to be at DeprecationLogger.CRITICAL level.
+     * @param expectedWarnings expected general deprecation warnings.
+     */
     protected final void assertWarnings(String... expectedWarnings) {
-        assertWarnings(true, false, expectedWarnings);
+        assertWarnings(true, Arrays.stream(expectedWarnings).map(expectedWarning -> new DeprecationWarning(DeprecationLogger.CRITICAL,
+            expectedWarning)).toArray(DeprecationWarning[]::new));
     }
 
-    protected final void assertWarnings(boolean stripXContentPosition, boolean includeLevelCheck, String... expectedWarnings) {
+    protected final void assertWarnings(boolean stripXContentPosition, DeprecationWarning... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
             if (expectedWarnings == null || expectedWarnings.length == 0) {
-                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
+                assertNull("expected 0 warnings, actual: " + actualWarningStrings, actualWarningStrings);
             } else {
-                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-                final Set<String> actualWarningValues =
-                    actualWarnings.stream()
-                        .map(s -> includeLevelCheck ? HeaderWarning.escapeAndEncode(s) :
-                            HeaderWarning.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
+                final Set<DeprecationWarning> actualDeprecationWarnings =
+                    actualWarningStrings.stream()
+                        .map(warningString -> {
+                            String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
+                            final Level level;
+                            if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
+                                level = DeprecationLogger.CRITICAL;
+                            } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
+                                level = Level.WARN;
+                            } else {
+                                throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
+                            }
+                            return new DeprecationWarning(level, warningText);
+                        })
                         .collect(Collectors.toSet());
-                for (String msg : expectedWarnings) {
-                    assertThat(actualWarningValues, hasItem(HeaderWarning.escapeAndEncode(msg)));
+                for (DeprecationWarning expectedWarning : expectedWarnings) {
+                    DeprecationWarning escapedExpectedWarning = new DeprecationWarning(expectedWarning.level,
+                        HeaderWarning.escapeAndEncode(expectedWarning.message));
+                    assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
                 }
-                assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                        + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                    expectedWarnings.length, actualWarnings.size()
+                assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarningStrings.size() + "\nExpected: "
+                        + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarningStrings,
+                    expectedWarnings.length, actualWarningStrings.size()
                 );
             }
         } finally {
@@ -1576,6 +1576,26 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } catch (UnknownHostException e) {
             throw new AssertionError();
+        }
+    }
+
+    public static final class DeprecationWarning {
+        private final Level level;
+        private final String message;
+        public DeprecationWarning(Level level, String message) {
+            this.level = level;
+            this.message = message;
+        }
+
+        public int hashCode() {
+            return Objects.hash(level, message);
+        }
+
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DeprecationWarning that = (DeprecationWarning) o;
+            return Objects.equals(level, that.level) && Objects.equals(message, that.message);
         }
     }
 }

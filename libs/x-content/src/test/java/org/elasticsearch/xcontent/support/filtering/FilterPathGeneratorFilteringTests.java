@@ -6,14 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.xcontent.support.filtering;
+package org.elasticsearch.xcontent.support.filtering;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
+
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.support.filtering.FilterPathBasedFilter;
 
 import java.util.Collections;
 

@@ -118,7 +118,6 @@ public class RecoverySourceHandler {
     private final int maxConcurrentFileChunks;
     private final int maxConcurrentOperations;
     private final int maxConcurrentSnapshotFileDownloads;
-    private final boolean useSnapshots;
     private final ThreadPool threadPool;
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -127,7 +126,7 @@ public class RecoverySourceHandler {
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
                                  StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
-                                 int maxConcurrentOperations, int maxConcurrentSnapshotFileDownloads, boolean useSnapshots,
+                                 int maxConcurrentOperations, int maxConcurrentSnapshotFileDownloads,
                                  RecoveryPlannerService recoveryPlannerService) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
@@ -140,7 +139,6 @@ public class RecoverySourceHandler {
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
         this.maxConcurrentOperations = maxConcurrentOperations;
         this.maxConcurrentSnapshotFileDownloads = maxConcurrentSnapshotFileDownloads;
-        this.useSnapshots = useSnapshots;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -486,7 +484,6 @@ public class RecoverySourceHandler {
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                boolean canUseSnapshots = useSnapshots && request.hasPermitsToDownloadSnapshotFiles();
                 recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
                     shardStateIdentifier,
                     recoverySourceMetadata,
@@ -494,7 +491,7 @@ public class RecoverySourceHandler {
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
-                    canUseSnapshots,
+                    request.canDownloadSnapshotFiles(),
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );

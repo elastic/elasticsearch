@@ -31,7 +31,7 @@ public class StartRecoveryRequest extends TransportRequest {
     private Store.MetadataSnapshot metadataSnapshot;
     private boolean primaryRelocation;
     private long startingSeqNo;
-    private boolean hasPermitsToDownloadSnapshotFiles;
+    private boolean canDownloadSnapshotFiles;
 
     public StartRecoveryRequest(StreamInput in) throws IOException {
         super(in);
@@ -44,24 +44,24 @@ public class StartRecoveryRequest extends TransportRequest {
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
         if (in.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION)) {
-            hasPermitsToDownloadSnapshotFiles = in.readBoolean();
+            canDownloadSnapshotFiles = in.readBoolean();
         } else {
-            hasPermitsToDownloadSnapshotFiles = true;
+            canDownloadSnapshotFiles = true;
         }
     }
 
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId                           the shard ID to recover
-     * @param targetAllocationId                the allocation id of the target shard
-     * @param sourceNode                        the source node to remover from
-     * @param targetNode                        the target node to recover to
-     * @param metadataSnapshot                  the Lucene metadata
-     * @param primaryRelocation                 whether or not the recovery is a primary relocation
-     * @param recoveryId                        the recovery ID
-     * @param startingSeqNo                     the starting sequence number
-     * @param hasPermitsToDownloadSnapshotFiles flag that indicates if the snapshot files can be downloaded
+     * @param shardId                  the shard ID to recover
+     * @param targetAllocationId       the allocation id of the target shard
+     * @param sourceNode               the source node to remover from
+     * @param targetNode               the target node to recover to
+     * @param metadataSnapshot         the Lucene metadata
+     * @param primaryRelocation        whether or not the recovery is a primary relocation
+     * @param recoveryId               the recovery ID
+     * @param startingSeqNo            the starting sequence number
+     * @param canDownloadSnapshotFiles flag that indicates if the snapshot files can be downloaded
      */
     public StartRecoveryRequest(final ShardId shardId,
                                 final String targetAllocationId,
@@ -71,7 +71,7 @@ public class StartRecoveryRequest extends TransportRequest {
                                 final boolean primaryRelocation,
                                 final long recoveryId,
                                 final long startingSeqNo,
-                                final boolean hasPermitsToDownloadSnapshotFiles) {
+                                final boolean canDownloadSnapshotFiles) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -80,7 +80,7 @@ public class StartRecoveryRequest extends TransportRequest {
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
-        this.hasPermitsToDownloadSnapshotFiles = hasPermitsToDownloadSnapshotFiles;
+        this.canDownloadSnapshotFiles = canDownloadSnapshotFiles;
         assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
                         "starting seq no is set but not history uuid";
     }
@@ -117,8 +117,8 @@ public class StartRecoveryRequest extends TransportRequest {
         return startingSeqNo;
     }
 
-    public boolean hasPermitsToDownloadSnapshotFiles() {
-        return hasPermitsToDownloadSnapshotFiles;
+    public boolean canDownloadSnapshotFiles() {
+        return canDownloadSnapshotFiles;
     }
 
     @Override
@@ -133,7 +133,7 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
         if (out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION)) {
-            out.writeBoolean(hasPermitsToDownloadSnapshotFiles);
+            out.writeBoolean(canDownloadSnapshotFiles);
         }
     }
 }

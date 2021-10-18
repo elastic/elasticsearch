@@ -43,7 +43,6 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoverySnapshotFileDownloadsThrottler;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -489,7 +488,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, Collections.emptyMap(), Collections.emptyMap(), threadPool);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(threadPool,
-            transportService, null, clusterService, mock(SnapshotFilesProvider.class), mock(RecoverySnapshotFileDownloadsThrottler.class));
+            transportService, null, clusterService, mock(SnapshotFilesProvider.class));
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         final NodeClient client = mock(NodeClient.class);

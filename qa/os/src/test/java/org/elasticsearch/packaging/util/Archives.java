@@ -54,7 +54,7 @@ public class Archives {
 
     /** This is an arbitrarily chosen value that gives Elasticsearch time to log Bootstrap
      *  errors to the console if they occur before the logging framework is initialized. */
-    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "15";
+    public static final String ES_STARTUP_SLEEP_TIME_SECONDS = "25";
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion(), false);
@@ -382,9 +382,9 @@ public class Archives {
         }
     }
 
-    public static void assertElasticsearchStarted(Installation installation, int additionalDelay) throws Exception {
+    public static void assertElasticsearchStarted(Installation installation) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
-        ServerUtils.waitForElasticsearch(installation, additionalDelay);
+        ServerUtils.waitForElasticsearch(installation);
 
         assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();

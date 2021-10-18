@@ -362,19 +362,15 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        awaitElasticsearchStartup(result, -1);
-    }
-
-    public void awaitElasticsearchStartup(Shell.Result result, int additionalDelay) throws Exception {
         assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                Archives.assertElasticsearchStarted(installation, additionalDelay);
+                Archives.assertElasticsearchStarted(installation);
                 break;
             case DEB:
             case RPM:
-                Packages.assertElasticsearchStarted(sh, installation, additionalDelay);
+                Packages.assertElasticsearchStarted(sh, installation);
                 break;
             case DOCKER:
             case DOCKER_UBI:
@@ -389,11 +385,11 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} seconds more before
-     * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup}
+     * returning the result.
      */
-    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
-        awaitElasticsearchStartup(result, additionalDelay);
+    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
+        awaitElasticsearchStartup(result);
         return result;
     }
 

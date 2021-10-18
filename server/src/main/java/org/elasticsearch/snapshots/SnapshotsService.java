@@ -69,7 +69,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -1438,7 +1437,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         protected void doRun() throws Exception {
-            final Set<SnapshotId> missingSnapshots = ConcurrentCollections.newConcurrentSet();
+            final List<SnapshotId> missingSnapshots = new CopyOnWriteArrayList<>();
             final CountDown countDown = new CountDown(snapshotIdsToDelete.size());
 
             for (SnapshotId snapshotId : snapshotIdsToDelete) {
@@ -2782,7 +2781,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 @Override
                 protected SnapshotDeletionsPending filterPendingDeletions(@Nullable SnapshotDeletionsPending pendingDeletions) {
                     return pendingDeletions != null
-                        ? pendingDeletions.withRemovedSnapshots(Sets.newHashSet(deleteEntry.getSnapshots()))
+                        ? pendingDeletions.withRemovedSnapshots(deleteEntry.getSnapshots())
                         : null;
                 }
 

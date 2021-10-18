@@ -21,11 +21,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableList;
@@ -116,7 +114,7 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
         return Version.CURRENT.minimumCompatibilityVersion();
     }
 
-    public SnapshotDeletionsPending withRemovedSnapshots(Set<SnapshotId> snapshotIds) {
+    public SnapshotDeletionsPending withRemovedSnapshots(List<SnapshotId> snapshotIds) {
         if (snapshotIds == null || snapshotIds.isEmpty()) {
             return this;
         }
@@ -142,23 +140,19 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
     public String toString() {
         final StringBuilder builder = new StringBuilder("SnapshotDeletionsPending[");
         boolean prepend = true;
-
         final Iterator<Entry> iterator = entries.stream().iterator();
         while (iterator.hasNext()) {
             if (prepend == false) {
                 builder.append(',');
             }
-            final Entry entry = iterator.next();
-            builder.append('[').append(entry.repositoryName).append('/').append(entry.repositoryUuid).append(']');
-            builder.append('[').append(entry.snapshotId).append(',').append(entry.creationTime).append(']');
-            builder.append('\n');
+            builder.append(iterator.next());
             prepend = false;
         }
         builder.append(']');
         return builder.toString();
     }
 
-    public static class Entry implements Writeable, ToXContentObject, Comparable<Entry> {
+    public static class Entry implements Writeable, ToXContentObject {
 
         private final String repositoryName;
         private final String repositoryUuid;
@@ -233,11 +227,8 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
         }
 
         @Override
-        public int compareTo(final Entry other) {
-            return Comparator.comparingLong(Entry::getCreationTime)
-                .reversed()
-                .thenComparing(Entry::getSnapshotId)
-                .compare(this, other);
+        public String toString() {
+            return '[' + repositoryName + '/' + repositoryUuid + ',' + snapshotId + ',' + creationTime + ']';
         }
     }
 

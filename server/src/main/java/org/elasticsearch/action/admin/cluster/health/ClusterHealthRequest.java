@@ -246,16 +246,20 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this;
     }
 
-    public boolean isReturn200ForClusterHealthTimeout() {
+    public Priority waitForEvents() {
+        return this.waitForEvents;
+    }
+
+    public boolean doesReturn200ForClusterHealthTimeout() {
         return return200ForClusterHealthTimeout;
     }
 
-    public void setReturn200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
+    /**
+     * Sets whether to return HTTP 200 status code instead of HTTP 408 in case of a
+     * cluster health timeout from the server side.
+     */
+    public void return200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
         this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
-    }
-
-    public Priority waitForEvents() {
-        return this.waitForEvents;
     }
 
     /**

@@ -67,7 +67,7 @@ public class RestClusterHealthActionTests extends ESTestCase {
         assertThat(clusterHealthRequest.waitForActiveShards(), equalTo(ActiveShardCount.parseString(String.valueOf(waitForActiveShards))));
         assertThat(clusterHealthRequest.waitForNodes(), equalTo(waitForNodes));
         assertThat(clusterHealthRequest.waitForEvents(), equalTo(waitForEvents));
-        assertThat(clusterHealthRequest.isReturn200ForClusterHealthTimeout(), equalTo(requestTimeout200));
+        assertThat(clusterHealthRequest.doesReturn200ForClusterHealthTimeout(), equalTo(requestTimeout200));
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {

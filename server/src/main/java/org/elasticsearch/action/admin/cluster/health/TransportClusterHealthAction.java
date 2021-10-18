@@ -338,13 +338,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY,
                 clusterState, numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                pendingTaskTimeInQueue, request.isReturn200ForClusterHealthTimeout());
+                pendingTaskTimeInQueue, request.doesReturn200ForClusterHealthTimeout());
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }
 
         return new ClusterHealthResponse(clusterState.getClusterName().value(), concreteIndices, clusterState,
             numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue,
-            request.isReturn200ForClusterHealthTimeout());
+            request.doesReturn200ForClusterHealthTimeout());
     }
 }

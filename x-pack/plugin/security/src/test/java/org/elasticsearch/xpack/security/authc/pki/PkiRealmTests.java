@@ -17,8 +17,7 @@ import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.junit.Before;
@@ -51,8 +51,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +72,7 @@ public class PkiRealmTests extends ESTestCase {
 
     public static final String REALM_NAME = "my_pki";
     private Settings globalSettings;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
 
     @Before
     public void setup() throws Exception {
@@ -81,8 +81,8 @@ public class PkiRealmTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     public void testTokenSupport() throws Exception {

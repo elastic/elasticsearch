@@ -60,7 +60,7 @@ public class DfsPhase {
                 }
             };
 
-            searcher.createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1);
+            searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
             for (RescoreContext rescoreContext : context.rescore()) {
                 for (Query query : rescoreContext.getQueries()) {
                     searcher.createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1);

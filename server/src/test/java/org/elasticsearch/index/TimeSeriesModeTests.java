@@ -16,7 +16,10 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
@@ -70,7 +73,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testAddsTimestamp() throws IOException {
-        Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
         DocumentMapper mapper = createMapperService(s, mapping(b -> {})).documentMapper();
         MappedFieldType timestamp = mapper.mappers().getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertThat(timestamp, instanceOf(DateFieldType.class));
@@ -78,11 +84,14 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
         Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
         assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
-        assertTrue(((DataStreamTimestampFieldMapper)timestampField).isEnabled());
+        assertTrue(((DataStreamTimestampFieldMapper) timestampField).isEnabled());
     }
 
     public void testTimestampMillis() throws IOException {
-        Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
         DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
             .documentMapper();
         MappedFieldType timestamp = mapper.mappers().getFieldType("@timestamp");
@@ -91,11 +100,14 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
         Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
         assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
-        assertTrue(((DataStreamTimestampFieldMapper)timestampField).isEnabled());
+        assertTrue(((DataStreamTimestampFieldMapper) timestampField).isEnabled());
     }
 
     public void testTimestampNanos() throws IOException {
-        Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
         DocumentMapper mapper = createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", "date_nanos").endObject()))
             .documentMapper();
         MappedFieldType timestamp = mapper.mappers().getFieldType("@timestamp");
@@ -104,23 +116,82 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
         Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
         assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
-        assertTrue(((DataStreamTimestampFieldMapper)timestampField).isEnabled());
+        assertTrue(((DataStreamTimestampFieldMapper) timestampField).isEnabled());
     }
 
     public void testBadTimestamp() throws IOException {
-        Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
         String type = randomFrom("keyword", "integer", "long", "double", "text");
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(
-                s,
-                mapping(b -> b.startObject("@timestamp").field("type", type).endObject())
-            )
+            () -> createMapperService(s, mapping(b -> b.startObject("@timestamp").field("type", type).endObject()))
         );
         assertThat(
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] is of type [" + type + "], but [date,date_nanos] is expected")
         );
+    }
+
+    public void testEnabledTimeStampMapper() throws IOException {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        XContentBuilder mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject(DataStreamTimestampFieldMapper.NAME);
+        if (randomBoolean()) {
+            mappings.field("enabled", true);
+        } else {
+            mappings.field("enabled", "true");
+        }
+        mappings.endObject().endObject().endObject();
+
+        DocumentMapper mapper = createMapperService(s, mappings).documentMapper();
+        Mapper timestampField = mapper.mappers().getMapper(DataStreamTimestampFieldMapper.NAME);
+        assertThat(timestampField, instanceOf(DataStreamTimestampFieldMapper.class));
+        assertTrue(((DataStreamTimestampFieldMapper) timestampField).isEnabled());
+    }
+
+    public void testDisabledTimeStampMapper() throws IOException {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        XContentBuilder mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject(DataStreamTimestampFieldMapper.NAME)
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(s, mappings).documentMapper());
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse mapping: time series index [_data_stream_timestamp] meta field must be enabled")
+        );
+    }
+
+    public void testBadTimeStampMapper() throws IOException {
+        Settings s = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        XContentBuilder mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .field(DataStreamTimestampFieldMapper.NAME, "enabled")
+            .endObject()
+            .endObject();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(s, mappings).documentMapper());
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: time series index [_data_stream_timestamp] meta field format error"));
     }
 
     public void testWithoutRoutingPath() {

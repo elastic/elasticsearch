@@ -94,11 +94,9 @@ public final class MappingParser {
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
-
-        // parserContext.getIndexSettings().getMode().completeMappings(parserContext, mapping);
-
         RootObjectMapper.Builder rootObjectMapperBuilder
             = rootObjectTypeParser.parse(type, mapping, parserContext);
+        parserContext.getIndexSettings().getMode().completeMappings(parserContext, mapping, rootObjectMapperBuilder);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
@@ -145,8 +143,6 @@ public final class MappingParser {
             meta = Collections.unmodifiableMap(new HashMap<>(removed));
         }
         checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
-
-        parserContext.getIndexSettings().getMode().completeMappings(parserContext, metadataMappers, rootObjectMapperBuilder);
 
         return new Mapping(
             rootObjectMapperBuilder.build(MapperBuilderContext.ROOT),

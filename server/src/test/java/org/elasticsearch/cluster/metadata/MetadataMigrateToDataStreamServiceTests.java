@@ -18,10 +18,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -325,10 +323,5 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         MetadataCreateIndexService service = mock(MetadataCreateIndexService.class);
         when(service.getSystemIndices()).thenReturn(EmptySystemIndices.INSTANCE);
         return service;
-    }
-
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
     }
 }

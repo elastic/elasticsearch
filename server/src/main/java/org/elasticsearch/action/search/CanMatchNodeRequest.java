@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 /**
  * Node-level request used during can-match phase
  */
-public class CanMatchRequest extends TransportRequest implements IndicesRequest {
+public class CanMatchNodeRequest extends TransportRequest implements IndicesRequest {
 
     private final SearchSourceBuilder source;
     private final List<Shard> shards;
@@ -118,7 +118,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
         }
     }
 
-    public CanMatchRequest(
+    public CanMatchNodeRequest(
         SearchRequest searchRequest,
         IndicesOptions indicesOptions,
         List<Shard> shards,
@@ -144,7 +144,7 @@ public class CanMatchRequest extends TransportRequest implements IndicesRequest 
             .toArray(String[]::new);
     }
 
-    public CanMatchRequest(StreamInput in) throws IOException {
+    public CanMatchNodeRequest(StreamInput in) throws IOException {
         super(in);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         indicesOptions = IndicesOptions.readIndicesOptions(in);

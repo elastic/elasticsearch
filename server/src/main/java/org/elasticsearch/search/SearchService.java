@@ -18,8 +18,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.search.CanMatchRequest;
-import org.elasticsearch.action.search.CanMatchResponse;
+import org.elasticsearch.action.search.CanMatchNodeRequest;
+import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
@@ -1323,19 +1323,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public void canMatch(CanMatchRequest request, ActionListener<CanMatchResponse> listener) {
+    public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {
         final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
-        final List<CanMatchResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
+        final List<CanMatchNodeResponse.ResponseOrFailure> responses = new ArrayList<>(shardSearchRequests.size());
         for (ShardSearchRequest shardSearchRequest : shardSearchRequests) {
             CanMatchShardResponse canMatchShardResponse;
             try {
                 canMatchShardResponse = canMatch(shardSearchRequest);
-                responses.add(new CanMatchResponse.ResponseOrFailure(canMatchShardResponse));
+                responses.add(new CanMatchNodeResponse.ResponseOrFailure(canMatchShardResponse));
             } catch (Exception e) {
-                responses.add(new CanMatchResponse.ResponseOrFailure(e));
+                responses.add(new CanMatchNodeResponse.ResponseOrFailure(e));
             }
         }
-        listener.onResponse(new CanMatchResponse(responses));
+        listener.onResponse(new CanMatchNodeResponse(responses));
     }
 
     /**

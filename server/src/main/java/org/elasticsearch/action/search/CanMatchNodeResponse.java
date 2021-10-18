@@ -18,16 +18,16 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 
-public class CanMatchResponse extends TransportResponse {
+public class CanMatchNodeResponse extends TransportResponse {
 
     private final List<ResponseOrFailure> responses;
 
-    public CanMatchResponse(StreamInput in) throws IOException {
+    public CanMatchNodeResponse(StreamInput in) throws IOException {
         super(in);
         responses = in.readList(ResponseOrFailure::new);
     }
 
-    public CanMatchResponse(List<ResponseOrFailure> responses) {
+    public CanMatchNodeResponse(List<ResponseOrFailure> responses) {
         this.responses = responses;
     }
 

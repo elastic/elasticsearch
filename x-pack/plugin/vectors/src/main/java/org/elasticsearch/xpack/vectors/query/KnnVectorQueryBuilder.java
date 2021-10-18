@@ -95,7 +95,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (vectorFieldType.isSearchable() == false) {
             throw new IllegalArgumentException("[" + "[" + NAME + "] queries are not supported if [index] is disabled");
         }
-        return new KnnVectorQuery(fieldName, queryVector, numCands);
+        return new KnnVectorQuery(fieldType.name(), queryVector, numCands);
     }
 
     @Override

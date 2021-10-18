@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
+    private static final String VECTOR_ALIAS_FIELD = "vector_alias";
     private static final String UNINDEXED_VECTOR_FIELD = "unindexed_vector";
     private static final int VECTOR_DIMENSION = 3;
 
@@ -46,6 +47,10 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
                     .field("index", true)
                     .field("similarity", "l2_norm")
                 .endObject()
+                .startObject(VECTOR_ALIAS_FIELD)
+                    .field("type", "alias")
+                    .field("path", VECTOR_FIELD)
+                .endObject()
                 .startObject(UNINDEXED_VECTOR_FIELD)
                     .field("type", "dense_vector")
                     .field("dims", VECTOR_DIMENSION)
@@ -57,16 +62,19 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
 
     @Override
     protected KnnVectorQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = randomBoolean() ? VECTOR_FIELD : VECTOR_ALIAS_FIELD;
+
         float[] vector = new float[VECTOR_DIMENSION];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
         }
         int numCands = randomIntBetween(1, 1000);
-        return new KnnVectorQueryBuilder(VECTOR_FIELD, vector, numCands);
+        return new KnnVectorQueryBuilder(fieldName, vector, numCands);
     }
 
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+        // TODO: expose getters on KnnVectorQuery and assert more here
         assertTrue(query instanceof KnnVectorQuery);
     }
 

@@ -279,8 +279,11 @@ public class IndexLifecycleService
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
-            if (event.state().metadata().custom(IndexLifecycleMetadata.TYPE) != null) {
-                policyRegistry.update(event.state());
+            final IndexLifecycleMetadata ilmMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+            // only update the policy registry if we just became the master node or if the ilm metadata changed
+            if (ilmMetadata != null && (event.previousState().nodes().isLocalNodeElectedMaster() == false
+                    || ilmMetadata != event.previousState().metadata().custom(IndexLifecycleMetadata.TYPE))) {
+                policyRegistry.update(ilmMetadata);
             }
         }
     }

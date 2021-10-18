@@ -218,7 +218,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         } else {
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(e.getMessage(), containsString("missing authentication credentials for REST request"));
+            assertThat(e.getMessage(), containsString(
+                "unable to authenticate with provided credentials and anonymous access is not allowed for this request"));
         }
     }
 

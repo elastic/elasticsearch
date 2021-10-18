@@ -527,9 +527,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             IndexAbstraction alias = rolloverMetadata.getIndicesLookup().get(aliasName);
             assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
             assertThat(alias.getIndices(), hasSize(2));
-            assertThat(alias.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName)));
-            assertThat(alias.getIndices(), hasItem(rolloverIndexMetadata));
-            assertThat(alias.getWriteIndex(), equalTo(rolloverIndexMetadata));
+            assertThat(alias.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(alias.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
+            assertThat(alias.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
             RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(aliasName);
             assertThat(info.getTime(), lessThanOrEqualTo(after));
@@ -616,9 +616,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
-            assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName)));
-            assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata));
-            assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata));
+            assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
+            assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
             RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
             assertThat(info.getTime(), lessThanOrEqualTo(after));

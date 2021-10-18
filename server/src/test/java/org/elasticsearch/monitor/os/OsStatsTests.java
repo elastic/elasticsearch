@@ -26,7 +26,7 @@ public class OsStatsTests extends ESTestCase {
         }
         OsStats.Cpu cpu = new OsStats.Cpu(randomShort(), loadAverages);
         long memTotal = randomNonNegativeLong();
-        OsStats.Mem mem = new OsStats.Mem(memTotal, randomLongBetween(0, memTotal));
+        OsStats.Mem mem = new OsStats.Mem(memTotal, randomLongBetween(0, memTotal), randomLongBetween(0, memTotal));
         long swapTotal = randomNonNegativeLong();
         OsStats.Swap swap = new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal));
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
@@ -73,7 +73,7 @@ public class OsStatsTests extends ESTestCase {
     }
 
     public void testGetUsedMemoryWithZeroTotal() {
-        OsStats.Mem mem = new OsStats.Mem(0, randomNonNegativeLong());
+        OsStats.Mem mem = new OsStats.Mem(0, 0, randomNonNegativeLong());
         assertThat(mem.getUsed().getBytes(), equalTo(0L));
     }
 

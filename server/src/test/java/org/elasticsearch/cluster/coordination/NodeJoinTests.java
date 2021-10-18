@@ -180,6 +180,7 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
             transportService,
+            null,
             writableRegistry(),
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,

@@ -266,20 +266,26 @@ public class ClusterStatsNodes implements ToXContentFragment {
             this.allocatedProcessors = allocatedProcessors;
 
             long totalMemory = 0;
+            long adjustedTotalMemory = 0;
             long freeMemory = 0;
             for (NodeStats nodeStats : nodeStatsList) {
                 if (nodeStats.getOs() != null) {
-                    long total = nodeStats.getOs().getMem().getTotal().getBytes();
+                    org.elasticsearch.monitor.os.OsStats.Mem mem = nodeStats.getOs().getMem();
+                    long total = mem.getTotal().getBytes();
                     if (total > 0) {
                         totalMemory += total;
                     }
-                    long free = nodeStats.getOs().getMem().getFree().getBytes();
+                    long adjustedTotal = mem.getAdjustedTotal().getBytes();
+                    if (adjustedTotal > 0) {
+                        adjustedTotalMemory += adjustedTotal;
+                    }
+                    long free = mem.getFree().getBytes();
                     if (free > 0) {
                         freeMemory += free;
                     }
                 }
             }
-            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, freeMemory);
+            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, adjustedTotalMemory, freeMemory);
         }
 
         public int getAvailableProcessors() {

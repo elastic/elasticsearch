@@ -64,7 +64,7 @@ public class TimeSeriesCounter {
 
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    protected final LongAdder adder = new LongAdder(); // most recent high epoch
+    protected int adder = 0; // most recent high epoch
     protected final LongAdder total = new LongAdder(); // the total number of increments
     protected long latestSec; // most recent update time
 
@@ -113,22 +113,22 @@ public class TimeSeriesCounter {
         try {
             // Handle the rapid update case quickly
             if (nowSec <= adderEnd(latestSec) && nowSec >= adderStart(latestSec)) {
-                adder.increment();
+                adder++;
             } else if (nowSec < latestSec) {
                 if (nowSec < totalStart(latestSec)) {
                     reset(nowSec);
                 } else {
-                    adder.increment();
+                    adder++;
                 }
             } else if (nowSec <= highDelegateEnd(latestSec)) {
                 rollForwardHigh(nowSec);
                 latestSec = nowSec;
-                adder.increment();
+                adder++;
             } else {
                 rollForwardLow(nowSec);
                 rollForwardHigh(nowSec);
                 latestSec = nowSec;
-                adder.increment();
+                adder++;
             }
         } finally {
             lock.writeLock().unlock();
@@ -164,7 +164,7 @@ public class TimeSeriesCounter {
     void rollForwardHigh(long t) {
         if (highEnd(latestSec) < highStart(t)) {
             Arrays.fill(high, 0);
-            adder.reset();
+            adder = 0;
             return;
         }
         int cur = highIndex(latestSec);
@@ -174,7 +174,7 @@ public class TimeSeriesCounter {
             return;
         }
 
-        high[cur] = sumThenResetAdder();
+        high[cur] = resetAdder();
         cur = nextHighIndex(cur);
         while (cur != dst) {
             high[cur] = 0;
@@ -188,10 +188,9 @@ public class TimeSeriesCounter {
      * reset the accumulator and all arrays, setting the latestSet to t and incrementing the adder.
      */
     protected void reset(long t) {
-        adder.reset();
         Arrays.fill(high, 0);
         Arrays.fill(low, 0);
-        adder.increment();
+        adder = 1;
         latestSec = t;
     }
 
@@ -249,7 +248,7 @@ public class TimeSeriesCounter {
     // sum high range representing the current low resolution epoch.
     int sumHighDelegate(long t) {
         int delegateIndex = highIndex(Math.min(t, latestSec));
-        int total = sumAdder();
+        int total = adder;
         for (int i = 0; i < delegateIndex; i++) {
             total += high[i];
         }
@@ -284,10 +283,10 @@ public class TimeSeriesCounter {
         int dst = highIndex(end);
         int total = 0;
         while (cur != dst) {
-            total += cur == delegateIndex ? sumAdder() : high[cur];
+            total += cur == delegateIndex ? adder : high[cur];
             cur = (cur + 1) % high.length;
         }
-        return total + (cur == delegateIndex ? sumAdder() : high[cur]);
+        return total + (cur == delegateIndex ? adder : high[cur]);
     }
 
     // sum the low epochs represented by the given range
@@ -321,17 +320,12 @@ public class TimeSeriesCounter {
         return total + low[cur];
     }
 
-    // get the current sum from adder, clamped to the range [0, Integer.MAX_VALUE].
-    // then reset the adder.  This should only be called when rolling over.
-    protected int sumThenResetAdder() {
-        long sum = adder.sumThenReset();
-        return sum > 0 ? (int) sum : 0;
-    }
-
-    // get the current sum from adder, clamped to the range [0, Integer.MAX_VALUE].
-    protected int sumAdder() {
-        long sum = adder.sum();
-        return sum > 0 ? (int) sum : 0;
+    // get the current value from adder then reset it.
+    // This should only be called when rolling over.
+    protected int resetAdder() {
+        int sum = adder;
+        adder = 0;
+        return sum;
     }
 
     // adder is the authority from this time until adderAuthorityEnd.
@@ -419,7 +413,7 @@ public class TimeSeriesCounter {
 
     // Testing and debugging methods
     int getAdder() {
-        return adder.intValue();
+        return adder;
     }
 
     int getLowLength() {

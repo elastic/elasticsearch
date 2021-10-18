@@ -71,10 +71,12 @@ public class FileOperatorUsersStore {
         // not matter what the name is.
         final boolean userIsOperator = operatorUsersDescriptor.groups.stream().anyMatch(group -> {
             final Authentication.RealmRef realm = authentication.getSourceRealm();
-            return group.usernames.contains(authentication.getUser().principal())
+            final boolean match = group.usernames.contains(authentication.getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()));
+            logger.trace("Matching user [{}] against operator rule [{}] is [{}]", authentication, group, match);
+            return match; 
         });
         if (false == userIsOperator) {
             logger.trace("User [{}] is not an operator", authentication.getUser());

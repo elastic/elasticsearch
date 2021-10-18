@@ -354,9 +354,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security_ip_filtering", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked

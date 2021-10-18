@@ -28,6 +28,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     private final DocValueFormat format;
     private final Rounding.DateTimeUnit rateUnit;
     protected final RateMode rateMode;
+    protected final boolean computeRateOnDocs;
     private final SizedBucketAggregator sizedBucketAggregator;
 
     protected DoubleArray sums;
@@ -54,6 +55,11 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         }
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
+
+        // If no fields or scripts have been defined in the agg, rate should be computed based on bucket doc_counts
+        computeRateOnDocs = valuesSourceConfig.fieldContext() == null
+            && valuesSourceConfig.script() == null
+            && valuesSourceConfig.scriptValueType() == null;
         this.sizedBucketAggregator = findSizedBucketAncestor();
     }
 

@@ -860,7 +860,6 @@ public class RateAggregatorTests extends AggregatorTestCase {
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
     }
 
-
     public void testWithCustomDocCount() throws IOException {
         testCase(new MatchAllDocsQuery(), "month", true, "month", null, iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new CustomTermFreqField("_doc_count", "_doc_count", 10)));

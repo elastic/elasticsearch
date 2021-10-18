@@ -66,18 +66,16 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         """
         when:
         def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
-                ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
+                ":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin",
                 "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
                 .build()
         then:
         result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
         assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
-        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
 
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName

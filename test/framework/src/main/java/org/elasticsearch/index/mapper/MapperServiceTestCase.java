@@ -235,13 +235,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
-        build.accept(builder);
-        builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, Map.of());
+        return source("test", id, build, routing, Map.of());
     }
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
+        return source("text", id, build, routing, dynamicTemplates);
+    }
+
+    protected final SourceToParse source(String index, String id, CheckedConsumer<XContentBuilder, IOException> build,
                                          @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);

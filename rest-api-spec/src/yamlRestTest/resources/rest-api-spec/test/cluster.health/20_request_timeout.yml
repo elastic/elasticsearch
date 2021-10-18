@@ -38,6 +38,9 @@
 
 ---
 "cluster health request timeout with 200 response code":
+  - skip:
+      version: " - 7.99.99"
+      reason: "HTTP status code changed from 408 to 200 in 8.0.0"
   - do:
       cluster.health:
         timeout: 1ms

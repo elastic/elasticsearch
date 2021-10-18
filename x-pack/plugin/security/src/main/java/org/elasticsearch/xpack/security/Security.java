@@ -354,9 +354,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security_ip_filtering", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security-ip-filtering", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
-        LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
+        LicensedFeature.momentaryLenient(null, "security-auditing", License.OperationMode.GOLD);
     public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE =
         LicensedFeature.momentaryLenient(null, "security-token-service", License.OperationMode.STANDARD);
 

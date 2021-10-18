@@ -86,60 +86,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         return randomFrom(BASIC, STANDARD, GOLD);
     }
 
-    public void testSecurityDefaults() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-    }
-
-    public void testSecurityStandard() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(STANDARD, true, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-    }
-
-    public void testSecurityStandardExpired() {
-        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
-        licenseState.update(STANDARD, false, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-    }
-
-    public void testSecurityBasic() {
-        XPackLicenseState licenseState = new XPackLicenseState( () -> 0);
-        licenseState.update(BASIC, true, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-    }
-
-    public void testSecurityGold() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(GOLD, true, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-    }
-
-    public void testSecurityGoldExpired() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(GOLD, false, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-    }
-
-    public void testSecurityPlatinum() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(PLATINUM, true, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-    }
-
-    public void testSecurityPlatinumExpired() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
-        licenseState.update(PLATINUM, false, null);
-
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-    }
-
     public void testSecurityAckBasicToNotGoldOrStandard() {
         OperationMode toMode = randomFrom(OperationMode.values(), mode -> mode != GOLD && mode != STANDARD);
         assertAckMessages(XPackField.SECURITY, BASIC, toMode, 0);

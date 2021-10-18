@@ -126,12 +126,6 @@ public class ScriptStatsTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 123, 456, 789)));
     }
 
-    public void testTimeSeriesAssertions() {
-        expectThrows(AssertionError.class, () -> new TimeSeries(-1, 1, 2));
-        expectThrows(AssertionError.class, () -> new TimeSeries(1, 0, 2));
-        expectThrows(AssertionError.class, () -> new TimeSeries(1, 3, 2));
-    }
-
     public void testTimeSeriesIsEmpty() {
         assertTrue((new TimeSeries(0, 0, 0)).isEmpty());
         long day = randomLongBetween(1, 1024);

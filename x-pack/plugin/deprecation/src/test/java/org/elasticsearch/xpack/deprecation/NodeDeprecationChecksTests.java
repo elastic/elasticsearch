@@ -234,7 +234,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState =
             new XPackLicenseState(settings, () -> 0);
         final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        deprecationIssues.stream().forEach(issue -> System.out.println(issue.toString()));
         assertTrue(deprecationIssues.isEmpty());
     }
 

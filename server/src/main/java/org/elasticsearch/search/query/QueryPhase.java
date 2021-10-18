@@ -26,7 +26,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
@@ -58,7 +57,6 @@ import static org.elasticsearch.search.query.QueryCollectorContext.createMinScor
 import static org.elasticsearch.search.query.QueryCollectorContext.createMultiCollectorContext;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
-
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
@@ -78,27 +76,6 @@ public class QueryPhase {
         this.rescorePhase = new RescorePhase();
     }
 
-    public void preProcess(SearchContext context) {
-        final Runnable cancellation;
-        if (context.lowLevelCancellation()) {
-            cancellation = context.searcher().addQueryCancellation(() -> {
-                SearchShardTask task = context.getTask();
-                if (task != null) {
-                    task.ensureNotCancelled();
-                }
-            });
-        } else {
-            cancellation = null;
-        }
-        try {
-            context.preProcess(true);
-        } finally {
-            if (cancellation != null) {
-                context.searcher().removeQueryCancellation(cancellation);
-            }
-        }
-    }
-
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
@@ -113,7 +90,7 @@ public class QueryPhase {
         }
 
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
-        // request, preProcess is called on the DFS phase phase, this is why we pre-process them
+        // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
         boolean rescore = executeInternal(searchContext);
@@ -142,7 +119,7 @@ public class QueryPhase {
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
-            Query query = searchContext.query();
+            Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
@@ -228,15 +205,6 @@ public class QueryPhase {
                 });
             } else {
                 timeoutRunnable = null;
-            }
-
-            if (searchContext.lowLevelCancellation()) {
-                searcher.addQueryCancellation(() -> {
-                    SearchShardTask task = searchContext.getTask();
-                    if (task != null) {
-                        task.ensureNotCancelled();
-                    }
-                });
             }
 
             try {

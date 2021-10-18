@@ -56,14 +56,16 @@ public class NumericRateAggregator extends AbstractRateAggregator {
                 // accurate than naive summation.
                 double sum = sums.get(bucket);
                 double compensation = compensations.get(bucket);
-                kahanSummation.reset(sum, compensation);
 
                 if (computeRateOnDocs) {
                     final int docCount = docCountProvider.getDocCount(doc);
+                    kahanSummation.reset(sum, compensation);
                     kahanSummation.add(docCount);
+                    compensations.set(bucket, kahanSummation.delta());
+                    sums.set(bucket, kahanSummation.value());
                 } else if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-
+                    kahanSummation.reset(sum, compensation);
                     switch (rateMode) {
                         case SUM:
                             for (int i = 0; i < valuesCount; i++) {
@@ -76,10 +78,10 @@ public class NumericRateAggregator extends AbstractRateAggregator {
                         default:
                             throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
                     }
-                }
 
-                compensations.set(bucket, kahanSummation.delta());
-                sums.set(bucket, kahanSummation.value());
+                    compensations.set(bucket, kahanSummation.delta());
+                    sums.set(bucket, kahanSummation.value());
+                }
             }
         };
     }

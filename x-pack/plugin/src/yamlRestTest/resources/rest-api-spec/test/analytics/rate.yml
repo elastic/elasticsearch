@@ -38,6 +38,9 @@ setup:
 
 ---
 "rate with doc_count":
+  - skip:
+      version: " - 7.99.99"
+      reason: bug fixed in 8.0.0
   - do:
       bulk:
         index: test2

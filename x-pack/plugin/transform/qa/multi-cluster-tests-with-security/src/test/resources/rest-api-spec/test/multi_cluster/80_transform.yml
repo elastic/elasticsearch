@@ -210,8 +210,8 @@ teardown:
             test_alias: {}
           mappings:
             properties:
-              time:
-                type: date
+              date:
+                type: date_nanos
               user:
                 type: keyword
               stars:

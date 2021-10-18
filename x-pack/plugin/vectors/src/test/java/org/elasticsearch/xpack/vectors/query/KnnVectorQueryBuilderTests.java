@@ -58,16 +58,12 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
 
     @Override
     protected KnnVectorQueryBuilder doCreateTestQueryBuilder() {
-        String field = VECTOR_FIELD;
-        if (randomBoolean()) {
-            field += randomAlphaOfLength(3);
-        }
         float[] vector = new float[VECTOR_DIMENSION];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
         }
         int numCands = randomIntBetween(1, 1000);
-        return new KnnVectorQueryBuilder(field, vector, numCands);
+        return new KnnVectorQueryBuilder(VECTOR_FIELD, vector, numCands);
     }
 
     @Override
@@ -86,6 +82,14 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
         assertThat(e.getMessage(), containsString("the query vector has a different dimension [2] than the index vectors [3]"));
     }
 
+    public void testNonexistentField()  {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent",
+            new float[]{1.0f, 1.0f, 1.0f}, 10);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
+        assertThat(e.getMessage(), containsString("field [nonexistent] does not exist in the mapping"));
+    }
+
     public void testWrongFieldType()  {
         SearchExecutionContext context = createSearchExecutionContext();
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(AbstractBuilderTestCase.KEYWORD_FIELD_NAME,
@@ -100,16 +104,6 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
             new float[]{1.0f, 1.0f, 1.0f}, 10);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("[knn] queries are not supported if [index] is disabled"));
-    }
-
-    @Override
-    public void testMustRewrite()  {
-        SearchExecutionContext context = createSearchExecutionContext();
-        context.setAllowUnmappedFields(true);
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder("unmapped_field", new float[]{1.0f}, 10);
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> queryBuilder.toQuery(context));
-        assertEquals("Rewrite first", e.getMessage());
     }
 
     @Override

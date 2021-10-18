@@ -31,8 +31,6 @@ public class RestKnnSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_knn_search"),
-            new Route(POST, "/_knn_search"),
             new Route(GET, "{index}/_knn_search"),
             new Route(POST, "{index}/_knn_search"));
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -49,13 +48,6 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             params.put(KnnSearchRequestBuilder.ROUTING_PARAM, routing);
         }
 
-        TimeValue timeout = null;
-        if (randomBoolean()) {
-            String timeoutValue = randomTimeValue();
-            timeout = TimeValue.parseTimeValue(timeoutValue, null, "timeout");
-            params.put(KnnSearchRequestBuilder.TIMEOUT_PARAM, timeoutValue);
-        }
-
         // Create random request body
         KnnSearch knnSearch = randomKnnSearch();
         SearchSourceBuilder searchSource = randomSearchSourceBuilder(
@@ -73,7 +65,6 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
 
         assertArrayEquals(indices, searchRequest.indices());
         assertEquals(routing, searchRequest.routing());
-        assertEquals(timeout, searchRequest.source().timeout());
 
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(knnSearch.field, knnSearch.queryVector, knnSearch.numCands);
         assertEquals(query, searchRequest.source().query());

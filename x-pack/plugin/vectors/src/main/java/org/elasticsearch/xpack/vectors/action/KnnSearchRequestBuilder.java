@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.vectors.action;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -36,7 +35,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 class KnnSearchRequestBuilder {
     static final String INDEX_PARAM = "index";
     static final String ROUTING_PARAM = "routing";
-    static final String TIMEOUT_PARAM = "timeout";
 
     static final ParseField KNN_SECTION_FIELD = new ParseField("knn");
     private static final ObjectParser<KnnSearchRequestBuilder, Void> PARSER;
@@ -62,9 +60,7 @@ class KnnSearchRequestBuilder {
     static KnnSearchRequestBuilder parseRestRequest(RestRequest restRequest) throws IOException {
         KnnSearchRequestBuilder builder = new KnnSearchRequestBuilder(
             Strings.splitStringByCommaToArray(restRequest.param("index")));
-
         builder.routing(restRequest.param("routing"));
-        builder.timeout(restRequest.paramAsTime("timeout", null));
 
         if (restRequest.hasContentOrSourceParam()) {
             try (XContentParser contentParser = restRequest.contentOrSourceParamParser()) {
@@ -75,10 +71,8 @@ class KnnSearchRequestBuilder {
     }
 
     private final String[] indices;
-    private KnnSearch knnSearch;
-
     private String routing;
-    private TimeValue timeout;
+    private KnnSearch knnSearch;
 
     private FetchSourceContext fetchSource;
     private List<FieldAndFormat> fields;
@@ -101,13 +95,6 @@ class KnnSearchRequestBuilder {
      */
     private void routing(String routing) {
         this.routing = routing;
-    }
-
-    /**
-     * An optional timeout to control how long search is allowed to take.
-     */
-    private void timeout(TimeValue timeout) {
-        this.timeout = timeout;
     }
 
     /**
@@ -148,7 +135,6 @@ class KnnSearchRequestBuilder {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        sourceBuilder.timeout(timeout);
 
         if (knnSearch == null) {
             throw new IllegalArgumentException("missing required [" + KNN_SECTION_FIELD.getPreferredName() + "] section in search body");

@@ -13,13 +13,6 @@
     "url":{
       "paths":[
         {
-          "path":"/_knn_search",
-          "methods":[
-            "GET",
-            "POST"
-          ]
-        },
-        {
           "path":"/{index}/_knn_search",
           "methods":[
             "GET",

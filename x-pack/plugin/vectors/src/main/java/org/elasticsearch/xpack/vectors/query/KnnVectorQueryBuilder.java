@@ -21,9 +21,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
@@ -82,7 +79,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected Query doToQuery(SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
-            throw new IllegalStateException("Rewrite first");
+            throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
         }
 
         if (fieldType instanceof DenseVectorFieldType == false) {
@@ -111,14 +108,5 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return Objects.equals(fieldName, other.fieldName) &&
             Arrays.equals(queryVector, other.queryVector) &&
             numCands == other.numCands;
-    }
-
-    @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null && context.getFieldType(fieldName) == null) {
-            return new MatchNoneQueryBuilder();
-        }
-        return this;
     }
 }

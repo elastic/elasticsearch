@@ -60,19 +60,19 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
 ---
-"Basic kNN search with no index":
+"Test nonexistent field":
   - do:
-      knn_search:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
         body:
-          fields: [ "name" ]
-          knn:
-            field: vector
-            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
-            k: 1
-            num_candidates: 1
-
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+          query:
+            knn:
+              field: nonexistent
+              query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+              num_candidates: 1
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
 ---
 "Direct knn queries are disallowed":

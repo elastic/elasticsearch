@@ -489,8 +489,7 @@ public class IngestServiceTests extends ESTestCase {
                     Collections.emptyMap()
                 )
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L);
+            new HashMap<>(ScriptModule.CORE_CONTEXTS), () -> 1L);
 
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put("complexSet", (factories, tag, description, config) -> {

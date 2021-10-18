@@ -185,7 +185,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }
 
         this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
-        this.timeProvider = timeProvider;
+        this.timeProvider = () -> 20000L; //timeProvider;
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);

@@ -83,11 +83,30 @@ public class TimeSeriesCounterTests extends ESTestCase {
     public void testSnapshot() {
         t.add(now);
         inc();
+        Snapshot s1 = ts.snapshot(FIVE, FIFTEEN, TWENTY_FOUR);
+        assertEquals(1, s1.getTime(FIVE));
+        assertEquals(1, s1.getTime(FIFTEEN));
+        assertEquals(1, s1.getTime(TWENTY_FOUR));
         t.add(now + 10);
-        Snapshot s = ts.snapshot(FIVE, FIFTEEN, TWENTY_FOUR);
-        assertEquals(1, s.getTime(FIVE));
-        assertEquals(1, s.getTime(FIFTEEN));
-        assertEquals(1, s.getTime(TWENTY_FOUR));
+        t.add(now + FIVE + highResSecPerEpoch);
+        inc();
+        t.add(now + 2 * (FIVE + highResSecPerEpoch));
+        Snapshot s2 = ts.snapshot(FIVE, FIFTEEN, TWENTY_FOUR);
+        assertEquals(0, s2.getTime(FIVE));
+        assertEquals(3, s2.getTime(FIFTEEN));
+        assertEquals(3, s2.getTime(TWENTY_FOUR));
+        Snapshot s3 = ts.snapshot(s1);
+        assertEquals(1, s3.getTime(FIVE));
+        assertEquals(1, s3.getTime(FIFTEEN));
+        assertEquals(1, s3.getTime(TWENTY_FOUR));
+
+        // check out of range times
+        Snapshot s4 = ts.snapshot(FIVE, TWENTY_FOUR, (2 * TWENTY_FOUR));
+        assertEquals(0, s4.getTime(FIVE));
+        assertEquals(0, s4.getTime(FIFTEEN)); // not requested
+        assertEquals(3, s4.getTime(TWENTY_FOUR));
+        assertEquals(0, s4.getTime(TWENTY_FOUR + FIFTEEN)); // not requested
+        assertEquals(3, s4.getTime(2 * TWENTY_FOUR));
     }
 
     public void testRolloverCount() {
@@ -99,6 +118,15 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(0, ts.count(now + (2 * FIFTEEN) + highResSecPerEpoch, FIFTEEN));
         assertEquals(1, ts.count(now + 1, HOUR));
         assertEquals(0, ts.count(now + (2 * HOUR) + highResSecPerEpoch, HOUR));
+    }
+
+    public void testInvalidCount() {
+        t.add(now);
+        inc();
+        assertEquals(0, ts.count(now + 1, -1L));
+        assertEquals(0, ts.count(now + 1, now + 2));
+        assertEquals(1, ts.count(now + 1, now + 1));
+        assertEquals(1, ts.count(now + 1, now));
     }
 
     public void testRolloverHigh() {
@@ -166,8 +194,14 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(1, ts.count(now, totalDuration));
     }
 
+    public void testNegativeConstructor() {
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
+            () -> new TimeSeriesCounter(-1L, -2L, -3L, t));
+        assertEquals("totalDuration [-1], lowSecPerEpoch [-2], highSecPerEpoch[-3] must be greater than zero", err.getMessage());
+    }
+
     void inc() {
-        for (int i = 0; i < t.times.size(); i++) {
+        for (int i = t.i; i < t.times.size(); i++) {
             ts.inc();
         }
     }

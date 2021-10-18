@@ -211,7 +211,7 @@ public class TimeSeriesCounter {
      * given times.
      */
     public Snapshot snapshot(long ... times) {
-        return snapshot(now(), times);
+        return timeSuppliedSnapshot(now(), times);
     }
 
     /**
@@ -223,10 +223,10 @@ public class TimeSeriesCounter {
      * the counts, but it does ensure the counts happen for the same time.
      */
     public Snapshot snapshot(Snapshot snapshot) {
-        return snapshot(snapshot.now, snapshot.times[0]);
+        return timeSuppliedSnapshot(snapshot.now, snapshot.times);
     }
 
-    Snapshot snapshot(long now, long[] times) {
+    Snapshot timeSuppliedSnapshot(long now, long[] times) {
         lock.readLock().lock();
         try {
             Snapshot snapshot = new Snapshot(now, total(), times);

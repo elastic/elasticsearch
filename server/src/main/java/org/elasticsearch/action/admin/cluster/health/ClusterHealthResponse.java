@@ -140,10 +140,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private ClusterHealthStatus clusterHealthStatus;
     private boolean return200ForClusterHealthTimeout;
 
-    public ClusterHealthResponse(boolean return200ForServerTimeout) {
-        this.return200ForClusterHealthTimeout = return200ForServerTimeout;
-    }
-
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
         clusterName = in.readString();

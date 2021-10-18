@@ -43,7 +43,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
     public void testIsTimeout() {
-        ClusterHealthResponse res = new ClusterHealthResponse(false);
+        ClusterHealthResponse res = new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             if (res.isTimedOut()) {
@@ -56,7 +56,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     }
 
     public void testTimeoutReturns200IfOptedIn() {
-        ClusterHealthResponse res = new ClusterHealthResponse(true);
+        ClusterHealthResponse res = new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, true);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status());

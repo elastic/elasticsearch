@@ -20,16 +20,15 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Collections.unmodifiableSortedSet;
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Represents snapshots marked as to be deleted and pending deletion.
@@ -51,7 +50,7 @@ import static java.util.Collections.unmodifiableSortedSet;
  */
 public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> implements Custom {
 
-    public static final SnapshotDeletionsPending EMPTY = new SnapshotDeletionsPending(Collections.emptySortedSet());
+    public static final SnapshotDeletionsPending EMPTY = new SnapshotDeletionsPending(List.of());
     public static final String TYPE = "snapshot_deletions_pending";
 
     /**
@@ -70,19 +69,19 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
     /**
      * A list of snapshots to delete, sorted by creation time
      */
-    private final SortedSet<Entry> entries;
+    private final List<Entry> entries;
 
-    private SnapshotDeletionsPending(SortedSet<Entry> entries) {
-        this.entries = unmodifiableSortedSet(Objects.requireNonNull(entries));
+    private SnapshotDeletionsPending(List<Entry> entries) {
+        this.entries = unmodifiableList(Objects.requireNonNull(entries));
     }
 
     public SnapshotDeletionsPending(StreamInput in) throws IOException {
-        this(new TreeSet<>(in.readSet(Entry::new)));
+        this(in.readList(Entry::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(entries);
+        out.writeList(entries);
     }
 
     @Override
@@ -98,7 +97,7 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
         return entries.stream().anyMatch(entry -> Objects.equals(entry.getSnapshotId(), snapshotId));
     }
 
-    public SortedSet<Entry> entries() {
+    public List<Entry> entries() {
         return entries;
     }
 
@@ -122,9 +121,13 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
             return this;
         }
         boolean changed = false;
-        final SortedSet<Entry> updatedEntries = new TreeSet<>(entries);
-        if (updatedEntries.removeIf(entry -> snapshotIds.contains(entry.getSnapshotId()))) {
-            changed = true;
+        final List<Entry> updatedEntries = new ArrayList<>();
+        for (Entry entry : entries) {
+            if (snapshotIds.contains(entry.snapshotId)) {
+                changed = true;
+                continue;
+            }
+            updatedEntries.add(entry);
         }
         if (changed == false) {
             return this;
@@ -240,18 +243,17 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
 
     public static final class Builder {
 
-        private final SortedSet<Entry> entries = new TreeSet<>();
+        private final List<Entry> entries;
         private final Consumer<Entry> consumer;
 
         public Builder(SnapshotDeletionsPending snapshotDeletionsPending, Consumer<Entry> onLimitExceeded) {
-            entries.addAll(snapshotDeletionsPending.entries);
+            this.entries = new ArrayList<>(snapshotDeletionsPending.entries);
             this.consumer = onLimitExceeded;
         }
 
         private void ensureLimit(final int maxPendingDeletions) {
             while (entries.size() >= maxPendingDeletions) {
-                final Entry removed = entries.last();
-                entries.remove(removed);
+                final Entry removed = entries.remove(0);
                 if (consumer != null) {
                     consumer.accept(removed);
                 }

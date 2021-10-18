@@ -399,9 +399,15 @@ public abstract class PackagingTestCase extends Assert {
      */
     public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
         awaitElasticsearchStartup(result);
+        logger.info("asked to wait for " +  additionalDelay);
+        logger.info("BEFORE");
+        logger.info(result.stdout);
         if (additionalDelay > 0) {
             Thread.sleep(additionalDelay);
         }
+        logger.info("waited for " +  additionalDelay);
+        logger.info("AFTER");
+        logger.info(result.stdout);
         return result;
     }
 
@@ -438,7 +444,7 @@ public abstract class PackagingTestCase extends Assert {
             // If log file exists, then we have bootstrapped our logging and the
             // error should be in the logs
             assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
-            String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
+            String logfile = FileUtils. slurp(installation.logs.resolve("elasticsearch.log"));
 
             assertThat(logfile, anyOf(stringMatchers));
 

@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -203,7 +204,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
             NodesDeprecationCheckResponse nodeDeprecationResponse,
-            List<DeprecationChecks.IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks,
+            List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks,
             List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
             List<String> skipTheseDeprecatedSettings

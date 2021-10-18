@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -138,7 +139,7 @@ public class DeprecationChecks {
             ).collect(Collectors.toList());
         }
 
-    static List<IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
+    static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
@@ -174,10 +175,5 @@ public class DeprecationChecks {
     @FunctionalInterface
     public interface NodeDeprecationCheck<A, B, C, D, R> {
         R apply(A first, B second, C third, D fourth);
-    }
-
-    @FunctionalInterface
-    public interface IndexDeprecationCheck<A, B, R> {
-        R apply(A first, B second);
     }
 }

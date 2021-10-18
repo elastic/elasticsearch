@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -97,7 +98,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<DeprecationChecks.IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (cs, idx) -> indexIssueFound ? foundIssue : null
             ));
@@ -170,7 +171,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 }
             ));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<DeprecationChecks.IndexDeprecationCheck<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
+        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (cs, idx) -> {
                     visibleIndexSettings.set(idx.getSettings());

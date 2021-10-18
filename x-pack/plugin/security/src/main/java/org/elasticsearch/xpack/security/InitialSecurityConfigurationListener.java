@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
@@ -20,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
@@ -51,7 +48,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
     private final SSLService sslService;
     private final Client client;
 
-    public InitialSecurityConfigurationListener(
+    private InitialSecurityConfigurationListener(
         NativeUsersStore nativeUsersStore,
         SecurityIndexManager securityIndexManager,
         SSLService sslService,
@@ -63,27 +60,16 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         this.sslService = sslService;
         this.client = client;
         this.environment = environment;
+        // TODO register the constructor in a static method
     }
 
     @Override
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        assert shouldPrintCredentials();
         final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
-        if (out == null) {
-            return;
-        }
-        AnsiType ansiType = out.getType();
-        if (ansiType == AnsiType.Redirected || // output is a pipe
-            ansiType == AnsiType.Unsupported || // could not determine terminal type
-            out.getTerminalWidth() <= 0 // hack when logs are output to a terminal inside a docker container, but the docker output
-            // itself is redirected
-        ) {
-            // TODO log
-            return;
-        }
-        if (previousState.equals(SecurityIndexManager.State.UNRECOVERED_STATE)
-            && currentState.equals(SecurityIndexManager.State.UNRECOVERED_STATE) == false
-            && securityIndexManager.indexExists() == false
-            && XPackSettings.ENROLLMENT_ENABLED.get(environment.settings())) {
+        boolean stateJustRecovered = false == securityIndexManager.isStateRecovered() &&
+            securityIndexManager.isStateRecovered();
+        if (stateJustRecovered && false == securityIndexManager.indexExists() && shouldPrintCredentials()) {
             GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
                 final Map<String, String> allResultsMap = new HashMap<>();
                 for (Map<String, String> result : results) {
@@ -95,6 +81,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
                 outputInformationToConsole(password, token, caCertFingerprint, out);
             }, this::outputOnError), 2);
 
+            // TODO pull this is in a new method OR log
             if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
                 && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
                 final SecureString elasticPassword = new SecureString(generatePassword(20));
@@ -118,7 +105,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
     }
 
     private void outputInformationToConsole(String elasticPassword, String enrollmentToken, String caCertFingerprint, AnsiPrintStream out) {
-        Ansi ansi = ansi();
+        final Ansi ansi = ansi();
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         ansi.a("-".repeat(Math.max(1, out.getTerminalWidth())));
@@ -137,7 +124,8 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         if (null != enrollmentToken) {
-            ansi.a("Enrollment token for ").a(Ansi.Attribute.ITALIC).a("Kibana").a(Ansi.Attribute.ITALIC_OFF).a(", valid for the next 30 minutes:");
+            ansi.a("Enrollment token for ").a(Ansi.Attribute.ITALIC).a("Kibana").a(Ansi.Attribute.ITALIC_OFF)
+                .a(", valid for the next 30 minutes:");
             ansi.a(System.lineSeparator());
             ansi.a(Ansi.Attribute.UNDERLINE);
             ansi.a(enrollmentToken);
@@ -179,6 +167,22 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         out.println(ansi);
+    }
+
+    private static boolean shouldPrintCredentials() {
+        final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
+        if (out == null) {
+            return false;
+        }
+        AnsiType ansiType = out.getType();
+        if (ansiType == AnsiType.Redirected || // output is a pipe
+            ansiType == AnsiType.Unsupported || // could not determine terminal type
+            out.getTerminalWidth() <= 0 // hack to determine when logs are output to a terminal inside a docker container, but the docker
+            // output itself is redirected
+        ) {
+            return false;
+        }
+        return true;
     }
 
     private void outputOnError(@Nullable Exception e) {

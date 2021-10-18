@@ -1853,7 +1853,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     Level.DEBUG,
                     "hot threads from node [" +
                         brokenNode.getLocalNode().descriptionWithoutAttributes() +
-                        "] lagging at version [*] despite commit of cluster state version [*]:\nHot threads at*"));
+                        "] lagging at version [*] despite commit of cluster state version [*]:" +
+                        System.lineSeparator() +
+                        "Hot threads at*"));
 
                 // drop the publication messages to one node, but then restore connectivity so it remains in the cluster and does not fail
                 // health checks

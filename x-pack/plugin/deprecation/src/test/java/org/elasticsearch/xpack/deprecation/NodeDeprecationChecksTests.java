@@ -51,6 +51,7 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
+import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.JAVA_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -233,7 +234,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState =
             new XPackLicenseState(settings, () -> 0);
         final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-
+        deprecationIssues.stream().forEach(issue -> System.out.println(issue.toString()));
         assertTrue(deprecationIssues.isEmpty());
     }
 
@@ -617,7 +618,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         if (isJvmEarlierThan11()) {
-            return issues.stream().filter(i -> i.getMessage().equals("Java 11 is required") == false).collect(Collectors.toList());
+            return issues.stream().filter(i -> i.getMessage().equals(JAVA_DEPRECATION_MESSAGE) == false).collect(Collectors.toList());
         }
 
         return issues;

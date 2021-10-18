@@ -67,6 +67,8 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 
 class NodeDeprecationChecks {
 
+    static final String JAVA_DEPRECATION_MESSAGE = "Java 11 is required in 8.0";
+
     static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules,
                                          final ClusterState clusterState, final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
@@ -500,7 +502,7 @@ class NodeDeprecationChecks {
 
         if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "Java 11 is required in 8.0",
+                JAVA_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-java-version",
                 "This node is running Java version [" + javaVersion.toString() + "]. Consider switching to a distribution of " +
                     "Elasticsearch with a bundled JDK or upgrade. If you are already using a distribution with a bundled JDK, ensure the " +

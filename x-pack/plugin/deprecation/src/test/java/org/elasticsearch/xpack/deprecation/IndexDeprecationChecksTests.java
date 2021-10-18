@@ -718,9 +718,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 c -> c.apply(clusterState, indexMetadata));
             assertThat(issues, contains(
                 new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "some message here",
-                    "https://www.elastic.co/some/url/here.html",
-                    "some details here", false, null)
+                    "index [test] does not have a [index.routing.allocation.include._tier_preference] setting, " +
+                        "in 8.0 this setting will be required for all indices and may not be empty or null.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html",
+                    "Update the settings for this index to specify an appropriate tier preference.", false, null)
             ));
         }
     }

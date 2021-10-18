@@ -830,7 +830,7 @@ public class MetadataCreateIndexService {
                 if (preferredTiers.isEmpty()) {
                     if (DataTier.dataNodesWithoutAllDataRoles(currentState).isEmpty() == false) {
                         DEPRECATION_LOGGER.warn(DeprecationCategory.INDICES, "index_without_tier_preference",
-                            "[{}] creating index with an empty [{}] setting, and TODO TODO TODO",
+                            "[{}] creating index with an empty [{}] setting, in 8.0 this setting will be required for all indices",
                             request.index(), DataTier.TIER_PREFERENCE);
                     }
                 }

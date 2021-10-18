@@ -1012,7 +1012,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             if (clusterState != ClusterState.EMPTY_STATE) {
                 assertWarnings("[" + request.index() + "] creating index with " +
-                    "an empty [" + DataTier.TIER_PREFERENCE + "] setting, and TODO TODO TODO");
+                    "an empty [" + DataTier.TIER_PREFERENCE + "] setting, in 8.0 this setting will be required for all indices");
             }
 
             return Optional.empty();

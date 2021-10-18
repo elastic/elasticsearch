@@ -445,10 +445,14 @@ public class IndexDeprecationChecks {
         if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
             final List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
             if (tierPreference.isEmpty()) {
+                String indexName = indexMetadata.getIndex().getName();
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "some message here",
-                    "https://www.elastic.co/some/url/here.html",
-                    "some details here", false, null);
+                    "index [" + indexName + "] does not have a [" + DataTier.TIER_PREFERENCE + "] setting, " +
+                        "in 8.0 this setting will be required for all indices and may not be empty or null.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html",
+                    "Update the settings for this index to specify an appropriate tier preference.",
+                    false,
+                    null);
             }
         }
         return null;

@@ -502,7 +502,8 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
 
         TrainedModelAllocation allocation = trainedModelAllocationMetadata.getModelAllocation("model-1");
         assertThat(allocation.getReason().get(), equalTo("Not allocating on node [ml-node-full-load]." +
-            " Reason: This node is full. Number of opened jobs [512], xpack.ml.max_open_jobs [512]."));
+            " Reason: This node is full. Number of opened jobs and allocated native inference processes [512], " +
+            "xpack.ml.max_open_jobs [512]."));
     }
 
     public void testShouldAllocateModels() {

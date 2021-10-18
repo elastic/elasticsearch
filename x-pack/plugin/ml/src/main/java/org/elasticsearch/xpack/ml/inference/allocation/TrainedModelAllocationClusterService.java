@@ -462,7 +462,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             builder.build(),
             true,
             node,
-            Integer.MAX_VALUE,
+            maxOpenJobs,
             maxMemoryPercentage,
             useAuto
         );
@@ -476,7 +476,8 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         }
         if (load.remainingJobs() == 0) {
             return Optional.of(
-                ParameterizedMessage.format("This node is full. Number of opened jobs [{}], {} [{}].",
+                ParameterizedMessage.format(
+                    "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
                     new Object[] {
                         load.getNumAssignedJobs(),
                         MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),

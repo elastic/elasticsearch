@@ -150,6 +150,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
+                            hasEntry("category", "api"),
                             hasEntry("component", "o.e.d.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -161,6 +162,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
+                            hasEntry("category", "api"),
                             hasEntry("component", "o.e.d.x.ParseField"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -200,6 +202,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
+                            hasEntry("category", "other"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -347,6 +350,7 @@ public class JsonLoggerTests extends ESTestCase {
                     allOf(
                         hasEntry("type", "deprecation.elasticsearch"),
                         hasEntry("level", "CRITICAL"),
+                        hasEntry("category", "other"),
                         hasEntry("component", "o.e.d.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
@@ -381,6 +385,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
+                            hasEntry("category", "other"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
@@ -390,6 +395,7 @@ public class JsonLoggerTests extends ESTestCase {
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),
+                            hasEntry("category", "other"),
                             hasEntry("component", "o.e.d.test"),
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),

@@ -1,6 +1,8 @@
 setup:
   - skip:
       features: [arbitrary_key]
+      version: "- 7.9.99"
+      reason: "nodes info API was slightly different before 7.10"
 
 ---
 "_all metrics":

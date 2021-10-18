@@ -439,6 +439,48 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
     }
 
+    public void testReallocationForReplicaDuringNodeReplace() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        final String nodeAId = getNodeId(nodeA);
+        createIndex("myindex", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        ensureYellow("myindex");
+
+        // Start a second node, so the replica will be on nodeB
+        final String nodeB = internalCluster().startNode();
+        ensureGreen("myindex");
+
+        final String nodeC = internalCluster().startNode();
+
+        // Register a replace for nodeA, with nodeC as the target
+        PutShutdownNodeAction.Request shutdownRequest = new PutShutdownNodeAction.Request(
+            nodeAId,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            "testing",
+            null,
+            nodeC
+        );
+        client().execute(PutShutdownNodeAction.INSTANCE, shutdownRequest).get();
+
+        // Wait for the node replace shutdown to be complete
+        assertBusy(() -> {
+            GetShutdownStatusAction.Response shutdownStatus = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(nodeAId)
+            ).get();
+            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        });
+
+        // Remove nodeA from the cluster (it's been terminated)
+        internalCluster().stopNode(nodeA);
+
+        // Restart nodeC, the replica on nodeB will be flipped to primary and
+        // when nodeC comes back up, it should have the replica assigned to it
+        internalCluster().restartNode(nodeC);
+
+        // All shards for the index should be allocated
+        ensureGreen("myindex");
+    }
+
     private void indexRandomData() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

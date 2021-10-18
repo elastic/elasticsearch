@@ -179,7 +179,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testFieldCapabilities() {
-        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[index][s]";
+        String fieldCapabilitiesShardAction = FieldCapabilitiesAction.NAME + "[n]";
         interceptTransportActions(fieldCapabilitiesShardAction);
 
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();

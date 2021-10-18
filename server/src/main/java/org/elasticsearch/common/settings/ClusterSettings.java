@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -326,6 +327,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
+            TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
@@ -566,7 +568,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
             IndexingPressure.MAX_INDEXING_BYTES,
-            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN)));
+            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
+            DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING)));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(
             SniffConnectionStrategy.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,

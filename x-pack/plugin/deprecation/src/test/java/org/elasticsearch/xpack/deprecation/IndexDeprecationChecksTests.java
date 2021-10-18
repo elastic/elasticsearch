@@ -698,21 +698,6 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         ));
     }
 
-    public static ClusterState clusterStateWithoutAllDataRoles() {
-        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
-            new DiscoveryNode("name_0", "node_0", buildNewFakeTransportAddress(), org.elasticsearch.core.Map.of(),
-                org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), Version.CURRENT)
-            );
-        for (DiscoveryNode node : nodesList) {
-            discoBuilder = discoBuilder.add(node);
-        }
-        discoBuilder.localNodeId(randomFrom(nodesList).getId());
-        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
-
-        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
-    }
-
     public void testEmptyDataTierPreference() {
         Settings.Builder settings = settings(Version.CURRENT);
         settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), "  ");
@@ -735,5 +720,20 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "some details here", false, null)
             ));
         }
+    }
+
+    public static ClusterState clusterStateWithoutAllDataRoles() {
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
+            new DiscoveryNode("name_0", "node_0", buildNewFakeTransportAddress(), org.elasticsearch.core.Map.of(),
+                org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), Version.CURRENT)
+        );
+        for (DiscoveryNode node : nodesList) {
+            discoBuilder = discoBuilder.add(node);
+        }
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
+
+        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
     }
 }

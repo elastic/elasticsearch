@@ -142,6 +142,15 @@ public class DataTierTests extends ESTestCase {
         assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
     }
 
+    public void testDataNodesWithoutAllDataRoles() {
+        ClusterState clusterState = clusterStateWithoutAllDataRoles();
+        Set<DiscoveryNode> nodes = DataTier.dataNodesWithoutAllDataRoles(clusterState);
+        assertEquals(1, nodes.size());
+        DiscoveryNode node = nodes.iterator().next();
+        assertEquals("name_3", node.getName());
+        assertEquals(org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), node.getRoles());
+    }
+
     public static ClusterState clusterStateWithoutAllDataRoles() {
         Set<DiscoveryNodeRole> allDataRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
             .filter(role -> ALL_DATA_TIERS.contains(role.roleName())).collect(Collectors.toSet());
@@ -160,15 +169,6 @@ public class DataTierTests extends ESTestCase {
         discoBuilder.masterNodeId(randomFrom(nodesList).getId());
 
         return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
-    }
-
-    public void testDataNodesWithoutAllDataRoles() {
-        ClusterState clusterState = clusterStateWithoutAllDataRoles();
-        Set<DiscoveryNode> nodes = DataTier.dataNodesWithoutAllDataRoles(clusterState);
-        assertEquals(1, nodes.size());
-        DiscoveryNode node = nodes.iterator().next();
-        assertEquals("name_3", node.getName());
-        assertEquals(org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), node.getRoles());
     }
 
     private static DiscoveryNodes buildDiscoveryNodes() {

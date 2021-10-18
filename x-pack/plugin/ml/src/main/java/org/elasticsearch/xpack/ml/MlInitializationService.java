@@ -99,8 +99,7 @@ public class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
-        // Disable temporarily to see if the bwc tests pass
-        // threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {

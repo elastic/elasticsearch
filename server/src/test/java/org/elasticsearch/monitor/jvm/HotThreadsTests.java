@@ -558,8 +558,10 @@ public class HotThreadsTests extends ESTestCase {
             mockedThreadInfo, new TimeValue(10L), 1L, 4L);
 
         assertEquals(1L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.CPU).applyAsLong(info));
-        assertEquals(nanosHelper(3L), HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
-        assertEquals(nanosHelper(2L), HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info));
+        assertEquals(nanosHelper(3L),
+            HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.WAIT).applyAsLong(info));
+        assertEquals(nanosHelper(2L),
+            HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.BLOCK).applyAsLong(info));
         assertEquals(4L, HotThreads.ThreadTimeAccumulator.valueGetterForReportType(HotThreads.ReportType.MEM).applyAsLong(info));
 
         //Ensure all enum types have a report type getter

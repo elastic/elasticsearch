@@ -233,7 +233,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(licenseState.isAllowed(Security.CUSTOM_REALMS_FEATURE)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.ENTERPRISE, License.OperationMode.PLATINUM));
 
         ReservedRealm reservedRealm = mock(ReservedRealm.class);

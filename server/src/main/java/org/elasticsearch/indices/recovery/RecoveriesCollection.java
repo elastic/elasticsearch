@@ -14,6 +14,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -54,8 +56,10 @@ public class RecoveriesCollection {
                               DiscoveryNode sourceNode,
                               SnapshotFilesProvider snapshotFilesProvider,
                               PeerRecoveryTargetService.RecoveryListener listener,
-                              TimeValue activityTimeout) {
-        RecoveryTarget recoveryTarget = new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, listener);
+                              TimeValue activityTimeout,
+                              @Nullable Releasable snapshotFileDownloadsPermit) {
+        RecoveryTarget recoveryTarget =
+            new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, snapshotFileDownloadsPermit, listener);
         startRecoveryInternal(recoveryTarget, activityTimeout);
         return recoveryTarget.recoveryId();
     }

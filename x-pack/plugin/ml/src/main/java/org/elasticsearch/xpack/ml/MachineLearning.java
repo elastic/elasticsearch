@@ -59,7 +59,6 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
-import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -415,7 +414,6 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -533,6 +531,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // as the current node could be running in a cluster where some nodes are still using
     // that setting.  From 8.0.0 onwards we have the flexibility to increase it...
     private static final int MAX_MAX_OPEN_JOBS_PER_NODE = 512;
+    public static final int DEFAULT_MAX_OPEN_JOBS_PER_NODE = MAX_MAX_OPEN_JOBS_PER_NODE;
     // This setting is cluster-wide and can be set dynamically. However, prior to version 7.1 it was
     // a non-dynamic per-node setting. n a mixed version cluster containing 6.7 or 7.0 nodes those
     // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
@@ -540,7 +539,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting(
                 "xpack.ml.max_open_jobs",
-                MAX_MAX_OPEN_JOBS_PER_NODE,
+                DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 1,
                 MAX_MAX_OPEN_JOBS_PER_NODE,
                 Property.Dynamic,
@@ -673,7 +672,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
                     String.valueOf(MAX_OPEN_JOBS_PER_NODE.get(settings)));
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
-                    Long.toString(machineMemoryFromStats(OsProbe.getInstance().osStats())));
+                    Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
             addMlNodeAttribute(additionalSettings, jvmSizeAttrName, Long.toString(Runtime.getRuntime().maxMemory()));
             // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(mlEnabledNodeAttrName);
@@ -1281,27 +1280,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         return allPresent;
-    }
-
-    /**
-     * Find the memory size (in bytes) of the machine this node is running on.
-     * Takes container limits (as used by Docker for example) into account.
-     */
-    static long machineMemoryFromStats(OsStats stats) {
-        long mem = stats.getMem().getTotal().getBytes();
-        OsStats.Cgroup cgroup = stats.getCgroup();
-        if (cgroup != null) {
-            String containerLimitStr = cgroup.getMemoryLimitInBytes();
-            if (containerLimitStr != null && containerLimitStr.equals("max") == false) {
-                BigInteger containerLimit = new BigInteger(containerLimitStr);
-                if ((containerLimit.compareTo(BigInteger.valueOf(mem)) < 0 && containerLimit.compareTo(BigInteger.ZERO) > 0)
-                        // mem <= 0 means the value couldn't be obtained for some reason
-                        || (mem <= 0 && containerLimit.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) < 0)) {
-                    mem = containerLimit.longValue();
-                }
-            }
-        }
-        return mem;
     }
 
     @Override

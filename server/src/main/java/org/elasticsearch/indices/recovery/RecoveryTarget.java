@@ -67,6 +67,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final SnapshotFilesProvider snapshotFilesProvider;
+    @Nullable // if we're not downloading files from snapshots in this recovery
+    private final Releasable snapshotFileDownloadsPermit;
     private final MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
@@ -89,11 +91,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *
      * @param indexShard                        local shard where we want to recover to
      * @param sourceNode                        source node of the recovery where we recover from
+     * @param snapshotFileDownloadsPermit       a permit that allows to download files from a snapshot,
+     *                                          limiting the concurrent snapshot file downloads per node
+     *                                          preventing the exhaustion of repository resources.
      * @param listener                          called when recovery is completed/failed
      */
     public RecoveryTarget(IndexShard indexShard,
                           DiscoveryNode sourceNode,
                           SnapshotFilesProvider snapshotFilesProvider,
+                          @Nullable Releasable snapshotFileDownloadsPermit,
                           PeerRecoveryTargetService.RecoveryListener listener) {
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -102,6 +108,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.snapshotFilesProvider = snapshotFilesProvider;
+        this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger,
@@ -118,7 +125,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, listener);
+        return new RecoveryTarget(indexShard, sourceNode, snapshotFilesProvider, snapshotFileDownloadsPermit, listener);
     }
 
     @Nullable
@@ -149,6 +156,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     public CancellableThreads cancellableThreads() {
         return cancellableThreads;
+    }
+
+    public boolean hasPermitToDownloadSnapshotFiles() {
+        return snapshotFileDownloadsPermit != null;
     }
 
     /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
@@ -288,6 +299,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
+            releaseSnapshotFileDownloadsPermit();
+        }
+    }
+
+    private void releaseSnapshotFileDownloadsPermit() {
+        if (snapshotFileDownloadsPermit != null) {
+            snapshotFileDownloadsPermit.close();
         }
     }
 
@@ -506,6 +524,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                                         IndexId indexId,
                                         BlobStoreIndexShardSnapshot.FileInfo fileInfo,
                                         ActionListener<Void> listener) {
+        assert hasPermitToDownloadSnapshotFiles();
+
         try (InputStream inputStream =
                  snapshotFilesProvider.getInputStreamForSnapshotFile(repository, indexId, shardId, fileInfo, this::registerThrottleTime)) {
             StoreFileMetadata metadata = fileInfo.metadata();

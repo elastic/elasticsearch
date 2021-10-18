@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
+        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(Version.CURRENT, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());

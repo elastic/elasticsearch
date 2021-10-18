@@ -386,7 +386,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         when(mockClient.threadPool()).thenReturn(threadPool);
 
         final ScriptService scriptService = new ScriptService(settings, Collections.singletonMap(MustacheScriptEngine.NAME,
-                new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+                new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {

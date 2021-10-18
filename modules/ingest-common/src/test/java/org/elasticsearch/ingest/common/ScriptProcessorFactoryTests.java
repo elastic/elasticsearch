@@ -136,7 +136,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
                     }),
                     Collections.emptyMap()
                 )
-            ), new HashMap<>(ScriptModule.CORE_CONTEXTS));
+            ), new HashMap<>(ScriptModule.CORE_CONTEXTS), () -> 1L);
         factory = new ScriptProcessor.Factory(scriptService);
 
         Map<String, Object> configMap = new HashMap<>();

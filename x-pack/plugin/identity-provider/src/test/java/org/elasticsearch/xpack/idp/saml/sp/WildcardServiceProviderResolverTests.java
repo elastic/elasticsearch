@@ -93,7 +93,7 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
     public void setUpResolver() {
         final Settings settings = Settings.EMPTY;
         final ScriptService scriptService = new ScriptService(settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         final ServiceProviderDefaults samlDefaults = new ServiceProviderDefaults("elastic-cloud", NameID.TRANSIENT, Duration.ofMinutes(15));
         resolver = new WildcardServiceProviderResolver(settings, scriptService, new SamlServiceProviderFactory(samlDefaults));
     }

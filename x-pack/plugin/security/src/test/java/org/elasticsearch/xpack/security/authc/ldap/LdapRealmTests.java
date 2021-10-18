@@ -449,7 +449,7 @@ public class LdapRealmTests extends LdapTestCase {
         when(mockClient.threadPool()).thenReturn(threadPool);
 
         final ScriptService scriptService = new ScriptService(defaultGlobalSettings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(defaultGlobalSettings, mockClient, mockSecurityIndex,
             scriptService) {
             @Override

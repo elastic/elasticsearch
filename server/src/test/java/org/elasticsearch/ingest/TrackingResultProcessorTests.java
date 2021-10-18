@@ -135,8 +135,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String scriptName = "conditionalScript";
         ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
             new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L);
         RuntimeException exception = new RuntimeException("fail");
         TestProcessor failProcessor = new TestProcessor("fail", "test", null, exception);
         ConditionalProcessor conditionalProcessor = new ConditionalProcessor(
@@ -204,8 +204,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String scriptName = "conditionalScript";
         ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
             new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> false), Collections.emptyMap())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L);
 
         CompoundProcessor compoundProcessor = new CompoundProcessor(
             new TestProcessor(ingestDocument -> {ingestDocument.setFieldValue(key1, randomInt()); }),
@@ -309,8 +309,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
             new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> true), Collections.emptyMap())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L);
 
         Pipeline pipeline1 = new Pipeline(
             pipelineId1, null, null, null, new CompoundProcessor(
@@ -389,8 +389,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         ScriptService scriptService = new ScriptService(Settings.builder().build(), Collections.singletonMap(Script.DEFAULT_SCRIPT_LANG,
             new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> false), Collections.emptyMap())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L);
 
         Pipeline pipeline1 = new Pipeline(
             pipelineId1, null, null, null, new CompoundProcessor(

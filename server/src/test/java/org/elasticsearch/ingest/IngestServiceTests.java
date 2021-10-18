@@ -91,7 +91,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -490,8 +489,8 @@ public class IngestServiceTests extends ESTestCase {
                     Collections.emptyMap()
                 )
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L);
 
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put("complexSet", (factories, tag, description, config) -> {

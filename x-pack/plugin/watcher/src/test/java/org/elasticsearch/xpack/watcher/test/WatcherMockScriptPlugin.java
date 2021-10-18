@@ -64,6 +64,6 @@ public abstract class WatcherMockScriptPlugin extends MockScriptPlugin {
         engines.put(MockScriptEngine.NAME,
             new MockScriptEngine(MockScriptEngine.NAME, scripts, CONTEXT_COMPILERS));
         Map<String, ScriptContext<?>> contexts = CONTEXTS.stream().collect(Collectors.toMap(o -> o.name, Function.identity()));
-        return new ScriptService(Settings.EMPTY, engines, contexts);
+        return new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
     }
 }

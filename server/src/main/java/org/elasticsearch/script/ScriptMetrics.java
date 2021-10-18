@@ -9,27 +9,40 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.metrics.CounterMetric;
+import static org.elasticsearch.script.TimeSeriesCounter.Snapshot;
+import static org.elasticsearch.script.TimeSeriesCounter.SECOND;
+import static org.elasticsearch.script.TimeSeriesCounter.MINUTE;
+import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
+
+import java.util.function.LongSupplier;
 
 public class ScriptMetrics {
-    final CounterMetric compilationsMetric = new CounterMetric();
-    final CounterMetric cacheEvictionsMetric = new CounterMetric();
-    final CounterMetric compilationLimitTriggered = new CounterMetric();
-    final TimeSeriesCounter compilationsHistory = timeSeriesCounter();
-    final TimeSeriesCounter cacheEvictionsHistory = timeSeriesCounter();
-    final int[] TIME_PERIODS = { 5 * TimeSeriesCounter.MINUTE, 15 * TimeSeriesCounter.MINUTE, 24 * TimeSeriesCounter.HOUR };
+    protected static final int FIVE_MINUTES = 5 * MINUTE;
+    protected static final int FIFTEEN_MINUTES = 15 * MINUTE;
+    protected static final int TWENTY_FOUR_HOURS = 24 * HOUR;
 
-    public static TimeSeriesCounter timeSeriesCounter() {
-        return TimeSeriesCounter.nestedCounter(24 * 4, 15 * TimeSeriesCounter.MINUTE, 60, 15);
+    final CounterMetric compilationLimitTriggered = new CounterMetric();
+    final TimeSeriesCounter compilations;
+    final TimeSeriesCounter cacheEvictions;
+
+    protected final LongSupplier timeProvider;
+
+    public ScriptMetrics(LongSupplier timeProvider) {
+        this.timeProvider = timeProvider;
+        this.compilations = timeSeriesCounter();
+        this.cacheEvictions = timeSeriesCounter();
+    }
+
+    TimeSeriesCounter timeSeriesCounter() {
+        return new TimeSeriesCounter(TWENTY_FOUR_HOURS, 30 * MINUTE, 15 * SECOND, timeProvider);
     }
 
     public void onCompilation() {
-        compilationsMetric.inc();
-        compilationsHistory.inc();
+        compilations.inc();
     }
 
     public void onCacheEviction() {
-        cacheEvictionsMetric.inc();
-        cacheEvictionsHistory.inc();
+        cacheEvictions.inc();
     }
 
     public void onCompilationLimit() {
@@ -37,15 +50,16 @@ public class ScriptMetrics {
     }
 
     public ScriptContextStats stats(String context) {
-        long timestamp = compilationsHistory.timestamp();
-        int[] compilations = compilationsHistory.counts(timestamp, TIME_PERIODS);
-        int[] cacheEvictions = cacheEvictionsHistory.counts(timestamp, TIME_PERIODS);
+        Snapshot compilation = compilations.snapshot(FIVE_MINUTES, FIFTEEN_MINUTES, TWENTY_FOUR_HOURS);
+        Snapshot cacheEviction = cacheEvictions.snapshot(compilation);
         return new ScriptContextStats(
             context,
-            compilationsMetric.count(),
-            cacheEvictionsMetric.count(),
+            compilation.total,
+            cacheEviction.total,
             compilationLimitTriggered.count(),
-            new ScriptContextStats.TimeSeries(compilations[0], compilations[1], compilations[2]),
-            new ScriptContextStats.TimeSeries(cacheEvictions[0], cacheEvictions[1], cacheEvictions[2])
+            new ScriptContextStats.TimeSeries(compilation.getTime(FIVE_MINUTES), compilation.getTime(FIFTEEN_MINUTES),
+                    compilation.getTime(TWENTY_FOUR_HOURS)),
+            new ScriptContextStats.TimeSeries(cacheEviction.getTime(FIVE_MINUTES), cacheEviction.getTime(FIFTEEN_MINUTES),
+                    cacheEviction.getTime(TWENTY_FOUR_HOURS))
         );
     }}

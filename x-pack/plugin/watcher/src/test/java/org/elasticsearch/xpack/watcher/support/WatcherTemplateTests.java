@@ -41,7 +41,7 @@ public class WatcherTemplateTests extends ESTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         Map<String, ScriptContext<?>> contexts =
             Collections.singletonMap(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
         textTemplateEngine = new TextTemplateEngine(scriptService);
     }
 

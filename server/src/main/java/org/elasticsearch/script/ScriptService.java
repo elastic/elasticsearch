@@ -44,6 +44,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
@@ -96,6 +97,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
+    private final LongSupplier timeProvider;
 
     private ClusterState clusterState;
 
@@ -104,7 +106,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     // package private for tests
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
-    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
+    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts,
+                         LongSupplier timeProvider) {
         this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
         this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
@@ -182,6 +185,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }
 
         this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
+        this.timeProvider = timeProvider;
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);
@@ -519,7 +523,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             rate = new ScriptCache.CompilationRate(context.maxCompilationRateDefault);
         }
 
-        return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());
+        return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey(), timeProvider);
     }
 
     /**

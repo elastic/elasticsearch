@@ -23,7 +23,7 @@ public class MockScriptService extends ScriptService {
     public static class TestPlugin extends Plugin {}
 
     public MockScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        super(settings, engines, contexts);
+        super(settings, engines, contexts, () -> 1L);
     }
 
     @Override

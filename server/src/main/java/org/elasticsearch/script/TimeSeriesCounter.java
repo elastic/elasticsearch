@@ -9,380 +9,475 @@
 package org.elasticsearch.script;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 
 /**
- * A counter that keeps a time series history of (resolutionSecs * numEpochs) seconds.
- * {@code inc} always updates the accumulator for the current epoch.  If the given timestamp indicates
- * an epoch rollover, the previous value of the accumulator is stored in the appropriate epoch.
+ * {@link TimeSeriesCounter} implements an event counter for keeping running stats at fixed intervals, such as 5m/15m/24h.
+ * Callers use {@link #inc()} to increment the counter at the current time, as supplied by {@link #timeProvider}.
+ * To fetch a count for a given time range, callers use {@link #count(long, long)}, providing an end time and a duration.
+ *
+ * {@link TimeSeriesCounter} has counts for the given duration at two different resolutions.  From the last updated time,
+ * {@link #latestSec}, for {@link #lowSec} ({@code lowSecPerEpoch} in the constructor) previous seconds, the resolution is
+ * {@link #highSec} ({@code highSecPerEpoch} in the constructor).
+ *
+ * Outside of that range, but within {@code totalDuration} seconds, the resolution is {@link #lowSec}.
+ *
+ * This two ranges balance recent high resolution, historical range and memory usage.
+ *
+ * This class is implemented with two arrays, {@link #high}, {@link #low} and a {@link LongAdder}.
+ *
+ * All recent updates hit the LongAdder, {@link #adder} unless an increment causes a roll over to a new in high epoch or both
+ * a new high and new low epoch.
+ *
+ * The two arrays have overlapping time ranges.  {@link #low} delegates its most recent low resolution epoch to {@link #high}
+ * and {@link #adder}. Similarly, {@link #high} delegates its most recent high resolution epoch to {@link #adder}.
+ *
+ * There are some useful time ranges to think about when reading this code:
+ * Total authority range - The range of validity of the time series.  Ends within low resolution seconds of the last update and
+ *                         starts duration before the last update (plus or minus low resolution seconds.
+ * Adder authority range - {@link #adder} must be consulted if the queried time overlaps this range.
+ * High authority range - The {@link #high} array must be consulted if the queried time overlaps this range.
+ *                        This range may partially overlap the previous {@link #low} epoch because the high array
+ *                        does not necessarily reset when rolling over the low epoch.  If we are only a few seconds
+ *                        into the new epoch, high keeps higher resolution counts.
+ * Low authority range - The {@link #low} array is the authority for counts within this range.
+ * High as low delegate - The latest low epoch is represented by a combination of the high array and adder.
+ *                        This range occurs immediately after the Low authority range.
+ *                        The two ranges together equal the Total authority range.
+ *                        Use {@link #sumHighDelegate} to get the correct count out of this range when combining with
+ *                        counts from previous low epochs.  As mentioned above, high frequently overlaps with the
+ *                        last low epoch and naively counting all of high will lead to double counting.
  */
 public class TimeSeriesCounter {
-    public static final LongSupplier SYSTEM_SECONDS_TIME_PROVIDER = () -> System.currentTimeMillis() / 1000;
+    public static final int SECOND = 1;
     public static final int MINUTE = 60;
     public static final int HOUR = 60 * MINUTE;
 
-    protected final long resolutionSecs;
-    protected final int[] epochs;
+    protected final long highSec; // high resolution in seconds
+    protected final int[] high;
 
-    // TOOD(stu): Use ClusterService.getClusterApplierService().threadPool().absoluteTimeInMillis()
+    protected final long lowSec;  // low resolution in seconds
+    protected final int[] low;
+
+    protected final ReadWriteLock lock = new ReentrantReadWriteLock();
     protected final LongSupplier timeProvider;
 
-    protected final ReentrantReadWriteLock lock;
+    protected final LongAdder adder = new LongAdder(); // most recent high epoch
+    protected final LongAdder total = new LongAdder(); // the total number of increments
+    protected long latestSec; // most recent update time
 
-    protected long currentEpochStart;
-    protected final LongAdder currentEpochAdder;
-    protected final TimeSeriesCounter currentEpochTimeSeries;
-
-    TimeSeriesCounter(int numEpochs, int resolutionSecs, LongSupplier timeProvider) {
-        this(numEpochs, resolutionSecs, timeProvider, new ReentrantReadWriteLock());
-    }
-
-    private TimeSeriesCounter(int numEpochs, int resolutionSecs, LongSupplier timeProvider, ReentrantReadWriteLock lock) {
-        assert numEpochs > 0;
-        assert resolutionSecs > 0;
-        this.epochs = new int[numEpochs];
-        this.resolutionSecs = resolutionSecs;
-        this.timeProvider = timeProvider;
-        this.lock = lock;
-        this.currentEpochAdder = new LongAdder();
-        this.currentEpochTimeSeries = null;
-    }
-
-    TimeSeriesCounter(int numEpochs, int resolutionSecs, LongSupplier timeProvider, int subNumEpochs, int subResolutionSecs) {
-        assert numEpochs > 0;
-        assert resolutionSecs > 0;
-        if (subNumEpochs * subResolutionSecs != resolutionSecs) {
-            throw new IllegalArgumentException("sub counter with"
-                + " resolution [" + subResolutionSecs + "] and numEpochs [" + subNumEpochs + "]"
-                + " does not cover one epoch for TimeSeriesCounter with "
-                + " resolution [" + resolutionSecs + "] and numEpochs [" + numEpochs + "]");
+    /**
+     * Create a new time series that covers the given {@code totalDuration} in seconds, with the low resolution epochs covering
+     * {@code lowSecPerEpoch} seconds and the high resolution epochs cover {@code highSecPerEpoch}.
+     *
+     * Because the most recent low resolution epoch is covered completely by the high resolution epochs, {@code lowSecPerEpoch}
+     * must be divisible by {@code highSecPerEpoch}.
+     */
+    public TimeSeriesCounter(long totalDuration, long lowSecPerEpoch, long highSecPerEpoch, LongSupplier timeProvider) {
+        if (totalDuration <= 0 || lowSecPerEpoch <= 0 || highSecPerEpoch <= 0) {
+            throw new IllegalArgumentException("totalDuration [" + totalDuration + "], lowSecPerEpoch [" + lowSecPerEpoch
+                    + "], highSecPerEpoch[" + highSecPerEpoch + "] must be greater than zero");
+        } else if (highSecPerEpoch > lowSecPerEpoch) {
+            throw new IllegalArgumentException("highSecPerEpoch [" + highSecPerEpoch + "] must be less than lowSecPerEpoch ["
+                    + lowSecPerEpoch + "]");
+        } else if (totalDuration % lowSecPerEpoch != 0) {
+            throw new IllegalArgumentException(
+                    "totalDuration [" + totalDuration + "] must be divisible by lowSecPerEpoch [" + lowSecPerEpoch + "]");
+        } else if (lowSecPerEpoch % highSecPerEpoch != 0) {
+            throw new IllegalArgumentException(
+                    "lowSecPerEpoch [" + lowSecPerEpoch + "] must be divisible by highSecPerEpoch [" + highSecPerEpoch + "]");
         }
-        this.epochs = new int[numEpochs];
-        this.resolutionSecs = resolutionSecs;
-        this.timeProvider = timeProvider;
-        this.lock = new ReentrantReadWriteLock();
-        this.currentEpochAdder = null;
-        this.currentEpochTimeSeries = new TimeSeriesCounter(subNumEpochs, subResolutionSecs, timeProvider, null);
-    }
-
-    public static TimeSeriesCounter nestedCounter(int numEpochs, int resolutionSecs, int subNumEpochs, int subResolutionSecs) {
-        return new TimeSeriesCounter(numEpochs, resolutionSecs, SYSTEM_SECONDS_TIME_PROVIDER, subNumEpochs, subResolutionSecs);
+        this.timeProvider = Objects.requireNonNull(timeProvider);
+        this.lowSec = lowSecPerEpoch;
+        this.low = new int[(int) (totalDuration / lowSecPerEpoch)];
+        this.highSec = highSecPerEpoch;
+        this.high = new int[(int) (lowSecPerEpoch / highSecPerEpoch)];
+        assert high.length * highSecPerEpoch == lowSecPerEpoch;
     }
 
     /**
-     * Increment the counter at the current time
+     * Increment the counter at the current time.
      */
     public void inc() {
-        inc(timeProvider.getAsLong());
+        inc(now());
     }
 
     /**
-     * Increment the counter at the given time
+     * Increment the counter at the given time.
+     *
+     * If {@code nowSec} is less than the last update, it is treated as an increment at the time of the last update
+     * unless it's before the begininng of this time series, in which case the time series is reset.
      */
-    public void inc(long nowSecs) {
-        assert nowSecs >= 0;
-        if (lock != null) {
-            lock.writeLock().lock();
+    public void inc(long nowSec) {
+        if (nowSec < 0) {
+            // The math below relies on now being positive
+            return;
         }
-        try {
-            int gap = epochsBetween(nowSecs);
 
-            if (gap < -1) {  // Excessive negative gap
-                start(nowSecs);
-            } else if (gap == -1) {  // Clamp small negative jitter to current epoch
-                incLatestEpoch();
-            } else if (gap == 0) {
-                incLatestEpoch();
-            } else if (gap > epochs.length) { // Initialization or history expired
-                start(nowSecs);
-            } else {
-                int currentEpochIndex = storeAccumulator();
-                for (int i = 1; i <= gap; i++) {
-                    epochs[(currentEpochIndex + i) % epochs.length] = 0;
+        lock.writeLock().lock();
+        total.increment();
+        try {
+            // Handle the busy case quickly
+            if (nowSec <= adderAuthorityEnd(latestSec) && nowSec >= adderAuthorityStart(latestSec)) {
+                adder.increment();
+            } else if (nowSec < latestSec) {
+                if (nowSec < totalAuthorityStart(latestSec)) {
+                    reset(nowSec);
+                } else {
+                    adder.increment();
                 }
-                incAccumulator(nowSecs);
-                currentEpochStart = epochStartSeconds(nowSecs);
-            }
-        } finally {
-            if (lock != null) {
-                lock.writeLock().unlock();
-            }
-        }
-    }
-
-    /**
-     * Get the current timestamp from the timeProvider, for consistent reads across different counters
-     */
-    public long timestamp() {
-        return timeProvider.getAsLong();
-    }
-
-    /**
-     * Get the counts at time {@code now} for each timePeriod, as number of seconds ago until now.
-     */
-    public int[] counts(long now, int ... timePeriods) {
-        if (lock != null) {
-            lock.readLock().lock();
-        }
-        try {
-            int[] countsForPeriod = new int[timePeriods.length];
-            for (int i = 0; i < countsForPeriod.length; i++) {
-                countsForPeriod[i] = count(now - timePeriods[i], now);
-            }
-            return countsForPeriod;
-        } finally {
-            if (lock != null) {
-                lock.readLock().unlock();
-            }
-        }
-    }
-
-    /**
-     * Get the counts for each timePeriod (as seconds ago) in timePeriods
-     */
-    public int[] counts(int ... timePeriods) {
-        return counts(timeProvider.getAsLong(), timePeriods);
-    }
-
-    /**
-     * Count the entire contents of the time series, for testing
-     */
-    int count() {
-        if (lock != null) {
-            lock.readLock().lock();
-        }
-        try {
-            int count = 0;
-            for (int j : epochs) {
-                count += j;
-            }
-            return count + currentEpochCount();
-        } finally {
-            if (lock != null) {
-                lock.readLock().unlock();
-            }
-        }
-    }
-
-    /**
-     * Get the count between two times, clamped to the resolution of the counters.
-     */
-    protected int count(long start, long end) {
-        if (end < start) {
-            throw new IllegalArgumentException("start [" + start + "] must be before end [" + end + "]");
-        }
-
-        // Clamp to range
-        long earliestTimeStamp = beginningOfTimeSeries();
-        if (start < earliestTimeStamp) {
-            if (end < earliestTimeStamp) {
-                return 0;
-            }
-            start = earliestTimeStamp;
-        }
-        long latestTimeStamp = endOfTimeSeries();
-        if (end > latestTimeStamp) {
-            if (start > latestTimeStamp) {
-                return 0;
-            }
-            end = latestTimeStamp;
-        }
-
-        int total = 0;
-        if (end >= currentEpochStart) {
-            if (currentEpochTimeSeries != null) {
-                total += currentEpochTimeSeries.count(currentEpochStart, end);
+            } else if (nowSec <= highDelegateEnd(latestSec)) {
+                rollForwardHigh(nowSec);
+                latestSec = nowSec;
+                adder.increment();
             } else {
-                total += currentEpochAdderCount();
+                rollForwardLow(nowSec);
+                rollForwardHigh(nowSec);
+                latestSec = nowSec;
+                adder.increment();
             }
-            end = currentEpochStart - 1;
-            // only covers one bucket
-            if (end < start) {
-                return total;
-            }
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    // roll low forward such that t lowAuthorityEnd(t) + 1 = highDelegateStart(t)
+    // Assumes t >= latestSec.
+    void rollForwardLow(long t) {
+        if (totalAuthorityEnd(latestSec) < lowAuthorityStart(t)) {
+            // complete rollover
+            Arrays.fill(low, 0);
+            return;
+        }
+        int cur = lowIndex(latestSec);
+        int dst = lowIndex(t);
+        if (cur == dst) {
+            // no rollover
+            return;
         }
 
-        // handle the rest of the buckets, end guaranteed to stop before current bucket
-        int numEpochs = epochsBetween(start, end);
-        if (numEpochs < 0 || numEpochs >= epochs.length) {
-            return 0;
+        // grab the high + adder version of the current epoch
+        low[cur] = sumHighDelegate(latestSec);
+        cur = nextLowIndex(cur);
+        while (cur != dst) {
+            low[cur] = 0;
+            cur = nextLowIndex(cur);
         }
-        int startEpoch = epochIndex(start);
-        for (int i = 0; i < numEpochs; i++) {
-            total += epochs[(startEpoch + i) % epochs.length];
+        // low[dst]'s contents is delegated to highDelegate
+        low[dst] = 0;
+    }
+
+    void rollForwardHigh(long t) {
+        if (highDelegateEnd(latestSec) < highAuthorityStart(t)) {
+            Arrays.fill(high, 0);
+            adder.reset();
+            return;
+        }
+        int cur = highIndex(latestSec);
+        int dst = highIndex(t);
+        if (cur == dst) {
+            // no rollover
+            return;
+        }
+
+        high[cur] = sumThenResetAdder();
+        cur = nextHighIndex(cur);
+        while (cur != dst) {
+            high[cur] = 0;
+            cur = nextHighIndex(cur);
+        }
+        // high[dst]'s contents is delegated to adder
+        high[dst] = 0;
+    }
+
+    /**
+     * reset the accumulator and all arrays, setting the latestSet to t and incrementing the adder.
+     */
+    protected void reset(long t) {
+        adder.reset();
+        Arrays.fill(high, 0);
+        Arrays.fill(low, 0);
+        adder.increment();
+        latestSec = t;
+    }
+
+    /**
+     * Get the count for the time series ending at {@code end} for {@code duration} seconds beforehand.
+     */
+    public int count(long end, long duration) {
+        if (duration < 0 || end - duration < 0) {
+            return 0; // invalid range
+        }
+
+        lock.readLock().lock();
+        try {
+            long start = end - duration;
+
+            if (start >= highAuthorityStart(latestSec)) {
+                // entirely within high authority
+                return sumHighAuthority(start, end);
+            }
+            int total = 0;
+            if (end >= highDelegateStart(latestSec)) {
+                total = sumHighDelegate(end);
+                end = lowAuthorityEnd(latestSec);
+            }
+            return total + sumLow(start, end);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Get the total number of increments for all time.
+     */
+    public long total() {
+        long sum = total.sum();
+        return sum >= 0 ? sum : 0;
+    }
+
+    // sum high range representing the current low resolution epoch.
+    int sumHighDelegate(long t) {
+        int delegateIndex = highIndex(Math.min(t, latestSec));
+        int total = sumAdder();
+        for (int i = 0; i < delegateIndex; i++) {
+            total += high[i];
         }
         return total;
     }
 
-    /**
-     * The earliest millisecond valid for this time series.
-     */
-    public long beginningOfTimeSeries() {
-        return currentEpochStart - (resolutionSecs * (epochs.length - 1));
-    }
-
-    /**
-     * The latest millisecond valid for this time series.
-     */
-    public long endOfTimeSeries() {
-        return currentEpochStart + resolutionSecs - 1;
-    }
-
-    long getCurrentEpochStart() {
-        return currentEpochStart;
-    }
-
-    /**
-     * reset the accumulator and all arrays
-     */
-    protected void reset() {
-        clearAccumulator();
-        Arrays.fill(epochs, 0);
-    }
-
-    /**
-     * get the count of the current epoch accumulator, long adder or nested TimeSeriesCounter
-     */
-    protected int currentEpochCount() {
-        if (currentEpochAdder != null) {
-            long sum = currentEpochAdder.sum();
-            if (sum > Integer.MAX_VALUE) {
-                return Integer.MAX_VALUE;
-            }
-            return (int) sum;
-        } else {
-            assert currentEpochTimeSeries != null;
-            return currentEpochTimeSeries.count();
-        }
-    }
-
-    protected int currentEpochAdderCount() {
-        if (currentEpochAdder == null) {
+    // sum within the high range's authority.  Should not be combined with any
+    // low epoch counts as the high range's authority may overlap with the
+    // previous low epoch.
+    int sumHighAuthority(long start, long end) {
+        if (start > end) {
             return 0;
         }
-        long sum = currentEpochAdder.sum();
-        if (sum > Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        } else if (sum < 0) {
+
+        long authorityStart = highAuthorityStart(latestSec);
+        long authorityEnd = adderAuthorityEnd(latestSec);
+
+        if (end < authorityStart) {
+            return 0;
+        } else if (end > authorityEnd) {
+            end = authorityEnd;
+        }
+
+        if (start > authorityEnd) {
+            return 0;
+        } else if (start < authorityStart) {
+            start = authorityStart;
+        }
+
+        int delegateIndex = highIndex(latestSec);
+        int cur = highIndex(start);
+        int dst = highIndex(end);
+        int total = 0;
+        while (cur != dst) {
+            total += cur == delegateIndex ? sumAdder() : high[cur];
+            cur = (cur + 1) % high.length;
+        }
+        return total + (cur == delegateIndex ? sumAdder() : high[cur]);
+    }
+
+    // sum the low epochs represented by the given range
+    public int sumLow(long start, long end) {
+        if (start > end) {
             return 0;
         }
-        return (int) sum;
+
+        long authorityStart = lowAuthorityStart(latestSec);
+        long authorityEnd = lowAuthorityEnd(latestSec);
+
+        if (end < authorityStart) {
+            return 0;
+        } else if (end > authorityEnd) {
+            end = authorityEnd;
+        }
+
+        if (start > authorityEnd) {
+            return 0;
+        } else if (start < authorityStart) {
+            start = authorityStart;
+        }
+
+        int cur = lowIndex(start);
+        int dst = lowIndex(end);
+        int total = 0;
+        while (cur != dst) {
+            total += low[cur];
+            cur = (cur + 1) % low.length;
+        }
+        return total + low[cur];
     }
 
-    /**
-     * increment current epoch accumulator, if nested, increment at a time, ensuring no erasure
-     */
-    protected void incAccumulator(long now) {
-        if (currentEpochAdder != null) {
-            currentEpochAdder.increment();
-        } else {
-            assert currentEpochTimeSeries != null;
-            if (now > currentEpochTimeSeries.currentEpochStart) {
-                currentEpochTimeSeries.inc(now);
-            } else {
-                currentEpochTimeSeries.incAccumulator(now);
+    // get the current time represented by timeProvider
+    protected long now() {
+        return timeProvider.getAsLong() / 1000;
+    }
+
+    // get the current sum from adder, clamped to the range [0, Integer.MAX_VALUE].
+    // then reset the adder.  This should only be called when rolling over.
+    protected int sumThenResetAdder() {
+        long sum = adder.sumThenReset();
+        return sum > 0 ? (int) sum : 0;
+    }
+
+    // get the current sum from adder, clamped to the range [0, Integer.MAX_VALUE].
+    protected int sumAdder() {
+        long sum = adder.sum();
+        return sum > 0 ? (int) sum : 0;
+    }
+
+    // adder is the authority from this time until adderAuthorityEnd.
+    // Preceded by high authority range [highAuthorityStart, highAuthorityEnd].
+    long adderAuthorityStart(long t) {
+        // authority for what _would be_ the latest high epoch
+        return (t / highSec) * highSec;
+    }
+
+    long adderAuthorityEnd(long t) {
+        return adderAuthorityStart(t) + highSec - 1;
+    }
+
+    // high is the authority from his time until highAuthorityEnd.
+    // This range is proceeded by the adder authority range [adderAuthorityStart, adderAuthorityEnd]
+    long highAuthorityStart(long t) {
+        return adderAuthorityStart(t) - ((high.length - 1) * highSec);
+    }
+
+    long highAuthorityEnd(long t) {
+        return adderAuthorityStart(t) - 1;
+    }
+
+    // The beginning of the range where high can combine with low to provide accurate counts.
+    // This range is preceded by the low authority range [lowAuthorityStart, lowAuthorityEnd]
+    long highDelegateStart(long t) {
+        return (t / lowSec) * lowSec;
+    }
+
+    // The end of the high delegate range [highDelegateStart, highDelegateEnd].  There may
+    // not be counts for all parts of this range.  This range only has valid counts until
+    // latestSec.
+    long highDelegateEnd(long t) {
+        return highDelegateStart(t) + lowSec - 1;
+    }
+
+    // The beginning of the range where low has counts.
+    long lowAuthorityStart(long t) {
+        return totalAuthorityStart(t);
+    }
+
+    long lowAuthorityEnd(long t) {
+        return highDelegateStart(t) - 1;
+    }
+
+    // The range of times valid for this TimeSeriesCounter.
+    // Equal to [lowAuthorityStart, lowAuthorityEnd] + [highDelegateStart, highDelegateEnd]
+    long totalAuthorityStart(long t) {
+        return ((t / lowSec) * lowSec) - ((low.length - 1) * lowSec);
+    }
+
+    long totalAuthorityEnd(long t) {
+        return ((t / lowSec) * lowSec) + (lowSec - 1);
+    }
+
+    // the index within the high array of the given time.
+    int highIndex(long t) {
+        return (int)((t / highSec) % high.length);
+    }
+
+    // the index within the low array of the given time.
+    int lowIndex(long t) {
+        return (int)((t / lowSec) % low.length);
+    }
+
+    // the next index within the high array, wrapping as appropriate
+    int nextHighIndex(int index) {
+        return (index + 1) % high.length;
+    }
+
+    // the previous index within the high array, wrapping as appropriate
+    int prevHighIndex(int index) {
+        return index == 0 ? high.length - 1 : (index - 1) % high.length;
+    }
+
+    // the next index within the low array, wrapping as appropriate
+    int nextLowIndex(int index) {
+        return (index + 1) % low.length;
+    }
+
+    // the previous index within the low array, wrapping as appropriate
+    int prevLowIndex(int index) {
+        return index == 0 ? low.length - 1 : (index - 1) % low.length;
+    }
+
+    public Snapshot snapshot(long ... times) {
+        return snapshot(now(), times);
+    }
+
+    public Snapshot snapshot(Snapshot snapshot) {
+        return snapshot(snapshot.now, snapshot.times[0]);
+    }
+
+    Snapshot snapshot(long now, long[] times) {
+        lock.readLock().lock();
+        try {
+            Snapshot snapshot = new Snapshot(now, total(), times);
+            for (int i = 0; i < snapshot.times.length; i++) {
+                snapshot.counts[i] = count(snapshot.now, snapshot.times[i]);
             }
+            return snapshot;
+        } finally {
+            lock.readLock().unlock();
         }
     }
 
-    /**
-     * increment current epoch accumulator at the
-     */
-    protected void incLatestEpoch() {
-        if (currentEpochAdder != null) {
-            currentEpochAdder.increment();
-        } else {
-            assert currentEpochTimeSeries != null;
-            currentEpochTimeSeries.incLatestEpoch();
+    public static class Snapshot {
+        public final long now;
+        public final long total;
+        public final long[] times;
+        public final long[] counts;
+        public Snapshot(long now, long total, long ... times) {
+            this.now = now;
+            this.total = total;
+            this.times = new long[times.length];
+            this.counts = new long[times.length];
+            System.arraycopy(times, 0, this.times, 0, times.length);
+        }
+
+        public long getTime(long time) {
+            for (int i = 0; i < times.length; i++) {
+                if (times[i] == time) {
+                    return counts[i];
+                }
+            }
+            return 0;
         }
     }
 
-    /**
-     * clear the current epoch accumulator, long adder or nested TimeSeriesCounter
-     */
-    protected void clearAccumulator() {
-        if (currentEpochAdder != null) {
-            currentEpochAdder.reset();
-        } else {
-            assert currentEpochTimeSeries != null;
-            currentEpochTimeSeries.reset();
-        }
+    // Testing and debugging methods
+    int getAdder() {
+        return adder.intValue();
     }
 
-    /**
-     * How many milliseconds of history does this {@code TimeSeriesCounter} cover?
-     */
-    protected long duration() {
-        return epochs.length * resolutionSecs;
+    int getLowLength() {
+        return low.length;
     }
 
-    /**
-     * Index in the epoch array for the given time
-     */
-    protected int epochIndex(long seconds) {
-        return (int)((seconds / resolutionSecs) % epochs.length);
+    int getHighLength() {
+        return high.length;
     }
 
-    /**
-     * The beginning of the epoch given by {@code startSeconds}
-     */
-    protected long epochStartSeconds(long startSeconds) {
-        return (startSeconds / resolutionSecs) * resolutionSecs;
+    long getHighSec() {
+        return highSec;
     }
 
-    /**
-     * Starts the TimeSeries at {@code startSeconds}
-     */
-    protected void start(long startSeconds) {
-        reset();
-        currentEpochStart = epochStartSeconds(startSeconds);
-        incAccumulator(startSeconds);
-    }
-
-    /**
-     * Store the {@code currentEpochAccumulator} into the {@code epoch} history array at the appropriate index before
-     * moving on to a new epoch.
-     *
-     * This overrides the previous value in that index (expected to be zero), so calling this multiple times for the
-     * same epoch will lose counts.
-     */
-    protected int storeAccumulator() {
-        int currentEpochIndex = epochIndex(currentEpochStart);
-        epochs[currentEpochIndex] = currentEpochCount();
-        clearAccumulator();
-        return currentEpochIndex;
-    }
-
-    /**
-     * The number of epochs between {@code currentEpochStart} and the given time.  Clamped to the range [Int.MAX, Int.Min].
-     */
-    protected int epochsBetween(long nowSeconds) {
-        return epochsBetween(currentEpochStart, nowSeconds);
-    }
-
-    /**
-     * The number of epochs between {@code start} and {@code end}.  Clamped to the range [Int.MAX, Int.Min].
-     */
-    protected int epochsBetween(long start, long end) {
-        long gap = (end / resolutionSecs) - (start / resolutionSecs);
-        if (gap > Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        } else if (gap < Integer.MIN_VALUE) {
-            return Integer.MIN_VALUE;
-        }
-        return (int) gap;
-    }
-
-    @Override
-    public String toString() {
-        return "TimeSeriesCounter{" +
-            "resolutionSecs=" + resolutionSecs +
-            ", epochs=" + Arrays.toString(epochs) +
-            ", currentEpochStart=" + currentEpochStart +
-            ", currentEpochAdder=" + currentEpochAdder +
-            ", currentEpochTimeSeries=" + currentEpochTimeSeries +
-            '}';
+    long getLowSec() {
+        return lowSec;
     }
 }

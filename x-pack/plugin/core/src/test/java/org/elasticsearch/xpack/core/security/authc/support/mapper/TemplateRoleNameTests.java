@@ -88,7 +88,7 @@ public class TemplateRoleNameTests extends ESTestCase {
 
     public void testEvaluateRoles() throws Exception {
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         final ExpressionModel model = new ExpressionModel();
         model.defineField("username", "hulk");
         model.defineField("groups", Arrays.asList("avengers", "defenders", "panthenon"));
@@ -139,7 +139,7 @@ public class TemplateRoleNameTests extends ESTestCase {
 
     public void testValidate() {
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
 
         final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
         plainString.validate(scriptService);
@@ -160,7 +160,7 @@ public class TemplateRoleNameTests extends ESTestCase {
 
     public void testValidateWillPassWithEmptyContext() {
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
 
         final BytesReference template = new BytesArray("{ \"source\":\"" +
             "{{username}}/{{dn}}/{{realm}}/{{metadata}}" +
@@ -185,7 +185,7 @@ public class TemplateRoleNameTests extends ESTestCase {
 
     public void testValidateWillFailForSyntaxError() {
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
 
         final BytesReference template = new BytesArray("{ \"source\":\" {{#not-closed}} {{other-variable}} \" }");
 
@@ -210,7 +210,7 @@ public class TemplateRoleNameTests extends ESTestCase {
             .when(scriptEngine).compile(eq("invalid"), eq("bad syntax"), any(), eq(Map.of()));
 
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            Map.of("painless", scriptEngine), ScriptModule.CORE_CONTEXTS) {
+            Map.of("painless", scriptEngine), ScriptModule.CORE_CONTEXTS, () -> 1L) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(String id) {
                 if ("valid".equals(id)) {
@@ -235,7 +235,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidationWillFailWhenInlineScriptIsNotEnabled() {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         final BytesReference inlineScript = new BytesArray("{ \"source\":\"\" }");
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new TemplateRoleName(inlineScript, Format.STRING).validate(scriptService));
@@ -245,7 +245,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailWhenStoredScriptIsNotEnabled() {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
@@ -267,7 +267,7 @@ public class TemplateRoleNameTests extends ESTestCase {
 
     public void testValidateWillFailWhenStoredScriptIsNotFound() {
         final ScriptService scriptService = new ScriptService(Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS);
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS, () -> 1L);
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);

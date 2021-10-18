@@ -53,8 +53,8 @@ public class ScriptProcessorTests extends ESTestCase {
                     Collections.emptyMap()
                 )
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
-        );
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+                () -> 1L);
         script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
         ingestScript = scriptService.compile(script, IngestScript.CONTEXT).newInstance(script.getParams());
     }

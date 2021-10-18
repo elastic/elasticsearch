@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 /**
  * Script cache and compilation rate limiter.
@@ -48,7 +49,8 @@ public class ScriptCache {
             int cacheMaxSize,
             TimeValue cacheExpire,
             CompilationRate maxCompilationRate,
-            String contextRateSetting
+            String contextRateSetting,
+            LongSupplier timeProvider
     ) {
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;
@@ -68,7 +70,7 @@ public class ScriptCache {
 
         this.rate = maxCompilationRate;
         this.compilesAllowedPerNano = ((double) rate.count) / rate.time.nanos();
-        this.scriptMetrics = new ScriptMetrics();
+        this.scriptMetrics = new ScriptMetrics(timeProvider);
         this.tokenBucketState = new AtomicReference<TokenBucketState>(new TokenBucketState(this.rate.count));
     }
 

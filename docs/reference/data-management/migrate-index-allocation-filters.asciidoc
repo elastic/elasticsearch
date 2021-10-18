@@ -69,7 +69,7 @@ node.roles [ data_hot, data_content ]
 === Remove custom allocation settings from existing {ilm-init} policies
 
 Update the allocate action for each lifecycle phase to remove the attribute-based
-allocation settings. This enables {ilm-init} to inject the
+allocation settings. {ilm-init} will inject a
 <<ilm-migrate,migrate>> action into each phase
 to automatically transition the indices through the data tiers.
 

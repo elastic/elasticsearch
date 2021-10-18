@@ -118,7 +118,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                             null,
                             new HttpInfo(
                                 new BoundTransportAddress(
-                                    new TransportAddress[] { new TransportAddress(InetAddress.getByName("192.168.1.2"), 9200) },
+                                    new TransportAddress[] { new TransportAddress(InetAddress.getByName("0.0.0.0"), 9200) },
                                     new TransportAddress(InetAddress.getByName("192.168.1.2"), 9200)
                                 ),
                                 0L

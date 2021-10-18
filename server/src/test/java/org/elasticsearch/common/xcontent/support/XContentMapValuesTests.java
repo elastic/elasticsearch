@@ -316,7 +316,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testNestedFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("array", Arrays.asList(1, Map.of("nested", 2, "nested_2", 3)));
+        map.put("array", Arrays.asList(1, map("nested", 2, "nested_2", 3)));
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "array.nested" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
 
@@ -331,7 +331,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         map.clear();
         map.put("field", "value");
-        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("obj", map("field", "value", "field2", "value2"));
         filteredMap = XContentMapValues.filter(map, new String[] { "obj.field" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
         assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
@@ -349,8 +349,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testCompleteObjectFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("obj", Map.of("field", "value", "field2", "value2"));
-        map.put("array", Arrays.asList(1, Map.of("field", "value", "field2", "value2")));
+        map.put("obj", map("field", "value", "field2", "value2"));
+        map.put("array", Arrays.asList(1, map("field", "value", "field2", "value2")));
 
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "obj" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
@@ -381,8 +381,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testFilterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("obj", Map.of("field", "value", "field2", "value2"));
-        map.put("n_obj", Map.of("n_field", "value", "n_field2", "value2"));
+        map.put("obj", map("field", "value", "field2", "value2"));
+        map.put("n_obj", map("n_field", "value", "n_field2", "value2"));
 
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "*.field2" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));

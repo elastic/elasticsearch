@@ -31,7 +31,7 @@ public final class AutoExpandReplicas {
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
 
-    private static final AutoExpandReplicas FALSE_INSTANCE = new AutoExpandReplicas(0, 0, false);
+    public static final AutoExpandReplicas FALSE_INSTANCE = new AutoExpandReplicas(0, 0, false);
 
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false",
         AutoExpandReplicas::parse, Property.Dynamic, Property.IndexScope);

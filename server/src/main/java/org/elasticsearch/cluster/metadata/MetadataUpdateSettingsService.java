@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -38,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.index.IndexSettings.same;
@@ -46,7 +49,9 @@ import static org.elasticsearch.index.IndexSettings.same;
  * Service responsible for submitting update index settings requests
  */
 public class MetadataUpdateSettingsService {
+
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataUpdateSettingsService.class);
 
     private final ClusterService clusterService;
 
@@ -130,6 +135,35 @@ public class MetadataUpdateSettingsService {
                 }
 
                 if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
+
+                    final boolean updatingReplicasHasEffect;
+                    if (openIndices.isEmpty() && closeIndices.isEmpty()) {
+                        // there are no indices to update, which means the user has requested lenient wildcard expansion, so we treat
+                        // this as ok
+                        updatingReplicasHasEffect = true;
+                    } else if (IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.exists(openSettings)) {
+                        // we are setting auto-expand replicas on all these indices, so setting the number of replicas is meaningful iff
+                        // it's being disabled
+                        updatingReplicasHasEffect
+                            = IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(openSettings) == AutoExpandReplicas.FALSE_INSTANCE;
+                    } else {
+                        // we are leaving the auto-expand replicas config alone on these indices, so setting the number of replicas is
+                        // meaningful iff there are some indices that are not using auto-expand replicas.
+                        updatingReplicasHasEffect = Stream.concat(openIndices.stream(), closeIndices.stream()).anyMatch(index ->
+                            IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(metadataBuilder.getSafe(index).getSettings())
+                                == AutoExpandReplicas.FALSE_INSTANCE);
+                    }
+                    if (updatingReplicasHasEffect == false) {
+                        deprecationLogger.deprecate(
+                            DeprecationCategory.INDICES,
+                            "ignored_number_of_replicas",
+                            "setting [{}] on indices using [{}] has no effect so it is deprecated and will be forbidden in a future " +
+                                "version",
+                            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                            IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS
+                        );
+                    }
+
                     final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                     if (preserveExisting == false) {
                         // Verify that this won't take us over the cluster shard limit.

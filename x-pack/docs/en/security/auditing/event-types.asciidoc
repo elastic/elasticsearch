@@ -654,7 +654,7 @@ request bodies of the corresponding security APIs.
 
 `user`                ::     An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
 "full_name": <string>, "email": <string>, "has_password": <boolean>,
@@ -665,7 +665,7 @@ The `full_name`, `email` and `metadata` fields are omitted if empty.
 
 `role`                ::     An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
 {"application":{"manage":{<string>:<string_list>}}}, "indices": [                             {"names": <string_list>, "privileges": <string_list>, "field_security":
@@ -680,7 +680,7 @@ The `global`, `field_security`, `except`, `query`,
 
 `role_mapping`        ::     An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
 "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`.
@@ -692,7 +692,7 @@ the <<mapping-roles, API request for mapping roles>>.
 
 `privileges`          ::     An array of objects like:
 +
-[source,json]
+[source,js]
 ----
 `{"application": <string>, "name": <string>, "actions": <string_list>,
 "metadata": <object>}`.
@@ -700,28 +700,28 @@ the <<mapping-roles, API request for mapping roles>>.
 
 `password`            ::     A simple object like:
 +
-[source,json]
+[source,js]
 ----
 `{"user":{"name": <string>}}`
 ----
 
 `enable`              ::     A simple object like:
 +
-[source,json]
+[source,js]
 ----
 `{"user":{"name": <string>}}`
 ----
 
 `disable`             ::     A simple object like:
 +
-[source,json]
+[source,js]
 ----
 `{"user":{"name": <string>}}`
 ----
 
 `apikey`              ::     An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`
 ----
@@ -731,7 +731,7 @@ object that is part of the above `role` config object.
 
 `grant`               ::     An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
 "has_access_token": <boolean>}`
@@ -739,7 +739,7 @@ object that is part of the above `role` config object.
 
 `apikeys`             ::     An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
 <boolean>, "user":{"name": <string>, "realm": <string>}}`
@@ -747,7 +747,7 @@ object that is part of the above `role` config object.
 
 `service_token`       ::   An object like:
 +
-[source,json]
+[source,js]
 ----
 `{"namespace":<string>,"service":<string>,"name":<string>}`
 ----

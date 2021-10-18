@@ -12,9 +12,12 @@ import com.fasterxml.jackson.core.filter.TokenFilter;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.support.filtering.FilterPathBasedFilter;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
@@ -72,7 +75,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     /**
      * Validate a {@link TokenFilter} made from {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public final void validateRoutingPath(TokenFilter filter) {
+    public final void validateRoutingPath(List<String> routingPaths) {
+        validateRoutingPath(new FilterPathBasedFilter(Set.copyOf(routingPaths), true));
+    }
+
+    /**
+     * Validate a {@link TokenFilter} made from {@link IndexMetadata#INDEX_ROUTING_PATH}.
+     */
+    private void validateRoutingPath(TokenFilter filter) {
         if (filter == TokenFilter.INCLUDE_ALL) {
             validateMatchedRoutingPath();
         }

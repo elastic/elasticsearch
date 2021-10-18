@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.fasterxml.jackson.core.filter.TokenFilter;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -22,8 +20,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -38,6 +38,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -588,9 +589,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDimensionInRoutingPath() throws IOException {
-        Mapper mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)))
-            .mappingLookup()
-            .getMapper("field");
-        mapper.validateRoutingPath(TokenFilter.INCLUDE_ALL);  // Doesn't throw
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)));
+        IndexSettings settings = createIndexSettings(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                .build()
+        );
+        mapper.documentMapper().validate(settings, false);  // Doesn't throw
     }
 }

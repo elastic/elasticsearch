@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -37,7 +38,12 @@ import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasProperty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class DataTierTests extends ESTestCase {
@@ -145,22 +151,28 @@ public class DataTierTests extends ESTestCase {
     public void testDataNodesWithoutAllDataRoles() {
         ClusterState clusterState = clusterStateWithoutAllDataRoles();
         Set<DiscoveryNode> nodes = DataTier.dataNodesWithoutAllDataRoles(clusterState);
-        assertEquals(1, nodes.size());
-        DiscoveryNode node = nodes.iterator().next();
-        assertEquals("name_3", node.getName());
-        assertEquals(org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE), node.getRoles());
+        assertThat(nodes, hasSize(2));
+        assertThat(nodes, hasItem(both(hasProperty("name", is("name_3")))
+            .and(hasProperty("roles", contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)))));
+        assertThat(nodes, hasItem(hasProperty("name", is("name_4"))));
     }
 
     public static ClusterState clusterStateWithoutAllDataRoles() {
         Set<DiscoveryNodeRole> allDataRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
             .filter(role -> ALL_DATA_TIERS.contains(role.roleName())).collect(Collectors.toSet());
 
+        Collection<String> allButOneDataTiers = randomValueOtherThan(ALL_DATA_TIERS,
+            () -> randomSubsetOf(randomIntBetween(1, ALL_DATA_TIERS.size() - 1), ALL_DATA_TIERS));
+        Set<DiscoveryNodeRole> allButOneDataRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES).stream()
+            .filter(role -> allButOneDataTiers.contains(role.roleName())).collect(Collectors.toSet());
+
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> nodesList = org.elasticsearch.core.List.of(
             newNode(0, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.MASTER_ROLE)),
             newNode(1, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_ROLE)),
             newNode(2, org.elasticsearch.core.Map.of(), allDataRoles),
-            newNode(3, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            newNode(3, org.elasticsearch.core.Map.of(), org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)),
+            newNode(4, org.elasticsearch.core.Map.of(), allButOneDataRoles)
         );
         for (DiscoveryNode node : nodesList) {
             discoBuilder = discoBuilder.add(node);

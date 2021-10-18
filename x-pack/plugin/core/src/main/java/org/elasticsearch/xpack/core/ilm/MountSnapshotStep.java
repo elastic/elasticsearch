@@ -17,8 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -107,7 +106,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         final Settings.Builder settingsBuilder = Settings.builder();
 
         overrideTierPreference(this.getKey().getPhase())
-            .ifPresent(override -> settingsBuilder.put(DataTierAllocationDecider.TIER_PREFERENCE, override));
+            .ifPresent(override -> settingsBuilder.put(DataTier.TIER_PREFERENCE, override));
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
             snapshotRepository, snapshotName, indexName, settingsBuilder.build(),

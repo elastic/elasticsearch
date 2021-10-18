@@ -97,7 +97,7 @@ operation are supported: failover and load balancing. See <<ref-ad-settings>>.
 
 . Restart {es}.
 
-. Configure a bind user. 
+. (Optional) Configure a bind user. 
 +
 --
 The Active Directory realm authenticates users using an LDAP bind request. By 

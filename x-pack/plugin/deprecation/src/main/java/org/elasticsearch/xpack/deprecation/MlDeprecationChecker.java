@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -66,7 +66,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
                 details.append(String.format(
                     Locale.ROOT,
                     " The model snapshot's latest record timestamp is [%s]",
-                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(modelSnapshot.getLatestRecordTimeStamp().getTime())
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(modelSnapshot.getLatestRecordTimeStamp().toInstant())
                 ));
             }
             return Optional.of(new DeprecationIssue(DeprecationIssue.Level.CRITICAL,

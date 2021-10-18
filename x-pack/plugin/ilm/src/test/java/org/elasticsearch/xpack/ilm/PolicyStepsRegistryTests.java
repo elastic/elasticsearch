@@ -18,10 +18,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
@@ -232,7 +232,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
 
         // add new policy
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
         assertThat(registry.getFirstStep(newPolicy.getName()), equalTo(policySteps.get(0)));
         assertThat(registry.getLifecyclePolicyMap().size(), equalTo(1));
@@ -252,7 +252,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                         .putCustom(ILM_CUSTOM_METADATA_KEY, newIndexState.build().asMap())))
                 .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
                 .build();
-            registry.update(currentState);
+            registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
             assertThat(registry.getStep(metadata.index(index), step.getKey()), equalTo(step));
         }
@@ -260,7 +260,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
         Map<String, Step> registryFirstStepMap = registry.getFirstStepMap();
         Map<String, Map<Step.StepKey, Step>> registryStepMap = registry.getStepMap();
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
         assertThat(registry.getLifecyclePolicyMap(), equalTo(registryPolicyMap));
         assertThat(registry.getFirstStepMap(), equalTo(registryFirstStepMap));
         assertThat(registry.getStepMap(), equalTo(registryStepMap));
@@ -271,7 +271,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .metadata(
                 Metadata.builder(metadata)
                     .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
         assertTrue(registry.getLifecyclePolicyMap().isEmpty());
         assertTrue(registry.getFirstStepMap().isEmpty());
         assertTrue(registry.getStepMap().isEmpty());
@@ -305,7 +305,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .build();
         PolicyStepsRegistry registry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
         // add new policy
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
         // swap out policy
         newPolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policyName);
@@ -314,7 +314,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 randomNonNegativeLong(), randomNonNegativeLong())), OperationMode.RUNNING);
         currentState = ClusterState.builder(currentState)
             .metadata(Metadata.builder(metadata).putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)).build();
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
         // TODO(talevy): assert changes... right now we do not support updates to policies. will require internal cleanup
     }
 
@@ -383,7 +383,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(REGISTRY, client, null);
 
         // add new policy
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
         Map<Step.StepKey, Step> registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         Step shrinkStep = registeredStepsForPolicy.entrySet().stream()
@@ -409,7 +409,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         currentState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         // Update the policies
-        registry.update(currentState);
+        registry.update(currentState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
         registeredStepsForPolicy = registry.getStepMap().get(newPolicy.getName());
         shrinkStep = registeredStepsForPolicy.entrySet().stream()

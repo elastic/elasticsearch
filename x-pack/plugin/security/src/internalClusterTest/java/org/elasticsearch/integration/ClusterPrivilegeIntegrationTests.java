@@ -19,7 +19,7 @@ import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase {

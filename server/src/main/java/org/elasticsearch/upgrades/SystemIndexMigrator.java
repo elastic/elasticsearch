@@ -461,7 +461,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         reindexRequest.setSourceIndices(migrationInfo.getCurrentIndexName());
         reindexRequest.setDestIndex(migrationInfo.getNextIndexName());
         reindexRequest.setRefresh(true);
-        baseClient.execute(ReindexAction.INSTANCE, reindexRequest, listener);
+        migrationInfo.createClient(baseClient).execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 
     // Failure handlers

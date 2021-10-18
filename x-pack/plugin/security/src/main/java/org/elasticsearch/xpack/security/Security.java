@@ -561,7 +561,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 extensionComponents
             );
             if (providers != null && providers.isEmpty() == false) {
-                customRoleProviders.put(extension.toString(), providers);
+                customRoleProviders.put(extension.extensionName(), providers);
             }
         }
 

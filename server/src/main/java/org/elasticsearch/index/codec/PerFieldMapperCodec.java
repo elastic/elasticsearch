@@ -10,6 +10,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
@@ -17,24 +18,24 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.MapperService;
 
 /**
- * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
- * {@link PostingsFormat} for Elasticsearch. It utilizes the
- * {@link MapperService} to lookup a {@link PostingsFormat} per field. This
- * allows users to change the low level postings format for individual fields
- * per index in real time via the mapping API. If no specific postings format is
- * configured for a specific field the default postings format is used.
+ * {@link PerFieldMapperCodec This Lucene codec} provides the default
+ * {@link PostingsFormat} and {@link KnnVectorsFormat} for Elasticsearch. It utilizes the
+ * {@link MapperService} to lookup a {@link PostingsFormat} and {@link KnnVectorsFormat} per field. This
+ * allows users to change the low level postings format and vectors format for individual fields
+ * per index in real time via the mapping API. If no specific postings format or vector format is
+ * configured for a specific field the default postings or vector format is used.
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene90Codec {
+public class PerFieldMapperCodec extends Lucene90Codec {
     private final MapperService mapperService;
 
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
 
     static {
-        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) :
-            "PerFieldMappingPostingFormatCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
+        assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class) :
+            "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(Mode compressionMode, MapperService mapperService) {
+    public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService) {
         super(compressionMode);
         this.mapperService = mapperService;
     }
@@ -44,6 +45,15 @@ public class PerFieldMappingPostingFormatCodec extends Lucene90Codec {
         PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);
         if (format == null) {
             return super.getPostingsFormatForField(field);
+        }
+        return format;
+    }
+
+    @Override
+    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+        KnnVectorsFormat format = mapperService.mappingLookup().getKnnVectorsFormatForField(field);
+        if (format == null) {
+            return super.getKnnVectorsFormatForField(field);
         }
         return format;
     }

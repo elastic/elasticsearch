@@ -660,6 +660,7 @@ request bodies of the corresponding security APIs.
 "full_name": <string>, "email": <string>, "has_password": <boolean>,
 "metadata": <object>}`.
 ----
+// NOTCONSOLE
 +
 The `full_name`, `email` and `metadata` fields are omitted if empty.
 
@@ -674,6 +675,7 @@ The `full_name`, `email` and `metadata` fields are omitted if empty.
 "privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
 "metadata": <object>}}`.
 ----
+// NOTCONSOLE
 +
 The `global`, `field_security`, `except`, `query`,
 `allow_restricted_indices` and `metadata` fields are omitted if empty.
@@ -685,6 +687,7 @@ The `global`, `field_security`, `except`, `query`,
 `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
 "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`.
 ----
+// NOTCONSOLE
 +
 The `roles` and `role_templates` fields are omitted if empty.
 The `rules` object has a recursively nested schema, identical to what is passed in
@@ -697,6 +700,7 @@ the <<mapping-roles, API request for mapping roles>>.
 `{"application": <string>, "name": <string>, "actions": <string_list>,
 "metadata": <object>}`.
 ----
+// NOTCONSOLE
 
 `password`            ::     A simple object like:
 +
@@ -704,6 +708,7 @@ the <<mapping-roles, API request for mapping roles>>.
 ----
 `{"user":{"name": <string>}}`
 ----
+// NOTCONSOLE
 
 `enable`              ::     A simple object like:
 +
@@ -711,6 +716,7 @@ the <<mapping-roles, API request for mapping roles>>.
 ----
 `{"user":{"name": <string>}}`
 ----
+// NOTCONSOLE
 
 `disable`             ::     A simple object like:
 +
@@ -718,6 +724,7 @@ the <<mapping-roles, API request for mapping roles>>.
 ----
 `{"user":{"name": <string>}}`
 ----
+// NOTCONSOLE
 
 `apikey`              ::     An object like:
 +
@@ -725,6 +732,7 @@ the <<mapping-roles, API request for mapping roles>>.
 ----
 `{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`
 ----
+// NOTCONSOLE
 +
 The `role_descriptors` objects have the same schema as the `role_descriptor`
 object that is part of the above `role` config object.
@@ -736,6 +744,7 @@ object that is part of the above `role` config object.
 `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
 "has_access_token": <boolean>}`
 ----
+// NOTCONSOLE
 
 `apikeys`             ::     An object like:
 +
@@ -744,6 +753,7 @@ object that is part of the above `role` config object.
 `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
 <boolean>, "user":{"name": <string>, "realm": <string>}}`
 ----
+// NOTCONSOLE
 
 `service_token`       ::   An object like:
 +
@@ -751,6 +761,7 @@ object that is part of the above `role` config object.
 ----
 `{"namespace":<string>,"service":<string>,"name":<string>}`
 ----
+// NOTCONSOLE
 
 ==== Extra audit event attributes for specific events
 

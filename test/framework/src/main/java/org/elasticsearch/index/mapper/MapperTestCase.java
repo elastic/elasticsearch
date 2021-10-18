@@ -756,15 +756,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testMinimalIsInvalidInRoutingPath() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(this::minimalMapping));
-        IndexSettings settings = createIndexSettings(
-            Version.CURRENT,
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
-                .build()
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));
-        assertThat(e.getMessage(), equalTo(minimalIsInvalidRoutingPathErrorMessage(mapper.mappingLookup().getMapper("field"))));
+        try {
+            IndexSettings settings = createIndexSettings(
+                Version.CURRENT,
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                    .build()
+            );
+            Exception e = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));
+            assertThat(e.getMessage(), equalTo(minimalIsInvalidRoutingPathErrorMessage(mapper.mappingLookup().getMapper("field"))));
+        } finally {
+            assertParseMinimalWarnings();
+        }
     }
 
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {

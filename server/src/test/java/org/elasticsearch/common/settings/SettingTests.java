@@ -1258,4 +1258,21 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.isDynamic());
         assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
     }
+
+    public void testCheckForDeprecation() {
+        final String settingName = "foo.bar";
+        final String settingValue = "blat";
+        final Setting<String> setting = Setting.simpleString(settingName, settingValue);
+        final Settings settings = Settings.builder().put(settingName, settingValue).build();
+        setting.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.Deprecated);
+        deprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ deprecatedSetting });
+        final Settings settingsWithSkipDeprecationSetting = Settings.builder().put(settingName, settingValue)
+            .putList("deprecation.skip_deprecated_settings", settingName)
+            .build();
+        deprecatedSetting.checkDeprecation(settingsWithSkipDeprecationSetting);
+        ensureNoWarnings();
+    }
 }

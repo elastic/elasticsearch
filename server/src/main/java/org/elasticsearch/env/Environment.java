@@ -144,11 +144,12 @@ public class Environment {
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            if (dataFiles.length == 1) {
-                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0].toString());
-            } else {
+            if (dataPathUsesList(settings)) {
                 finalSettings.putList(PATH_DATA_SETTING.getKey(),
                     Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
+            } else {
+                assert dataFiles.length == 1;
+                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
             }
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
@@ -308,7 +309,7 @@ public class Environment {
             return false;
         }
         String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
-        return rawDataPath.startsWith("[");
+        return rawDataPath.startsWith("[") || rawDataPath.contains(",");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

@@ -435,7 +435,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     private static Index resolveSecurityIndex(Metadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
-            return indexAbstraction.getIndices().get(0).getIndex();
+            return indexAbstraction.getIndices().get(0);
         }
         return null;
     }

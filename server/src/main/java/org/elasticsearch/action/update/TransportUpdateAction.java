@@ -29,16 +29,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -50,9 +48,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
@@ -164,15 +162,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             throw new IndexNotFoundException(request.concreteIndex());
         }
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        ShardIterator shardIterator = clusterService.operationRouting()
-            .indexShards(clusterState, request.concreteIndex(), indexRouting, request.id(), request.routing());
-        ShardRouting shard;
-        while ((shard = shardIterator.nextOrNull()) != null) {
-            if (shard.primary()) {
-                return new PlainShardIterator(shardIterator.shardId(), Collections.singletonList(shard));
-            }
-        }
-        return new PlainShardIterator(shardIterator.shardId(), Collections.emptyList());
+        int shardId = indexRouting.updateShard(request.id(), request.routing());
+        return RoutingTable.shardRoutingTable(clusterState.routingTable().index(request.concreteIndex()), shardId).primaryShardIt();
     }
 
     @Override

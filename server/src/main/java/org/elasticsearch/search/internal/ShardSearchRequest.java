@@ -18,8 +18,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,14 +26,16 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -114,34 +114,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               ShardSearchContextId readerId,
                               TimeValue keepAlive) {
         this(originalIndices,
-            searchRequest,
-            shardId,
-            shardRequestIndex,
-            numberOfShards,
-            aliasFilter,
-            indexBoost,
-            nowInMillis,
-            clusterAlias,
-            readerId,
-            keepAlive,
-            SequenceNumbers.UNASSIGNED_SEQ_NO,
-            SearchService.NO_TIMEOUT);
-    }
-
-    public ShardSearchRequest(OriginalIndices originalIndices,
-                              SearchRequest searchRequest,
-                              ShardId shardId,
-                              int shardRequestIndex,
-                              int numberOfShards,
-                              AliasFilter aliasFilter,
-                              float indexBoost,
-                              long nowInMillis,
-                              @Nullable String clusterAlias,
-                              ShardSearchContextId readerId,
-                              TimeValue keepAlive,
-                              long waitForCheckpoint,
-                              TimeValue waitForCheckpointsTimeout) {
-        this(originalIndices,
             shardId,
             shardRequestIndex,
             numberOfShards,
@@ -156,11 +128,26 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             clusterAlias,
             readerId,
             keepAlive,
-            waitForCheckpoint,
-            waitForCheckpointsTimeout);
+            computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
+            searchRequest.getWaitForCheckpointsTimeout());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
+    }
+
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+
+    public static long computeWaitForCheckpoint(Map<String, long[]> indexToWaitForCheckpoints, ShardId shardId, int shardRequestIndex) {
+        final long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardId.getIndex().getName(), EMPTY_LONG_ARRAY);
+
+        long waitForCheckpoint;
+        if (waitForCheckpoints.length == 0) {
+            waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        } else {
+            assert waitForCheckpoints.length > shardRequestIndex;
+            waitForCheckpoint = waitForCheckpoints[shardRequestIndex];
+        }
+        return waitForCheckpoint;
     }
 
     public ShardSearchRequest(ShardId shardId,
@@ -170,7 +157,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             aliasFilter, 1.0f, true, null, nowInMillis, null, null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SearchService.NO_TIMEOUT);
     }
 
-    private ShardSearchRequest(OriginalIndices originalIndices,
+    public ShardSearchRequest(OriginalIndices originalIndices,
                                ShardId shardId,
                                int shardRequestIndex,
                                int numberOfShards,
@@ -247,8 +234,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         channelVersion = Version.min(Version.readVersion(in), in.getVersion());
-        // TODO: Update after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             waitForCheckpoint = in.readLong();
             waitForCheckpointsTimeout = in.readTimeValue();
         } else {
@@ -322,8 +308,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalTimeValue(keepAlive);
         }
         Version.writeVersion(channelVersion, out);
-        // TODO: Update after backport
-        Version waitForCheckpointsVersion = Version.V_8_0_0;
+        Version waitForCheckpointsVersion = Version.V_7_16_0;
         if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeLong(waitForCheckpoint);
             out.writeTimeValue(waitForCheckpointsTimeout);

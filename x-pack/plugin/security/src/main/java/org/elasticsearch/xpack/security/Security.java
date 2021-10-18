@@ -57,7 +57,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -235,7 +234,7 @@ import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseComplianceRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
@@ -246,6 +245,7 @@ import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorCon
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
@@ -319,6 +319,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -338,6 +339,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_AUTOCONFIGURATION_ENABLED;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -375,6 +377,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // Custom realms are Platinum+
     public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
         LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
+
+    public static final LicensedFeature.Momentary DELEGATED_AUTHORIZATION_FEATURE =
+        LicensedFeature.momentary(null, "security-delegated-authorization", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Momentary AUTHORIZATION_ENGINE_FEATURE =
+        LicensedFeature.momentary(null, "security-authorization-engine", License.OperationMode.PLATINUM);
+
+    // Custom role providers are Platinum+
+    public static final LicensedFeature.Persistent CUSTOM_ROLE_PROVIDERS_FEATURE =
+        LicensedFeature.persistent(null, "security-roles-provider", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -423,7 +434,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             this.bootstrapChecks.set(Collections.emptyList());
         }
         this.securityExtensions.addAll(extensions);
-
     }
 
     private static void runStartupChecks(Settings settings) {
@@ -548,9 +558,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             xContentRegistry);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
-        List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
+
+        final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
-            rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
+            final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> providers = extension.getRolesProviders(
+                extensionComponents
+            );
+            if (providers != null && providers.isEmpty() == false) {
+                customRoleProviders.put(extension.toString(), providers);
+            }
         }
 
         final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(),
@@ -572,8 +588,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         );
         components.add(serviceAccountService);
 
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
-            privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
+        final RoleProviders roleProviders = new RoleProviders(
+            reservedRolesStore,
+            fileRolesStore,
+            nativeRolesStore,
+            customRoleProviders,
+            getLicenseState()
+        );
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, roleProviders,
+            privilegeStore, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
             serviceAccountService, dlsBitsetCache.get(), expressionResolver,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool));
         securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -616,7 +639,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
                 new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                new DlsFlsLicenseComplianceRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
             ));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
@@ -1239,7 +1262,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                     // check license last, once we know FLS is actually used
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }

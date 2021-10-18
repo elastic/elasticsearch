@@ -42,47 +42,62 @@ public class NumericRateAggregator extends AbstractRateAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
         if (computeRateOnDocs) {
+            // No field or script has been set at the rate agg. So, rate will be computed based on the doc_counts.
+            // This implementation hard-wires the DocCountProvider and reads the _doc_count fields when available.
+            // A better approach would be to create a DOC_COUNT ValuesSource type and use that as valuesSource
+            // In that case the computeRateOnDocs variable and this branch of the if-statement are not required.
             docCountProvider.setLeafReaderContext(ctx);
-        }
-
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
-                // Compute the sum of double values with Kahan summation algorithm which is more
-                // accurate than naive summation.
-                double sum = sums.get(bucket);
-                double compensation = compensations.get(bucket);
-
-                if (computeRateOnDocs) {
-                    final int docCount = docCountProvider.getDocCount(doc);
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    sums = bigArrays().grow(sums, bucket + 1);
+                    compensations = bigArrays().grow(compensations, bucket + 1);
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
+
+                    final int docCount = docCountProvider.getDocCount(doc);
                     kahanSummation.add(docCount);
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
-                } else if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    kahanSummation.reset(sum, compensation);
-                    switch (rateMode) {
-                        case SUM:
-                            for (int i = 0; i < valuesCount; i++) {
-                                kahanSummation.add(values.nextValue());
-                            }
-                            break;
-                        case VALUE_COUNT:
-                            kahanSummation.add(valuesCount);
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
-                    }
-
-                    compensations.set(bucket, kahanSummation.delta());
-                    sums.set(bucket, kahanSummation.value());
                 }
-            }
-        };
+            };
+        } else {
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    sums = bigArrays().grow(sums, bucket + 1);
+                    compensations = bigArrays().grow(compensations, bucket + 1);
+
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        // Compute the sum of double values with Kahan summation algorithm which is more
+                        // accurate than naive summation.
+                        double sum = sums.get(bucket);
+                        double compensation = compensations.get(bucket);
+                        kahanSummation.reset(sum, compensation);
+                        switch (rateMode) {
+                            case SUM:
+                                for (int i = 0; i < valuesCount; i++) {
+                                    kahanSummation.add(values.nextValue());
+                                }
+                                break;
+                            case VALUE_COUNT:
+                                kahanSummation.add(valuesCount);
+                                break;
+                            default:
+                                throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
+                        }
+
+                        compensations.set(bucket, kahanSummation.delta());
+                        sums.set(bucket, kahanSummation.value());
+                    }
+                }
+            };
+        }
     }
 }

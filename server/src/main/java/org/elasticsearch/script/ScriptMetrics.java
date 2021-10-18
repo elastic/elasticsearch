@@ -9,7 +9,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.metrics.CounterMetric;
-import static org.elasticsearch.script.TimeSeriesCounter.Snapshot;
 import static org.elasticsearch.script.TimeSeriesCounter.SECOND;
 import static org.elasticsearch.script.TimeSeriesCounter.MINUTE;
 import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
@@ -17,46 +16,47 @@ import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
 import java.util.function.LongSupplier;
 
 public class ScriptMetrics {
-    protected static final int FIVE_MINUTES = 5 * MINUTE;
-    protected static final int FIFTEEN_MINUTES = 15 * MINUTE;
+    protected static final int FIFTEEN_SECONDS = 15 * SECOND;
+    protected static final int THIRTY_MINUTES = 30 * MINUTE;
     protected static final int TWENTY_FOUR_HOURS = 24 * HOUR;
 
     final CounterMetric compilationLimitTriggered = new CounterMetric();
-    final TimeSeriesCounter compilations;
-    final TimeSeriesCounter cacheEvictions;
+    final TimeSeriesCounter compilations = timeSeriesCounter();
+    final TimeSeriesCounter cacheEvictions = timeSeriesCounter();
+    final LongSupplier timeProvider;
 
     public ScriptMetrics(LongSupplier timeProvider) {
-        this.compilations = timeSeriesCounter(timeProvider);
-        this.cacheEvictions = timeSeriesCounter(timeProvider);
+        this.timeProvider = timeProvider;
     }
 
-    TimeSeriesCounter timeSeriesCounter(LongSupplier timeProvider) {
-        return new TimeSeriesCounter(TWENTY_FOUR_HOURS, 30 * MINUTE, 15 * SECOND, timeProvider);
+    TimeSeriesCounter timeSeriesCounter() {
+        return new TimeSeriesCounter(TWENTY_FOUR_HOURS, THIRTY_MINUTES, FIFTEEN_SECONDS);
     }
 
     public void onCompilation() {
-        compilations.inc();
+        compilations.inc(now());
     }
 
     public void onCacheEviction() {
-        cacheEvictions.inc();
+        cacheEvictions.inc(now());
     }
 
     public void onCompilationLimit() {
         compilationLimitTriggered.inc();
     }
 
+    protected long now() {
+        return timeProvider.getAsLong() / 1000;
+    }
+
     public ScriptContextStats stats(String context) {
-        Snapshot compilation = compilations.snapshot(FIVE_MINUTES, FIFTEEN_MINUTES, TWENTY_FOUR_HOURS);
-        Snapshot cacheEviction = cacheEvictions.snapshot(compilation);
+        long t = now();
         return new ScriptContextStats(
             context,
-            compilation.total,
-            cacheEviction.total,
+            compilations.total(),
+            cacheEvictions.total(),
             compilationLimitTriggered.count(),
-            new ScriptContextStats.TimeSeries(compilation.getTime(FIVE_MINUTES), compilation.getTime(FIFTEEN_MINUTES),
-                    compilation.getTime(TWENTY_FOUR_HOURS)),
-            new ScriptContextStats.TimeSeries(cacheEviction.getTime(FIVE_MINUTES), cacheEviction.getTime(FIFTEEN_MINUTES),
-                    cacheEviction.getTime(TWENTY_FOUR_HOURS))
+            compilations.timeSeries(t),
+            cacheEvictions.timeSeries(t)
         );
     }}

@@ -10,7 +10,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import static org.elasticsearch.script.TimeSeriesCounter.Snapshot;
 import static org.elasticsearch.script.TimeSeriesCounter.MINUTE;
 import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
 
@@ -35,11 +34,11 @@ public class TimeSeriesCounterTests extends ESTestCase {
         super.setUp();
         now = 16345080831234L;
         t = new TimeProvider();
-        ts = new TimeSeriesCounter(totalDuration, lowResSecPerEpoch, highResSecPerEpoch, t);
+        ts = new TimeSeriesCounter(totalDuration, lowResSecPerEpoch, highResSecPerEpoch);
     }
 
     public void testIncAdder() {
-        long start = ts.adderAuthorityStart(now);
+        long start = ts.adderStart(now);
         t.add(now);
         long highSec = ts.getHighSec();
         for (int i = 0; i < highSec; i++) {
@@ -51,7 +50,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
     }
 
     public void testIncAdderRollover() {
-        long start = ts.adderAuthorityStart(now);
+        long start = ts.adderStart(now);
         long highSec = ts.getHighSec();
         t.add(now);
         for (int i = 0; i < 2 * highSec; i++) {
@@ -63,7 +62,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
     }
 
     public void testIncHighRollover() {
-        long start = ts.adderAuthorityStart(now);
+        long start = ts.adderStart(now);
         long highSec = ts.getHighSec();
         int highLength = ts.getHighLength();
         int count = 0;
@@ -83,30 +82,24 @@ public class TimeSeriesCounterTests extends ESTestCase {
     public void testSnapshot() {
         t.add(now);
         inc();
-        Snapshot s1 = ts.snapshot(FIVE, FIFTEEN, TWENTY_FOUR);
-        assertEquals(1, s1.getTime(FIVE));
-        assertEquals(1, s1.getTime(FIFTEEN));
-        assertEquals(1, s1.getTime(TWENTY_FOUR));
+        TimeSeries ts1 = ts.timeSeries(now);
+        assertEquals(1, ts1.fiveMinutes);
+        assertEquals(1, ts1.fifteenMinutes);
+        assertEquals(1, ts1.twentyFourHours);
         t.add(now + 10);
         t.add(now + FIVE + highResSecPerEpoch);
         inc();
-        t.add(now + 2 * (FIVE + highResSecPerEpoch));
-        Snapshot s2 = ts.snapshot(FIVE, FIFTEEN, TWENTY_FOUR);
-        assertEquals(0, s2.getTime(FIVE));
-        assertEquals(3, s2.getTime(FIFTEEN));
-        assertEquals(3, s2.getTime(TWENTY_FOUR));
-        Snapshot s3 = ts.snapshot(s1);
-        assertEquals(1, s3.getTime(FIVE));
-        assertEquals(1, s3.getTime(FIFTEEN));
-        assertEquals(1, s3.getTime(TWENTY_FOUR));
-
-        // check out of range times
-        Snapshot s4 = ts.snapshot(FIVE, TWENTY_FOUR, (2 * TWENTY_FOUR));
-        assertEquals(0, s4.getTime(FIVE));
-        assertEquals(0, s4.getTime(FIFTEEN)); // not requested
-        assertEquals(3, s4.getTime(TWENTY_FOUR));
-        assertEquals(0, s4.getTime(TWENTY_FOUR + FIFTEEN)); // not requested
-        assertEquals(3, s4.getTime(2 * TWENTY_FOUR));
+        long latest = now + 2 * (FIVE + highResSecPerEpoch);
+        t.add(latest);
+        TimeSeries ts2 = ts.timeSeries(latest);
+        assertEquals(0, ts2.fiveMinutes);
+        assertEquals(3, ts2.fifteenMinutes);
+        assertEquals(3, ts2.twentyFourHours);
+        TimeSeries ts3 = ts.timeSeries(now);
+        assertEquals(1, ts3.fiveMinutes);
+        assertEquals(1, ts3.fifteenMinutes);
+        assertEquals(1, ts3.twentyFourHours);
+        assertEquals(3, ts.total());
     }
 
     public void testRolloverCount() {
@@ -206,31 +199,31 @@ public class TimeSeriesCounterTests extends ESTestCase {
 
     public void testNegativeConstructor() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(-1L, -2L, -3L, t));
+            () -> new TimeSeriesCounter(-1L, -2L, -3L));
         assertEquals("totalDuration [-1], lowSecPerEpoch [-2], highSecPerEpoch[-3] must be greater than zero", err.getMessage());
     }
 
     public void testHighEpochTooSmallConstructor() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, FIFTEEN + 1, t));
+            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, FIFTEEN + 1));
         assertEquals("highSecPerEpoch [" + (FIFTEEN + 1) + "] must be less than lowSecPerEpoch [" + FIFTEEN + "]", err.getMessage());
     }
 
     public void testDurationNotDivisibleByLow() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(TWENTY_FOUR, 25 * MINUTE, FIVE, t));
+            () -> new TimeSeriesCounter(TWENTY_FOUR, 25 * MINUTE, FIVE));
         assertEquals("totalDuration [" + TWENTY_FOUR + "] must be divisible by lowSecPerEpoch [" + (25 * MINUTE) + "]", err.getMessage());
     }
 
     public void testLowDivisibleByHigh() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class,
-            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, 10 * MINUTE, t));
+            () -> new TimeSeriesCounter(TWENTY_FOUR, FIFTEEN, 10 * MINUTE));
         assertEquals("lowSecPerEpoch [" + FIFTEEN + "] must be divisible by highSecPerEpoch [" + (10 * MINUTE) + "]", err.getMessage());
     }
 
     void inc() {
         for (int i = t.i; i < t.times.size(); i++) {
-            ts.inc();
+            ts.inc(t.getAsLong() / 1000);
         }
     }
 

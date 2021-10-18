@@ -31,6 +31,7 @@ import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
+import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -694,14 +695,14 @@ public class NodeStatsTests extends ESTestCase {
                 ingestStats, adaptiveSelectionStats, null);
     }
 
-    private static ScriptContextStats.TimeSeries randomTimeSeries() {
+    private static TimeSeries randomTimeSeries() {
         if (randomBoolean()) {
             long day = randomLongBetween(0, 1024);
             long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
             long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-            return new ScriptContextStats.TimeSeries(five, fifteen, day);
+            return new TimeSeries(five, fifteen, day);
         } else {
-            return new ScriptContextStats.TimeSeries();
+            return new TimeSeries();
         }
     }
 

@@ -29,10 +29,10 @@ public class ScriptStatsTests extends ESTestCase {
     public void testXContent() throws IOException {
         List<ScriptContextStats> contextStats = List.of(
             new ScriptContextStats("contextB", 100, 201, 302,
-                    new ScriptContextStats.TimeSeries(1000, 1001, 1002),
-                    new ScriptContextStats.TimeSeries(2000, 2001, 2002)
+                    new TimeSeries(1000, 1001, 1002),
+                    new TimeSeries(2000, 2001, 2002)
             ),
-            new ScriptContextStats("contextA", 1000, 2010, 3020, null, new ScriptContextStats.TimeSeries(0, 0, 0))
+            new ScriptContextStats("contextA", 1000, 2010, 3020, null, new TimeSeries(0, 0, 0))
         );
         ScriptStats stats = new ScriptStats(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -75,7 +75,7 @@ public class ScriptStatsTests extends ESTestCase {
     }
 
     public void testSerializeEmptyTimeSeries() throws IOException {
-        ScriptContextStats.TimeSeries empty = new ScriptContextStats.TimeSeries();
+        TimeSeries empty = new TimeSeries();
         ScriptContextStats stats = new ScriptContextStats("c", 1111, 2222, 3333, null, empty);
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -93,10 +93,10 @@ public class ScriptStatsTests extends ESTestCase {
     }
 
     public void testSerializeTimeSeries() throws IOException {
-        Function<ScriptContextStats.TimeSeries, ScriptContextStats> mkContextStats =
+        Function<TimeSeries, ScriptContextStats> mkContextStats =
             (ts) -> new ScriptContextStats("c", 1111, 2222, 3333, null, ts);
 
-        ScriptContextStats.TimeSeries series = new ScriptContextStats.TimeSeries(0, 0, 5);
+        TimeSeries series = new TimeSeries(0, 0, 5);
         String format =
                 "{\n" +
                 "  \"context\" : \"c\",\n" +
@@ -115,29 +115,29 @@ public class ScriptStatsTests extends ESTestCase {
 
         assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 0, 0, 5)));
 
-        series = new ScriptContextStats.TimeSeries(0, 7, 1234);
+        series = new TimeSeries(0, 7, 1234);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 0, 7, 1234)));
 
-        series = new ScriptContextStats.TimeSeries(123, 456, 789);
+        series = new TimeSeries(123, 456, 789);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 123, 456, 789)));
     }
 
     public void testTimeSeriesAssertions() {
-        expectThrows(AssertionError.class, () -> new ScriptContextStats.TimeSeries(-1, 1, 2));
-        expectThrows(AssertionError.class, () -> new ScriptContextStats.TimeSeries(1, 0, 2));
-        expectThrows(AssertionError.class, () -> new ScriptContextStats.TimeSeries(1, 3, 2));
+        expectThrows(AssertionError.class, () -> new TimeSeries(-1, 1, 2));
+        expectThrows(AssertionError.class, () -> new TimeSeries(1, 0, 2));
+        expectThrows(AssertionError.class, () -> new TimeSeries(1, 3, 2));
     }
 
     public void testTimeSeriesIsEmpty() {
-        assertTrue((new ScriptContextStats.TimeSeries(0, 0, 0)).isEmpty());
+        assertTrue((new TimeSeries(0, 0, 0)).isEmpty());
         long day = randomLongBetween(1, 1024);
         long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
         long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-        assertFalse((new ScriptContextStats.TimeSeries(five, fifteen, day)).isEmpty());
+        assertFalse((new TimeSeries(five, fifteen, day)).isEmpty());
     }
 
     public void testTimeSeriesSerialization() throws IOException {
@@ -171,15 +171,15 @@ public class ScriptStatsTests extends ESTestCase {
 
     public ScriptContextStats randomStats() {
         long[] histStats = {randomLongBetween(0, 2048), randomLongBetween(0, 2048)};
-        List<ScriptContextStats.TimeSeries> timeSeries = new ArrayList<>();
+        List<TimeSeries> timeSeries = new ArrayList<>();
         for (int j = 0; j < 2; j++) {
             if (randomBoolean() && histStats[j] > 0) {
                 long day = randomLongBetween(0, histStats[j]);
                 long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
                 long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-                timeSeries.add(new ScriptContextStats.TimeSeries(five, fifteen, day));
+                timeSeries.add(new TimeSeries(five, fifteen, day));
             } else {
-                timeSeries.add(new ScriptContextStats.TimeSeries());
+                timeSeries.add(new TimeSeries());
             }
         }
         return new ScriptContextStats(

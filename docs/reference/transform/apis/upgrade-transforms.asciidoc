@@ -22,35 +22,35 @@ Requires the following privileges:
 
 * cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
-* source indices: `read`, `view_index_metadata`
-* destination index: `read`, `index`.
 
 
 [[upgrade-transforms-desc]]
 == {api-description-title}
 
-{transforms-cap} are compatible across minor versions and backwards compatibile 
-between major versions. However, over time, the format of {transforms} may 
-change. This API upgrades all {transforms} that can be upgraded to meet the 
-functional requirements of the latest available version. Upgrading {transforms} 
-may also enable new features and improve performance.
+{transforms-cap} are compatible across minor versions and between supported 
+major versions. However, over time, the format of {transform} configuration 
+information may change. This API identifies {transforms} which have a legacy 
+configuration format and upgrades them to the latest version; including clean up 
+of the internal data structures that store {transform} state and checkpoints. 
+{transform-cap} upgrade does not effect the source and destination indices.
 
-The process converts any {transforms} with older formats into the latest format; 
-including internal data structures that store {transform} state and checkpoints. 
-Previous versions are removed which frees up resources.
+It is recommended to have a recent cluster backup prior to performing a 
+{transform} upgrade which can be run either before or after an {es} upgrade. 
+However, it is recommended to perform it prior to upgrading {es} to the next 
+major version to ensure {ctransforms} remain started.
 
-If an upgrade step fails, the upgrade stops, and an error is returned about the 
-underlying issue. Resolve the issue then re-run the process again. A summary is 
-returned when the upgrade is finished.
+If a {transform} upgrade step fails, the upgrade stops, and an error is returned 
+about the underlying issue. Resolve the issue then re-run the process again. A 
+summary is returned when the upgrade is finished.
 
 [IMPORTANT]
 ====
 
 * When {es} {security-features} are enabled, your {transform} remembers the 
 roles of the user who created or updated it last. In contrast to 
-<<update-transform,update transform>>, upgrade {transforms} does not change the 
-stored roles, therefore it can be run by a super user without impacting existing 
-permissions.
+<<update-transform,update transform>>, a {transform} upgrade does not change the 
+stored roles, therefore the role used to read source data and write to the 
+destination index remains unchanged.
 
 ====
 
@@ -66,7 +66,8 @@ permissions.
 [[upgrade-transforms-example]]
 == {api-examples-title}
 
-To upgrade the {transforms}, perform the following API call:
+To upgrade the legacy {transforms} to the latest configuration format, perform 
+the following API call:
 
 [source,console]
 --------------------------------------------------

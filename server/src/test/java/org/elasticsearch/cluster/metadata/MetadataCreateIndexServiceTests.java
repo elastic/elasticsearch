@@ -997,13 +997,24 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             request.dataStreamName(null);
         }
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateSettings,
+
+        ClusterState clusterState = ClusterState.EMPTY_STATE;
+        if (randomBoolean()) {
+            clusterState = DataTierTests.clusterStateWithoutAllDataRoles();
+        }
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateSettings,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
             org.elasticsearch.core.Set.of(new DataTier.DefaultHotAllocationSettingProvider()), enforceDefaultTierPreference);
 
         if (aggregatedIndexSettings.keySet().contains(DataTier.TIER_PREFERENCE)) {
             return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
         } else {
+            if (clusterState != ClusterState.EMPTY_STATE) {
+                assertWarnings("[" + request.index() + "] creating index with " +
+                    "an empty [" + DataTier.TIER_PREFERENCE + "] setting, and TODO TODO TODO");
+            }
+
             return Optional.empty();
         }
     }
@@ -1101,16 +1112,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertWarnings("[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. " +
             "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type " +
             "as it offers superior or equivalent performance to [simplefs].");
-    }
-
-    public void testDeprecateNoTierPreference() {
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        ClusterState clusterState = DataTierTests.clusterStateWithoutAllDataRoles();
-        aggregateIndexSettings(clusterState, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
-            Collections.emptySet(), false);
-        assertWarnings("[test] creating index with an empty [index.routing.allocation.include._tier_preference] setting, " +
-            "and TODO TODO TODO");
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

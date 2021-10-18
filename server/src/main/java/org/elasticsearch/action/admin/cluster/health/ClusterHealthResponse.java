@@ -152,8 +152,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         taskMaxWaitingTime = in.readTimeValue();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             return200ForClusterHealthTimeout = in.readBoolean();
-        } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + in.getVersion());
         }
     }
 

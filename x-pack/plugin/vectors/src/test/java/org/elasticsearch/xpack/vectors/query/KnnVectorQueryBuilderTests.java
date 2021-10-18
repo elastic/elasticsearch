@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.search.KnnVectorQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -67,12 +66,8 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
     }
 
     @Override
-    protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        if (query instanceof MatchNoDocsQuery) {
-            assertNotEquals(VECTOR_FIELD, queryBuilder.getFieldName());
-        } else {
-            assertTrue(query instanceof KnnVectorQuery);
-        }
+    protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+        assertTrue(query instanceof KnnVectorQuery);
     }
 
     public void testWrongDimension()  {
@@ -127,7 +122,6 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
     public void testUnknownObjectException() throws IOException {
         // Test isn't relevant, since query is never parsed from xContent
     }
-
 
     @Override
     public void testFromXContent() throws IOException {

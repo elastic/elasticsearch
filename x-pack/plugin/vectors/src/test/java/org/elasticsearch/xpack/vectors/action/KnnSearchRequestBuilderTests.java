@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.action;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -37,11 +36,8 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
     public void testBuildSearchRequest() throws IOException {
         // Choose random REST parameters
         Map<String, String> params = new HashMap<>();
-        String[] indices = Strings.EMPTY_ARRAY;
-        if (randomBoolean()) {
-            indices = generateRandomStringArray(5, 10, false, false);
-            params.put(KnnSearchRequestBuilder.INDEX_PARAM, String.join(",", indices));
-        }
+        String[] indices = generateRandomStringArray(5, 10, false, true);
+        params.put(KnnSearchRequestBuilder.INDEX_PARAM, String.join(",", indices));
 
         String routing = null;
         if (randomBoolean()) {
@@ -95,7 +91,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         builder.endObject();
 
         // Convert the REST request to a search request and check the components
-        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder, Map.of());
+        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder);
         SearchRequest searchRequest = searchRequestBuilder.request();
 
         FetchSourceContext fetchSource = searchRequest.source().fetchSource();
@@ -121,7 +117,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
         builder.endObject();
 
         // Convert the REST request to a search request and check the components
-        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder, Map.of());
+        SearchRequestBuilder searchRequestBuilder = buildSearchRequest(builder);
         SearchRequest searchRequest = searchRequestBuilder.request();
 
         FetchSourceContext fetchSource = searchRequest.source().fetchSource();
@@ -135,7 +131,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
             .array(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName(), "field1", "field2")
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder, Map.of()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
         assertThat(e.getMessage(), containsString("missing required [knn] section in search body"));
     }
 
@@ -150,7 +146,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
                 .endObject()
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder, Map.of()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
@@ -165,7 +161,7 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
                 .endObject()
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder, Map.of()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
     }
 
@@ -180,8 +176,13 @@ public class KnnSearchRequestBuilderTests extends ESTestCase {
                 .endObject()
             .endObject();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder, Map.of()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildSearchRequest(builder));
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
+    }
+
+    private SearchRequestBuilder buildSearchRequest(XContentBuilder builder) throws IOException {
+        Map<String, String> params = Map.of(KnnSearchRequestBuilder.INDEX_PARAM, "index");
+        return buildSearchRequest(builder, params);
     }
 
     private SearchRequestBuilder buildSearchRequest(XContentBuilder builder, Map<String, String> params) throws IOException {

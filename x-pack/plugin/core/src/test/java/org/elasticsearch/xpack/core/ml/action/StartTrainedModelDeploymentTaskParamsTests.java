@@ -36,8 +36,7 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractSerializ
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
-            randomIntBetween(1, 8),
-            randomIntBetween(1, 10000)
+            randomIntBetween(1, 8)
         );
     }
 }

@@ -53,6 +53,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -97,6 +98,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
+import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
@@ -802,6 +804,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public long getNumDocs() {
             return numDocs;
+        }
+
+        @Nullable
+        public org.elasticsearch.Version getCommitVersion() {
+            String version = commitUserData.get(ES_VERSION);
+            return version == null ? null : org.elasticsearch.Version.fromString(version);
         }
 
         static class LoadedMetadata {
@@ -1531,7 +1539,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
                     // The new commit will use segment files from the starting commit but userData from the last commit by default.
                     // Thus, we need to manually set the userData from the starting commit to the new commit.
-                    writer.setLiveCommitData(startingIndexCommit.getUserData().entrySet());
+                    final Map<String, String> userData = startingIndexCommit.getUserData();
+                    writer.setLiveCommitData(() -> {
+                        Map<String, String> updatedUserData = new HashMap<>(userData);
+                        updatedUserData.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+                        return updatedUserData.entrySet().iterator();
+                    });
                     writer.commit();
                 }
             }
@@ -1558,6 +1571,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
+        userData.put(Engine.ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();

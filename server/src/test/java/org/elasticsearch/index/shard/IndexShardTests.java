@@ -2692,7 +2692,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertFalse(b);
                 called.set(true);
             });
-            assertTrue(called.get());
+
+            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            shard.addRefreshListener(10, listener);
+            expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -3443,7 +3446,21 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.scheduledRefresh());
         Engine.IndexResult doc = indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         CountDownLatch latch = new CountDownLatch(1);
-        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
+        if (randomBoolean()) {
+            primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
+        } else {
+            primary.addRefreshListener(doc.getSeqNo(), new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
@@ -3455,7 +3472,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
         doc = indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         CountDownLatch latch1 = new CountDownLatch(1);
-        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
+        if (randomBoolean()) {
+            primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
+        } else {
+            primary.addRefreshListener(doc.getSeqNo(), ActionListener.wrap(latch1::countDown));
+        }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());

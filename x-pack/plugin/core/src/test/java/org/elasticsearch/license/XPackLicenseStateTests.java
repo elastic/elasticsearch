@@ -39,9 +39,14 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
+        XPackLicenseState licenseState = buildLicenseState(mode, active);
+        assertEquals(expected, predicate.test(licenseState));
+    }
+
+    XPackLicenseState buildLicenseState(OperationMode mode, boolean active) {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(mode, active, null);
-        assertEquals(expected, predicate.test(licenseState));
+        return licenseState;
     }
 
     /**
@@ -84,8 +89,6 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityDefaults() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
     }
 
     public void testSecurityStandard() {
@@ -93,8 +96,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -103,8 +104,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -113,20 +112,14 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
     }
-
-
 
     public void testSecurityGold() {
         XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -135,8 +128,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -145,8 +136,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(true));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -155,8 +144,6 @@ public class XPackLicenseStateTests extends ESTestCase {
         licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_DLS_FLS), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS), is(false));
         assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
@@ -197,7 +184,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testMonitoringAckNotBasicToBasic() {
         OperationMode from = randomFrom(STANDARD, GOLD, PLATINUM, TRIAL);
-        assertAckMessages(XPackField.MONITORING, from, BASIC, 2);
+        assertAckMessages(XPackField.MONITORING, from, BASIC, 1);
     }
 
     public void testSqlAckAnyToTrialOrPlatinum() {
@@ -264,6 +251,15 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(PLATINUM, true, s -> s.isAllowed(feature), false);
         assertAllowed(ENTERPRISE, true, s -> s.isAllowed(feature), true);
         assertAllowed(TRIAL, true, s -> s.isAllowed(feature), true);
+    }
+
+    public void testStatusDescription() {
+        assertThat(buildLicenseState(BASIC, true).statusDescription(), is("active basic license"));
+        assertThat(buildLicenseState(STANDARD, true).statusDescription(), is("active standard license"));
+        assertThat(buildLicenseState(GOLD, false).statusDescription(), is("expired gold license"));
+        assertThat(buildLicenseState(PLATINUM, false).statusDescription(), is("expired platinum license"));
+        assertThat(buildLicenseState(ENTERPRISE, true).statusDescription(), is("active enterprise license"));
+        assertThat(buildLicenseState(TRIAL, false).statusDescription(), is("expired trial license"));
     }
 
     public void testLastUsedMomentaryFeature() {

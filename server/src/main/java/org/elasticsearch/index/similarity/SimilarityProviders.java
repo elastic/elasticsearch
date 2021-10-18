@@ -132,7 +132,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.QUERIES, basicModel + "_similarity_model_replaced",
+                    deprecationLogger.critical(DeprecationCategory.QUERIES, basicModel + "_similarity_model_replaced",
                         "Basic model [" + basicModel + "] isn't supported anymore and has arbitrarily been replaced with ["
                             + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
@@ -164,7 +164,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
-                    deprecationLogger.deprecate(DeprecationCategory.QUERIES, afterEffect + "_after_effect_replaced",
+                    deprecationLogger.critical(DeprecationCategory.QUERIES, afterEffect + "_after_effect_replaced",
                         "After effect [" + afterEffect + "] isn't supported anymore and has arbitrarily been replaced with ["
                             + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
@@ -255,7 +255,7 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.QUERIES, "unknown_similarity_setting",
+                deprecationLogger.critical(DeprecationCategory.QUERIES, "unknown_similarity_setting",
                     "Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }

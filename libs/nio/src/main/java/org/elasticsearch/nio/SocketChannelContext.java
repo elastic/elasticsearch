@@ -252,7 +252,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     // data that is copied to the buffer for a write, but not successfully flushed immediately, must be
     // copied again on the next call.
 
-    protected int readFromChannel(InboundChannelBuffer channelBuffer) throws IOException {
+    protected int readFromChannel(InboundChannelBuffer inboundChannelBuffer) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         int bytesRead;
         try {
@@ -266,14 +266,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return 0;
         } else {
             ioBuffer.flip();
-            channelBuffer.ensureCapacity(channelBuffer.getIndex() + ioBuffer.remaining());
-            ByteBuffer[] buffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+            inboundChannelBuffer.ensureCapacity(inboundChannelBuffer.getIndex() + ioBuffer.remaining());
+            ByteBuffer[] buffers = inboundChannelBuffer.sliceBuffersFrom(inboundChannelBuffer.getIndex());
             int j = 0;
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];
                 ByteBufferUtils.copyBytes(ioBuffer, buffer);
             }
-            channelBuffer.incrementIndex(bytesRead);
+            inboundChannelBuffer.incrementIndex(bytesRead);
             return bytesRead;
         }
     }

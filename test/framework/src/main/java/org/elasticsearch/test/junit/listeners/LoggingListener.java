@@ -11,6 +11,7 @@ package org.elasticsearch.test.junit.listeners;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
@@ -22,7 +23,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -103,8 +103,8 @@ public class LoggingListener extends RunListener {
          * parent setting.
          */
         final Map<String, String> loggingLevels =
-            new TreeMap<>(Stream.concat(testLoggingMap.entrySet().stream(), testIssueLoggingMap.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            Stream.concat(testLoggingMap.entrySet().stream(), testIssueLoggingMap.entrySet().stream())
+                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue));
 
         /*
          * Obtain the existing logging levels so that we can restore them at the end of the test. We have to do this separately from

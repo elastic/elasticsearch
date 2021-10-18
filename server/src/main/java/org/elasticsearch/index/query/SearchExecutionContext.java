@@ -28,8 +28,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -412,7 +412,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
         if (type.equals("string")) {
-            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "unmapped_type_string",
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "unmapped_type_string",
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }

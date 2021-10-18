@@ -16,6 +16,7 @@ public class ByteBufferStreamInput extends StreamInput {
 
     private final ByteBuffer buffer;
 
+    @SuppressWarnings("cast")
     public ByteBufferStreamInput(ByteBuffer buffer) {
         this.buffer = (ByteBuffer) buffer.mark();
     }

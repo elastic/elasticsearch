@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.core.security.support;
 import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.Locale;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class StringMatcherTests extends ESTestCase {
 
@@ -21,6 +26,31 @@ public class StringMatcherTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             assertNoMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
+    }
+
+    public void testMatchAllWildcard() throws Exception {
+        Supplier<String> randomPattern = () -> {
+            final String s = randomAlphaOfLengthBetween(3, 5);
+            switch (randomIntBetween(1, 4)) {
+                case 1:
+                    return s;
+                case 2:
+                    return s + "*";
+                case 3:
+                    return "*" + s;
+                default:
+                    return "*" + s + "*";
+            }
+        };
+        final Collection<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
+        final StringMatcher matcher = StringMatcher.of(patterns);
+        for (int i = 0; i < 10; i++) {
+            assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
+        }
+
+        assertThat(matcher.getPredicate(), sameInstance(StringMatcher.ALWAYS_TRUE_PREDICATE));
     }
 
     public void testSingleWildcard() throws Exception {

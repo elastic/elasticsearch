@@ -20,10 +20,11 @@ tasks.named("yamlRestTest").configure {
     // Remove these tests because they don't call an ML endpoint and we don't want
     // to grant extra permissions to the users used in this test suite
     'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
-    'ml/ml_standard_analyze/Test analyze API with the standard 7.14 ML analyzer',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with blank lines',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with multiple multiline messages',
-    'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
+    'ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with blank lines',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with multiple multiline messages',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with stop words in messages',
+    'ml/ml_standard_analyze/Test 7.16 analyzer with stop words in messages and strange lines without letters',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/calendar_crud/Test get calendar given missing',
@@ -33,6 +34,9 @@ tasks.named("yamlRestTest").configure {
     'ml/calendar_crud/Test put calendar given id contains invalid chars',
     'ml/calendar_crud/Test delete event from non existing calendar',
     'ml/calendar_crud/Test delete job from non existing calendar',
+    // These are searching tests with aggregations, and do not call any ML endpoints
+    'ml/categorization_agg/Test categorization agg simple',
+    'ml/categorization_agg/Test categorization aggregation with poor settings',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
@@ -225,8 +229,7 @@ tasks.named("yamlRestTest").configure {
   ].join(',')
 }
 
-
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"

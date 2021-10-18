@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.junit.Before;
 
@@ -185,7 +186,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testFreezeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction());
+        createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction(),
+            expectWarnings(TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
         createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 

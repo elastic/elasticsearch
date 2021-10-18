@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,7 +139,7 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
         builder.startObject();
 
         if (jobIds.isEmpty() == false) {
-            builder.field(JOB_IDS.getPreferredName(), jobIds);
+            builder.stringListField(JOB_IDS.getPreferredName(), jobIds);
         }
 
         if (allowNoMatch != null) {

@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -344,7 +344,8 @@ public final class IndexLifecycleTransition {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata())
             .put(IndexMetadata.builder(clusterState.getMetadata().index(index))
-                .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap())));
+                .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap()))
+            .build(false));
         return newClusterStateBuilder;
     }
 

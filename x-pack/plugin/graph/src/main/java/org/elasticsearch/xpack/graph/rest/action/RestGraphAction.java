@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.protocol.xpack.graph.Hop;
@@ -117,7 +117,7 @@ public class RestGraphAction extends XPackRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "graph_with_types", TYPES_DEPRECATION_MESSAGE);
             graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));

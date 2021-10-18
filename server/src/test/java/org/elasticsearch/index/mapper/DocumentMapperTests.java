@@ -324,4 +324,29 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(VersionFieldMapper.CONTENT_TYPE)
         );
     }
+
+    public void testTooManyDimensionFields() {
+        int max;
+        Settings settings;
+        if (randomBoolean()) {
+            max = 16; // By default no more than 16 dimensions per document are supported
+            settings = getIndexSettings();
+        } else {
+            max = between(1, 10000);
+            settings = Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), max)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), max + 1)
+                .build();
+        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mapping(b -> {
+            for (int i = 0; i <= max; i++) {
+                b.startObject("field" + i)
+                    .field("type", randomFrom("ip", "keyword", "long", "integer", "byte", "short"))
+                    .field("time_series_dimension", true)
+                    .endObject();
+            }
+        })));
+        assertThat(e.getMessage(), containsString("Limit of total dimension fields [" + max + "] has been exceeded"));
+    }
 }

@@ -12,7 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.Field;
+import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
 
 import java.io.IOException;

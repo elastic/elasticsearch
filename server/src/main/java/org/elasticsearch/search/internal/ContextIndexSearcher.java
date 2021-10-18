@@ -154,7 +154,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
-    @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);

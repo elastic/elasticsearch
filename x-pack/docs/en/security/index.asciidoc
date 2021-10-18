@@ -9,9 +9,14 @@ nodes that form the cluster, plus {ls} instances, {kib} instances, {beats}
 agents, and clients all communicating with the cluster. To keep your cluster
 safe, adhere to the <<es-security-principles,{es} security principles>>.
 
-<<configuring-stack-security,Configure security for the {stack}>>
-to secure {es} clusters and any clients that communicate with your clusters. You
-can password protect access to your data as well as enable more advanced
+Implementing security is a critical step in configuring the {stack}. Security is
+not enabled by default, so it's incredibly important that you
+<<configuring-stack-security,configure security for the {stack}>>
+to secure {es} clusters and any clients that communicate with your clusters.
+Explicitly running {es} without enabling security leaves your cluster exposed to 
+anyone who can send network traffic to {es}.
+
+You can password protect access to your data as well as enable more advanced
 security by configuring Transport Layer Security (TLS). This additional layer
 provides confidentiality and integrity protection to your communications with
 the {stack}. You can also implement additional security measures, such as

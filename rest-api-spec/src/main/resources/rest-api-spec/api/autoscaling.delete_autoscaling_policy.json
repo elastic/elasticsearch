@@ -5,7 +5,7 @@
       "description":"Deletes an autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
     },
     "stability":"stable",
-    "visibility":"public",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
     },

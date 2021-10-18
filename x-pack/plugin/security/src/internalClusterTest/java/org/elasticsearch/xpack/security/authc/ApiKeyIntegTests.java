@@ -215,7 +215,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
                 .admin()
                 .cluster()
-                .prepareUpdateSettings().setTransientSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), true))
+                .prepareUpdateSettings().setPersistentSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), true))
                 .get());
         assertThat(e.getMessage(), containsString("unauthorized"));
         assertThat(e.status(), is(RestStatus.FORBIDDEN));

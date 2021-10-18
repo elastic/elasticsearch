@@ -75,15 +75,33 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     static class TokenCountFieldType extends NumberFieldMapper.NumberFieldType {
 
-        TokenCountFieldType(String name, boolean isSearchable, boolean isStored,
-                            boolean hasDocValues, Number nullValue, Map<String, String> meta) {
-            super(name, NumberFieldMapper.NumberType.INTEGER, isSearchable, isStored, hasDocValues, false, nullValue, meta, null);
+        TokenCountFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            Number nullValue,
+            Map<String, String> meta
+        ) {
+            super(
+                name,
+                NumberFieldMapper.NumberType.INTEGER,
+                isSearchable,
+                isStored,
+                hasDocValues,
+                false,
+                nullValue,
+                meta,
+                null,
+                false,
+                null
+            );
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return lookup -> org.elasticsearch.core.List.of();
+                return (lookup, ignoredValues) -> org.elasticsearch.core.List.of();
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }

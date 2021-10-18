@@ -10,6 +10,9 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.util.function.Supplier;
 
@@ -41,21 +44,21 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     @Override
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field_" + usedName,
+        deprecationLogger.critical(DeprecationCategory.API, "deprecated_field_" + usedName,
             "{}Deprecated field [{}] used, expected [{}] instead", prefix, usedName, modernName);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field_" + usedName,
+        deprecationLogger.critical(DeprecationCategory.API, "deprecated_field_" + usedName,
             "{}Deprecated field [{}] used, replaced by [{}]", prefix, usedName, replacedWith);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field_" + usedName,
+        deprecationLogger.critical(DeprecationCategory.API, "deprecated_field_" + usedName,
             "{}Deprecated field [{}] used, this field is unused and will be removed entirely", prefix, usedName);
     }
 }

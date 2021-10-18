@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -15,13 +17,16 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
-
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MapsTests extends ESTestCase {
 
@@ -48,6 +53,59 @@ public class MapsTests extends ESTestCase {
         }
 
         assertFalse(Maps.deepEquals(map, mapModified));
+    }
+
+    public void testCollectToUnmodifiableSortedMap() {
+        SortedMap<String, String> canadianProvinces = Stream.of(
+                new Tuple<>("ON", "Ontario"),
+                new Tuple<>("QC", "Quebec"),
+                new Tuple<>("NS", "Nova Scotia"),
+                new Tuple<>("NB", "New Brunswick"),
+                new Tuple<>("MB", "Manitoba"))
+            .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
+
+        SortedMap<String, String> expectedMap = new TreeMap<>();
+        expectedMap.put("ON", "Ontario");
+        expectedMap.put("QC", "Quebec");
+        expectedMap.put("NS", "Nova Scotia");
+        expectedMap.put("NB", "New Brunswick");
+        expectedMap.put("MB", "Manitoba");
+        assertThat(canadianProvinces, equalTo(expectedMap));
+        expectThrows(UnsupportedOperationException.class, () -> canadianProvinces.put("BC", "British Columbia"));
+    }
+
+    public void testCollectRandomListToUnmodifiableSortedMap() {
+        List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10))
+            .stream()
+            .distinct()
+            .map(key -> Tuple.tuple(key, randomAlphaOfLength(10)))
+            .collect(Collectors.toList());
+        Randomness.shuffle(tuples);
+
+        SortedMap<String, String> sortedTuplesMap = tuples.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
+
+        assertThat(sortedTuplesMap.keySet(), equalTo(tuples.stream().map(Tuple::v1).collect(Collectors.toSet())));
+        for (Tuple<String, String> tuple : tuples) {
+            assertThat(sortedTuplesMap.get(tuple.v1()), equalTo(tuple.v2()));
+        }
+        String previous = "";
+        for (String key : sortedTuplesMap.keySet()) {
+            assertThat(key, greaterThan(previous));
+            previous = key;
+        }
+    }
+
+    public void testThrowsExceptionOnDuplicateKeysWhenCollectingToUnmodifiableSortedMap() {
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> Stream.of(
+                new Tuple<>("ON", "Ontario"),
+                new Tuple<>("QC", "Quebec"),
+                new Tuple<>("NS", "Nova Scotia"),
+                new Tuple<>("NS", "Nouvelle-Écosse"),
+                new Tuple<>("NB", "New Brunswick"),
+                new Tuple<>("MB", "Manitoba"))
+            .collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2)));
+        assertThat(illegalStateException.getMessage(),
+            equalTo("Duplicate key (attempted merging values Nova Scotia  and Nouvelle-Écosse)"));
     }
 
     private static <K, V> Map<K, V> randomMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {

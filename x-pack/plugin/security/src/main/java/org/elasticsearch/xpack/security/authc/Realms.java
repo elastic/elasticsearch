@@ -17,7 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -130,15 +132,28 @@ public class Realms implements Iterable<Realm> {
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
             activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
-                if (InternalRealms.isStandardRealm(realm.type())) {
-                    Security.STANDARD_REALMS_FEATURE.stopTracking(licenseStateSnapshot, realm.name());
-                } else {
-                    Security.ALL_REALMS_FEATURE.stopTracking(licenseStateSnapshot, realm.name());
-                }
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
             });
         }
 
         activeRealms = licensedRealms;
+    }
+
+    // Can be overridden in testing
+    protected void handleDisabledRealmDueToLicenseChange(Realm realm, XPackLicenseState licenseStateSnapshot) {
+        final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
+        assert feature != null : "Realm ["
+            + realm
+            + "] with no licensed feature became inactive due to change to license mode ["
+            + licenseStateSnapshot.getOperationMode()
+            + "]";
+        feature.stopTracking(licenseStateSnapshot, realm.name());
+        logger.warn(
+            "The [{}.{}] realm has been automatically disabled due to a change in license [{}]",
+            realm.type(),
+            realm.name(),
+            licenseStateSnapshot.statusDescription()
+        );
     }
 
     @Override
@@ -194,27 +209,29 @@ public class Realms implements Iterable<Realm> {
     }
 
     private static boolean checkLicense(Realm realm, XPackLicenseState licenseState) {
-        if (isBasicLicensedRealm(realm.type())) {
+        final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(realm.type());
+        if (feature == null) {
             return true;
         }
-        if (InternalRealms.isStandardRealm(realm.type())) {
-            return Security.STANDARD_REALMS_FEATURE.checkAndStartTracking(licenseState, realm.name());
-        }
-        return Security.ALL_REALMS_FEATURE.checkAndStartTracking(licenseState, realm.name());
+        return feature.checkAndStartTracking(licenseState, realm.name());
     }
 
     public static boolean isRealmTypeAvailable(XPackLicenseState licenseState, String type) {
-        if (Security.ALL_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
+        final LicensedFeature.Persistent feature = getLicensedFeatureForRealm(type);
+        if (feature == null) {
             return true;
-        } else if (Security.STANDARD_REALMS_FEATURE.checkWithoutTracking(licenseState)) {
-            return InternalRealms.isStandardRealm(type) || ReservedRealm.TYPE.equals(type);
-        } else {
-            return isBasicLicensedRealm(type);
         }
+        return feature.checkWithoutTracking(licenseState);
     }
 
-    private static boolean isBasicLicensedRealm(String type) {
-        return ReservedRealm.TYPE.equals(type) || InternalRealms.isBuiltinRealm(type);
+    @Nullable
+    private static LicensedFeature.Persistent getLicensedFeatureForRealm(String realmType) {
+        assert Strings.hasText(realmType) : "Realm type must be provided (received [" + realmType + "])";
+        if (InternalRealms.isInternalRealm(realmType)) {
+            return InternalRealms.getLicensedFeature(realmType);
+        } else {
+            return Security.CUSTOM_REALMS_FEATURE;
+        }
     }
 
     public Realm realm(String name) {
@@ -435,7 +452,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
         if (missingOrderRealmSettingKeys.size() > 0) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "unordered_realm_config",
                 "Found realms without order config: [{}]. In next major release, node will fail to start with missing realm order.",
@@ -449,7 +466,7 @@ public class Realms implements Iterable<Realm> {
             .sorted()
             .collect(Collectors.toList());
         if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "duplicate_realm_order",
                 "Found multiple realms configured with the same order: [{}]. "
@@ -468,7 +485,7 @@ public class Realms implements Iterable<Realm> {
             if (explicitlyDisabledBasicRealms.isEmpty()) {
                 return;
             }
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "implicitly_disabled_basic_realms",
                 "Found explicitly disabled basic {}: [{}]. But {} will be enabled because no other realms are configured or enabled. "
@@ -481,7 +498,7 @@ public class Realms implements Iterable<Realm> {
             if (unconfiguredBasicRealms.isEmpty()) {
                 return;
             }
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "implicitly_disabled_basic_realms",
                 "Found implicitly disabled basic {}: [{}]. {} disabled because there are other explicitly configured realms. "
@@ -495,7 +512,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SECURITY,
                 "realm_name_with_reserved_prefix",
                 "Found realm "

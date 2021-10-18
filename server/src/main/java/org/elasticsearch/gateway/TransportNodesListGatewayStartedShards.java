@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -91,8 +91,10 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeGatewayStartedShards newNodeResponse(StreamInput in) throws IOException {
-        return new NodeGatewayStartedShards(in);
+    protected NodeGatewayStartedShards newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        final NodeGatewayStartedShards response = new NodeGatewayStartedShards(in, node);
+        assert response.getNode() == node;
+        return response;
     }
 
     @Override
@@ -280,7 +282,11 @@ public class TransportNodesListGatewayStartedShards extends
         private final Exception storeException;
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
-            super(in);
+            this(in, null);
+        }
+
+        public NodeGatewayStartedShards(StreamInput in, DiscoveryNode node) throws IOException {
+            super(in, node);
             if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 in.readLong();

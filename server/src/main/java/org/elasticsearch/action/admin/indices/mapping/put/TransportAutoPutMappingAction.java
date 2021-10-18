@@ -75,7 +75,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
 
         final String message = TransportPutMappingAction.checkForSystemIndexViolations(systemIndices, concreteIndices, request);
         if (message != null) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
+            deprecationLogger.critical(DeprecationCategory.API, "open_system_index_access", message);
         }
 
         performMappingUpdate(concreteIndices, request, listener, metadataMappingService);

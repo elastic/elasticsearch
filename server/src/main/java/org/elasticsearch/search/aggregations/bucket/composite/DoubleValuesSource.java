@@ -39,12 +39,13 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
         DocValueFormat format,
         boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.bits = missingBucket ? new BitArray(100, bigArrays) : null;
+        this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
         this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
     }
 
@@ -66,9 +67,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compare(int from, int to) {
         if (missingBucket) {
             if (bits.get(from) == false) {
-                return bits.get(to) ? -1 * reverseMul : 0;
+                return bits.get(to) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(to) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -78,9 +79,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return bits.get(slot) ? -1 * reverseMul : 0;
+                return bits.get(slot) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(slot) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -90,9 +91,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return afterValue != null ? -1 * reverseMul : 0;
+                return afterValue != null ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (afterValue == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);

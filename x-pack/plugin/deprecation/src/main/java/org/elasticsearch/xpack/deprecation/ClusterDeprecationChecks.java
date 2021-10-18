@@ -17,19 +17,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -44,6 +48,8 @@ import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.checkRem
 
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
+
+    private static final String SPARSE_VECTOR = "sparse_vector";
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
@@ -68,8 +74,7 @@ public class ClusterDeprecationChecks {
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "User-Agent ingest plugin will always use ECS-formatted output",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#ingest-user-agent-ecs-always",
+                "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
                 "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig +
                     " uses the [ecs] option which needs to be removed to work in 8.0", false, null);
         }
@@ -97,8 +102,7 @@ public class ClusterDeprecationChecks {
         if (templatesOverLimit.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Fields in index template exceed automatic field expansion limit",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +
-                    "#_limiting_the_number_of_auto_expanded_fields",
+                "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
                 "Index templates " + templatesOverLimit + " have a number of fields which exceeds the automatic field expansion " +
                     "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
                     "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and " +
@@ -133,7 +137,7 @@ public class ClusterDeprecationChecks {
 
         if (templatesContainingFieldNames.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling",
+                    "https://ela.st/es-deprecation-7-field_names-settings",
                     "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
                             + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
                                     + "in the next major version and needs to be removed from existing mappings and templates.",
@@ -172,8 +176,7 @@ public class ClusterDeprecationChecks {
         if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
-                    "#ilm-poll-interval-limit",
+                "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
                 "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
                     "currently set to [" + pollIntervalString + "], but must be 1s or greater", false, null);
         }
@@ -194,7 +197,7 @@ public class ClusterDeprecationChecks {
         }
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Some index templates contain multiple mapping types",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html",
+            "https://ela.st/es-deprecation-7-multiple-types",
             "Index templates " + templatesWithMultipleTypes
             + " define multiple types and so will cause errors when used in index creation",
             false,
@@ -204,7 +207,7 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
         return checkRemovedSetting(clusterState.metadata().settings(),
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             DeprecationIssue.Level.WARNING
         );
     }
@@ -221,7 +224,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                             mappingAsMap,
                             IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                             IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
@@ -250,7 +253,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
                                 IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
@@ -273,7 +276,7 @@ public class ClusterDeprecationChecks {
         String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
-        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_mappings_changes";
+        String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
             String message = "component templates and index templates contain deprecated geo_shape properties that must be removed";
             String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;
@@ -293,7 +296,7 @@ public class ClusterDeprecationChecks {
     }
 
     protected static boolean isSparseVector(Map<?, ?> property) {
-        return "sparse_vector".equals(property.get("type"));
+        return SPARSE_VECTOR.equals(property.get("type"));
     }
 
     protected static String formatDeprecatedSparseVectorMessage(String type, Map.Entry<?, ?> entry) {
@@ -312,7 +315,7 @@ public class ClusterDeprecationChecks {
                         XContentType.JSON);
                     Map<String, Object> mappingAsMap = tuple.v2();
                     List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                             mappingAsMap,
                             ClusterDeprecationChecks::isSparseVector,
                             ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
@@ -341,7 +344,7 @@ public class ClusterDeprecationChecks {
                             XContentType.JSON);
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
                         List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                            IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
                                 mappingAsMap,
                                 ClusterDeprecationChecks::isSparseVector,
                                 ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
@@ -364,7 +367,7 @@ public class ClusterDeprecationChecks {
         String detailsForIndexTemplates = getDetailsMessageForSparseVectorIndexTemplates(clusterState.getMetadata().getTemplates());
         boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
         boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
-        String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_search_changes";
+        String url = "https://ela.st/es-deprecation-7-sparse-vector";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
             String message = "component templates and index templates contain deprecated sparse_vector fields that must be removed";
             String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;
@@ -381,5 +384,45 @@ public class ClusterDeprecationChecks {
         } else {
             return null;
         }
+    }
+
+    static DeprecationIssue checkILMFreezeActions(ClusterState state) {
+        IndexLifecycleMetadata indexLifecycleMetadata = state.getMetadata().custom("index_lifecycle");
+        if (indexLifecycleMetadata != null) {
+            List<String> policiesWithFreezeActions =
+                indexLifecycleMetadata.getPolicies().entrySet().stream()
+                    .filter(nameAndPolicy ->
+                        nameAndPolicy.getValue().getPhases().values().stream()
+                            .anyMatch(phase -> phase != null && phase.getActions() != null &&
+                                phase.getActions().containsKey(FreezeAction.NAME)))
+                    .map(nameAndPolicy -> nameAndPolicy.getKey())
+                    .collect(Collectors.toList());
+            if (policiesWithFreezeActions.isEmpty() == false) {
+                String details = String.format(
+                    Locale.ROOT,
+                    "remove freeze action from the following ilm policies: [%s]",
+                    policiesWithFreezeActions.stream().sorted().collect(Collectors.joining(","))
+                );
+                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                    "some ilm policies contain a freeze action, which is deprecated and will be removed in a future release",
+                    "https://ela.st/es-deprecation-7-frozen-indices",
+                    details,
+                    false,
+                    null);
+            }
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkTransientSettingsExistence(ClusterState state) {
+        if (state.metadata().transientSettings().isEmpty() == false) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Transient cluster settings are in the process of being removed.",
+                "https://ela.st/es-deprecation-7-transient-cluster-settings",
+                "Use persistent settings to define your cluster settings instead.",
+                false,
+                null);
+        }
+        return null;
     }
 }

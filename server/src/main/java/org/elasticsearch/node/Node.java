@@ -80,7 +80,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -324,7 +324,7 @@ public class Node implements Closeable {
                 logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
@@ -338,7 +338,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.deprecate(
+                deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
@@ -347,13 +347,13 @@ public class Node implements Closeable {
 
             if (initialEnvironment.dataFiles().length > 1) {
                 // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "multiple-data-paths",
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths",
                     "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
                         "multiple disks. This feature will be removed in 8.0.");
             }
             if (Environment.dataPathUsesList(tmpSettings)) {
                 // already checked for multiple values above, so if this is a list it is a single valued list
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
                     "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
             }
 
@@ -402,7 +402,7 @@ public class Node implements Closeable {
                 if (maybeLegacyRoleSettings.isEmpty() == false) {
                     final String legacyRoleSettingNames =
                         maybeLegacyRoleSettings.stream().map(Setting::getKey).collect(Collectors.joining(", "));
-                    deprecationLogger.deprecate(
+                    deprecationLogger.critical(
                         DeprecationCategory.SETTINGS,
                         "legacy role settings",
                         "legacy role settings [{}] are deprecated, use [node.roles={}]",
@@ -496,7 +496,7 @@ public class Node implements Closeable {
                 .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
                 .collect(Collectors.toMap(
                     SystemIndexPlugin::getFeatureName,
-                    plugin -> SystemIndices.pluginToFeature(plugin, settings)
+                    plugin -> SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
             final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
@@ -679,11 +679,24 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
-                networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
-                clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState, rerouteService,
-                fsHealthService);
+            final DiscoveryModule discoveryModule = new DiscoveryModule(
+                settings,
+                threadPool,
+                bigArrays,
+                transportService,
+                client,
+                namedWriteableRegistry,
+                networkService,
+                clusterService.getMasterService(),
+                clusterService.getClusterApplierService(),
+                clusterService.getClusterSettings(),
+                pluginsService.filterPlugins(DiscoveryPlugin.class),
+                clusterModule.getAllocationService(),
+                environment.configFile(),
+                gatewayMetaState,
+                rerouteService,
+                fsHealthService
+            );
             this.nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptService,
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,

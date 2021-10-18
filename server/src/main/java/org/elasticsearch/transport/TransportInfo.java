@@ -16,7 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ public class TransportInfo implements ReportingService.Info {
             if (cnameInPublishAddress) {
                 publishAddressString = hostString + '/' + publishAddress.toString();
             } else {
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "cname_in_publish_address",
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "cname_in_publish_address",
                         propertyName + " was printed as [ip:port] instead of [hostname/ip:port]. "
                                 + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
                                 + "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting."
@@ -105,7 +105,7 @@ public class TransportInfo implements ReportingService.Info {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
-        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
+        builder.xContentList(Fields.BOUND_ADDRESS, address.boundAddresses());
         builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {

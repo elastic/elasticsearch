@@ -21,7 +21,6 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import java.io.IOException;
 
 public class FetchScorePhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         if (context.fetchScores() == false) {

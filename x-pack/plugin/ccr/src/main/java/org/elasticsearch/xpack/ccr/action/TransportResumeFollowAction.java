@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -459,6 +460,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         nonReplicatedSettings.add(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING);
         nonReplicatedSettings.add(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING);
         nonReplicatedSettings.add(EngineConfig.INDEX_CODEC_SETTING);
+
+        nonReplicatedSettings.add(DataTier.TIER_PREFERENCE_SETTING);
 
         NON_REPLICATED_SETTINGS = Collections.unmodifiableSet(nonReplicatedSettings);
     }

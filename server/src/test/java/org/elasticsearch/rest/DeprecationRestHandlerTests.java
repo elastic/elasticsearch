@@ -70,7 +70,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         InOrder inOrder = inOrder(handler, request, channel, deprecationLogger);
 
         // log, then forward
-        inOrder.verify(deprecationLogger).deprecate(DeprecationCategory.API,"deprecated_route_GET_/some/path", deprecationMessage);
+        inOrder.verify(deprecationLogger).critical(DeprecationCategory.API,"deprecated_route_GET_/some/path", deprecationMessage);
         inOrder.verify(handler).handleRequest(request, channel, client);
         inOrder.verifyNoMoreInteractions();
     }

@@ -151,7 +151,7 @@ public class FieldFetcher {
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
     private final List<String> unmappedConcreteFields;
 
-    private FieldFetcher(
+    public FieldFetcher(
         Map<String, FieldContext> fieldContexts,
         @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton,
         @Nullable List<String> unmappedConcreteFields
@@ -167,9 +167,10 @@ public class FieldFetcher {
             String field = context.fieldName;
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
-            if (parsedValues.isEmpty() == false) {
-                documentFields.put(field, new DocumentField(field, parsedValues));
+            List<Object> ignoredValues = new ArrayList<>();
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredValues);
+            if (parsedValues.isEmpty() == false || ignoredValues.isEmpty() == false) {
+                documentFields.put(field, new DocumentField(field, parsedValues, ignoredValues));
             }
         }
         collectUnmapped(documentFields, sourceLookup.source(), "", 0);

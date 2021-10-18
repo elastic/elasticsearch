@@ -29,9 +29,9 @@ Auto-follow patterns are especially useful with
 new indices on the cluster containing the leader index.
 
 [[ccr-access-ccr-auto-follow]]
-To start using {ccr} auto-follow patterns, access {kib} and go to
-*Management > Stack Management*. In the side navigation, select
-*Cross-Cluster Replication* and choose the *Auto-follow patterns* tab
+To start using {ccr} auto-follow patterns from Stack Management in {kib}, select
+*Cross-Cluster Replication* from the side navigation and choose the
+*Auto-follow patterns* tab.
 
 [[ccr-auto-follow-create]]
 ==== Create auto-follow patterns
@@ -41,12 +41,8 @@ When an index is created in the remote cluster with a name that matches one of
 the patterns in the collection, a follower index is configured in the local
 cluster. The follower index uses the new index as its leader index.
 
-[%collapsible]
-.Use the API
-====
 Use the <<ccr-put-auto-follow-pattern,create auto-follow pattern API>> to add a
 new auto-follow pattern configuration.
-====
 
 [[ccr-auto-follow-retrieve]]
 ==== Retrieve auto-follow patterns
@@ -57,12 +53,8 @@ Select the auto-follow pattern that you want to view details about. From there,
 you can make changes to the auto-follow pattern. You can also view your
 follower indices included in the auto-follow pattern.
 
-[%collapsible]
-.Use the API
-====
 Use the <<ccr-get-auto-follow-pattern,get auto-follow pattern API>> to inspect
 all configured auto-follow pattern collections.
-====
 
 [[ccr-auto-follow-pause]]
 ==== Pause and resume auto-follow patterns
@@ -73,14 +65,10 @@ and pause replication.
 To resume replication, select the pattern and choose
 *Manage pattern > Resume replication*.
 
-[%collapsible]
-.Use the API
-====
 Use the <<ccr-pause-auto-follow-pattern,pause auto-follow pattern API>> to
 pause auto-follow patterns.
 Use the <<ccr-resume-auto-follow-pattern,resume auto-follow pattern API>> to
 resume auto-follow patterns.
-====
 
 [[ccr-auto-follow-delete]]
 ==== Delete auto-follow patterns
@@ -91,9 +79,5 @@ and pause replication.
 When the pattern status changes to Paused, choose
 *Manage pattern > Delete pattern*.
 
-[%collapsible]
-.Use the API
-====
 Use the <<ccr-delete-auto-follow-pattern,delete auto-follow pattern API>> to
 delete a configured auto-follow pattern collection.
-====

@@ -13,13 +13,13 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -75,6 +75,8 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
+    public static final String DEPRECATED_WARN_USAGE =
+        "[deprecated_warn_settings] usage is deprecated but won't be breaking in next version";
 
     private final Settings settings;
 
@@ -104,11 +106,12 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
         try (XContentParser parser = request.contentParser()) {
             final Map<String, Object> source = parser.map();
-
             if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_settings", DEPRECATED_USAGE);
-
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
+            } else if (source.containsKey("deprecation_warning")) {
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);
+                settings = (List<String>) source.get("deprecation_warning");
             } else {
                 settings = (List<String>) source.get("settings");
             }

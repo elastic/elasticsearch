@@ -44,6 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -558,7 +559,7 @@ public class InternalEngine extends Engine {
                                                    MapperService mapperService, long startingSeqNo) throws IOException {
         if (historySource == HistorySource.INDEX) {
             ensureSoftDeletesEnabled();
-            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false);
+            return newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false, true);
         } else {
             return getTranslog().newSnapshot(startingSeqNo, Long.MAX_VALUE);
         }
@@ -568,13 +569,13 @@ public class InternalEngine extends Engine {
      * Returns the estimated number of history operations whose seq# at least the provided seq# in this engine.
      */
     @Override
-    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource,
-                                                 MapperService mapperService, long startingSeqNo) throws IOException {
+    public int estimateNumberOfHistoryOperations(String reason, HistorySource historySource, long startingSeqNo) throws IOException {
         if (historySource == HistorySource.INDEX) {
             ensureSoftDeletesEnabled();
-            try (Translog.Snapshot snapshot =
-                     newChangesSnapshot(reason, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false, false)) {
-                return snapshot.totalOperations();
+            ensureOpen();
+            refresh(reason, SearcherScope.INTERNAL, true);
+            try (Searcher searcher = acquireSearcher(reason, SearcherScope.INTERNAL)) {
+                return LuceneChangesSnapshot.countOperations(searcher, startingSeqNo, Long.MAX_VALUE);
             }
         } else {
             return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
@@ -2525,7 +2526,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(7);
+                final Map<String, String> commitData = new HashMap<>(8);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 if (syncId != null) {
@@ -2541,6 +2542,7 @@ public class InternalEngine extends Engine {
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
                 }
+                commitData.put(ES_VERSION, Version.CURRENT.toString());
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });
@@ -2612,6 +2614,12 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
+    public long getMaxSeqNo() {
+        return localCheckpointTracker.getMaxSeqNo();
+    }
+
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }
@@ -2710,15 +2718,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
-                                         boolean requiredFullRange, boolean singleConsumer) throws IOException {
+    final Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService, long fromSeqNo, long toSeqNo,
+                                               boolean requiredFullRange, boolean singleConsumer, boolean accessStats) throws IOException {
         ensureSoftDeletesEnabled();
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer);
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
+                fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
             searcher = null;
             return snapshot;
         } catch (Exception e) {
@@ -2736,7 +2744,7 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange, true);
+        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange, true, false);
     }
 
     @Override

@@ -10,17 +10,23 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
@@ -31,6 +37,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +88,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
@@ -91,7 +99,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
     }
 
+    public static TransformConfig randomTransformConfigWithDeprecatedFields(String id, Version version) {
+        return randomTransformConfig(id, version, PivotConfigTests.randomPivotConfigWithDeprecatedFields(), null);
+    }
+
     public static TransformConfig randomTransformConfig(String id) {
+        return randomTransformConfig(id, randomBoolean() ? null : Version.CURRENT);
+    }
+
+    public static TransformConfig randomTransformConfig(String id, Version version) {
         PivotConfig pivotConfig;
         LatestConfig latestConfig;
         if (randomBoolean()) {
@@ -102,10 +118,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig = LatestConfigTests.randomLatestConfig();
         }
 
-        return randomTransformConfig(id, pivotConfig, latestConfig);
+        return randomTransformConfig(id, version, pivotConfig, latestConfig);
     }
 
-    public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
+    public static TransformConfig randomTransformConfig(String id, Version version, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -117,9 +133,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString()
+            version == null ? null : version.toString()
         );
     }
 
@@ -146,6 +163,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 latestConfig,
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
                 null,
+                randomBoolean() ? null : randomMetadata(),
                 randomBoolean() ? null : randomRetentionPolicyConfig(),
                 null,
                 null
@@ -162,6 +180,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
@@ -174,6 +193,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static RetentionPolicyConfig randomRetentionPolicyConfig() {
         return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
+    }
+
+    public static Map<String, Object> randomMetadata() {
+        return randomMap(0, 10, () -> {
+            String key = randomAlphaOfLengthBetween(1, 10);
+            Object value;
+            switch (randomIntBetween(0, 3)) {
+                case 0:
+                    value = null;
+                    break;
+                case 1:
+                    value = randomLong();
+                    break;
+                case 2:
+                    value = randomAlphaOfLengthBetween(1, 10);
+                    break;
+                case 3:
+                    value = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                    break;
+                default:
+                    throw new AssertionError();
+            }
+            return Tuple.tuple(key, value);
+        });
     }
 
     @Before
@@ -379,6 +422,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -394,6 +438,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             PivotConfigTests.randomPivotConfig(),
             null,
             description,
+            null,
             null,
             null,
             null,
@@ -496,10 +541,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
-        TransformConfig explicitFalseAfter715 = new TransformConfig.Builder(transformConfig)
-            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setAlignCheckpoints(false).build())
-            .setVersion(Version.V_7_15_0)
-            .build();
+        TransformConfig explicitFalseAfter715 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setAlignCheckpoints(false).build()
+        ).setVersion(Version.V_7_15_0).build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitFalseAfter715);
 
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
@@ -570,20 +614,18 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
-        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig)
-            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build())
-            .setVersion(Version.V_7_11_0)
-            .build();
+        TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
+        ).setVersion(Version.V_7_11_0).build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter711);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         // The config is still being rewritten due to "settings.align_checkpoints".
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
 
-        TransformConfig explicitTrueAfter715 = new TransformConfig.Builder(transformConfig)
-            .setSettings(new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build())
-            .setVersion(Version.V_7_15_0)
-            .build();
+        TransformConfig explicitTrueAfter715 = new TransformConfig.Builder(transformConfig).setSettings(
+            new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
+        ).setVersion(Version.V_7_15_0).build();
         transformConfigRewritten = TransformConfig.rewriteForUpdate(explicitTrueAfter715);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
@@ -690,6 +732,134 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         }
     }
 
+    public void testCheckForDeprecations() {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        assertThat(randomTransformConfig(id, Version.CURRENT).checkForDeprecations(xContentRegistry()), is(empty()));
+
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.CURRENT);
+
+        // check _and_ clear warnings
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                Collections.singletonList(
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+
+        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_10_0);
+
+        // check _and_ clear warnings
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                org.elasticsearch.core.List.of(
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+
+        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
+
+        // check _and_ clear warnings
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                org.elasticsearch.core.List.of(
+                    new DeprecationIssue(
+                        Level.CRITICAL,
+                        "Transform [" + id + "] is too old",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "The configuration uses an old format, you can use [_update] or [_upgrade] to update",
+                        false,
+                        null
+                    ),
+                    new DeprecationIssue(
+                        Level.WARNING,
+                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html",
+                        "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+    }
+
+    public void testSerializingMetadataPreservesOrder() throws IOException {
+        String json = "{"
+            + " \"id\" : \""
+            + transformId
+            + "\","
+            + " \"_meta\": {"
+            + "   \"d\": 4,"
+            + "   \"a\": 1,"
+            + "   \"c\": 3,"
+            + "   \"e\": 5,"
+            + "   \"b\": 2"
+            + "},"
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"time\": {"
+            + "     \"date_histogram\": {"
+            + "       \"field\": \"timestamp\","
+            + "       \"fixed_interval\": \"1d\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        // Read TransformConfig from JSON and verify that metadata keys are in the same order as in JSON
+        TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
+        assertThat(
+            new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(org.elasticsearch.core.List.of("d", "a", "c", "e", "b"))));
+
+        // Write TransformConfig to JSON, read it again and verify that metadata keys are still in the same order
+        json = XContentHelper.toXContent(transformConfig, XContentType.JSON, TO_XCONTENT_PARAMS, false).utf8ToString();
+        transformConfig = createTransformConfigFromString(json, transformId, true);
+        assertThat(
+            new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(org.elasticsearch.core.List.of("d", "a", "c", "e", "b"))));
+
+        // Write TransformConfig to wire, read it again and verify that metadata keys are still in the same order
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            transformConfig.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                transformConfig = new TransformConfig(in);
+            }
+        }
+        assertThat(
+            new ArrayList<>(transformConfig.getMetadata().keySet()), is(equalTo(org.elasticsearch.core.List.of("d", "a", "c", "e", "b"))));
+    }
+
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
         return createTransformConfigFromString(json, id, false);
     }
@@ -699,5 +869,4 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         return TransformConfig.fromXContent(parser, id, lenient);
     }
-
 }

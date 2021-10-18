@@ -55,13 +55,13 @@ public final class TypeFieldType extends ConstantFieldType {
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        deprecationLogger.deprecate(DeprecationCategory.TYPES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
+        deprecationLogger.critical(DeprecationCategory.TYPES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         return new MatchAllDocsQuery();
     }
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        deprecationLogger.deprecate(DeprecationCategory.TYPES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
+        deprecationLogger.critical(DeprecationCategory.TYPES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.KEYWORD);
     }
 
@@ -72,7 +72,7 @@ public final class TypeFieldType extends ConstantFieldType {
 
     @Override
     protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
-        deprecationLogger.deprecate(DeprecationCategory.TYPES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
+        deprecationLogger.critical(DeprecationCategory.TYPES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         if (caseInsensitive) {
             return pattern.equalsIgnoreCase(type);
         }

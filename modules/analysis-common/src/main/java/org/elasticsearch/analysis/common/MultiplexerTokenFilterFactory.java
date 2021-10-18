@@ -56,7 +56,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         else {
             if (preserveOriginal) {
-                DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
+                DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
                     "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
                 return IDENTITY_FILTER;
             }
@@ -119,7 +119,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 }
                 else {
                     if (preserveOriginal) {
-                        DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
+                        DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
                             "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
                         return IDENTITY_FILTER;
                     }

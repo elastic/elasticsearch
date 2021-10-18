@@ -8,6 +8,7 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
@@ -122,6 +123,8 @@ final class FetchSearchPhase extends SearchPhase {
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
                     finishPhase, context);
+
+                FieldsOptionSourceAdapter fieldsOptionAdapter = new FieldsOptionSourceAdapter(context.getRequest());
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     IntArrayList entry = docIdsToLoad[i];
                     SearchPhaseResult queryResult = queryResults.get(i);
@@ -136,14 +139,13 @@ final class FetchSearchPhase extends SearchPhase {
                         // in any case we count down this result since we don't talk to this shard anymore
                         counter.countDown();
                     } else {
-                        SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                        Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(),
-                            searchShardTarget.getNodeId());
+                        SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+                        Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getContextId(), i, entry,
-                            lastEmittedDocPerShard, searchShardTarget.getOriginalIndices(), queryResult.getShardSearchRequest(),
-                            queryResult.getRescoreDocIds());
-                        executeFetch(queryResult.getShardIndex(), searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
-                            connection);
+                            lastEmittedDocPerShard, context.getOriginalIndices(queryResult.getShardIndex()),
+                            queryResult.getShardSearchRequest(), queryResult.getRescoreDocIds());
+                        executeFetch(queryResult.getShardIndex(), shardTarget, counter, fetchSearchRequest,
+                            queryResult.queryResult(), connection, fieldsOptionAdapter);
                     }
                 }
             }
@@ -161,12 +163,14 @@ final class FetchSearchPhase extends SearchPhase {
     private void executeFetch(final int shardIndex, final SearchShardTarget shardTarget,
                               final CountedCollector<FetchSearchResult> counter,
                               final ShardFetchSearchRequest fetchSearchRequest, final QuerySearchResult querySearchResult,
-                              final Transport.Connection connection) {
+                              final Transport.Connection connection,
+                              final FieldsOptionSourceAdapter fieldsOptionAdapter) {
         context.getSearchTransport().sendExecuteFetch(connection, fetchSearchRequest, context.getTask(),
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
                     try {
+                        fieldsOptionAdapter.adaptResponse(connection.getVersion(), result.hits().getHits());
                         progressListener.notifyFetchResult(shardIndex);
                         counter.onResult(result);
                     } catch (Exception e) {
@@ -201,9 +205,10 @@ final class FetchSearchPhase extends SearchPhase {
                 && context.getRequest().scroll() == null
                 && (context.isPartOfPointInTime(queryResult.getContextId()) == false)) {
             try {
-                SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                context.sendReleaseSearchContext(queryResult.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+                Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+                context.sendReleaseSearchContext(queryResult.getContextId(), connection,
+                    context.getOriginalIndices(queryResult.getShardIndex()));
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

@@ -16,7 +16,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ public class HttpInfo implements ReportingService.Info {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (CNAME_IN_PUBLISH_HOST) {
-            deprecationLogger.deprecate(
+            deprecationLogger.critical(
                 DeprecationCategory.SETTINGS,
                 "cname_in_publish_address",
                 "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +

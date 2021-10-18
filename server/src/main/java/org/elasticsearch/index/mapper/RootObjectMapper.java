@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
@@ -439,7 +439,7 @@ public class RootObjectMapper extends ObjectMapper {
                 "attempted to validate it with the following match_mapping_type: %s, caused by [%s]";
             String message = String.format(Locale.ROOT, format,
                 template.getName(), Strings.toString(template), Arrays.toString(types), lastError.getMessage());
-            DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
+            DEPRECATION_LOGGER.critical(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
         }
     }
 

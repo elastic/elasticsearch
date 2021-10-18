@@ -374,7 +374,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
 
     private MappedFieldType defaultFieldType(String fieldName) {
         if (fieldName.equals(HISTO_FIELD_NAME)) {
-            return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap());
+            return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap(), null);
         } else {
             return new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.DOUBLE);
         }

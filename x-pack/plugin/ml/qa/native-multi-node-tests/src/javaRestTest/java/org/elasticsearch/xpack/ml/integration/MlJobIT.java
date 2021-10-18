@@ -390,7 +390,7 @@ public class MlJobIT extends ESRestTestCase {
 
         Request disablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
         disablePersistentTaskAssignmentRequest.setJsonEntity("{\n" +
-            "  \"transient\": {\n" +
+            "  \"persistent\": {\n" +
             "    \"cluster.persistent_tasks.allocation.enable\": \"none\"\n" +
             "  }\n" +
             "}");
@@ -411,7 +411,7 @@ public class MlJobIT extends ESRestTestCase {
             // because otherwise this setting will cause many other tests to fail
             Request enablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
             enablePersistentTaskAssignmentRequest.setJsonEntity("{\n" +
-                "  \"transient\": {\n" +
+                "  \"persistent\": {\n" +
                 "    \"cluster.persistent_tasks.allocation.enable\": \"all\"\n" +
                 "  }\n" +
                 "}");

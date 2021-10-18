@@ -20,6 +20,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -57,7 +58,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
@@ -138,9 +138,9 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 shardId = Integer.parseInt(shardIdFileName);
                 fromNodeId = Integer.parseInt(nodeIdFileName);
                 toNodeId = fromNodeId + 1;
-                indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
-                    .map(imd -> imd.value)
-                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName)).findFirst()
+                indexMetadata = clusterState.metadata().indices().values().stream()
+                    .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))
+                    .findFirst()
                     .orElse(null);
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
@@ -404,6 +404,10 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
             // commit the new history id
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+            final String commitESVersion = userData.get(Engine.ES_VERSION);
+            if (commitESVersion == null || Version.fromString(commitESVersion).onOrBefore(Version.CURRENT)) {
+                userData.put(Engine.ES_VERSION, Version.CURRENT.toString());
+            }
 
             indexWriter.setLiveCommitData(userData.entrySet());
             indexWriter.commit();

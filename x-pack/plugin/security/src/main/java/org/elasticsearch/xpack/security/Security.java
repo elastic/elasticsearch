@@ -43,8 +43,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -57,7 +57,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -223,7 +222,6 @@ import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenSto
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
@@ -231,6 +229,7 @@ import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
@@ -328,10 +327,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -351,13 +351,25 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public static final LicensedFeature.Momentary AUDITING_FEATURE =
         LicensedFeature.momentaryLenient(null, "security_auditing", License.OperationMode.GOLD);
 
+    private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
-    // Standard realms (LDAP, AD, PKI, etc) are Gold+
+    // Some realms (LDAP, AD, PKI) are Gold+
+    public static final LicensedFeature.Persistent LDAP_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "ldap", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent AD_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "active-directory", License.OperationMode.GOLD);
+    public static final LicensedFeature.Persistent PKI_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "pki", License.OperationMode.GOLD);
     // SSO realms are Platinum+
-    public static final LicensedFeature.Persistent STANDARD_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_standard_realms", License.OperationMode.GOLD);
-    public static final LicensedFeature.Persistent ALL_REALMS_FEATURE =
-        LicensedFeature.persistentLenient(null, "security_all_realms", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent SAML_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "saml", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent OIDC_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "oidc", License.OperationMode.PLATINUM);
+    public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "kerberos", License.OperationMode.PLATINUM);
+    // Custom realms are Platinum+
+    public static final LicensedFeature.Persistent CUSTOM_REALMS_FEATURE =
+        LicensedFeature.persistentLenient(REALMS_FEATURE_FAMILY, "custom", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -489,7 +501,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
         final List<BootstrapCheck> checks = new ArrayList<>();
         checks.addAll(asList(
-            new ApiKeySSLBootstrapCheck(),
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
             new TLSLicenseBootstrapCheck()));
@@ -578,9 +589,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
-        final HttpTlsRuntimeCheck httpTlsRuntimeCheck = new HttpTlsRuntimeCheck(settings, transportReference);
-        components.add(httpTlsRuntimeCheck);
-
         final IndexServiceAccountTokenStore indexServiceAccountTokenStore = new IndexServiceAccountTokenStore(
             settings, threadPool, getClock(), client, securityIndex.get(), clusterService, cacheInvalidatorRegistry);
         components.add(indexServiceAccountTokenStore);
@@ -589,8 +597,11 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, clusterService, cacheInvalidatorRegistry);
         components.add(fileServiceAccountTokenStore);
 
-        final ServiceAccountService serviceAccountService = new ServiceAccountService(client,
-            fileServiceAccountTokenStore, indexServiceAccountTokenStore, httpTlsRuntimeCheck);
+        final ServiceAccountService serviceAccountService = new ServiceAccountService(
+            client,
+            fileServiceAccountTokenStore,
+            indexServiceAccountTokenStore
+        );
         components.add(serviceAccountService);
 
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
@@ -626,7 +637,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new SearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                 new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                new BulkShardRequestInterceptor(threadPool, getLicenseState())
+                new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
             ));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
@@ -1237,7 +1249,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                     // check license last, once we know FLS is actually used
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
@@ -1329,7 +1341,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
          return SystemIndexDescriptor.builder()
              .setMinimumNodeVersion(FLATTENED_FIELD_TYPE_INTRODUCED)
              // This can't just be `.security-*` because that would overlap with the tokens index pattern
-             .setIndexPattern(".security-[0-9]+")
+             .setIndexPattern(".security-[0-9]+*")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
              .setDescription("Contains Security configuration")
              .setMappings(getIndexMappings())
@@ -1340,7 +1352,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setOrigin(SECURITY_ORIGIN)
              .setPriorSystemIndexDescriptors(org.elasticsearch.core.List.of(
                  SystemIndexDescriptor.builder()
-                     .setIndexPattern(".security-[0-9]+")
+                     .setIndexPattern(".security-[0-9]+*")
                      .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
                      .setDescription("Contains Security configuration")
                      .setMappings(getIndexMappings(Version.V_7_12_0))
@@ -1357,7 +1369,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
      private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
          return SystemIndexDescriptor.builder()
-             .setIndexPattern(".security-tokens-[0-9]+")
+             .setIndexPattern(".security-tokens-[0-9]+*")
              .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
              .setDescription("Contains auth token data")
              .setMappings(getTokenIndexMappings())

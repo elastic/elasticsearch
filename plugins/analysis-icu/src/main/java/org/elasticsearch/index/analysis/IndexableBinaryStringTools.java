@@ -35,7 +35,6 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
  * padding is indistinguishable from valid information.  To overcome this
  * problem, a char is appended, indicating the number of encoded bytes in the
  * final content char.
- * <p>
  *
  * @deprecated Implement {@link TermToBytesRefAttribute} and store bytes directly
  * instead. This class WAS removed in Lucene 5.0

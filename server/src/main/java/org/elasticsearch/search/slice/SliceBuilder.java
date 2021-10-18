@@ -18,11 +18,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -275,7 +275,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
-            DEPRECATION_LOG.deprecate(DeprecationCategory.API, "slice_on_uid",
+            DEPRECATION_LOG.critical(DeprecationCategory.API, "slice_on_uid",
                 "Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
             // on new indices, the _id acts as a _uid
             return new TermsSliceQuery(IdFieldMapper.NAME, id, max);

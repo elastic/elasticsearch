@@ -31,12 +31,11 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexManager.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +45,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -96,7 +95,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager skips over descriptors whose indices cannot be managed.
      */
     public void testManagerSkipsDescriptorsThatAreNotManaged() {
-        SystemIndexDescriptor d1 = new SystemIndexDescriptor(".foo-1", "");
+        SystemIndexDescriptor d1 = new SystemIndexDescriptor(".foo-1*", "");
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
             .setIndexPattern(".bar-*")
             .setPrimaryIndex(".bar-1")
@@ -113,8 +112,8 @@ public class SystemIndexManagerTests extends ESTestCase {
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
             Metadata.builder()
-                .put(getIndexMetadata(d1, null, 6, IndexMetadata.State.OPEN))
-                .put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN))
+                .put(getIndexMetadata(d1, d1.getIndexType(), null, 6, IndexMetadata.State.OPEN))
+                .put(getIndexMetadata(d2, d2.getIndexType(), d2.getMappings(), 6, IndexMetadata.State.OPEN))
                 .build()
         );
 
@@ -150,7 +149,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
-            Metadata.builder().put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN)).build()
+            Metadata.builder().put(getIndexMetadata(d2, d2.getIndexType(), d2.getMappings(), 6, IndexMetadata.State.OPEN)).build()
         );
 
         assertThat(eligibleDescriptors, hasSize(1));
@@ -180,7 +179,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     /**
-     * Check that the manager won't try to upgrade indices where the `index.format` setting
+     * Check that the manager recognizes the need to upgrade indices where the `index.format` setting
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
@@ -188,6 +187,18 @@ public class SystemIndexManagerTests extends ESTestCase {
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_UPGRADE));
+    }
+
+    /**
+     * Check that the manager recognizes the need to upgrade indices where the mapping type
+     * differs from the type specified in the descriptor.
+     */
+    public void testManagerSkipsIndicesWithWrongType() {
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
+        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
+
+        assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState("doc", DESCRIPTOR.getMappings())), DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_UPGRADE));
     }
 
     /**
@@ -259,20 +270,24 @@ public class SystemIndexManagerTests extends ESTestCase {
         return createClusterState(mappings, IndexMetadata.State.OPEN);
     }
 
+    private static ClusterState.Builder createClusterState(String type, String mappings) {
+        return createClusterState(type, mappings, 6, IndexMetadata.State.OPEN);
+    }
+
     private static ClusterState.Builder createClusterState(IndexMetadata.State state) {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), 6, state);
+        return createClusterState(DESCRIPTOR.getIndexType(), DESCRIPTOR.getMappings(), 6, state);
     }
 
     private static ClusterState.Builder createClusterState(String mappings, IndexMetadata.State state) {
-        return createClusterState(mappings, 6, state);
+        return createClusterState(DESCRIPTOR.getIndexType(), mappings, 6, state);
     }
 
     private static ClusterState.Builder createClusterState(int format) {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
+        return createClusterState(DESCRIPTOR.getIndexType(), DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
     }
 
-    private static ClusterState.Builder createClusterState(String mappings, int format, IndexMetadata.State state) {
-        IndexMetadata.Builder indexMeta = getIndexMetadata(SystemIndexManagerTests.DESCRIPTOR, mappings, format, state);
+    private static ClusterState.Builder createClusterState(String type, String mappings, int format, IndexMetadata.State state) {
+        IndexMetadata.Builder indexMeta = getIndexMetadata(DESCRIPTOR, type, mappings, format, state);
 
         Metadata.Builder metadataBuilder = new Metadata.Builder();
         metadataBuilder.put(indexMeta);
@@ -321,6 +336,7 @@ public class SystemIndexManagerTests extends ESTestCase {
 
     private static IndexMetadata.Builder getIndexMetadata(
         SystemIndexDescriptor descriptor,
+        String type,
         String mappings,
         int format,
         IndexMetadata.State state
@@ -345,7 +361,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         if (mappings != null) {
             try {
                 MappingMetadata mappingMetadata = new MappingMetadata(
-                    MapperService.SINGLE_MAPPING_NAME,
+                    type,
                     XContentHelper.convertToMap(JsonXContent.jsonXContent, mappings, true)
                 );
                 indexMetadata.putMapping(mappingMetadata);

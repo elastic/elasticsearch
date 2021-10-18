@@ -11,6 +11,7 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -78,11 +80,24 @@ public class DiscoveryModule {
 
     private final Discovery discovery;
 
-    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
-                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
-                           ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState,
-                           RerouteService rerouteService, NodeHealthService nodeHealthService) {
+    public DiscoveryModule(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        TransportService transportService,
+        Client client,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        MasterService masterService,
+        ClusterApplier clusterApplier,
+        ClusterSettings clusterSettings,
+        List<DiscoveryPlugin> plugins,
+        AllocationService allocationService,
+        Path configFile,
+        GatewayMetaState gatewayMetaState,
+        RerouteService rerouteService,
+        NodeHealthService nodeHealthService
+    ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
@@ -140,11 +155,24 @@ public class DiscoveryModule {
         }
 
         if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new Coordinator(NODE_NAME_SETTING.get(settings),
-                settings, clusterSettings,
-                transportService, namedWriteableRegistry, allocationService, masterService, gatewayMetaState::getPersistedState,
-                seedHostsProvider, clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService,
-                electionStrategy, nodeHealthService);
+            discovery = new Coordinator(
+                NODE_NAME_SETTING.get(settings),
+                settings,
+                clusterSettings,
+                bigArrays,
+                transportService,
+                client,
+                namedWriteableRegistry,
+                allocationService,
+                masterService,
+                gatewayMetaState::getPersistedState,
+                seedHostsProvider,
+                clusterApplier,
+                joinValidators,
+                new Random(Randomness.get().nextLong()),
+                rerouteService,
+                electionStrategy,
+                nodeHealthService);
         } else if (Assertions.ENABLED && ZEN_DISCOVERY_TYPE.equals(discoveryType)) {
             discovery = new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
                 clusterSettings, seedHostsProvider, allocationService, joinValidators, rerouteService);

@@ -528,7 +528,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metadataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER, threadPool);
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "ldap_settings",
+                deprecationLogger.critical(DeprecationCategory.SECURITY, "ldap_settings",
                     "The use of the account name variable {0} in the setting ["
                     + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
                     + "] has been deprecated and will be removed in a future version!");

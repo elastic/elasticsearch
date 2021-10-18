@@ -53,7 +53,7 @@ def fixtureAddress = { fixtureName ->
 
 File repositoryDir = fixture.fsRepositoryDir as File
 
-testClusters.all {
+testClusters.configureEach {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
   // repositoryDir is used by two URL repositories to restore snapshots

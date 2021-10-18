@@ -42,11 +42,15 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
     }
 
     private RemoveIndexLifecyclePolicyRequest copyInstance(RemoveIndexLifecyclePolicyRequest req) {
-        return new RemoveIndexLifecyclePolicyRequest(new ArrayList<>(req.indices()), IndicesOptions.fromOptions(
+        if (req.indicesOptions() != null) {
+            return new RemoveIndexLifecyclePolicyRequest(new ArrayList<>(req.indices()), IndicesOptions.fromOptions(
                 req.indicesOptions().ignoreUnavailable(), req.indicesOptions().allowNoIndices(),
                 req.indicesOptions().expandWildcardsOpen(), req.indicesOptions().expandWildcardsClosed(),
                 req.indicesOptions().allowAliasesToMultipleIndices(), req.indicesOptions().forbidClosedIndices(),
                 req.indicesOptions().ignoreAliases(), req.indicesOptions().ignoreThrottled()));
+        } else {
+            return new RemoveIndexLifecyclePolicyRequest(new ArrayList<>(req.indices()));
+        }
     }
 
     private RemoveIndexLifecyclePolicyRequest mutateInstance(RemoveIndexLifecyclePolicyRequest req) {
@@ -55,9 +59,14 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
                     randomValueOtherThan(req.indicesOptions(), () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())));
         } else {
-            return new RemoveIndexLifecyclePolicyRequest(
+            if (req.indicesOptions() != null) {
+                return new RemoveIndexLifecyclePolicyRequest(
                     randomValueOtherThan(req.indices(), () -> Arrays.asList(generateRandomStringArray(20, 20, false))),
                     req.indicesOptions());
+            } else {
+                return new RemoveIndexLifecyclePolicyRequest(
+                    randomValueOtherThan(req.indices(), () -> Arrays.asList(generateRandomStringArray(20, 20, false))));
+            }
         }
     }
 

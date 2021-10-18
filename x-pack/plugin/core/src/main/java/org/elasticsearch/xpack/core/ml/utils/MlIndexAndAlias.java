@@ -29,14 +29,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
@@ -132,8 +132,8 @@ public final class MlIndexAndAlias {
         String firstConcreteIndex = indexPatternPrefix + "-000001";
         String[] concreteIndexNames =
             resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
-        Optional<IndexMetadata> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
-            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().findFirst()
+        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
+            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
@@ -149,7 +149,7 @@ public final class MlIndexAndAlias {
                 createFirstConcreteIndex(client, firstConcreteIndex, alias, true, isHiddenAttributeAvailable, indexCreatedListener);
                 return;
             }
-            if (indexPointedByCurrentWriteAlias.get().getIndex().getName().equals(legacyIndexWithoutSuffix)) {
+            if (indexPointedByCurrentWriteAlias.get().equals(legacyIndexWithoutSuffix)) {
                 createFirstConcreteIndex(
                     client,
                     firstConcreteIndex,

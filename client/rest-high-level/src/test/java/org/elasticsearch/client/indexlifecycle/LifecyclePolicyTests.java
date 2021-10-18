@@ -8,11 +8,11 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
         ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME);
     private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME);
+        SearchableSnapshotAction.NAME);
     private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME);
 
     private String lifecycleName;

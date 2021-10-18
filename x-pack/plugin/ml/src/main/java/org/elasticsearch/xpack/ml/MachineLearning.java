@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,7 +42,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -232,6 +234,8 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -262,6 +266,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
+import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilter;
+import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilterFactory;
 import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilter;
 import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilterFactory;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
@@ -1155,8 +1161,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Arrays.asList(jobComms, utility, datafeed);
     }
 
+    @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-        return Collections.singletonMap(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new);
+        return MapBuilder.<String, AnalysisProvider<CharFilterFactory>>newMapBuilder()
+            .put(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new)
+            .put(FirstLineWithLettersCharFilter.NAME, FirstLineWithLettersCharFilterFactory::new)
+            .map();
     }
 
     @Override
@@ -1180,6 +1190,18 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
         return Arrays.asList(
             new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
+        );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        return Arrays.asList(
+            new AggregationSpec(
+                CategorizeTextAggregationBuilder.NAME,
+                CategorizeTextAggregationBuilder::new,
+                CategorizeTextAggregationBuilder.PARSER
+            ).addResultReader(InternalCategorizationAggregation::new)
+            .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
     }
 
@@ -1264,11 +1286,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
-            getInferenceIndexSecurityDescriptor()
+            getInferenceIndexSystemIndexDescriptor()
         ));
     }
 
-    public static SystemIndexDescriptor getInferenceIndexSecurityDescriptor() {
+    public static SystemIndexDescriptor getInferenceIndexSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
             .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
@@ -1278,6 +1300,43 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             .setVersionMetaKey("version")
             .setOrigin(ML_ORIGIN)
             .build();
+    }
+
+    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        boolean isAlreadyInUpgradeMode = MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
+        if (isAlreadyInUpgradeMode) {
+            // ML is already in upgrade mode, so nothing will write to the ML system indices during their upgrade
+            listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", true));
+            return;
+        }
+
+        // Enable ML upgrade mode before upgrading the ML system indices to ensure nothing writes to them during the upgrade
+        Client originClient = new OriginSettingClient(client, ML_ORIGIN);
+        originClient.execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(true), ActionListener.wrap(
+            r -> listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)),
+            listener::onFailure
+        ));
+    }
+
+    @Override
+    public void indicesMigrationComplete(
+        Map<String, Object> preUpgradeMetadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
+        boolean wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
+        if (wasAlreadyInUpgradeMode) {
+            // ML was already in upgrade mode before system indices upgrade started - we shouldn't disable it
+            listener.onResponse(true);
+            return;
+        }
+
+        Client originClient = new OriginSettingClient(client, ML_ORIGIN);
+        originClient.execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false), ActionListener.wrap(
+            r -> listener.onResponse(r.isAcknowledged()),
+            listener::onFailure
+        ));
     }
 
     @Override
@@ -1304,10 +1363,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
-        Client client,
+        Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         logger.info("Starting machine learning feature reset");
+        OriginSettingClient client = new OriginSettingClient(unwrappedClient, ML_ORIGIN);
 
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 

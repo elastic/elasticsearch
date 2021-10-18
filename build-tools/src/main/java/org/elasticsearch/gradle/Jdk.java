@@ -15,8 +15,6 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -24,9 +22,9 @@ import java.util.regex.Pattern;
 
 public class Jdk implements Buildable, Iterable<File> {
 
-    private static final List<String> ALLOWED_ARCHITECTURES = Collections.unmodifiableList(Arrays.asList("aarch64", "x64"));
-    private static final List<String> ALLOWED_VENDORS = Collections.unmodifiableList(Arrays.asList("adoptium", "openjdk", "azul"));
-    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows", "mac"));
+    private static final List<String> ALLOWED_ARCHITECTURES = List.of("aarch64", "x64");
+    private static final List<String> ALLOWED_VENDORS = List.of("adoptium", "openjdk");
+    private static final List<String> ALLOWED_PLATFORMS = List.of("darwin", "linux", "windows", "mac");
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
 

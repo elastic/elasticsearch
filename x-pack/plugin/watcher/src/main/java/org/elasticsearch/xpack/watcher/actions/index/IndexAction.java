@@ -11,13 +11,13 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -182,7 +182,7 @@ public class IndexAction implements Action {
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.DOC_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "watcher_index_action", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.TYPES, "watcher_index_action", TYPES_DEPRECATION_MESSAGE);
                     docType = parser.text();
                 } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();

@@ -175,6 +175,13 @@ public abstract class MappedFieldType {
         }
     }
 
+    /**
+     * @return true if field has been marked as a dimension field
+     */
+    public boolean isDimension() {
+        return false;
+    }
+
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes,
      *  boosted by {@link #boost()}.

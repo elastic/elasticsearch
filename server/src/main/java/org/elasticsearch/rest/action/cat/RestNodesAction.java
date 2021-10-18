@@ -84,7 +84,7 @@ public class RestNodesAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         if (request.hasParam("local")) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.API, "cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));

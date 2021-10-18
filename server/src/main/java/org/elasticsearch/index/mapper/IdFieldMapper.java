@@ -109,7 +109,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
 
         @Override
@@ -154,7 +154,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     IndexFieldDataCache cache,
                     CircuitBreakerService breakerService
                 ) {
-                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
                     return new IndexFieldData<LeafFieldData>() {
                         @Override

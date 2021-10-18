@@ -79,7 +79,7 @@ tasks.named("processResources").configure {
     inputs.properties(expansions)
     filter("tokens" : expansions, ReplaceTokens.class)
   }
-  String licenseKey = System.getProperty("license.key")
+  String licenseKey = providers.systemProperty("license.key").forUseAtConfigurationTime().getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (BuildParams.isSnapshotBuild()) {
@@ -138,7 +138,7 @@ restResources {
   }
 }
 
-testClusters.matching{ it.name == 'yamlRestTest' }.configureEach {
+testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

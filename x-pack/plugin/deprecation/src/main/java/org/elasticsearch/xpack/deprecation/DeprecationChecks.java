@@ -10,8 +10,10 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
@@ -29,6 +31,15 @@ import java.util.stream.Stream;
  */
 public class DeprecationChecks {
 
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
+        Setting.listSetting(
+            "deprecation.skip_deprecated_settings",
+            Collections.emptyList(),
+            Function.identity(),
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+
     private DeprecationChecks() {
     }
 
@@ -41,7 +52,9 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
-            ClusterDeprecationChecks::checkSparseVectorTemplates
+            ClusterDeprecationChecks::checkSparseVectorTemplates,
+            ClusterDeprecationChecks::checkILMFreezeActions,
+            ClusterDeprecationChecks::checkTransientSettingsExistence
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -119,6 +132,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkAcceptRolesCacheMaxSizeSetting,
                     NodeDeprecationChecks::checkRolesCacheTTLSizeSetting,
                     NodeDeprecationChecks::checkMaxLocalStorageNodesSetting,
+                    NodeDeprecationChecks::checkSamlNameIdFormatSetting,
                     NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
@@ -139,7 +153,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::checkIndexRoutingRequireSetting,
             IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
             IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
-            IndexDeprecationChecks::checkGeoShapeMappings
+            IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
+            IndexDeprecationChecks::checkGeoShapeMappings,
+            IndexDeprecationChecks::frozenIndexSettingCheck
         ));
 
     /**

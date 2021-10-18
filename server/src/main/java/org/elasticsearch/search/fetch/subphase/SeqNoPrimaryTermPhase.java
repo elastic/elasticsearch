@@ -18,7 +18,6 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import java.io.IOException;
 
 public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.seqNoAndPrimaryTerm() == false) {

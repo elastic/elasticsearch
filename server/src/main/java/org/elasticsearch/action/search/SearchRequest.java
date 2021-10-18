@@ -13,12 +13,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
@@ -26,10 +25,11 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,6 +92,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean ccsMinimizeRoundtrips;
 
+    public static final boolean DEFAULT_FIELDS_EMULATION_ENABLED = false;
+    // the following flag is not serialized via transport layer, we only need it on the coordinating node
+    private transient boolean enableFieldsEmulation = DEFAULT_FIELDS_EMULATION_ENABLED;
+
     @Nullable
     private final Version minCompatibleShardNode;
 
@@ -99,6 +103,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+
+    private Map<String, long[]> waitForCheckpoints = Collections.emptyMap();
+
+    private TimeValue waitForCheckpointsTimeout = TimeValue.timeValueSeconds(30);
 
     public SearchRequest() {
         this((Version) null);
@@ -193,6 +201,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
+        this.enableFieldsEmulation = searchRequest.enableFieldsEmulation;
+        this.waitForCheckpoints = searchRequest.waitForCheckpoints;
+        this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
     }
 
     /**
@@ -246,6 +257,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             minCompatibleShardNode = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
+            waitForCheckpointsTimeout = in.readTimeValue();
+        }
     }
 
     @Override
@@ -285,6 +300,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
+        }
+        Version waitForCheckpointsVersion = Version.V_7_16_0;
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeTimeValue(waitForCheckpointsTimeout);
+        } else if (waitForCheckpoints.isEmpty() == false) {
+            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
+                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
         }
     }
 
@@ -338,6 +361,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = addValidationError("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible "
                     + "shard version", validationException);
             }
+        }
+        if (isFieldsOptionEmulationEnabled() && searchType().equals(SearchType.DFS_QUERY_THEN_FETCH)) {
+            validationException = addValidationError(
+                "[enable_fields_emulation] cannot be used with [dfs_query_then_fetch] search type. Use the default [query_then_fetch] "
+                    + "search type instead.",
+                validationException
+            );
+        }
+        if (pointInTimeBuilder() != null && waitForCheckpoints.isEmpty() == false) {
+            validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
+
         }
         return validationException;
     }
@@ -431,6 +465,25 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+    }
+
+    /**
+     * Returns whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
+     * The default is false.
+     */
+    boolean isFieldsOptionEmulationEnabled() {
+        return enableFieldsEmulation;
+    }
+
+    /**
+     * Sets whether the "fields" option will be emulated via fetching from source on pre 7.10 nodes.
+     * @deprecated This option is only available temporarily. Instead of using this setter directly,
+     * use the parameter on the rest request. The bwc emulation will not be necessary on 8.0 any more,
+     * so this setter will not be availabe there.
+     */
+    @Deprecated
+    public void setFieldsOptionEmulationEnabled(boolean enableFieldsEmulation) {
+        this.enableFieldsEmulation = enableFieldsEmulation;
     }
 
     /**
@@ -654,6 +707,23 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
+
+    public Map<String, long[]> getWaitForCheckpoints() {
+        return waitForCheckpoints;
+    }
+
+    public void setWaitForCheckpoints(Map<String, long[]> afterCheckpointsRefreshed) {
+        this.waitForCheckpoints = afterCheckpointsRefreshed;
+    }
+
+    public TimeValue getWaitForCheckpointsTimeout() {
+        return waitForCheckpointsTimeout;
+    }
+
+    public void setWaitForCheckpointsTimeout(final TimeValue waitForCheckpointsTimeout) {
+        this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
+    }
+
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
@@ -792,14 +862,32 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
                 ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips &&
+                enableFieldsEmulation == that.enableFieldsEmulation &&
                 Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips, minCompatibleShardNode);
+        return Objects.hash(
+            searchType,
+            Arrays.hashCode(indices),
+            routing,
+            preference,
+            source,
+            requestCache,
+            scroll,
+            Arrays.hashCode(types),
+            indicesOptions,
+            batchedReduceSize,
+            maxConcurrentShardRequests,
+            preFilterShardSize,
+            allowPartialSearchResults,
+            localClusterAlias,
+            absoluteStartMillis,
+            ccsMinimizeRoundtrips,
+            minCompatibleShardNode,
+            enableFieldsEmulation
+        );
     }
 
     @Override
@@ -820,6 +908,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
+                ", enableFieldsEmulation=" + enableFieldsEmulation +
                 ", source=" + source + '}';
     }
 }

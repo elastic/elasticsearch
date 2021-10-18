@@ -10,16 +10,16 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 
@@ -158,7 +158,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 builder.rawField(BODY_FIELD.getPreferredName(), stream);
             }
         }
-        if (indicesOptions != DEFAULT_INDICES_OPTIONS) {
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
             builder.startObject(INDICES_OPTIONS_FIELD.getPreferredName());
             indicesOptions.toXContent(builder, params);
             builder.endObject();
@@ -198,7 +198,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         }
                     }
                 } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.TYPES, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             types.add(parser.textOrNull());
@@ -230,7 +230,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     String indicesStr = parser.text();
                     indices.addAll(Arrays.asList(Strings.delimitedListToStringArray(indicesStr, ",", " \t")));
                 } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(DeprecationCategory.TYPES, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                     String typesStr = parser.text();
                     types.addAll(Arrays.asList(Strings.delimitedListToStringArray(typesStr, ",", " \t")));
                 } else if (SEARCH_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

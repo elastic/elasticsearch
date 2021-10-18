@@ -53,7 +53,7 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "update_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "update_with_types", TYPES_DEPRECATION_MESSAGE);
             updateRequest = new UpdateRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

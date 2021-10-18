@@ -1,7 +1,64 @@
+[[release-notes-7.14.2]]
+== {es} version 7.14.2
+
+Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[known-issues-7.14.2]]
+[discrete]
+=== Known issues
+
+// tag::ccs-agg-mem-known-issue[]
+* Aggregations: In {es} 7.14.0–7.15.0, when a {ccs} ({ccs-init}) request is proxied, the memory for the aggregations on the
+proxy node will not be freed. The trigger is {ccs} using aggregations where minimize 
+roundtrips is not effective (for example, when minimize roundtrips is explicitly disabled, or implicitly disabled 
+when using scroll, async and point-in-time searches).
++
+This affects {kib} {ccs-init} aggregations because {kib} 
+uses async search by default. This issue can also happen in all modes of remote connections 
+configured for {ccs} (sniff and proxy). In sniff mode, we only connect to a subset of the 
+remote nodes (by default 3). So if the remote node we want to send a request to is not one of those 3, 
+we must send the request as a proxy request. The workaround is to periodically restart nodes with heap pressure.
++
+We have fixed this issue in {es} 7.15.1 and later versions. For more details,
+see {es-pull}78404[#78404].
+// end::ccs-agg-mem-known-issue[]
+
+[[enhancement-7.14.2]]
+[float]
+=== Enhancements
+
+Mapping::
+* Restore public visibility of methods on `RootObjectMapper` {es-pull}77274[#77274]
+
+[[bug-7.14.2]]
+[float]
+=== Bug fixes
+
+EQL::
+* Use the document fields only excluding the metadata fields {es-pull}77203[#77203] (issue: {es-issue}77152[#77152])
+
+Machine Learning::
+* Fix failure on datafeed preview with `date_nanos` time field {es-pull}77109[#77109]
+* Relocating job should not fail if blocked on revert {es-pull}77207[#77207] (issue: {es-issue}75377[#75377])
+* Retain job task upon fail during opening {es-pull}77206[#77206]
+* Retry reset if existing task was terminated abruptly {es-pull}77328[#77328] (issue: {es-issue}77207[#77207])
+
+SQL::
+* Fix disjunctions (and `IN`) with multiple date math expressions {es-pull}76424[#76424] (issue: {es-issue}76336[#76336])
+
+Snapshot/Restore::
+* Fix queued snapshot clone not starting after data node drops {es-pull}77111[#77111] (issue: {es-issue}77101[#77101])
+
 [[release-notes-7.14.1]]
 == {es} version 7.14.1
 
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[known-issues-7.14.1]]
+[discrete]
+=== Known issues
+
+include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 
 [[enhancement-7.14.1]]
 [float]
@@ -97,6 +154,14 @@ Packaging::
 == {es} version 7.14.0
 
 Also see <<breaking-changes-7.14,Breaking changes in 7.14>>.
+
+[[known-issues-7.14.0]]
+[discrete]
+=== Known issues
+
+include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
+
+include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 [[breaking-7.14.0]]
 [float]

@@ -48,7 +48,7 @@ public class RestDeleteAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRequest deleteRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate(DeprecationCategory.TYPES, "delete_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.TYPES, "delete_with_types", TYPES_DEPRECATION_MESSAGE);
             deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
             deleteRequest = new DeleteRequest(request.param("index"), request.param("id"));

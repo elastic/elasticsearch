@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -24,30 +25,28 @@ import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
-
-import javax.net.ssl.HttpsURLConnection;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -66,8 +65,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import javax.net.ssl.HttpsURLConnection;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * This is the command-line tool used for migrating users and roles from the file-based realm into the new native realm using the API for
@@ -375,16 +375,13 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                     .build()) {
             @Override
             public void append(LogEvent event) {
-                switch (event.getLevel().getStandardLevel()) {
-                    case FATAL:
-                    case ERROR:
-                        terminal.println(Verbosity.NORMAL, event.getMessage().getFormattedMessage());
-                        break;
-                    case OFF:
-                        break;
-                    default:
-                        terminal.println(Verbosity.VERBOSE, event.getMessage().getFormattedMessage());
-                        break;
+                if (event.getLevel().equals(Level.OFF)) {
+                    return;
+                }
+                if (event.getLevel().isMoreSpecificThan(Level.ERROR)) {
+                    terminal.println(Verbosity.NORMAL, event.getMessage().getFormattedMessage());
+                } else {
+                    terminal.println(Verbosity.VERBOSE, event.getMessage().getFormattedMessage());
                 }
             }
         };

@@ -49,7 +49,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
         }
 
         for (String concreteIndex : concreteIndices) {
-            if (state.metadata().hasConcreteIndex(concreteIndex) == false) {
+            if (state.metadata().hasIndexAbstraction(concreteIndex) == false) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;
             }

@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -265,6 +265,10 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name0.use_ingest"), "true");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.use_ingest"), "false");
+        assertWarnings("[xpack.monitoring.exporters._name0.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name1.use_ingest] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testExporterBlocksOnClusterState() {

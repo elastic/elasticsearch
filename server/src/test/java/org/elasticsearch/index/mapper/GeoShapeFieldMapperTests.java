@@ -9,8 +9,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.List;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
@@ -178,23 +178,6 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
-    }
-
-    public void testGeoShapeLegacyMerge() throws Exception {
-        MapperService m = createMapperService(fieldMapping(b -> b.field("type", "geo_shape")));
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
-
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
-        assertFieldWarnings("strategy");
-
-        MapperService lm = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
-        e = expectThrows(IllegalArgumentException.class,
-            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
-        assertFieldWarnings("strategy");
     }
 
     public void testSerializeDefaults() throws Exception {

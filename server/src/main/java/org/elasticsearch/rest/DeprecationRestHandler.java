@@ -53,7 +53,7 @@ public class DeprecationRestHandler implements RestHandler {
      */
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        deprecationLogger.deprecate(DeprecationCategory.API, deprecationKey, deprecationMessage);
+        deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
 
         handler.handleRequest(request, channel, client);
     }

@@ -97,7 +97,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public void add(Term[] terms, int position) {
         for (int i = 0; i < terms.length; i++) {
-            if (terms[i].field() != field) {
+            if (Objects.equals(terms[i].field(), field) == false) {
                 throw new IllegalArgumentException(
                         "All phrase terms must be in the same field (" + field + "): "
                                 + terms[i]);

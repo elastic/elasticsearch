@@ -20,10 +20,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -208,10 +208,10 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
                         if (source.getSource().isEmpty()) {
                             if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
-                                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "empty_templates",
+                                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_templates",
                                     "empty templates should no longer be used");
                             } else {
-                                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "empty_scripts",
+                                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "empty_scripts",
                                     "empty scripts should no longer be used");
                             }
                         }

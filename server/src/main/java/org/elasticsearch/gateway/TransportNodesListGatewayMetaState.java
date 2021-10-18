@@ -63,7 +63,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeGatewayMetaState newNodeResponse(StreamInput in) throws IOException {
+    protected NodeGatewayMetaState newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeGatewayMetaState(in);
     }
 

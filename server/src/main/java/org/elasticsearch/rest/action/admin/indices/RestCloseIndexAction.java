@@ -54,7 +54,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards == null) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "close-index-wait_for_active_shards-default",
+            deprecationLogger.critical(DeprecationCategory.API, "close-index-wait_for_active_shards-default",
                 WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
         } else if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.DEFAULT);

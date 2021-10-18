@@ -28,8 +28,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -61,6 +62,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -256,6 +258,52 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testWaitForRefreshIndexValidation() throws Exception {
+        int numberOfShards = randomIntBetween(3, 10);
+        assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
+        assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
+        assertAcked(prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
+        client().admin().indices().prepareAliases().addAlias("test1", "testAlias").get();
+        client().admin().indices().prepareAliases().addAlias(new String[] {"test2", "test3"}, "testFailedAlias").get();
+
+        long[] validCheckpoints = new long[numberOfShards];
+        Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
+
+        // no exception
+        client().prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", validCheckpoints)).get();
+
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareSearch("testFailedAlias")
+                .setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
+                .get());
+        assertThat(e.getMessage(), containsString("Failed to resolve wait_for_checkpoints target [testFailedAlias]. Configured target " +
+            "must resolve to a single open index."));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareSearch("test1")
+                .setWaitForCheckpoints(Collections.singletonMap("test1", new long[2]))
+                .get());
+        assertThat(e2.getMessage(), containsString("Target configured with wait_for_checkpoints must search the same number of shards as " +
+            "checkpoints provided. [2] checkpoints provided. Target [test1] which resolved to index [test1] has [" + numberOfShards +
+            "] shards."));
+
+        IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareSearch("testAlias")
+                .setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2]))
+                .get());
+        assertThat(e3.getMessage(), containsString("Target configured with wait_for_checkpoints must search the same number of shards as " +
+            "checkpoints provided. [2] checkpoints provided. Target [testAlias] which resolved to index [test1] has [" + numberOfShards +
+            "] shards."));
+
+        IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareSearch("testAlias")
+                .setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints))
+                .get());
+        assertThat(e4.getMessage(), containsString("Target configured with wait_for_checkpoints must be a concrete index resolved in " +
+            "this search. Target [test2] is not a concrete index resolved in this search."));
+    }
+
     public void testShardCountLimit() throws Exception {
         try {
             final int numPrimaries1 = randomIntBetween(2, 10);
@@ -269,7 +317,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             client().prepareSearch("test1").get();
 
             assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
+                    .setPersistentSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)));
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -278,7 +326,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                     + " shards, which is over the limit of " + (numPrimaries1 - 1)));
 
             assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
+                    .setPersistentSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1)));
 
             // no exception
@@ -291,7 +339,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         } finally {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
-                    .setTransientSettings(Collections.singletonMap(
+                    .setPersistentSettings(Collections.singletonMap(
                             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null)));
         }
     }
@@ -364,7 +412,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                 .put("indices.breaker.request.limit", "1b")
                 .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
             final Client client = client();
             assertBusy(() -> {
                 SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("test")
@@ -405,7 +453,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                 .putNull("indices.breaker.request.limit")
                 .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
     }
 

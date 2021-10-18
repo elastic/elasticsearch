@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +44,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
 /**
  * This class is responsible for bootstrapping {@link IndexLifecycleMetadata} into the cluster-state, as well
@@ -79,7 +80,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
             .collect(Collectors.toList());
         if (phasesDefiningSearchableSnapshot.isEmpty() == false) {
-            if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
+            if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
                 throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
                     SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
             }

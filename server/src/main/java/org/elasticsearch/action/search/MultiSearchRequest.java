@@ -14,20 +14,21 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -175,6 +176,24 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex,
                                            DeprecationLogger deprecationLogger) throws IOException {
+        readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing, searchType, ccsMinimizeRoundtrips, registry,
+            allowExplicitIndex, deprecationLogger, (s, o, r) -> false);
+
+    }
+
+    public static void readMultiLineFormat(BytesReference data,
+                                           XContent xContent,
+                                           CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+                                           String[] indices,
+                                           IndicesOptions indicesOptions,
+                                           String[] types,
+                                           String routing,
+                                           String searchType,
+                                           Boolean ccsMinimizeRoundtrips,
+                                           NamedXContentRegistry registry,
+                                           boolean allowExplicitIndex,
+                                           DeprecationLogger deprecationLogger,
+                                           TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {
@@ -185,7 +204,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // support first line with \n
             if (nextMarker == 0) {
                 from = nextMarker + 1;
-                deprecationLogger.deprecate(DeprecationCategory.API, "multi_search_empty_first_line",
+                deprecationLogger.critical(DeprecationCategory.API, "multi_search_empty_first_line",
                     "support for empty first line before any action metadata in msearch API is deprecated and " +
                     "will be removed in the next major version");
                 continue;
@@ -249,6 +268,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }

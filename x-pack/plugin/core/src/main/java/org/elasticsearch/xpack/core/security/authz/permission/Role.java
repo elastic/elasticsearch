@@ -72,6 +72,10 @@ public class Role {
         return runAs;
     }
 
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return indices.hasFieldOrDocumentLevelSecurity();
+    }
+
     public static Builder builder(String... names) {
         return new Builder(names);
     }
@@ -184,6 +188,29 @@ public class Role {
             }
         }
         return new IndicesAccessControl(granted, indexPermissions);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Role that = (Role) o;
+        return Arrays.equals(this.names, that.names)
+            && this.cluster.equals(that.cluster)
+            && this.indices.equals(that.indices)
+            && this.application.equals(that.application)
+            && this.runAs.equals(that.runAs);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(cluster, indices, application, runAs);
+        result = 31 * result + Arrays.hashCode(names);
+        return result;
     }
 
     public static class Builder {

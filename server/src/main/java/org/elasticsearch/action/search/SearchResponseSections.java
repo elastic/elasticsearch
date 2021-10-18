@@ -9,12 +9,12 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -39,8 +39,15 @@ public class SearchResponseSections implements ToXContentFragment {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
-    public SearchResponseSections(SearchHits hits, Aggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly,
-                                  SearchProfileResults profileResults,  int numReducePhases) {
+    public SearchResponseSections(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases
+    ) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
@@ -83,7 +90,7 @@ public class SearchResponseSections implements ToXContentFragment {
      *
      * @return Profile results
      */
-    public final Map<String, SearchProfileQueryPhaseResult> profile() {
+    public final Map<String, SearchProfileShardResult> profile() {
         if (profileResults == null) {
             return Collections.emptyMap();
         }

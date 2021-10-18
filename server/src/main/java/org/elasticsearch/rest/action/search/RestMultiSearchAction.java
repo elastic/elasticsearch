@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,9 +22,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -86,7 +87,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         // Emit a single deprecation message if any search request contains types.
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {
             if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecate(DeprecationCategory.TYPES, "msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.critical(DeprecationCategory.TYPES, "msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }
@@ -102,6 +103,17 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                   boolean allowExplicitIndex) throws IOException {
+        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, (k, v, r) -> false);
+    }
+
+    /**
+     * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}. This variation allows the caller to specify if
+     * wait_for_checkpoints functionality is supported.
+     */
+    public static MultiSearchRequest parseRequest(RestRequest restRequest,
+                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                  boolean allowExplicitIndex,
+                                                  TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -134,7 +146,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 );
             }
             multiRequest.add(searchRequest);
-        });
+        }, extraParamParser);
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -152,7 +164,17 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+                                             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+        parseMultiLineRequest(request, indicesOptions, allowExplicitIndex, consumer, (k, v, r) -> false);
+    }
+
+    /**
+     * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
+     * This variation allows the caller to provider a param parser.
+     */
+    public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
+            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+            TriFunction<String, Object, SearchRequest, Boolean> extraParamParser) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
@@ -164,7 +186,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
-                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, deprecationLogger);
+                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, deprecationLogger,
+            extraParamParser);
     }
 
     @Override

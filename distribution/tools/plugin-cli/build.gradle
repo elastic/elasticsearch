@@ -61,15 +61,3 @@ tasks.named("thirdPartyAudit").configure {
           'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
   )
 }
-
-tasks.named('splitPackagesAudit').configure {
-    // o.e.plugins is owned by server, these shouldb be renamed to plugincli
-  ignoreClasses 'org.elasticsearch.plugins.InstallPluginAction',
-    'org.elasticsearch.plugins.InstallPluginCommand',
-    'org.elasticsearch.plugins.ListPluginsCommand',
-    'org.elasticsearch.plugins.PluginCli',
-    'org.elasticsearch.plugins.ProgressInputStream',
-    'org.elasticsearch.plugins.RemovePluginAction',
-    'org.elasticsearch.plugins.RemovePluginCommand',
-    'org.elasticsearch.plugins.PluginDescriptor'
-}

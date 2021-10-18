@@ -90,8 +90,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeStoreFilesMetadata newNodeResponse(StreamInput in) throws IOException {
-        return new NodeStoreFilesMetadata(in);
+    protected NodeStoreFilesMetadata newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        final NodeStoreFilesMetadata nodeStoreFilesMetadata = new NodeStoreFilesMetadata(in, node);
+        assert nodeStoreFilesMetadata.getNode() == node;
+        return nodeStoreFilesMetadata;
     }
 
     @Override
@@ -372,10 +374,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
 
     public static class NodeStoreFilesMetadata extends BaseNodeResponse {
 
-        private StoreFilesMetadata storeFilesMetadata;
+        private final StoreFilesMetadata storeFilesMetadata;
 
-        public NodeStoreFilesMetadata(StreamInput in) throws IOException {
-            super(in);
+        public NodeStoreFilesMetadata(StreamInput in, DiscoveryNode node) throws IOException {
+            super(in, node);
             storeFilesMetadata = new StoreFilesMetadata(in);
         }
 
@@ -389,7 +391,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<T
         }
 
         public static NodeStoreFilesMetadata readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
-            return new NodeStoreFilesMetadata(in);
+            return new NodeStoreFilesMetadata(in, null);
         }
 
         @Override

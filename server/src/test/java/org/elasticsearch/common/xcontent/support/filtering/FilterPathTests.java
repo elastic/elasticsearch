@@ -8,9 +8,11 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
@@ -295,7 +297,7 @@ public class FilterPathTests extends ESTestCase {
     }
 
     public void testMultipleFilterPaths() {
-        Set<String> inputs = Sets.newHashSet("foo.**.bar.*", "test.dot\\.ted");
+        Set<String> inputs = new LinkedHashSet<>(Arrays.asList("foo.**.bar.*", "test.dot\\.ted"));
 
         FilterPath[] filterPaths = FilterPath.compile(inputs);
         assertNotNull(filterPaths);

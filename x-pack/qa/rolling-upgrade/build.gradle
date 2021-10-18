@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -30,73 +30,69 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
+BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+  String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
   String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
-  testClusters {
-    "${baseName}" {
-      testDistribution = "DEFAULT"
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 3
+  def baseCluster = testClusters.register(baseName) {
+    testDistribution = "DEFAULT"
+    versions = [oldVersion, project.version]
+    numberOfNodes = 3
 
-      setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-      setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
-      setting 'xpack.license.self_generated.type', 'trial'
-      setting 'xpack.security.enabled', 'true'
-      setting 'xpack.security.transport.ssl.enabled', 'true'
-      setting 'xpack.security.authc.token.enabled', 'true'
-      setting 'xpack.security.authc.token.timeout', '60m'
-      setting 'xpack.security.authc.api_key.enabled', 'true'
-      setting 'xpack.security.audit.enabled', 'true'
-      setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-      setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-      keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.transport.ssl.enabled', 'true'
+    setting 'xpack.security.authc.token.enabled', 'true'
+    setting 'xpack.security.authc.token.timeout', '60m'
+    setting 'xpack.security.authc.api_key.enabled', 'true'
+    setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+    setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+    keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
-      if (bwcVersion.onOrAfter('7.0.0')) {
-        setting 'xpack.security.authc.realms.file.file1.order', '0'
-        setting 'xpack.security.authc.realms.native.native1.order', '1'
-      } else {
-        setting 'xpack.security.authc.realms.file1.type', 'file'
-        setting 'xpack.security.authc.realms.file1.order', '0'
-        setting 'xpack.security.authc.realms.native1.type', 'native'
-        setting 'xpack.security.authc.realms.native1.order', '1'
-      }
-      if (bwcVersion.onOrAfter('6.6.0')) {
-        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
-      }
+    if (bwcVersion.onOrAfter('7.0.0')) {
+      setting 'xpack.security.authc.realms.file.file1.order', '0'
+      setting 'xpack.security.authc.realms.native.native1.order', '1'
+    } else {
+      setting 'xpack.security.authc.realms.file1.type', 'file'
+      setting 'xpack.security.authc.realms.file1.order', '0'
+      setting 'xpack.security.authc.realms.native1.type', 'native'
+      setting 'xpack.security.authc.realms.native1.order', '1'
+    }
+    if (bwcVersion.onOrAfter('6.6.0')) {
+      setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
+    }
 
-      user username: "test_user", password: "x-pack-test-password"
+    user username: "test_user", password: "x-pack-test-password"
 
-      extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")
-      extraConfigFile 'testnode.crt', file("$outputDir/testnode.crt")
+    extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")
+    extraConfigFile 'testnode.crt', file("$outputDir/testnode.crt")
 
-      keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
-      setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+    keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
+    setting 'xpack.watcher.encrypt_sensitive_data', 'true'
 
-      // Old versions of the code contain an invalid assertion that trips
-      // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
-      // the assertion, but this is impossible for released versions.
-      // However, released versions run without assertions, so end users won't
-      // be suffering the effects.  This argument effectively removes the
-      // incorrect assertion from the older versions used in the BWC tests.
-      if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
-        jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
-      }
-      setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+    // Old versions of the code contain an invalid assertion that trips
+    // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
+    // the assertion, but this is impossible for released versions.
+    // However, released versions run without assertions, so end users won't
+    // be suffering the effects.  This argument effectively removes the
+    // incorrect assertion from the older versions used in the BWC tests.
+    if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
+      jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
+    }
+    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
-      if (bwcVersion.onOrAfter('7.12.0')) {
-        setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
-      }
+    if (bwcVersion.onOrAfter('7.12.0')) {
+      setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
     }
   }
 
-  String oldVersion = bwcVersion.toString()
-
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     mustRunAfter("precommit")
     dependsOn "copyTestNodeKeyMaterial"
     doFirst {
@@ -107,18 +103,18 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     def toBlackList = []
     // Dataframe transforms were not added until 7.2.0
-    if (Version.fromString(oldVersion).before('7.2.0')) {
+    if (bwcVersion.before('7.2.0')) {
       toBlackList << 'old_cluster/80_transform_jobs_crud/Test put batch transform on old cluster'
     }
     // continuous Dataframe transforms were not added until 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList << 'old_cluster/80_transform_jobs_crud/Test put continuous transform on old cluster'
     }
-    if (Version.fromString(oldVersion).before('7.9.0')) {
+    if (bwcVersion.before('7.9.0')) {
       toBlackList.addAll([
         'old_cluster/90_ml_data_frame_analytics_crud/Put outlier_detection job on the old cluster',
         'old_cluster/90_ml_data_frame_analytics_crud/Put regression job on the old cluster',
@@ -132,12 +128,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oldClusterTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -157,13 +153,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       'mixed_cluster/121_api_key/Create API key with metadata in a mixed cluster'
     ]
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
-    if (Version.fromString(oldVersion).before('7.4.0')) {
+    if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
       ])
     }
-    if (Version.fromString(oldVersion).before('7.9.0')) {
+    if (bwcVersion.before('7.9.0')) {
       toBlackList.addAll([
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job',
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job stats',
@@ -180,17 +176,17 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
     def toBlackList = []
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
-    if (Version.fromString(oldVersion).before('7.4.0')) {
+    if (bwcVersion.before('7.4.0')) {
       toBlackList.addAll([
         'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
         'mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms',
@@ -198,7 +194,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
         'mixed_cluster/80_transform_jobs_crud/Test GET, stop, start, old continuous transforms'
       ])
     }
-    if (Version.fromString(oldVersion).before('7.9.0')) {
+    if (bwcVersion.before('7.9.0')) {
       toBlackList.addAll([
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job',
         'mixed_cluster/90_ml_data_frame_analytics_crud/Get old outlier_detection job stats',
@@ -213,7 +209,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ])
     }
     // API key metadata requires flattened field type introduced in 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList.addAll([
         'mixed_cluster/121_api_key/Create API key with metadata in a mixed cluster'
       ])
@@ -227,30 +223,30 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
-    useCluster testClusters."${baseName}"
+    useCluster baseCluster
     doFirst {
-      testClusters."${baseName}".nextNodeToNextVersion()
+      baseCluster.get().nextNodeToNextVersion()
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     def toBlackList = []
     // Dataframe transforms were not added until 7.2.0
-    if (Version.fromString(oldVersion).before('7.2.0')) {
+    if (bwcVersion.before('7.2.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop, and delete old cluster batch transform'
     }
     // continuous Dataframe transforms were not added until 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, stop, delete, old continuous transforms'
     }
     // transform in mixed cluster is effectively disabled till 7.4, see gh#48019
-    if (Version.fromString(oldVersion).before('7.4.0')) {
+    if (bwcVersion.before('7.4.0')) {
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Get start, stop mixed cluster batch transform'
       toBlackList << 'upgraded_cluster/80_transform_jobs_crud/Test GET, mixed continuous transforms'
     }
-    if (Version.fromString(oldVersion).before('7.10.0')) {
+    if (bwcVersion.before('7.10.0')) {
       toBlackList.addAll([
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster outlier_detection job',
         'upgraded_cluster/90_ml_data_frame_analytics_crud/Get old cluster outlier_detection job stats',
@@ -264,7 +260,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ])
     }
     // API key metadata requires flattened field type introduced in 7.3.0
-    if (Version.fromString(oldVersion).before('7.3.0')) {
+    if (bwcVersion.before('7.3.0')) {
       toBlackList.addAll([
         'upgraded_cluster/121_api_key/Get the mixed API key in the upgraded cluster'
       ])

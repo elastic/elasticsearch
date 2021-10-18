@@ -123,7 +123,8 @@ If so, executes it.
 --
 (Optional, Boolean)
 If `true`,
-only expunge segments containing document deletions.
+expunge all segments containing more than `index.merge.policy.expunge_deletes_allowed`
+ (default to 10) percents of deleted documents.
 Defaults to `false`.
 
 In Lucene,
@@ -133,8 +134,6 @@ During a merge,
 a new segment is created
 that does not contain those document deletions.
 
-NOTE: This parameter does *not* override the
-`index.merge.policy.expunge_deletes_allowed` setting.
 --
 
 

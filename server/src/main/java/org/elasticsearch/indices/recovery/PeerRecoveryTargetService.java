@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -495,6 +496,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
+
     private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
                                                         final String action, final RecoveryTransportRequest request) {
         return createOrFinishListener(recoveryRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
@@ -604,6 +606,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     request.shardId().id()), e);
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
+                // the node is shutting down, we just fail the recovery to release resources
+                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,
+                        "node is shutting down", cause), false);
+                return;
+            }
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
                 onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,

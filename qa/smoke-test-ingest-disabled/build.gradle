@@ -14,7 +14,8 @@ apply plugin: 'elasticsearch.rest-resources'
 dependencies {
   testImplementation project(':modules:ingest-common')
 }
-testClusters.all {
+
+testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 

@@ -1334,7 +1334,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         for (SnapshotDeletionsPending.Entry snapshot : snapshotDeletionsPending.entries()) {
             final SnapshotId snapshotId = snapshot.getSnapshotId();
-            boolean triggered = false;
 
             if (currentRestores.contains(snapshotId)) {
                 logger.trace("snapshot to delete [{}] is being restored, waiting for restore to complete", snapshotId);

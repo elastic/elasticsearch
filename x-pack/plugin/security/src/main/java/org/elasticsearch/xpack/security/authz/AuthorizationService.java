@@ -338,7 +338,7 @@ public class AuthorizationService {
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener =
                 wrapPreservingContext(new AuthorizationResultListener<>(result -> {
-                        threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+                        threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.allowAll());
                         listener.onResponse(null);
                     }, listener::onFailure, requestInfo, requestId, authzInfo), threadContext);
             authzEngine.authorizeClusterAction(requestInfo, authzInfo, ActionListener.wrap(result -> {
@@ -514,7 +514,7 @@ public class AuthorizationService {
                                      final TransportRequest request, final ActionListener<Void> listener) {
         final AuditTrail auditTrail = auditTrailService.get();
         if (SystemUser.isAuthorized(action)) {
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+            threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.allowAll());
             threadContext.putTransient(AUTHORIZATION_INFO_KEY, SYSTEM_AUTHZ_INFO);
             auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
             listener.onResponse(null);

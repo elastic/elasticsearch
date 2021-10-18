@@ -79,9 +79,9 @@ public class List {
     public static <T> java.util.List<T> copyOf(Collection<? extends T> coll) {
         switch (coll.size()) {
             case 0:
-                return List.of();
+                return Collections.emptyList();
             case 1:
-                return List.of(coll.iterator().next());
+                return Collections.singletonList(coll.iterator().next());
             default:
                 return Collections.unmodifiableList(new ArrayList<>(coll));
         }

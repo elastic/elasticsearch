@@ -90,6 +90,17 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(privateKey, equalTo(key));
     }
 
+    public void testReadEncryptedPKCS8KeyPBES2() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+        Key key = getKeyFromKeystore("RSA");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted_pbes2_aes.pem"), "testnode"::toCharArray);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
     public void testReadDESEncryptedPKCS1Key() throws Exception {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());

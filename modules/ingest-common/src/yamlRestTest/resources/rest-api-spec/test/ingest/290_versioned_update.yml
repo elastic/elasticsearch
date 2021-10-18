@@ -1,8 +1,8 @@
 ---
 "Test pipeline versioned updates":
   - skip:
-      version: " - 7.99.99"
-      reason: "re-enable in 7.16+ when backported"
+      version: " - 7.15.99"
+      reason: "added versioned updates in 7.16.0"
 
   - do:
       ingest.put_pipeline:

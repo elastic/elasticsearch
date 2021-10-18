@@ -736,8 +736,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             if (foundValue == null) {
                 foundValue = extensionValue;
                 fromExtension = extension.extensionName();
-            }
-            else {
+            } else {
                 throw new IllegalStateException(
                     "Extensions ["
                         + fromExtension

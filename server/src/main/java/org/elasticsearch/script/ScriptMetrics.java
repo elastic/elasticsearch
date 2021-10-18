@@ -25,15 +25,12 @@ public class ScriptMetrics {
     final TimeSeriesCounter compilations;
     final TimeSeriesCounter cacheEvictions;
 
-    protected final LongSupplier timeProvider;
-
     public ScriptMetrics(LongSupplier timeProvider) {
-        this.timeProvider = timeProvider;
-        this.compilations = timeSeriesCounter();
-        this.cacheEvictions = timeSeriesCounter();
+        this.compilations = timeSeriesCounter(timeProvider);
+        this.cacheEvictions = timeSeriesCounter(timeProvider);
     }
 
-    TimeSeriesCounter timeSeriesCounter() {
+    TimeSeriesCounter timeSeriesCounter(LongSupplier timeProvider) {
         return new TimeSeriesCounter(TWENTY_FOUR_HOURS, 30 * MINUTE, 15 * SECOND, timeProvider);
     }
 

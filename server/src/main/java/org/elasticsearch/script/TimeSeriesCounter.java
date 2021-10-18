@@ -38,19 +38,20 @@ import java.util.function.LongSupplier;
  *
  * There are some useful time ranges to think about when reading this code:
  * Total authority range - The range of validity of the time series.  Ends within low resolution seconds of the last update and
- *                         starts duration before the last update (plus or minus low resolution seconds.
+ *                         starts {@code duration} before the last update (plus or minus low resolution seconds).
  * Adder authority range - {@link #adder} must be consulted if the queried time overlaps this range.
  * High authority range - The {@link #high} array must be consulted if the queried time overlaps this range.
  *                        This range may partially overlap the previous {@link #low} epoch because the high array
- *                        does not necessarily reset when rolling over the low epoch.  If we are only a few seconds
- *                        into the new epoch, high keeps higher resolution counts.
+ *                        does not necessarily reset when rolling over the low epoch.  If we are at least {@link #highSec} before
+ *                        the end of the current epoch, {@link #high} still has high resolution counts overlapping with the
+ *                        previous low epochs count.
  * Low authority range - The {@link #low} array is the authority for counts within this range.
- * High as low delegate - The latest low epoch is represented by a combination of the high array and adder.
+ * High as low delegate - The latest low epoch is represented by a combination of the {@link #high} array and {@link #adder}.
  *                        This range occurs immediately after the Low authority range.
  *                        The two ranges together equal the Total authority range.
  *                        Use {@link #sumHighDelegate} to get the correct count out of this range when combining with
  *                        counts from previous low epochs.  As mentioned above, high frequently overlaps with the
- *                        last low epoch and naively counting all of high will lead to double counting.
+ *                        last low epoch and naively counting all of {@link #high} will lead to double counting.
  */
 public class TimeSeriesCounter {
     public static final int SECOND = 1;
@@ -71,8 +72,8 @@ public class TimeSeriesCounter {
     protected long latestSec; // most recent update time
 
     /**
-     * Create a new time series that covers the given {@code totalDuration} in seconds, with the low resolution epochs covering
-     * {@code lowSecPerEpoch} seconds and the high resolution epochs cover {@code highSecPerEpoch}.
+     * Create a new time series that covers the given {@code totalDuration} in seconds, with the low resolution epochs each
+     * covering {@code lowSecPerEpoch} seconds and each high resolution epoch covering {@code highSecPerEpoch}.
      *
      * Because the most recent low resolution epoch is covered completely by the high resolution epochs, {@code lowSecPerEpoch}
      * must be divisible by {@code highSecPerEpoch}.
@@ -203,6 +204,39 @@ public class TimeSeriesCounter {
         Arrays.fill(low, 0);
         adder.increment();
         latestSec = t;
+    }
+
+    /**
+     * Generate a {@link Snapshot} at the current time, provided by {@link #timeProvider}, for the
+     * given times.
+     */
+    public Snapshot snapshot(long ... times) {
+        return snapshot(now(), times);
+    }
+
+    /**
+     * Use another {@link TimeSeriesCounter}s snapshot to determine the time of the counts and
+     * the time ranges to count.
+     *
+     * Useful when a consistent count is necessary across multiple TimeSeriesCounters.  This
+     * method does not ensure zero updates (and thus potential rollovers) have occurred during
+     * the counts, but it does ensure the counts happen for the same time.
+     */
+    public Snapshot snapshot(Snapshot snapshot) {
+        return snapshot(snapshot.now, snapshot.times[0]);
+    }
+
+    Snapshot snapshot(long now, long[] times) {
+        lock.readLock().lock();
+        try {
+            Snapshot snapshot = new Snapshot(now, total(), times);
+            for (int i = 0; i < snapshot.times.length; i++) {
+                snapshot.counts[i] = count(snapshot.now, snapshot.times[i]);
+            }
+            return snapshot;
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /**
@@ -416,27 +450,9 @@ public class TimeSeriesCounter {
         return index == 0 ? low.length - 1 : (index - 1) % low.length;
     }
 
-    public Snapshot snapshot(long ... times) {
-        return snapshot(now(), times);
-    }
-
-    public Snapshot snapshot(Snapshot snapshot) {
-        return snapshot(snapshot.now, snapshot.times[0]);
-    }
-
-    Snapshot snapshot(long now, long[] times) {
-        lock.readLock().lock();
-        try {
-            Snapshot snapshot = new Snapshot(now, total(), times);
-            for (int i = 0; i < snapshot.times.length; i++) {
-                snapshot.counts[i] = count(snapshot.now, snapshot.times[i]);
-            }
-            return snapshot;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
+    /**
+     * A snapshot of the TimeSeriesCounter covering multiple time ranges.
+     */
     public static class Snapshot {
         public final long now;
         public final long total;

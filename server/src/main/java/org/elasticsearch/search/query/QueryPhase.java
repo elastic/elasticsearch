@@ -109,7 +109,7 @@ public class QueryPhase {
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
-            Query query = searchContext.rewriteQuery();
+            Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();

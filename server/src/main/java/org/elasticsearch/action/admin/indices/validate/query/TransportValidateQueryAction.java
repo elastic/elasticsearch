@@ -208,7 +208,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     private String explain(SearchContext context, boolean rewritten) {
-        Query query = rewritten ? context.rewriteQuery() : context.query();
+        Query query = rewritten ? context.rewrittenQuery() : context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();
         } else {

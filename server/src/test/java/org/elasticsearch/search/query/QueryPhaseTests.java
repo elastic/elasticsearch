@@ -933,7 +933,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 TaskCancelHelper.cancel(task, "simulated");
                 context.setTask(task);
                 context.searcher().addQueryCancellation(task::ensureNotCancelled);
-                expectThrows(TaskCancelledException.class, () -> context.rewriteQuery());
+                expectThrows(TaskCancelledException.class, () -> context.rewrittenQuery());
             }
         }
     }

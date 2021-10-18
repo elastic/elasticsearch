@@ -76,8 +76,8 @@ public class FetchContext {
     /**
      * The original query in its rewritten form.
      */
-    public Query rewriteQuery() {
-        return searchContext.rewriteQuery();
+    public Query rewrittenQuery() {
+        return searchContext.rewrittenQuery();
     }
 
     /**

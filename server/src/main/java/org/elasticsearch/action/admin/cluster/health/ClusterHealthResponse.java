@@ -156,6 +156,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         taskMaxWaitingTime = in.readTimeValue();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             return200ForClusterHealthTimeout = in.readBoolean();
+        } else if (return200ForClusterHealthTimeout) {
+            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + in.getVersion());
         }
     }
 
@@ -311,7 +313,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeBoolean(return200ForClusterHealthTimeout);
         } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("cannot fix response code in a cluster involving nodes with version " + out.getVersion());
+            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
         }
     }
 

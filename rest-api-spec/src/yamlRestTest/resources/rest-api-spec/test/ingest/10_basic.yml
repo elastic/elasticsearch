@@ -1,4 +1,8 @@
 ---
+- skip:
+    version: all
+    reason: https://github.com/elastic/elasticsearch/issues/79377
+
 "Test basic pipeline crud":
   - do:
       ingest.put_pipeline:
@@ -27,6 +31,10 @@
         id: "my_pipeline"
 
 ---
+- skip:
+    version: all
+    reason: https://github.com/elastic/elasticsearch/issues/79377
+
 "Test Put Versioned Pipeline":
   - do:
       ingest.put_pipeline:
@@ -118,6 +126,10 @@
         id: "my_pipeline"
 ---
 "Test Get All Pipelines":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/79377
+
   - do:
       ingest.put_pipeline:
         id: "first_pipeline"
@@ -142,6 +154,10 @@
 
 ---
 "Test invalid config":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/79377
+
   - do:
       catch: /parse_exception/
       ingest.put_pipeline:
@@ -156,8 +172,12 @@
 ---
 "Test Get Summarized Pipelines":
   - skip:
-      version: " - 7.12.99"
-      reason:  "summary option added in 7.13"
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/79377
+
+#  - skip:
+#      version: " - 7.12.99"
+#      reason:  "summary option added in 7.13"
 
   - do:
       ingest.put_pipeline:

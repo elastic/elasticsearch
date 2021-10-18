@@ -141,6 +141,9 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
+
+        assertWarnings("[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -170,6 +173,9 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings("[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
+            "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     private List<JobStats> mockJobStats() {

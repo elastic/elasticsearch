@@ -405,7 +405,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean(),
             in.getVersion().onOrAfter(NEW_FEATURES_VERSION) && in.readBoolean(),
             in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false
+            in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readBoolean() : false
         );
     }
 
@@ -427,7 +427,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 out.writeBoolean(system);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeBoolean(allowCustomRouting);
         }
     }

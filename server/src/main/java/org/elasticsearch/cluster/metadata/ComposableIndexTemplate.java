@@ -301,7 +301,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION) && in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
                 allowCustomRouting = in.readBoolean();
             } else {
                 allowCustomRouting = false;
@@ -334,7 +334,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
                 out.writeBoolean(hidden);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
                 out.writeBoolean(allowCustomRouting);
             }
         }

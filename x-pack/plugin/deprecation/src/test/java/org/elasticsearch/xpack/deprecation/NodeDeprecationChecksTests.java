@@ -154,7 +154,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "settings [xpack.monitoring.exporters.test.use_ingest] are deprecated and" +
                     " will be removed in a future release",
                 expectedUrl,
-                "Remove usage of the following properties: [xpack.monitoring.exporters.test.use_ingest]",
+                "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
                 false, null)));
     }
 
@@ -172,7 +172,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "settings [xpack.monitoring.exporters.test.index.pipeline.master_timeout] are deprecated and" +
                     " will be removed in a future release",
                 expectedUrl,
-                "Remove usage of the following properties: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                 false, null)));
     }
 
@@ -190,7 +190,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "settings [xpack.monitoring.exporters.test.index.template.create_legacy_templates] are deprecated and" +
                     " will be removed in a future release",
                 expectedUrl,
-                "Remove usage of the following properties: [xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
+                "Remove the following settings from elasticsearch.yml: " +
+                    "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                 false, null)));
     }
 }

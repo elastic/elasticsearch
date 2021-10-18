@@ -118,7 +118,7 @@ public class NodeDeprecationChecks {
 
     static DeprecationIssue checkExporterUseIngestPipelineSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
         return deprecatedAffixSetting(MonitoringDeprecatedSettings.USE_INGEST_PIPELINE_SETTING,
-            "Remove usage of the following properties: [%s]",
+            "Remove the following settings from elasticsearch.yml: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
             DeprecationIssue.Level.WARNING,
             settings);
@@ -126,7 +126,7 @@ public class NodeDeprecationChecks {
 
     static DeprecationIssue checkExporterPipelineMasterTimeoutSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
         return deprecatedAffixSetting(MonitoringDeprecatedSettings.PIPELINE_CHECK_TIMEOUT_SETTING,
-            "Remove usage of the following properties: [%s]",
+            "Remove the following settings from elasticsearch.yml: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
             DeprecationIssue.Level.WARNING,
             settings);
@@ -134,7 +134,7 @@ public class NodeDeprecationChecks {
 
     static DeprecationIssue checkExporterCreateLegacyTemplateSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
         return deprecatedAffixSetting(MonitoringDeprecatedSettings.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING,
-            "Remove usage of the following properties: [%s]",
+            "Remove the following settings from elasticsearch.yml: [%s]",
             "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
             DeprecationIssue.Level.WARNING,
             settings);

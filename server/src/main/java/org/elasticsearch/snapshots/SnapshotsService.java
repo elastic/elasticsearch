@@ -35,8 +35,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInPending;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
@@ -484,7 +484,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         "cannot clone from snapshot that is being deleted"
                     );
                 }
-                if (currentState.custom(SnapshotDeletionsInPending.TYPE, SnapshotDeletionsInPending.EMPTY).contains(sourceSnapshotId)) {
+                if (currentState.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY).contains(sourceSnapshotId)) {
                     throw new ConcurrentSnapshotExecutionException(
                         repositoryName,
                         sourceSnapshotId.getName(),
@@ -1308,19 +1308,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * cases the snapshot deletion is not triggered as it should be triggered by subsequent cluster state updates on the conflicting
      * situation is resolved.
      *
-     * The repository name and uuid information are extracted from the {@link SnapshotDeletionsInPending} entries in order to find the
+     * The repository name and uuid information are extracted from the {@link SnapshotDeletionsPending} entries in order to find the
      * repository to execute the snapshot delete request against. If the repo uuid was known at the time the snapshot was added to
-     * {@link SnapshotDeletionsInPending} we try to find the corresponding repository, or a repository with a missing uuid but the same
-     * name. If the repo uuid was not known at the time the snapshot was added to {@link SnapshotDeletionsInPending}, we try to find a
+     * {@link SnapshotDeletionsPending} we try to find the corresponding repository, or a repository with a missing uuid but the same
+     * name. If the repo uuid was not known at the time the snapshot was added to {@link SnapshotDeletionsPending}, we try to find a
      * repository with the same name.
      *
      * @param state the current {@link ClusterState}
      */
     private void triggerSnapshotsPendingDeletions(final ClusterState state) {
         final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        final SnapshotDeletionsInPending snapshotDeletionsInPending = state.custom(SnapshotDeletionsInPending.TYPE);
-        if (snapshotDeletionsInPending == null
-            || snapshotDeletionsInPending.isEmpty()
+        final SnapshotDeletionsPending snapshotDeletionsPending = state.custom(SnapshotDeletionsPending.TYPE);
+        if (snapshotDeletionsPending == null
+            || snapshotDeletionsPending.isEmpty()
             || repositories.repositories().isEmpty()
             || state.nodes().isLocalNodeElectedMaster() == false
             || state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()) {
@@ -1333,7 +1333,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // the list of snapshot ids to trigger deletion for, per repository
         final Map<RepositoryMetadata, Set<SnapshotId>> snapshotsToDelete = new HashMap<>();
 
-        for (SnapshotDeletionsInPending.Entry snapshot : snapshotDeletionsInPending.entries()) {
+        for (SnapshotDeletionsPending.Entry snapshot : snapshotDeletionsPending.entries()) {
             final SnapshotId snapshotId = snapshot.getSnapshotId();
 
             // early add to avoid doing too much work on successive cluster state updates
@@ -1503,17 +1503,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 new ClusterStateUpdateTask() {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
-                                        final SnapshotDeletionsInPending deletionsInPending = currentState.custom(
-                                            SnapshotDeletionsInPending.TYPE,
-                                            SnapshotDeletionsInPending.EMPTY
+                                        final SnapshotDeletionsPending deletionsInPending = currentState.custom(
+                                            SnapshotDeletionsPending.TYPE,
+                                            SnapshotDeletionsPending.EMPTY
                                         );
-                                        final SnapshotDeletionsInPending updatedDeletionsInPending = deletionsInPending
-                                            .withRemovedSnapshots(missingSnapshots);
+                                        final SnapshotDeletionsPending updatedDeletionsInPending = deletionsInPending.withRemovedSnapshots(
+                                            missingSnapshots
+                                        );
                                         if (deletionsInPending == updatedDeletionsInPending) {
                                             return currentState;
                                         }
                                         return ClusterState.builder(currentState)
-                                            .putCustom(SnapshotDeletionsInPending.TYPE, updatedDeletionsInPending)
+                                            .putCustom(SnapshotDeletionsPending.TYPE, updatedDeletionsInPending)
                                             .build();
                                     }
 
@@ -2779,7 +2780,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 @Nullable
                 @Override
-                protected SnapshotDeletionsInPending filterPendingDeletions(@Nullable SnapshotDeletionsInPending pendingDeletions) {
+                protected SnapshotDeletionsPending filterPendingDeletions(@Nullable SnapshotDeletionsPending pendingDeletions) {
                     return pendingDeletions != null
                         ? pendingDeletions.withRemovedSnapshots(Sets.newHashSet(deleteEntry.getSnapshots()))
                         : null;
@@ -2870,7 +2871,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return currentState;
             }
             final SnapshotDeletionsInProgress newDeletions = filterDeletions(updatedDeletions);
-            SnapshotDeletionsInPending newPendingDeletions = filterPendingDeletions(currentState.custom(SnapshotDeletionsInPending.TYPE));
+            SnapshotDeletionsPending newPendingDeletions = filterPendingDeletions(currentState.custom(SnapshotDeletionsPending.TYPE));
             final Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> res = readyDeletions(
                 updateWithSnapshots(currentState, updatedSnapshotsInProgress(currentState, newDeletions), newDeletions, newPendingDeletions)
             );
@@ -2889,7 +2890,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return deletions;
         }
 
-        protected SnapshotDeletionsInPending filterPendingDeletions(SnapshotDeletionsInPending pendingDeletions) {
+        protected SnapshotDeletionsPending filterPendingDeletions(SnapshotDeletionsPending pendingDeletions) {
             return pendingDeletions;
         }
 
@@ -3067,21 +3068,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Shortcut to build new {@link ClusterState} from the current state and updated values of {@link SnapshotsInProgress} and
-     * {@link SnapshotDeletionsInProgress} and {@link SnapshotDeletionsInPending}.
+     * {@link SnapshotDeletionsInProgress} and {@link SnapshotDeletionsPending}.
      *
      * @param state                       current cluster state
      * @param snapshotsInProgress         new value for {@link SnapshotsInProgress} or {@code null} if it's unchanged
      * @param snapshotDeletionsInProgress new value for {@link SnapshotDeletionsInProgress} or {@code null} if it's unchanged
-     * @param snapshotDeletionsInPending new value for {@link SnapshotDeletionsInPending} or {@code null} if it's unchanged
+     * @param snapshotDeletionsPending new value for {@link SnapshotDeletionsPending} or {@code null} if it's unchanged
      * @return updated cluster state
      */
     public static ClusterState updateWithSnapshots(
         ClusterState state,
         @Nullable SnapshotsInProgress snapshotsInProgress,
         @Nullable SnapshotDeletionsInProgress snapshotDeletionsInProgress,
-        @Nullable SnapshotDeletionsInPending snapshotDeletionsInPending
+        @Nullable SnapshotDeletionsPending snapshotDeletionsPending
     ) {
-        if (snapshotsInProgress == null && snapshotDeletionsInProgress == null && snapshotDeletionsInPending == null) {
+        if (snapshotsInProgress == null && snapshotDeletionsInProgress == null && snapshotDeletionsPending == null) {
             return state;
         }
         ClusterState.Builder builder = ClusterState.builder(state);
@@ -3091,8 +3092,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (snapshotDeletionsInProgress != null) {
             builder.putCustom(SnapshotDeletionsInProgress.TYPE, snapshotDeletionsInProgress);
         }
-        if (snapshotDeletionsInPending != null) {
-            builder.putCustom(SnapshotDeletionsInPending.TYPE, snapshotDeletionsInPending);
+        if (snapshotDeletionsPending != null) {
+            builder.putCustom(SnapshotDeletionsPending.TYPE, snapshotDeletionsPending);
         }
         return builder.build();
     }

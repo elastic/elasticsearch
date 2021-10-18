@@ -19,8 +19,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.SnapshotDeletionsInPending;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -345,10 +345,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             if (deletions.hasDeletionsInProgress()) {
                 return false;
             }
-            final SnapshotDeletionsInPending pendingDeletions = state.custom(
-                SnapshotDeletionsInPending.TYPE,
-                SnapshotDeletionsInPending.EMPTY
-            );
+            final SnapshotDeletionsPending pendingDeletions = state.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
             if (pendingDeletions.isEmpty() == false) {
                 return false;
             }

@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInPending;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -149,16 +149,16 @@ public class MetadataDeleteIndexService {
         }
 
         // update snapshot(s) marked as to delete
-        final SnapshotDeletionsInPending deletionsInPending = currentState.custom(
-            SnapshotDeletionsInPending.TYPE,
-            SnapshotDeletionsInPending.EMPTY
+        final SnapshotDeletionsPending deletionsInPending = currentState.custom(
+            SnapshotDeletionsPending.TYPE,
+            SnapshotDeletionsPending.EMPTY
         );
-        final SnapshotDeletionsInPending updatedPendingDeletes = updateSnapshotDeletionsPending(deletionsInPending, indicesToDelete, meta);
+        final SnapshotDeletionsPending updatedPendingDeletes = updateSnapshotDeletionsPending(deletionsInPending, indicesToDelete, meta);
         if (updatedPendingDeletes != deletionsInPending) {
             if (customBuilder == null) {
                 customBuilder = ImmutableOpenMap.builder(currentState.getCustoms());
             }
-            customBuilder.put(SnapshotDeletionsInPending.TYPE, updatedPendingDeletes);
+            customBuilder.put(SnapshotDeletionsPending.TYPE, updatedPendingDeletes);
         }
         if (customBuilder != null) {
             builder.customs(customBuilder.build());
@@ -166,14 +166,14 @@ public class MetadataDeleteIndexService {
         return allocationService.reroute(builder.build(), "deleted indices [" + indices + "]");
     }
 
-    private SnapshotDeletionsInPending updateSnapshotDeletionsPending(
-        final SnapshotDeletionsInPending pendingDeletions,
+    private SnapshotDeletionsPending updateSnapshotDeletionsPending(
+        final SnapshotDeletionsPending pendingDeletions,
         final Set<Index> indicesToDelete,
         final Metadata metadata
     ) {
         if (indicesToDelete.isEmpty() == false) {
             final long timestamp = Instant.now().toEpochMilli();
-            SnapshotDeletionsInPending.Builder builder = null;
+            SnapshotDeletionsPending.Builder builder = null;
             boolean changed = false;
 
             for (Index indexToDelete : indicesToDelete) {
@@ -215,13 +215,13 @@ public class MetadataDeleteIndexService {
                 }
                 if (canDeleteSnapshot) {
                     if (builder == null) {
-                        builder = new SnapshotDeletionsInPending.Builder(
+                        builder = new SnapshotDeletionsPending.Builder(
                             pendingDeletions,
                             evicted -> logger.warn(
                                 () -> new ParameterizedMessage(
                                     "maximum number of snapshots [{}] awaiting deletion has been reached in "
                                         + "cluster state before snapshot [{}] deleted on [{}] in repository [{}/{}] could be deleted",
-                                    SnapshotDeletionsInPending.MAX_PENDING_DELETIONS,
+                                    SnapshotDeletionsPending.MAX_PENDING_DELETIONS,
                                     evicted.getSnapshotId(),
                                     Instant.ofEpochMilli(evicted.getCreationTime()).atZone(ZoneOffset.UTC),
                                     evicted.getRepositoryName(),

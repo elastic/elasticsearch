@@ -32,9 +32,9 @@ import static java.util.Collections.unmodifiableSortedSet;
 /**
  * Represents snapshots marked as to be deleted and pending deletion.
  */
-public class SnapshotDeletionsInPending extends AbstractNamedDiffable<Custom> implements Custom {
+public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> implements Custom {
 
-    public static final SnapshotDeletionsInPending EMPTY = new SnapshotDeletionsInPending(Collections.emptySortedSet());
+    public static final SnapshotDeletionsPending EMPTY = new SnapshotDeletionsPending(Collections.emptySortedSet());
     public static final String TYPE = "snapshot_deletions_pending";
 
     public static final int MAX_PENDING_DELETIONS = 500;
@@ -44,12 +44,12 @@ public class SnapshotDeletionsInPending extends AbstractNamedDiffable<Custom> im
      */
     private final SortedSet<Entry> entries;
 
-    private SnapshotDeletionsInPending(SortedSet<Entry> entries) {
+    private SnapshotDeletionsPending(SortedSet<Entry> entries) {
         this.entries = unmodifiableSortedSet(Objects.requireNonNull(entries));
         assert entries.size() <= MAX_PENDING_DELETIONS : entries.size() + " > " + MAX_PENDING_DELETIONS;
     }
 
-    public SnapshotDeletionsInPending(StreamInput in) throws IOException {
+    public SnapshotDeletionsPending(StreamInput in) throws IOException {
         this(new TreeSet<>(in.readSet(Entry::new)));
     }
 
@@ -90,7 +90,7 @@ public class SnapshotDeletionsInPending extends AbstractNamedDiffable<Custom> im
         return Version.CURRENT.minimumCompatibilityVersion();
     }
 
-    public SnapshotDeletionsInPending withRemovedSnapshots(Set<SnapshotId> snapshotIds) {
+    public SnapshotDeletionsPending withRemovedSnapshots(Set<SnapshotId> snapshotIds) {
         if (snapshotIds == null || snapshotIds.isEmpty()) {
             return this;
         }
@@ -104,13 +104,13 @@ public class SnapshotDeletionsInPending extends AbstractNamedDiffable<Custom> im
         } else if (updatedEntries.isEmpty()) {
             return EMPTY;
         } else {
-            return new SnapshotDeletionsInPending(updatedEntries);
+            return new SnapshotDeletionsPending(updatedEntries);
         }
     }
 
     @Override
     public String toString() {
-        final StringBuilder builder = new StringBuilder("SnapshotDeletionsInPending[");
+        final StringBuilder builder = new StringBuilder("SnapshotDeletionsPending[");
         boolean prepend = true;
 
         final Iterator<Entry> iterator = entries.stream().iterator();
@@ -216,8 +216,8 @@ public class SnapshotDeletionsInPending extends AbstractNamedDiffable<Custom> im
         private final SortedSet<Entry> entries = new TreeSet<>();
         private final Consumer<Entry> consumer;
 
-        public Builder(SnapshotDeletionsInPending snapshotDeletionsInPending, Consumer<Entry> onLimitExceeded) {
-            entries.addAll(snapshotDeletionsInPending.entries);
+        public Builder(SnapshotDeletionsPending snapshotDeletionsPending, Consumer<Entry> onLimitExceeded) {
+            entries.addAll(snapshotDeletionsPending.entries);
             this.consumer = onLimitExceeded;
         }
 
@@ -237,9 +237,9 @@ public class SnapshotDeletionsInPending extends AbstractNamedDiffable<Custom> im
             return this;
         }
 
-        public SnapshotDeletionsInPending build() {
+        public SnapshotDeletionsPending build() {
             ensureLimit();
-            return entries.isEmpty() == false ? new SnapshotDeletionsInPending(entries) : EMPTY;
+            return entries.isEmpty() == false ? new SnapshotDeletionsPending(entries) : EMPTY;
         }
     }
 

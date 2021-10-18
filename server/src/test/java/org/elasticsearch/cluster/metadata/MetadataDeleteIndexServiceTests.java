@@ -9,7 +9,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SnapshotDeletionsInPending;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -199,7 +199,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(updatedState.blocks().indices().get("test"), nullValue());
         assertThat(updatedState.routingTable().index("test"), nullValue());
 
-        final SnapshotDeletionsInPending updatedPendingDeletions = updatedState.custom(SnapshotDeletionsInPending.TYPE);
+        final SnapshotDeletionsPending updatedPendingDeletions = updatedState.custom(SnapshotDeletionsPending.TYPE);
         if (deleteSnapshot) {
             assertThat(updatedPendingDeletions, notNullValue());
             assertThat(updatedPendingDeletions.isEmpty(), equalTo(false));
@@ -249,8 +249,8 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .metadata(metadataBuilder)
             .build();
 
-        SnapshotDeletionsInPending pendingDeletions =
-            clusterState.custom(SnapshotDeletionsInPending.TYPE, SnapshotDeletionsInPending.EMPTY);
+        SnapshotDeletionsPending pendingDeletions =
+            clusterState.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
         while (indices.size() > 0) {
             assertThat(pendingDeletions.isEmpty(), equalTo(true));
 
@@ -263,7 +263,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 assertThat(clusterState.routingTable().index(deletedIndex), nullValue());
             }
 
-            pendingDeletions = clusterState.custom(SnapshotDeletionsInPending.TYPE, SnapshotDeletionsInPending.EMPTY);
+            pendingDeletions = clusterState.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY);
         }
 
         assertThat(pendingDeletions.isEmpty(), equalTo(false));

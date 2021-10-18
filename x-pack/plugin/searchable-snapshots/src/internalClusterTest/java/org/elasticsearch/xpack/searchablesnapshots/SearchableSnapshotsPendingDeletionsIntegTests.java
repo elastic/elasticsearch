@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInPending;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
@@ -403,7 +403,7 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
 
     protected void awaitSnapshotPendingDeletion(final SnapshotId snapshotId) throws Exception {
         logger.info("--> wait for snapshot [{}] to be show up as pending deletion in the cluster state", snapshotId);
-        awaitClusterState(state -> state.custom(SnapshotDeletionsInPending.TYPE, SnapshotDeletionsInPending.EMPTY).contains(snapshotId));
+        awaitClusterState(state -> state.custom(SnapshotDeletionsPending.TYPE, SnapshotDeletionsPending.EMPTY).contains(snapshotId));
     }
 
     private void updateRepositoryReadOnly(String repository, boolean readOnly) {

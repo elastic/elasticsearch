@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
-import org.elasticsearch.cluster.SnapshotDeletionsInPending;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsPending;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1377,7 +1377,7 @@ public class RestoreService implements ClusterStateApplier {
                     "cannot restore a snapshot while a snapshot deletion is in-progress [" + deletionsInProgress.getEntries().get(0) + "]"
                 );
             }
-            SnapshotDeletionsInPending pendingDeletions = currentState.custom(SnapshotDeletionsInPending.TYPE);
+            SnapshotDeletionsPending pendingDeletions = currentState.custom(SnapshotDeletionsPending.TYPE);
             if (pendingDeletions != null && pendingDeletions.contains(snapshot.getSnapshotId())) {
                 throw new ConcurrentSnapshotExecutionException(
                     snapshot,

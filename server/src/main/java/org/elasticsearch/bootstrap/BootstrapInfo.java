@@ -9,8 +9,8 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.fusesource.jansi.AnsiPrintStream;
 
-import java.io.PrintStream;
 import java.util.Dictionary;
 import java.util.Enumeration;
 
@@ -20,7 +20,7 @@ import java.util.Enumeration;
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
-    private static PrintStream originalStandardOut;
+    private static AnsiPrintStream terminalPrintStream;
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -50,9 +50,9 @@ public final class BootstrapInfo {
     }
 
     /**
-     * Returns a reference to the original System.out
+     * Returns a reference to the terminal output
      */
-    public static PrintStream getOriginalStandardOut() { return originalStandardOut; }
+    public static AnsiPrintStream getTerminalPrintStream() { return terminalPrintStream; }
 
     /**
      * codebase location for untrusted scripts (provide some additional safety)
@@ -118,8 +118,8 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init(PrintStream originalStandardOut) {
-        BootstrapInfo.originalStandardOut = originalStandardOut;
+    public static void init(AnsiPrintStream terminalPrintStream) {
+        BootstrapInfo.terminalPrintStream = terminalPrintStream;
     }
 
 }

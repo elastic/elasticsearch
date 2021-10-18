@@ -64,7 +64,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
 
     @Override
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        final PrintStream out = BootstrapInfo.getOriginalStandardOut();
+        final PrintStream out = BootstrapInfo.getTerminalPrintStream();
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
         out.println();
         if (out.checkError()) {

@@ -37,6 +37,9 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.fusesource.jansi.Ansi;
+import org.fusesource.jansi.AnsiConsole;
+import org.fusesource.jansi.AnsiType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -273,9 +276,14 @@ final class Bootstrap {
             final Path pidFile,
             final boolean quiet,
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
+        final boolean closeStandardStreams = (foreground == false) || quiet;
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
-        BootstrapInfo.init(getSysOutReference());
+        if (false == closeStandardStreams) {
+            BootstrapInfo.init(AnsiConsole.out());
+        } else {
+            BootstrapInfo.init(null);
+        }
 
         INSTANCE = new Bootstrap();
 
@@ -303,7 +311,6 @@ final class Bootstrap {
 
 
         try {
-            final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
                 final Logger rootLogger = LogManager.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);

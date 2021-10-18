@@ -82,7 +82,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
         clusterHealthRequest.return200ForClusterHealthTimeout(request.paramAsBoolean(
-            ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY,
+            "return_200_for_cluster_health_timeout",
             clusterHealthRequest.doesReturn200ForClusterHealthTimeout()));
         return clusterHealthRequest;
     }

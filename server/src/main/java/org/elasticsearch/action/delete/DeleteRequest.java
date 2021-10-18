@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -229,11 +228,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public boolean isRequireAlias() {
         return false;
-    }
-
-    @Override
-    public int route(IndexRouting indexRouting) {
-        return indexRouting.deleteShard(id, routing);
     }
 
     @Override

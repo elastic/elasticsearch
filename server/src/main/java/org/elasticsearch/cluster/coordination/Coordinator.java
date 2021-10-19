@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -241,11 +242,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     .collect(Collectors.toList()), getCurrentTerm(), electionStrategy, nodeHealthService.getHealth());
     }
 
-    private void onLeaderFailure(Exception e) {
+    private void onLeaderFailure(MessageSupplier message, Exception e) {
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {
                 assert lastKnownLeader.isPresent();
-                logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
+                if (logger.isDebugEnabled()) {
+                    logger.info(message, e);
+                } else {
+                    logger.info(message);
+                }
             }
             becomeCandidate("onLeaderFailure");
         }

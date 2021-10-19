@@ -55,7 +55,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         final String dsName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createDataStreamAndTemplate(dsName);
-        for (int i = 0; i < between(1, 5); ++i) {
+        final int rolloverCount = between(1, 5);
+        for (int i = 0; i < rolloverCount; ++i) {
             indexRandom(
                 true,
                 false,
@@ -78,7 +79,13 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         IndicesStatsResponse stats = client().admin().indices().prepareStats(dsName).clear().setStore(true).get();
         long used = stats.getTotal().getStore().getSizeInBytes();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
-        long enoughSpace = used + WATERMARK_BYTES + 1;
+        // As long as usage is above low watermark, we will trigger a proactive scale up, since the simulated shards have an in-sync
+        // set and therefore allocating these do not skip the low watermark check in the disk threshold decider.
+        // Fixing this simulation should be done as a separate effort, but we should still ensure that the low watermark is in effect
+        // at least when replicas are involved.
+        long enoughSpace = used + (randomBoolean()
+            ? LOW_WATERMARK_BYTES - 1
+            : randomLongBetween(HIGH_WATERMARK_BYTES, LOW_WATERMARK_BYTES - 1));
 
         setTotalSpace(dataNodeName, enoughSpace);
 

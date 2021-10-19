@@ -136,12 +136,11 @@ IdP. If you want to retain the previous behavior, set `nameid_format` to
 
 *Impact* +
 If you currently don't configure `nameid_format` explicitly, it's possible
-that your IdP will reject authentication request from {es} because the requests 
+that your IdP will reject authentication requests from {es} because the requests 
 do not specify a `NameID` format (and your IdP is configured to expect one).
-This mismatch can result in a broken SAML configuration. If you're unsure which 
-name format your IdP uses to generate a value for `NameID`, try setting
-`nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` 
-explicitly.
+This mismatch can result in a broken SAML configuration. If you're unsure whether 
+your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
+, try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 ====
 
 [discrete]

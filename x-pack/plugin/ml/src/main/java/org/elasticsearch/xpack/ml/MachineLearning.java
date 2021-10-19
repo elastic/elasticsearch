@@ -23,7 +23,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -423,7 +422,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1091,9 +1089,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         var infoAction =
             new ActionHandler<>(XPackInfoFeatureAction.MACHINE_LEARNING, MachineLearningInfoTransportAction.class);
         if (false == enabled) {
-            return Arrays.asList(usageAction, infoAction);
+            return List.of(usageAction, infoAction);
         }
-        return Arrays.asList(
+        return List.of(
                 new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
                 new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
                 new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class),
@@ -1216,7 +1214,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         ScalingExecutorBuilder datafeed = new ScalingExecutorBuilder(DATAFEED_THREAD_POOL_NAME,
             1, MAX_MAX_OPEN_JOBS_PER_NODE, TimeValue.timeValueMinutes(1), "xpack.ml.datafeed_thread_pool");
 
-        return Arrays.asList(jobComms, utility, datafeed);
+        return List.of(jobComms, utility, datafeed);
     }
 
     @Override
@@ -1244,14 +1242,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
-        return Arrays.asList(
+        return List.of(
             new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
         );
     }
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
+        return List.of(
             new AggregationSpec(
                 CategorizeTextAggregationBuilder.NAME,
                 CategorizeTextAggregationBuilder::new,
@@ -1259,11 +1257,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             ).addResultReader(InternalCategorizationAggregation::new)
             .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
         );
-    }
-
-    @Override
-    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
-        return UnaryOperator.identity();
     }
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {

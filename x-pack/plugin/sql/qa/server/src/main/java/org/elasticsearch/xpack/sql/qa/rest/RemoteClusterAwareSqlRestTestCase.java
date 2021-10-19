@@ -30,6 +30,10 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
+    // gradle defines
+    public static final String AUTH_USER = System.getProperty("tests.rest.cluster.multi.user");
+    public static final String AUTH_PASS = System.getProperty("tests.rest.cluster.multi.password");
+
     @BeforeClass
     public static void initRemoteClients() throws IOException {
         String crossClusterHost = System.getProperty("tests.rest.cluster.remote.host"); // gradle defined
@@ -85,11 +89,8 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
     }
 
     protected static Settings secureRemoteClientSettings() {
-        // gradle defines
-        String user = System.getProperty("tests.rest.cluster.remote.user");
-        String pass = System.getProperty("tests.rest.cluster.remote.password");
-        if (hasText(user) && hasText(pass)) {
-            String token = basicAuthHeaderValue(user, new SecureString(pass.toCharArray()));
+        if (hasText(AUTH_USER) && hasText(AUTH_PASS)) {
+            String token = basicAuthHeaderValue(AUTH_USER, new SecureString(AUTH_PASS.toCharArray()));
             return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
         }
         return Settings.EMPTY;

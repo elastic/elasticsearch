@@ -23,6 +23,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
@@ -108,6 +109,10 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         connectionProperties.put(JDBC_TIMEZONE, randomZone().getId());
         // in the tests, don't be lenient towards multi values
         connectionProperties.put("field.multi.value.leniency", "false");
+        if (hasText(AUTH_USER) && hasText(AUTH_PASS)) {
+            connectionProperties.put("user", AUTH_USER);
+            connectionProperties.put("password", AUTH_PASS);
+        }
         return connectionProperties;
     }
 

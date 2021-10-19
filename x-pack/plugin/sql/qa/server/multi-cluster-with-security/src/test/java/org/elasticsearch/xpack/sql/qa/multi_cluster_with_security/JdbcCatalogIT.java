@@ -86,22 +86,4 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
             }
         }
     }
-
-    @Override
-    protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
-        connectionProperties.put("timezone", randomZone().getId());
-        // in the tests, don't be lenient towards multi values
-        connectionProperties.put("field.multi.value.leniency", "false");
-        // gradle defines
-        String user = System.getProperty("tests.rest.cluster.remote.user");
-        String pass = System.getProperty("tests.rest.cluster.remote.password");
-        if (hasText(user)) {
-            connectionProperties.put("user", user);
-        }
-        if (hasText(pass)) {
-            connectionProperties.put("password", pass);
-        }
-        return connectionProperties;
-    }
 }

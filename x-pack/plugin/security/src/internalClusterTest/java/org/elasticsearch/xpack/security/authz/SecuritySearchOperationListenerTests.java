@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -42,9 +40,9 @@ import org.mockito.Mockito;
 
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.authzInfoRoles;
 import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
 import static org.hamcrest.Matchers.is;
@@ -73,7 +71,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         try (LegacyReaderContext readerContext =
                  new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L), indexService, shard,
                      shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            MockLicenseState licenseState = mock(MockLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(false);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
@@ -95,7 +93,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         try (LegacyReaderContext readerContext =
                  new LegacyReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L),
                      indexService, shard, shard.acquireSearcherSupplier(), shardSearchRequest, Long.MAX_VALUE)) {
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            MockLicenseState licenseState = mock(MockLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);

@@ -86,6 +86,18 @@ public class XPackLicenseStateTests extends ESTestCase {
         return randomFrom(BASIC, STANDARD, GOLD);
     }
 
+    public void testNewTrialDefaultsSecurityOff() {
+        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+        licenseState.update(TRIAL, true, null);
+
+        assertThat(licenseState.isSecurityEnabled(), is(false));
+        assertSecurityNotAllowed(licenseState);
+    }
+
+    private void assertSecurityNotAllowed(XPackLicenseState licenseState) {
+        assertThat(licenseState.isSecurityEnabled(), is(false));
+    }
+
     public void testSecurityAckBasicToNotGoldOrStandard() {
         OperationMode toMode = randomFrom(OperationMode.values(), mode -> mode != GOLD && mode != STANDARD);
         assertAckMessages(XPackField.SECURITY, BASIC, toMode, 0);

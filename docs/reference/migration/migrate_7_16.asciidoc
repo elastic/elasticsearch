@@ -88,7 +88,7 @@ logging>>.
 ====
 *Details* +
 In SAML, Identity Providers (IdPs) can either be explicitly configured to
-release a `NameID` with a specific format, or configured to attempt to conform 
+release a `NameID` with a specific format, or configured to attempt to conform
 with the requirements of a Service Provider (SP). The SP declares its
 requirements in the `NameIDPolicy` element of a SAML Authentication Request.
 In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
@@ -103,9 +103,9 @@ IdP. If you want to retain the previous behavior, set `nameid_format` to
 
 *Impact* +
 If you currently don't configure `nameid_format` explicitly, it's possible
-that your IdP will reject authentication requests from {es} because the requests 
+that your IdP will reject authentication requests from {es} because the requests
 do not specify a `NameID` format (and your IdP is configured to expect one).
-This mismatch can result in a broken SAML configuration. If you're unsure whether 
+This mismatch can result in a broken SAML configuration. If you're unsure whether
 your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
 , try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 ====
@@ -321,4 +321,77 @@ avoid deprecation warnings and opt into the future behaviour, include the query
 parameter `?return_200_for_cluster_health_timeout` in your request.
 ====
 
+[[script-context-cache-removed]]
+.The `script.max_compilations_rate` setting cannot be `use-context`.
+[%collapsible]
+====
+*Details* +
+The `script.max_compilations_rate` node setting cannot be `use-context`.
+Previously, you could set this setting to `use-context` to have a
+script cache, compilation rate limit settings, cache expiration and
+cache size per cluster.
+
+However, these settings were used to handle system scripts triggering
+compilation rate limits and to compensate for an undersized general script
+cache.
+Now, system scripts are exempt from compilation rate limiting and
+the general script cache size is dynamically with a higher default
+size.
+
+Do not use `use-context` as a value for this setting.  Instead, remove
+the setting to use the default or set it to a custom rate limit, such as
+`200/10m`, which allows 200 compilations for every 10 minute period.
+
+*Impact* +
+Discontinue use of the removed setting value. Specifying the setting value
+in `elasticsearch.yml` will result in an error on startup.
+====
+
+[[script-context-cache-max-compile-removed]]
+.The `script.context.$CONTEXT.max_compilations_rate` setting has been removed.
+[%collapsible]
+====
+*Details* +
+Script context-specific compilation rate limit settings have been removed.  Use
+`script.max_compilations_rate` to set the rate limit for all user scripts.
+
+The context-specific settings were used to handle system scripts triggering
+compilation rate limits and to compensate for an undersized general script
+cache.
+
+Now, system scripts are exempt from compilation rate limiting and
+the general script cache size is dynamically updatable with a higher default
+size.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying the setting in
+`elasticsearch.yml` will result in an error on startup.
+====
+
+[[script-context-cache-size-removed]]
+.The `script.context.$CONTEXT.cache_max_size` setting has been removed.
+[%collapsible]
+====
+*Details* +
+Script context-specific cache settings have been removed.  Use
+`script.cache.max_size` to set the size of the script cache for all scripts.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying the setting in
+`elasticsearch.yml` will result in an error on startup.
+====
+
+[[script-context-cache-expire-removed]]
+.The `script.context.$CONTEXT.cache_expire` setting has been removed.
+[%collapsible]
+====
+*Details* +
+Script context-specific cache settings have been removed.  Use
+`script.cache.expire` to set the expiration of scripts in the script cache
+for all scripts.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying the setting in
+`elasticsearch.yml` will result in an error on startup.
+====
 // end::notable-breaking-changes[]

@@ -290,7 +290,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             otherDocCount,
-            List.of(topBuckets),
+            org.elasticsearch.core.List.of(topBuckets),
             0,
             formats,
             keyConverters,

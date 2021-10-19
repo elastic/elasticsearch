@@ -89,18 +89,19 @@ For a detailed migration guide, see the {ref}/migrate-to-java-time.html[Java
 time migration guide].
 ====
 
-.Attempting to store nanosecond resolution on date field is deprecated
+.Attempting to store nanosecond resolution in a date field is deprecated.
 [%collapsible]
 ====
 *Details* +
-Attempting to store a nanosecond resolution on a date field is deprecated.
+Attempting to store a nanosecond resolution in a date field is deprecated.
 This behaviour was allowed so far, but was always resulting in resolution loss.
-The field of type `date` can only store up to milliseconds resolution.
+A {ref}/date.html[`date`] field can only store up to millisecond resolutions.
 
 
 *Impact* +
-A deprecation warning will be emitted when attempting to store a nanosecond resolution
-on `date` type field. `date_nanos` should be used instead
+If you attempt to store a nanosecond resolution in a `date` type field, {es} will
+emit a deprecation warning. To avoid deprecation warnings, use a
+{ref}/date_nanos.html[`date_nanos`] field instead.
 ====
 
 

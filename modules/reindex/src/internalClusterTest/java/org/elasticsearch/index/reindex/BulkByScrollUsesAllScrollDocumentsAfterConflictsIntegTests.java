@@ -98,6 +98,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final boolean scriptEnabled = randomBoolean();
@@ -111,7 +112,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79342")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testReindex() throws Exception {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -134,6 +135,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testDeleteByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         executeConcurrentUpdatesOnSubsetOfDocs(indexName,

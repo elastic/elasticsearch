@@ -104,8 +104,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeBoolean(return200ForClusterHealthTimeout);
-        } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
         }
     }
 

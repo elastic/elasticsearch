@@ -14,6 +14,7 @@ tasks from the command line:
 * <<elasticsearch-keystore>>
 * <<node-tool>>
 * <<reset-elastic-password>>
+* <<reset-kibana-system-password>>
 * <<saml-metadata>>
 * <<setup-passwords>>
 * <<shard-tool>>
@@ -29,6 +30,7 @@ include::croneval.asciidoc[]
 include::keystore.asciidoc[]
 include::node-tool.asciidoc[]
 include::reset-elastic-password.asciidoc[]
+include::reset-kibana-system-password.asciidoc[]
 include::saml-metadata.asciidoc[]
 include::service-tokens-command.asciidoc[]
 include::setup-passwords.asciidoc[]

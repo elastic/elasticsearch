@@ -38,10 +38,14 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
         return org.elasticsearch.core.List.of(AnalyticsPlugin.class);
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return org.elasticsearch.core.List.of(AnalyticsPlugin.class);
+    }
+
     /**
      * Test that searches using multiterms aggregations returns all request breaker memory.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79437")
     public void testRequestBreaker() throws Exception {
         final String requestBreaker = randomIntBetween(1, 10000) + "kb";
         logger.info("--> Using request breaker setting: {}", requestBreaker);

@@ -434,8 +434,7 @@ If you run {agent} standalone, you can apply pipelines using an
 <<index-default-pipeline,`index.default_pipeline`>> or
 <<index-final-pipeline,`index.final_pipeline`>> index setting. Alternatively,
 you can specify the `pipeline` policy setting in your `elastic-agent.yml`
-configuration. See {fleet-guide}/run-elastic-agent-standalone.html[Run {agent}
-standalone].
+configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install standalone {agent}s].
 
 [discrete]
 [[access-source-fields]]

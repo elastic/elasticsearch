@@ -141,7 +141,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete);
@@ -211,7 +211,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
@@ -347,7 +347,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete);
@@ -489,7 +489,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete);
@@ -598,7 +598,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 OriginalIndices.NONE,
                 randomNonNegativeLong(),
                 indices.toArray(new String[0]),
-                transportService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
                 responseCollector::onComplete
@@ -895,7 +895,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
 
         @SuppressWarnings("unchecked")
         <T extends TransportResponse> void sendResponse(TransportResponseHandler<T> handler, TransportResponse resp) {
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(new AbstractRunnable() {
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION).submit(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     throw new AssertionError(e);
@@ -909,7 +909,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
 
         <T extends TransportResponse> void sendFailure(TransportResponseHandler<T> handler, Exception e) {
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(new AbstractRunnable() {
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION).submit(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     throw new AssertionError(e);

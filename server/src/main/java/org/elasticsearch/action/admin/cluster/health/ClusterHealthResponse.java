@@ -313,11 +313,10 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (return200ForClusterHealthTimeout || restApiVersion == RestApiVersion.V_8) {
+        if (return200ForClusterHealthTimeout) {
             return RestStatus.OK;
-        } else {
-            return RestStatus.REQUEST_TIMEOUT;
         }
+        return restApiVersion == RestApiVersion.V_7 ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
 
     @Override

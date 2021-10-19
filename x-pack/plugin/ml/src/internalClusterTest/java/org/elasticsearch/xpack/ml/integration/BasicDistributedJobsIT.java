@@ -11,6 +11,7 @@ import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -252,7 +253,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MACHINE_MEMORY_NODE_ATTR, notNullValue()));
+            assertThat(node.getAttributes(), hasEntry(equalTo(MachineLearning.MACHINE_MEMORY_NODE_ATTR), notNullValue()));
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);
             assertEquals(JobState.OPENED, jobTaskState.getState());
@@ -514,7 +515,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertNotNull(task.getExecutorNode());
             assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MACHINE_MEMORY_NODE_ATTR, notNullValue()));
+            assertThat(node.getAttributes(), hasEntry(equalTo(MachineLearning.MACHINE_MEMORY_NODE_ATTR), notNullValue()));
 
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);

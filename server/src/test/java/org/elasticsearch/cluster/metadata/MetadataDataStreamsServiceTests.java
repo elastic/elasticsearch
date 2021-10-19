@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
-    public void testAddBackingIndex() {
+    public void testAddBackingIndex() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
@@ -44,7 +44,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
-                    .putMapping(generateMapping("@timestamp"))
+                    .putMapping("_doc", generateMapping("@timestamp"))
                     .build();
             mb.put(backingIndices[k], false);
         }
@@ -60,14 +60,14 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putMapping(generateMapping("@timestamp"))
+            .putMapping("_doc", generateMapping("@timestamp"))
             .build();
         mb.put(indexToAdd, false);
 
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
-            List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            org.elasticsearch.core.List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService
         );
 
@@ -77,8 +77,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
         List<String> backingIndexNames = ds.getIndices()
             .stream()
-            .filter(x -> x.getIndex().getName().startsWith(".ds-"))
-            .map(x -> x.getIndex().getName())
+            .filter(x -> x.getName().startsWith(".ds-"))
+            .map(Index::getName)
             .collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder(
             Arrays.stream(backingIndices)
@@ -88,13 +88,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 .toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = ds.getIndices().get(0);
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 
-    public void testRemoveBackingIndex() {
+    public void testRemoveBackingIndex() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(2, 4);
         final String dataStreamName = randomAlphaOfLength(5);
@@ -106,7 +106,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
-                    .putMapping(generateMapping("@timestamp"))
+                    .putMapping("_doc", generateMapping("@timestamp"))
                     .build();
             mb.put(backingIndices[k], false);
         }
@@ -122,7 +122,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
-            List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
+            org.elasticsearch.core.List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
             this::getMapperService
         );
 
@@ -133,10 +133,9 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         List<Index> expectedBackingIndices = ds.getIndices()
             .stream()
-            .map(IndexMetadata::getIndex)
             .filter(x -> x.getName().equals(indexToRemove.getIndex().getName()) == false)
             .collect(Collectors.toList());
-        assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().stream().map(IndexMetadata::getIndex).toArray()));
+        assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
 
         IndexMetadata removedIndex = newState.metadata().getIndices().get(indexToRemove.getIndex().getName());
         assertThat(removedIndex, notNullValue());
@@ -144,7 +143,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertNull(newState.metadata().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
     }
 
-    public void testAddRemoveAddRoundtripInSingleRequest() {
+    public void testAddRemoveAddRoundtripInSingleRequest() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
@@ -156,7 +155,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
-                    .putMapping(generateMapping("@timestamp"))
+                    .putMapping("_doc", generateMapping("@timestamp"))
                     .build();
             mb.put(backingIndices[k], false);
         }
@@ -172,14 +171,14 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putMapping(generateMapping("@timestamp"))
+            .putMapping("_doc", generateMapping("@timestamp"))
             .build();
         mb.put(indexToAdd, false);
 
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
-            List.of(
+            org.elasticsearch.core.List.of(
                 DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
                 DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
                 DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())
@@ -193,8 +192,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
         List<String> backingIndexNames = ds.getIndices()
             .stream()
-            .filter(x -> x.getIndex().getName().startsWith(".ds-"))
-            .map(x -> x.getIndex().getName())
+            .filter(x -> x.getName().startsWith(".ds-"))
+            .map(Index::getName)
             .collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder(
                 Arrays.stream(backingIndices)
@@ -204,13 +203,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = ds.getIndices().get(0);
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 
-    public void testAddRemoveAddRoundtripInSeparateRequests() {
+    public void testAddRemoveAddRoundtripInSeparateRequests() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
@@ -222,7 +221,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
-                    .putMapping(generateMapping("@timestamp"))
+                    .putMapping("_doc", generateMapping("@timestamp"))
                     .build();
             mb.put(backingIndices[k], false);
         }
@@ -238,24 +237,24 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putMapping(generateMapping("@timestamp"))
+            .putMapping("_doc", generateMapping("@timestamp"))
             .build();
         mb.put(indexToAdd, false);
 
         ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
         ClusterState newState = MetadataDataStreamsService.modifyDataStream(
             originalState,
-            List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            org.elasticsearch.core.List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService
         );
         newState = MetadataDataStreamsService.modifyDataStream(
             newState,
-            List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            org.elasticsearch.core.List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService
         );
         newState = MetadataDataStreamsService.modifyDataStream(
             newState,
-            List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            org.elasticsearch.core.List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService
         );
 
@@ -265,8 +264,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
         List<String> backingIndexNames = ds.getIndices()
             .stream()
-            .filter(x -> x.getIndex().getName().startsWith(".ds-"))
-            .map(x -> x.getIndex().getName())
+            .filter(x -> x.getName().startsWith(".ds-"))
+            .map(Index::getName)
             .collect(Collectors.toList());
         assertThat(backingIndexNames, containsInAnyOrder(
                 Arrays.stream(backingIndices)
@@ -276,19 +275,19 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = ds.getIndices().get(0);
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 
-    public void testMissingDataStream() {
+    public void testMissingDataStream() throws Exception {
         Metadata.Builder mb = Metadata.builder();
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putMapping(generateMapping("@timestamp"))
+            .putMapping("_doc", generateMapping("@timestamp"))
             .build();
         mb.put(indexToAdd, false);
         final String missingDataStream = randomAlphaOfLength(5);
@@ -299,7 +298,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
                 originalState,
-                List.of(DataStreamAction.addBackingIndex(missingDataStream, indexToAdd.getIndex().getName())),
+                org.elasticsearch.core.List.of(DataStreamAction.addBackingIndex(missingDataStream, indexToAdd.getIndex().getName())),
                 this::getMapperService
             )
         );
@@ -307,7 +306,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("data stream [" + missingDataStream + "] not found"));
     }
 
-    public void testMissingIndex() {
+    public void testMissingIndex() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
@@ -319,7 +318,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
-                    .putMapping(generateMapping("@timestamp"))
+                    .putMapping("_doc", generateMapping("@timestamp"))
                     .build();
             mb.put(backingIndices[k], false);
         }
@@ -337,7 +336,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
                 originalState,
-                List.of(DataStreamAction.addBackingIndex(dataStreamName, missingIndex)),
+                org.elasticsearch.core.List.of(DataStreamAction.addBackingIndex(dataStreamName, missingIndex)),
                 this::getMapperService
             )
         );
@@ -348,7 +347,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
     private MapperService getMapperService(IndexMetadata im) {
         try {
             String mapping = im.mapping().source().toString();
-            return createMapperService(mapping);
+            return createMapperService("_doc", mapping);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -356,6 +355,6 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
+        return org.elasticsearch.core.List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
     }
 }

@@ -76,7 +76,7 @@ public class MetadataDataStreamsService {
     ) {
         Metadata updatedMetadata = currentState.metadata();
 
-        for (var action : actions) {
+        for (DataStreamAction action : actions) {
             Metadata.Builder builder = Metadata.builder(updatedMetadata);
             if (action instanceof DataStreamAction.AddBackingIndex) {
                 addBackingIndex(
@@ -109,13 +109,13 @@ public class MetadataDataStreamsService {
         String dataStreamName,
         String indexName
     ) {
-        var dataStream = validateDataStream(metadata, dataStreamName);
-        var index = validateIndex(metadata, indexName);
+        IndexAbstraction.DataStream dataStream = validateDataStream(metadata, dataStreamName);
+        IndexAbstraction.ConcreteIndex index = validateIndex(metadata, indexName);
 
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                index.getWriteIndex(),
+                metadata.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
                 false);
@@ -124,18 +124,19 @@ public class MetadataDataStreamsService {
         }
 
         // add index to data stream
-        builder.put(dataStream.getDataStream().addBackingIndex(metadata, index.getWriteIndex().getIndex()));
+        builder.put(dataStream.getDataStream().addBackingIndex(metadata, index.getWriteIndex()));
     }
 
     private static void removeBackingIndex(Metadata metadata, Metadata.Builder builder, String dataStreamName, String indexName) {
-        var dataStream = validateDataStream(metadata, dataStreamName);
-        var index = validateIndex(metadata, indexName);
-        builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex().getIndex()));
+        IndexAbstraction.DataStream dataStream = validateDataStream(metadata, dataStreamName);
+        IndexAbstraction.ConcreteIndex index = validateIndex(metadata, indexName);
+        builder.put(dataStream.getDataStream().removeBackingIndex(index.getWriteIndex()));
 
         // un-hide index
-        builder.put(IndexMetadata.builder(index.getWriteIndex())
-            .settings(Settings.builder().put(index.getWriteIndex().getSettings()).put("index.hidden", "false").build())
-            .settingsVersion(index.getWriteIndex().getSettingsVersion() + 1));
+        IndexMetadata indexMetadata = metadata.index(index.getWriteIndex());
+        builder.put(IndexMetadata.builder(indexMetadata)
+            .settings(Settings.builder().put(indexMetadata.getSettings()).put("index.hidden", "false").build())
+            .settingsVersion(indexMetadata.getSettingsVersion() + 1));
     }
 
     private static IndexAbstraction.DataStream validateDataStream(Metadata metadata, String dataStreamName) {
@@ -146,12 +147,12 @@ public class MetadataDataStreamsService {
         return (IndexAbstraction.DataStream) dataStream;
     }
 
-    private static IndexAbstraction.Index validateIndex(Metadata metadata, String indexName) {
+    private static IndexAbstraction.ConcreteIndex validateIndex(Metadata metadata, String indexName) {
         IndexAbstraction index = metadata.getIndicesLookup().get(indexName);
         if (index == null || index.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
-        return (IndexAbstraction.Index) index;
+        return (IndexAbstraction.ConcreteIndex) index;
     }
 
     public static final class ModifyDataStreamRequest extends ClusterStateUpdateRequest<ModifyDataStreamRequest> {

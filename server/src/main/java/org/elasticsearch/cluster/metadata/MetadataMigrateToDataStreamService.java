@@ -177,7 +177,7 @@ public class MetadataMigrateToDataStreamService {
             MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapper = mapperService.documentMapper();
 
-        var imb = IndexMetadata.builder(im);
+        IndexMetadata.Builder imb = IndexMetadata.builder(im);
         if (removeAlias) {
             imb.removeAlias(dataStreamName);
         }

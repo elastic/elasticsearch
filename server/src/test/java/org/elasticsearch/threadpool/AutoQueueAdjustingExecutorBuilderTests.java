@@ -8,7 +8,10 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -68,7 +71,7 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
             assertEquals(e.getMessage(), "Failed to parse value [100] for setting [thread_pool.test.min_queue_size] must be <= 99");
         }
 
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.test.max_queue_size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.test.max_queue_size"));
     }
 
     public void testSetLowerSettings() {
@@ -81,7 +84,8 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
         assertEquals(10, s.maxQueueSize);
         assertEquals(10, s.minQueueSize);
 
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.test.min_queue_size", "thread_pool.test.max_queue_size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.test.min_queue_size",
+            "thread_pool.test.max_queue_size"));
     }
 
     public void testSetHigherSettings() {
@@ -94,7 +98,13 @@ public class AutoQueueAdjustingExecutorBuilderTests extends ESThreadPoolTestCase
         assertEquals(3000, s.maxQueueSize);
         assertEquals(2000, s.minQueueSize);
 
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.test.min_queue_size", "thread_pool.test.max_queue_size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.test.min_queue_size",
+            "thread_pool.test.max_queue_size"));
+    }
+
+    private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
+        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
+            Setting.Property.Deprecated)).toArray(Setting[]::new);
     }
 
 }

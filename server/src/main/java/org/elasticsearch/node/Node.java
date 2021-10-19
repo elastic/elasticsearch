@@ -321,7 +321,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
@@ -330,13 +330,13 @@ public class Node implements Closeable {
 
             if (initialEnvironment.dataFiles().length > 1) {
                 // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths",
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths",
                     "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
                         "multiple disks. This feature will be removed in a future release.");
             }
             if (Environment.dataPathUsesList(tmpSettings)) {
                 // already checked for multiple values above, so if this is a list it is a single valued list
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
                     "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
             }
 

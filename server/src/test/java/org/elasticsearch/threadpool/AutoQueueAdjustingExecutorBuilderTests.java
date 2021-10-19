@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 

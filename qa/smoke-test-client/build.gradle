@@ -25,12 +25,12 @@ testClusters.matching { it.name == "singleNodeIntegTest" }.configureEach {
   setting 'discovery.type', 'single-node'
 }
 
-def integTest = tasks.named("integTest").configure {
+tasks.named("integTest").configure {
   dependsOn singleNodeIntegTest
 }
 
 tasks.named("check").configure {
-  dependsOn(integTest)
+  dependsOn("integTest")
 }
 
 tasks.named("testingConventions").configure {

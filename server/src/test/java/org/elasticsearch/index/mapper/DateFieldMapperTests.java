@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -148,9 +149,9 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2018-10-03T14:42:44.123456+0000")));
 
-        assertWarnings("You are attempting to store a nanosecond resolution " +
+        assertWarnings(true, new DeprecationWarning(Level.WARN, "You are attempting to store a nanosecond resolution " +
             "on a field [field] of type date on index [index]. " +
-            "The nanosecond part was lost. Use date_nanos field type.");
+            "The nanosecond part was lost. Use date_nanos field type."));
     }
 
     private void testIgnoreMalformedForValue(String value, String expectedCause, String dateFormat) throws IOException {

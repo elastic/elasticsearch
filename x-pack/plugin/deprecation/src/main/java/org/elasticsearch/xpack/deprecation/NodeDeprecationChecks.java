@@ -13,10 +13,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,5 +94,49 @@ public class NodeDeprecationChecks {
         }
 
         return null;
+    }
+
+    private static DeprecationIssue deprecatedAffixSetting(Setting.AffixSetting<?> deprecatedAffixSetting, String detailPattern,
+                                                           String url, DeprecationIssue.Level warningLevel, Settings settings) {
+        List<Setting<?>> deprecatedConcreteSettings = deprecatedAffixSetting.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+
+        if (deprecatedConcreteSettings.isEmpty()) {
+            return null;
+        }
+
+        final String concatSettingNames = deprecatedConcreteSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "The [%s] settings are deprecated and will be removed after 8.0",
+            concatSettingNames
+        );
+        final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
+
+        return new DeprecationIssue(warningLevel, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkExporterUseIngestPipelineSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return deprecatedAffixSetting(MonitoringDeprecatedSettings.USE_INGEST_PIPELINE_SETTING,
+            "Remove the following settings from elasticsearch.yml: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
+
+    static DeprecationIssue checkExporterPipelineMasterTimeoutSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return deprecatedAffixSetting(MonitoringDeprecatedSettings.PIPELINE_CHECK_TIMEOUT_SETTING,
+            "Remove the following settings from elasticsearch.yml: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
+
+    static DeprecationIssue checkExporterCreateLegacyTemplateSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return deprecatedAffixSetting(MonitoringDeprecatedSettings.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING,
+            "Remove the following settings from elasticsearch.yml: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
     }
 }

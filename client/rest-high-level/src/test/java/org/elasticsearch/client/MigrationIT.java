@@ -42,7 +42,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
     public void testGetFeatureUpgradeStatus() throws IOException {
         GetFeatureUpgradeStatusRequest request = new GetFeatureUpgradeStatusRequest();
         GetFeatureUpgradeStatusResponse response = highLevelClient().migration().getFeatureUpgradeStatus(request, RequestOptions.DEFAULT);
-        assertThat(response.getUpgradeStatus(), equalTo("NO_UPGRADE_NEEDED"));
+        assertThat(response.getUpgradeStatus(), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(response.getFeatureUpgradeStatuses().size(), greaterThanOrEqualTo(1));
         Optional<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> optionalTasksStatus = response.getFeatureUpgradeStatuses().stream()
             .filter(status -> "tasks".equals(status.getFeatureName()))
@@ -52,7 +52,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
 
         GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus tasksStatus = optionalTasksStatus.get();
 
-        assertThat(tasksStatus.getUpgradeStatus(), equalTo("NO_UPGRADE_NEEDED"));
+        assertThat(tasksStatus.getUpgradeStatus(), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(tasksStatus.getMinimumIndexVersion(), equalTo(Version.CURRENT.toString()));
         assertThat(tasksStatus.getFeatureName(), equalTo("tasks"));
     }

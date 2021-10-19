@@ -146,7 +146,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
                 .get();
             logger.info(Strings.toString(statusResponse));
-            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED));
+            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
 
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());

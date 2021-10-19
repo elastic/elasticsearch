@@ -36,8 +36,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED;
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
@@ -97,7 +97,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine)
             .orElseGet(() -> {
                 assert false : "get feature statuses API doesn't have any features";
-                return NO_UPGRADE_NEEDED;
+                return NO_MIGRATION_NEEDED;
             });
 
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
@@ -127,9 +127,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         if (featureName.equals(currentFeature)) {
             initialStatus = IN_PROGRESS;
         } else if (minimumVersion.before(NO_UPGRADE_REQUIRED_VERSION)) {
-            initialStatus = UPGRADE_NEEDED;
+            initialStatus = MIGRATION_NEEDED;
         } else {
-            initialStatus = NO_UPGRADE_NEEDED;
+            initialStatus = NO_MIGRATION_NEEDED;
         }
 
         GetFeatureUpgradeStatusResponse.UpgradeStatus status = indexInfos.stream()

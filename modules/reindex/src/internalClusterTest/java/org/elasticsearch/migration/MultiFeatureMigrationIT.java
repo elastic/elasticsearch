@@ -188,7 +188,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
                 .get();
             logger.info(Strings.toString(statusResponse));
-            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_UPGRADE_NEEDED));
+            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
 
         assertTrue("the first plugin's pre-migration hook wasn't actually called", preMigrationHookCalled.get());

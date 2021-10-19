@@ -444,7 +444,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     }
 
     Optional<String> nodeHasCapacity(ClusterState state, StartTrainedModelDeploymentAction.TaskParams params, DiscoveryNode node) {
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, true, node, maxOpenJobs, maxMemoryPercentage, useAuto);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, node, maxOpenJobs, maxMemoryPercentage, useAuto);
         return handleNodeLoad(load, node.getId(), params);
     }
 
@@ -460,7 +460,6 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         NodeLoad load = nodeLoadDetector.detectNodeLoad(
             state,
             builder.build(),
-            true,
             node,
             maxOpenJobs,
             maxMemoryPercentage,

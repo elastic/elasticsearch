@@ -81,7 +81,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             .values()
             .stream()
             .map(feature -> getFeatureUpgradeStatus(state, feature))
-            .filter(status -> status.getUpgradeStatus().equals(GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED))
+            .filter(status -> status.getUpgradeStatus().equals(GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED))
             .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getFeatureName)
             .map(PostFeatureUpgradeResponse.Feature::new)
             .sorted(Comparator.comparing(PostFeatureUpgradeResponse.Feature::getFeatureName)) // consistent ordering to simplify testing

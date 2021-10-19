@@ -204,6 +204,10 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
             this.indexVersionCreated = indexVersionCreated;
         }
 
+        public int dims() {
+            return dims;
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;

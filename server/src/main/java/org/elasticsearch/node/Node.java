@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
@@ -322,7 +323,7 @@ public class Node implements Closeable {
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
@@ -331,13 +332,13 @@ public class Node implements Closeable {
 
             if (initialEnvironment.dataFiles().length > 1) {
                 // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths",
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths",
                     "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
                         "multiple disks. This feature will be removed in a future release.");
             }
             if (Environment.dataPathUsesList(tmpSettings)) {
                 // already checked for multiple values above, so if this is a list it is a single valued list
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
                     "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
             }
 
@@ -566,6 +567,7 @@ public class Node implements Closeable {
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
                 new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);
+            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService, indicesService);
 
             final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
                 clusterService,
@@ -723,6 +725,7 @@ public class Node implements Closeable {
                     b.bind(AliasValidator.class).toInstance(aliasValidator);
                     b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
+                    b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
                     b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);

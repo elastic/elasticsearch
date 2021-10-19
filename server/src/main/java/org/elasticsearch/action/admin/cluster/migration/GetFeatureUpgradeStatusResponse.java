@@ -60,7 +60,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             builder.value(featureUpgradeStatus);
         }
         builder.endArray();
-        builder.field("upgrade_status", upgradeStatus);
+        builder.field("migration_status", upgradeStatus);
         builder.endObject();
         return builder;
     }
@@ -101,8 +101,8 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
     }
 
     public enum UpgradeStatus {
-        NO_UPGRADE_NEEDED,
-        UPGRADE_NEEDED,
+        NO_MIGRATION_NEEDED,
+        MIGRATION_NEEDED,
         IN_PROGRESS,
         ERROR;
 
@@ -179,7 +179,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             builder.startObject();
             builder.field("feature_name", this.featureName);
             builder.field("minimum_index_version", this.minimumIndexVersion.toString());
-            builder.field("upgrade_status", this.upgradeStatus);
+            builder.field("migration_status", this.upgradeStatus);
             builder.startArray("indices");
             for (IndexInfo version : this.indexInfos) {
                 builder.value(version);

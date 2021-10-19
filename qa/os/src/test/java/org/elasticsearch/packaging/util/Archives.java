@@ -321,6 +321,7 @@ public class Archives {
                     + "'; "
                     + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
+                    + parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : ""
                     + "'; "
                     + powerShellProcessUserSetup
                     + "$processInfo.RedirectStandardOutput = $true; "
@@ -368,6 +369,9 @@ public class Archives {
             command.add("-v"); // verbose auto-configuration
             command.add("-p");
             command.add(installation.home.resolve("elasticsearch.pid").toString());
+            if (parameters != null && parameters.isEmpty() == false) {
+                command.addAll(parameters);
+            }
             return sh.runIgnoreExitCode(String.join(" ", command));
         }
     }

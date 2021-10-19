@@ -48,7 +48,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -169,7 +168,7 @@ final class DefaultSearchContext extends SearchContext {
      * Should be called before executing the main query and after all other parameters have been set.
      */
     @Override
-    public void preProcess(boolean rewrite) {
+    public void preProcess() {
         if (hasOnlySuggest() ) {
             return;
         }
@@ -224,19 +223,20 @@ final class DefaultSearchContext extends SearchContext {
             throw new UncheckedIOException(e);
         }
 
-        if (query() == null) {
+        if (query == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
         if (queryBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
-            parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
+            parsedQuery(new ParsedQuery(new BoostQuery(query, queryBoost), parsedQuery()));
         }
         this.query = buildFilteredQuery(query);
-        if (rewrite) {
-            try {
-                this.query = searcher.rewrite(query);
-            } catch (IOException e) {
-                throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
-            }
+        if (lowLevelCancellation) {
+            searcher().addQueryCancellation(() -> {
+                final SearchShardTask task = getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            });
         }
     }
 
@@ -562,9 +562,6 @@ final class DefaultSearchContext extends SearchContext {
         return this.originalQuery;
     }
 
-    /**
-     * The query to execute, in its rewritten form.
-     */
     @Override
     public Query query() {
         return this.query;

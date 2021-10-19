@@ -531,6 +531,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // as the current node could be running in a cluster where some nodes are still using
     // that setting.  From 8.0.0 onwards we have the flexibility to increase it...
     private static final int MAX_MAX_OPEN_JOBS_PER_NODE = 512;
+    public static final int DEFAULT_MAX_OPEN_JOBS_PER_NODE = MAX_MAX_OPEN_JOBS_PER_NODE;
     // This setting is cluster-wide and can be set dynamically. However, prior to version 7.1 it was
     // a non-dynamic per-node setting. n a mixed version cluster containing 6.7 or 7.0 nodes those
     // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
@@ -538,7 +539,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting(
                 "xpack.ml.max_open_jobs",
-                MAX_MAX_OPEN_JOBS_PER_NODE,
+                DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 1,
                 MAX_MAX_OPEN_JOBS_PER_NODE,
                 Property.Dynamic,

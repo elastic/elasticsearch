@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -136,6 +137,59 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 expectedUrl,
                 "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured." +
                     " Discontinue use of this setting.",
+                false, null)));
+    }
+
+    public void testExporterUseIngestPipelineSettings() {
+        Settings settings = Settings.builder()
+            .put("xpack.monitoring.exporters.test.use_ingest", true)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        final String expectedUrl =
+            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
+                expectedUrl,
+                "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
+                false, null)));
+    }
+
+    public void testExporterPipelineMasterTimeoutSetting() {
+        Settings settings = Settings.builder()
+            .put("xpack.monitoring.exporters.test.index.pipeline.master_timeout", TimeValue.timeValueSeconds(10))
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        final String expectedUrl =
+            "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are deprecated and will be removed after 8.0",
+                expectedUrl,
+                "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                false, null)));
+    }
+
+    public void testExporterCreateLegacyTemplateSetting() {
+        Settings settings = Settings.builder()
+            .put("xpack.monitoring.exporters.test.index.template.create_legacy_templates", true)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        final String expectedUrl =
+            "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be " +
+                    "removed after 8.0",
+                expectedUrl,
+                "Remove the following settings from elasticsearch.yml: " +
+                    "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                 false, null)));
     }
 }

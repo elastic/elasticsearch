@@ -156,7 +156,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                                 SnapshotState.SUCCESS,
                                 SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion(),
                                 0L, // -1 would refresh RepositoryData and find the real version
-                                0L // -1 would refresh RepositoryData and find the real version
+                                0L, // -1 would refresh RepositoryData and find the real version,
+                                "" // null would refresh RepositoryData and find the real version
                         )));
         final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
             SnapshotsService.OLD_SNAPSHOT_FORMAT));

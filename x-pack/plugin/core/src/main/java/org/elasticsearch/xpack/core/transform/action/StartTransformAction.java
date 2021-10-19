@@ -70,7 +70,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(super.hashCode(), id);
         }
 
         @Override
@@ -82,7 +82,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id) && super.equals(obj);
         }
     }
 

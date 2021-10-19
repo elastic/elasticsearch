@@ -222,7 +222,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }, listener::onFailure));
     }
 
-    private void recursiveExpandTransformIdsAndUpgrade(boolean dryRun, TimeValue timeout, ActionListener<Map<UpdateResult.Status, Long>> listener) {
+    private void recursiveExpandTransformIdsAndUpgrade(
+        boolean dryRun,
+        TimeValue timeout,
+        ActionListener<Map<UpdateResult.Status, Long>> listener
+    ) {
         transformConfigManager.getAllOutdatedTransformIds(ActionListener.wrap(totalAndIds -> {
 
             // exit quickly if there is nothing to do

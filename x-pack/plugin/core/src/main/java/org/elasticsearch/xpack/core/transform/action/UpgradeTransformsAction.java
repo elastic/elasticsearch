@@ -62,7 +62,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
 
         @Override
         public int hashCode() {
-            return Objects.hash(dryRun);
+            return Objects.hash(super.hashCode(), dryRun);
         }
 
         @Override
@@ -74,7 +74,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return this.dryRun == other.dryRun;
+            return this.dryRun == other.dryRun && super.equals(obj);
         }
     }
 

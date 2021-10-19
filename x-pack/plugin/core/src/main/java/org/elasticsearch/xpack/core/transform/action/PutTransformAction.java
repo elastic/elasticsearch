@@ -129,7 +129,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferValidation);
+            return Objects.hash(super.hashCode(), config, deferValidation);
         }
 
         @Override
@@ -141,7 +141,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation;
+            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation && super.equals(obj);
         }
     }
 

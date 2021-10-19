@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
@@ -82,6 +83,24 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeTimeValue(timeout);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(timeout);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AcknowledgedRequest<?> other = (AcknowledgedRequest<?>) obj;
+        return Objects.equals(timeout, other.timeout);
     }
 
 }

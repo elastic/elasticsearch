@@ -12,6 +12,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Request;
 
+import java.io.IOException;
+
 public class StartTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
@@ -21,5 +23,24 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTes
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) throws IOException {
+        String id = instance.getId();
+        TimeValue timeout = instance.timeout();
+
+        switch (between(0, 1)) {
+            case 0:
+                id += randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+                break;
+            default:
+                throw new AssertionError("Illegal randomization branch");
+        }
+
+        return new Request(id, timeout);
     }
 }

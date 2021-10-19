@@ -73,7 +73,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, force);
+            return Objects.hash(super.hashCode(), id, force);
         }
 
         @Override
@@ -86,7 +86,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && force == other.force;
+            return Objects.equals(id, other.id) && force == other.force && super.equals(obj);
         }
     }
 }

@@ -36,9 +36,9 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         private final boolean deferValidation;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
+            super(timeout);
             this.config = config;
             this.deferValidation = deferValidation;
-            this.timeout(timeout);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -84,13 +84,12 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
                 return false;
             }
             Request that = (Request) obj;
-            return Objects.equals(config, that.config)
-                && deferValidation == that.deferValidation;
+            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && super.equals(obj);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferValidation);
+            return Objects.hash(super.hashCode(), config, deferValidation);
         }
     }
 

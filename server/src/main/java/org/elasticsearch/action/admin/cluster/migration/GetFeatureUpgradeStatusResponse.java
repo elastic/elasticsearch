@@ -211,7 +211,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
                 "featureName='" + featureName + '\'' +
                 ", minimumIndexVersion='" + minimumIndexVersion + '\'' +
                 ", upgradeStatus='" + upgradeStatus + '\'' +
-                ", indexVersions=" + indexInfos +
+                ", indexInfos=" + indexInfos +
                 '}';
         }
     }
@@ -230,6 +230,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
         /**
          * @param indexName Name of the index
          * @param version Version of Elasticsearch that created the index
+         * @param exception The exception that this index's migration failed with, if applicable
          */
         public IndexInfo(String indexName, Version version, Exception exception) {
             this.indexName = indexName;
@@ -309,9 +310,10 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
 
         @Override
         public String toString() {
-            return "IndexVersion{" +
+            return "IndexInfo{" +
                 "indexName='" + indexName + '\'' +
                 ", version='" + version + '\'' +
+                ", exception='" + exception.getMessage() + "'" +
                 '}';
         }
     }

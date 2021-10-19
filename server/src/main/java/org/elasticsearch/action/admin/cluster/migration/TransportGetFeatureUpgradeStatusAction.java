@@ -117,7 +117,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             .map(taskState -> ((SystemIndexMigrationTaskState) taskState).getCurrentFeature())
             .orElse(null);
 
-        List<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfos = getIndexVersions(state, feature);
+        List<GetFeatureUpgradeStatusResponse.IndexInfo> indexInfos = getIndexInfos(state, feature);
 
         Version minimumVersion = indexInfos.stream()
             .map(GetFeatureUpgradeStatusResponse.IndexInfo::getVersion)
@@ -143,7 +143,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     }
 
     // visible for testing
-    static List<GetFeatureUpgradeStatusResponse.IndexInfo> getIndexVersions(ClusterState state, SystemIndices.Feature feature) {
+    static List<GetFeatureUpgradeStatusResponse.IndexInfo> getIndexInfos(ClusterState state, SystemIndices.Feature feature) {
         final SingleFeatureMigrationResult featureStatus = Optional.ofNullable(
             (FeatureMigrationResults) state.metadata().custom(FeatureMigrationResults.TYPE)
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);

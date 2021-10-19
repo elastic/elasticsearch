@@ -48,7 +48,10 @@ public class Preallocate {
                         logger.info("pre-allocating cache file [{}] ({}) using native methods", cacheFile, new ByteSizeValue(fileSize));
                         final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
                         final int errno = prealloactor.preallocate(
-                            (int) field.get(fileChannel.getFD()), currentSize, fileSize - currentSize);
+                            (int) field.get(fileChannel.getFD()),
+                            currentSize,
+                            fileSize - currentSize
+                        );
                         if (errno == 0) {
                             success = true;
                             logger.debug("pre-allocated cache file [{}] using native methods", cacheFile);

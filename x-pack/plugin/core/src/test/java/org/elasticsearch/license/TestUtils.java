@@ -405,12 +405,6 @@ public class TestUtils {
     }
 
     public static MockLicenseState newMockLicenceState() {
-        MockLicenseState mock = mock(MockLicenseState.class);
-        // These are deprecated methods, but we haven't replaced all usage of them yet
-        // By calling the real methods, we force everything through a small number of mockable methods like
-        //  XPackLicenseState.isAllowed(LicensedFeature)
-        when(mock.isAllowed(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
-        when(mock.checkFeature(any(XPackLicenseState.Feature.class))).thenCallRealMethod();
-        return mock;
+        return mock(MockLicenseState.class);
     }
 }

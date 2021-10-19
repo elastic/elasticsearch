@@ -19,7 +19,6 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -96,20 +95,6 @@ public class TransformInternalIndexTests extends ESTestCase {
                 .build()
         );
 
-        return csBuilder.build();
-    }
-
-    public static ClusterState randomTransformAuditClusterState() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMapBuilder = ImmutableOpenMap.builder();
-        try {
-            templateMapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.templates(templateMapBuilder.build());
-        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        csBuilder.metadata(metaBuilder.build());
         return csBuilder.build();
     }
 

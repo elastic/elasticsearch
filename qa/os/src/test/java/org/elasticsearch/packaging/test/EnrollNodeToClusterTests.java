@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
-
 import org.junit.BeforeClass;
 
 import java.util.List;

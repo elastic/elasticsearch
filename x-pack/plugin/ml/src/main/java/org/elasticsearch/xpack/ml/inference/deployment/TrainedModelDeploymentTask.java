@@ -120,4 +120,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public Optional<ModelStats> modelStats() {
         return trainedModelAllocationNodeService.modelStats(this);
     }
+
+    public void setFailed(String reason) {
+        trainedModelAllocationNodeService.failAllocation(this, reason);
+    }
 }

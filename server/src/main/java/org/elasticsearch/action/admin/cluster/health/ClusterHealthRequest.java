@@ -69,7 +69,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
         }
-        return200ForClusterHealthTimeout = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            return200ForClusterHealthTimeout = in.readBoolean();
+        }
     }
 
     @Override
@@ -100,7 +102,9 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
-        out.writeBoolean(return200ForClusterHealthTimeout);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeBoolean(return200ForClusterHealthTimeout);
+        }
     }
 
     @Override

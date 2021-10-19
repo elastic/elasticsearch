@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -15,8 +16,11 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 public class ScriptStats implements Writeable, ToXContentFragment {
     private final List<ScriptContextStats> contextStats;
@@ -24,9 +28,11 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     private final long cacheEvictions;
     private final long compilationLimitTriggered;
 
-
     public ScriptStats(List<ScriptContextStats> contextStats) {
-        this.contextStats = contextStats.stream().sorted().collect(Collectors.toUnmodifiableList());
+        ArrayList<ScriptContextStats> ctxStats = new ArrayList<>(contextStats.size());
+        ctxStats.addAll(contextStats);
+        ctxStats.sort(ScriptContextStats::compareTo);
+        this.contextStats = Collections.unmodifiableList(ctxStats);
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
@@ -40,19 +46,34 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         this.compilationLimitTriggered = compilationLimitTriggered;
     }
 
+    public ScriptStats(long compilations, long cacheEvictions, long compilationLimitTriggered) {
+        this.contextStats = Collections.emptyList();
+        this.compilations = compilations;
+        this.cacheEvictions = cacheEvictions;
+        this.compilationLimitTriggered = compilationLimitTriggered;
+    }
+
+    public ScriptStats(ScriptContextStats context) {
+        this(context.getCompilations(), context.getCacheEvictions(), context.getCompilationLimitTriggered());
+    }
+
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
-        compilationLimitTriggered = in.readVLong();
-        contextStats = in.readList(ScriptContextStats::new);
+        compilationLimitTriggered = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readVLong() : 0;
+        contextStats = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readList(ScriptContextStats::new) : Collections.emptyList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
-        out.writeVLong(compilationLimitTriggered);
-        out.writeList(contextStats);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeVLong(compilationLimitTriggered);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeList(contextStats);
+        }
     }
 
     public List<ScriptContextStats> getContextStats() {
@@ -71,17 +92,30 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         return compilationLimitTriggered;
     }
 
+    public ScriptCacheStats toScriptCacheStats() {
+        if (contextStats.isEmpty()) {
+            return new ScriptCacheStats(this);
+        }
+        Map<String, ScriptStats> contexts = new HashMap<>(contextStats.size());
+        for (ScriptContextStats contextStats : contextStats) {
+            contexts.put(contextStats.getContext(), new ScriptStats(contextStats));
+        }
+        return new ScriptCacheStats(contexts);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SCRIPT_STATS);
         builder.field(Fields.COMPILATIONS, compilations);
         builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
         builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
+        /* TODO(stu): master only
         builder.startArray(Fields.CONTEXTS);
         for (ScriptContextStats contextStats: contextStats) {
             contextStats.toXContent(builder, params);
         }
         builder.endArray();
+         */
         builder.endObject();
         return builder;
     }

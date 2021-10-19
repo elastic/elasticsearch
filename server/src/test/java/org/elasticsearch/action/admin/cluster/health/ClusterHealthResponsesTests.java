@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterIndexHealthTests;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -51,7 +52,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     }
 
     public void testTimeoutReturns200IfOptedIn() {
-        ClusterHealthResponse res = new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, true);
+        ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, true);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status());

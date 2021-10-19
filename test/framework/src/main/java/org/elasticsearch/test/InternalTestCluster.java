@@ -546,15 +546,22 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(TransportSettings.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
         }
 
+
+        boolean needsUseContext = false;
         if (random.nextBoolean()) {
+            needsUseContext = true;
             String ctx = randomFrom(random, ScriptModule.CORE_CONTEXTS.keySet());
             builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(ctx).getKey(),
                         RandomNumbers.randomIntBetween(random, 0, 2000));
         }
         if (random.nextBoolean()) {
+            needsUseContext = true;
             String ctx = randomFrom(random, ScriptModule.CORE_CONTEXTS.keySet());
             builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(ctx).getKey(),
                         timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
+        }
+        if (needsUseContext) {
+            builder.put(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "use-context");
         }
         if (random.nextBoolean()) {
             int initialMillisBound = RandomNumbers.randomIntBetween(random,10, 100);

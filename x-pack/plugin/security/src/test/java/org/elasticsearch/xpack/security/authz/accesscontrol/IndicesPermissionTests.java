@@ -476,27 +476,24 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT;
         final Set<BytesReference> queries;
         if (fieldPermissions == FieldPermissions.DEFAULT) {
-            queries = Set.of(new BytesArray("a query"));
+            queries = org.elasticsearch.core.Set.of(new BytesArray("a query"));
         } else {
-            queries = randomBoolean() ? Set.of(new BytesArray("a query")) : null;
+            queries = randomBoolean() ? org.elasticsearch.core.Set.of(new BytesArray("a query")) : null;
         }
 
-        final IndicesPermission indicesPermission1 = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON)
-            .addGroup(IndexPrivilege.ALL, fieldPermissions, queries, randomBoolean(), "*")
-            .build();
+        final IndicesPermission indicesPermission1 = new IndicesPermission(
+            new IndicesPermission.Group(IndexPrivilege.ALL, fieldPermissions, queries, randomBoolean(), "*"));
         assertThat(indicesPermission1.hasFieldOrDocumentLevelSecurity(), is(true));
 
         // IsTotal means no DLS/FLS
-        final IndicesPermission indicesPermission2 = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON)
-            .addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, "*")
-            .build();
+        final IndicesPermission indicesPermission2 = new IndicesPermission(
+            new IndicesPermission.Group(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, "*"));
         assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
 
         // IsTotal means NO DLS/FLS even when there is another group that has DLS/FLS
-        final IndicesPermission indicesPermission3 = new IndicesPermission.Builder(RESTRICTED_INDICES_AUTOMATON)
-            .addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, "*")
-            .addGroup(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*")
-            .build();
+        final IndicesPermission indicesPermission3 = new IndicesPermission(
+            new IndicesPermission.Group(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, "*"),
+            new IndicesPermission.Group(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*"));
         assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
     }
 

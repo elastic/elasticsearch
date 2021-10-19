@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.emptyIterable;
@@ -135,7 +134,7 @@ public class IndicesAccessControlTests extends ESTestCase {
         assertThat(allowAll.getFieldAndDocumentLevelSecurityUsage(), is(IndicesAccessControl.DlsFlsUsage.NONE));
         assertThat(allowAll.getIndicesWithFieldOrDocumentLevelSecurity(), emptyIterable());
 
-        final IndicesAccessControl indicesAccessControl = new IndicesAccessControl(randomBoolean(), Map.of());
+        final IndicesAccessControl indicesAccessControl = new IndicesAccessControl(randomBoolean(), org.elasticsearch.core.Map.of());
         assertThat(allowAll.limitIndicesAccessControl(indicesAccessControl), is(indicesAccessControl));
         assertThat(indicesAccessControl.limitIndicesAccessControl(allowAll), is(indicesAccessControl));
     }

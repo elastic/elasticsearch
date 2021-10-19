@@ -85,7 +85,7 @@ final class GeoLineAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSources == null) {
+        if (valuesSources == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         boolean complete = counts.get(bucket) <= size;
@@ -98,7 +98,7 @@ final class GeoLineAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoLine(name, null, null, metadata(), true, includeSorts, sortOrder, size);
+        return new InternalGeoLine(name, new long[0], new double[0], metadata(), true, includeSorts, sortOrder, size);
     }
 
     @Override

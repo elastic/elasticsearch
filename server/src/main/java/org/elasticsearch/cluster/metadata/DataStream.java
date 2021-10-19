@@ -214,7 +214,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 index.getName(), name
             ));
         }
-        if (generation == (backingIndexPosition + 1)) {
+        if (indices.size() == (backingIndexPosition + 1)) {
             throw new IllegalArgumentException(String.format(
                 Locale.ROOT,
                 "cannot remove backing index [%s] of data stream [%s] because it is the write index",

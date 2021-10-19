@@ -99,8 +99,7 @@ public class TrainedModelAllocationMetadataTests extends AbstractSerializingTest
             modelId,
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
-            randomIntBetween(1, 8),
-            randomIntBetween(1, 10000)
+            randomIntBetween(1, 8)
         );
     }
 

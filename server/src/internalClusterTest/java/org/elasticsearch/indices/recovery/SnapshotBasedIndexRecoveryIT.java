@@ -73,6 +73,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -772,6 +773,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocumentsAreEqual(indexName, numDocs.get());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79455")
     public void testSeqNoBasedRecoveryIsUsedAfterPrimaryFailOver() throws Exception {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -890,6 +892,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79420")
     public void testRecoveryUsingSnapshotsPermitIsReturnedAfterFailureOrCancellation() throws Exception {
         executeRecoveryWithSnapshotFileDownloadThrottled((indices,
                                                           sourceNode,
@@ -1008,6 +1011,70 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot2, sourceNode, targetNode);
         });
     }
+
+    public void testRecoveryRetryKeepsTheGrantedSnapshotFileDownloadPermit() throws Exception {
+        executeRecoveryWithSnapshotFileDownloadThrottled((indices,
+                                                          sourceNode,
+                                                          targetNode,
+                                                          targetMockTransportService,
+                                                          recoverySnapshotFileRequests,
+                                                          awaitForRecoverSnapshotFileRequestReceived,
+                                                          respondToRecoverSnapshotFile) -> {
+            MockTransportService sourceMockTransportService =
+                (MockTransportService) internalCluster().getInstance(TransportService.class, sourceNode);
+
+            CountDownLatch startRecoveryRetryReceived = new CountDownLatch(1);
+            AtomicBoolean delayRecoveryExceptionSent = new AtomicBoolean();
+            sourceMockTransportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY,
+                (handler, request, channel, task) -> {
+                if (delayRecoveryExceptionSent.compareAndSet(false, true)) {
+                    channel.sendResponse(new DelayRecoveryException("delay"));
+                } else {
+                    startRecoveryRetryReceived.countDown();
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+            String indexRecoveredFromSnapshot1 = indices.get(0);
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexRecoveredFromSnapshot1)
+                    .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", targetNode)).get()
+            );
+
+            startRecoveryRetryReceived.await();
+            sourceMockTransportService.clearAllRules();
+            awaitForRecoverSnapshotFileRequestReceived.run();
+
+            String indexRecoveredFromPeer = indices.get(1);
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexRecoveredFromPeer)
+                    .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", targetNode)).get()
+            );
+
+            ensureGreen(indexRecoveredFromPeer);
+            assertPeerRecoveryDidNotUseSnapshots(indexRecoveredFromPeer, sourceNode, targetNode);
+
+            respondToRecoverSnapshotFile.run();
+
+            ensureGreen(indexRecoveredFromSnapshot1);
+            assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot1, sourceNode, targetNode);
+
+            targetMockTransportService.clearAllRules();
+
+            final String indexRecoveredFromSnapshot2 = indices.get(2);
+            assertAcked(
+                client().admin().indices().prepareUpdateSettings(indexRecoveredFromSnapshot2)
+                    .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", targetNode)).get()
+            );
+
+            ensureGreen(indexRecoveredFromSnapshot2);
+            assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot2, sourceNode, targetNode);
+        });
+    }
+
 
     private void executeRecoveryWithSnapshotFileDownloadThrottled(SnapshotBasedRecoveryThrottlingTestCase testCase) throws Exception {
         updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");

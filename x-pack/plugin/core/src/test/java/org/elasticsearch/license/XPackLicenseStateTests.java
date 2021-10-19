@@ -9,10 +9,8 @@ package org.elasticsearch.license;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -86,110 +84,6 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public static OperationMode randomBasicStandardOrGold() {
         return randomFrom(BASIC, STANDARD, GOLD);
-    }
-
-    public void testSecurityDefaults() {
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-
-        licenseState = TestUtils.newTestLicenseState();
-        assertSecurityNotAllowed(licenseState);
-    }
-
-    public void testTransportSslDoesNotAutomaticallyEnableSecurityOnTrialLicense() {
-        Settings settings = Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true).build();
-        final XPackLicenseState licenseState= new XPackLicenseState(settings, () -> 0);
-        assertSecurityNotAllowed(licenseState);
-    }
-
-    public void testSecurityBasicWithoutExplicitSecurityEnabled() {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(BASIC, true, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
-
-        assertThat(licenseState.isSecurityEnabled(), is(false));
-    }
-
-    public void testSecurityBasicWithExplicitSecurityEnabled() {
-        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(BASIC, true, null);
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(false));
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-    }
-
-    public void testSecurityStandard() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(STANDARD, true, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-    }
-
-    public void testSecurityStandardExpired() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(STANDARD, false, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(false));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-    }
-
-    public void testSecurityGold() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(GOLD, true, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-    }
-
-    public void testSecurityGoldExpired() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(GOLD, false, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-    }
-
-    public void testSecurityPlatinum() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(PLATINUM, true, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
-    }
-
-    public void testSecurityPlatinumExpired() {
-        Settings settings = randomFrom(Settings.EMPTY,
-            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
-        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
-        licenseState.update(PLATINUM, false, null);
-
-        assertThat(licenseState.isSecurityEnabled(), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_AUDITING), is(true));
-        assertThat(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE), is(true));
     }
 
     public void testNewTrialDefaultsSecurityOff() {

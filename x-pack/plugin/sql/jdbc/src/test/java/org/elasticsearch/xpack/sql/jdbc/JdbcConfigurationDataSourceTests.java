@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Properties;
@@ -42,5 +46,33 @@ public class JdbcConfigurationDataSourceTests extends WebServerTestCase {
 
         assertEquals(address, connection.getURL());
         JdbcConfigurationTests.assertSslConfig(allProps, connection.cfg.sslConfig());
+    }
+
+    public void testTimeoutsInUrl() throws IOException, SQLException {
+        webServer().enqueue(
+            new MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(XContentHelper.toXContent(createCurrentVersionMainResponse(), XContentType.JSON, false).utf8ToString())
+        );
+
+        EsDataSource dataSource = new EsDataSource();
+        String address = "jdbc:es://" + webServerAddress() + "/?binary.format=false&query.timeout=10&page.timeout=20";
+        dataSource.setUrl(address);
+        Connection connection = dataSource.getConnection();
+        webServer().takeRequest();
+
+        webServer().enqueue(
+            new MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("{\"rows\":[],\"columns\":[]}")
+        );
+        PreparedStatement statement = connection.prepareStatement("SELECT 1");
+        statement.execute();
+        MockRequest request = webServer().takeRequest();
+
+        Map<String, Object> sqlQueryRequest = XContentHelper.convertToMap(JsonXContent.jsonXContent, request.getBody(), false);
+        // expected values should be 10s and 20s respectively (https://github.com/elastic/elasticsearch/issues/79480)
+        assertEquals("10ms", sqlQueryRequest.get("request_timeout"));
+        assertEquals("20ms", sqlQueryRequest.get("page_timeout"));
     }
 }

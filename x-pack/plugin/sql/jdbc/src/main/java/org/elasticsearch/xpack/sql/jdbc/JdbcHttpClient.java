@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -60,8 +60,8 @@ class JdbcHttpClient {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
         SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
                 fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()),
                 TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+                TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
                 null,
                 Boolean.FALSE,
                 null,
@@ -79,8 +79,13 @@ class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC), conCfg.binaryCommunication());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            cursor,
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
+            new RequestInfo(Mode.JDBC),
+            conCfg.binaryCommunication()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }

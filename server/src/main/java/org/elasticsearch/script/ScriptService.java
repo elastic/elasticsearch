@@ -59,15 +59,15 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     static final String USE_CONTEXT_RATE_KEY = "use-context";
 
     public static final Setting<Integer> SCRIPT_GENERAL_CACHE_SIZE_SETTING =
-        Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope, Property.Deprecated);
+        Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
     public static final Setting<TimeValue> SCRIPT_GENERAL_CACHE_EXPIRE_SETTING =
-        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope, Property.Deprecated);
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<ScriptCache.CompilationRate> SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING =
         new Setting<>("script.max_compilations_rate", USE_CONTEXT_RATE_KEY,
             (String value) -> value.equals(USE_CONTEXT_RATE_KEY) ? USE_CONTEXT_RATE_VALUE: new ScriptCache.CompilationRate(value),
-            Property.Dynamic, Property.NodeScope, Property.Deprecated);
+            Property.Dynamic, Property.NodeScope);
 
     // Per-context settings
     static final String CONTEXT_PREFIX = "script.context.";

@@ -740,12 +740,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
             QueryPhase.executeInternal(searchContext);
-            assertFalse(searchContext.sort().sort.getSort()[0].getCanUsePoints());
             final TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
             long firstResult = (long) ((FieldDoc) topDocs.scoreDocs[0]).fields[0];
             assertThat(firstResult, greaterThan(afterValue));
-            assertThat(topDocs.totalHits.value, equalTo((long)numDocs));
-            // assertSortResults(topDocs, numDocs, false);
+            assertSortResults(topDocs, numDocs, false);
         }
 
         // 3. Test sort optimization on long field + date field
@@ -924,7 +922,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testCancellationDuringPreprocess() throws IOException {
+    public void testCancellationDuringRewrite() throws IOException {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
 
@@ -941,39 +939,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
             w.close();
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(
-                    null, indexShard, newContextSearcher(reader));
+                TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
                 PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
                 prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
                 SearchShardTask task = new SearchShardTask(randomLong(), "transport", "", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
                 TaskCancelHelper.cancel(task, "simulated");
                 context.setTask(task);
-                expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
+                context.searcher().addQueryCancellation(task::ensureNotCancelled);
+                expectThrows(TaskCancelledException.class, () -> context.rewrittenQuery());
             }
-        }
-    }
-
-    private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {
-
-        private TestSearchContextWithRewriteAndCancellation(SearchExecutionContext searchExecutionContext,
-                                                            IndexShard indexShard,
-                                                            ContextIndexSearcher searcher) {
-            super(searchExecutionContext, indexShard, searcher);
-        }
-
-        @Override
-        public void preProcess(boolean rewrite) {
-            try {
-                searcher().rewrite(query());
-            } catch (IOException e) {
-                fail("IOException shouldn't be thrown");
-            }
-        }
-
-        @Override
-        public boolean lowLevelCancellation() {
-            return true;
         }
     }
 

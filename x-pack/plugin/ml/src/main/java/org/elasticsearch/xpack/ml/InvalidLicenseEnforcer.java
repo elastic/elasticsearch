@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
@@ -49,7 +50,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
     @Override
     public void licenseStateChanged() {
         assert licenseStateListenerRegistered;
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState) == false) {
             // if the license has expired, close jobs and datafeeds
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override

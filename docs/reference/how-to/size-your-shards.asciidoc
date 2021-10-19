@@ -329,7 +329,7 @@ cluster settings API>> and retry the action.
 ----
 PUT _cluster/settings
 {
-  "transient" : {
+  "persistent" : {
     "cluster.max_shards_per_node": 1200
   }
 }
@@ -353,7 +353,7 @@ When a long-term solution is in place, we recommend you reset the
 ----
 PUT _cluster/settings
 {
-  "transient" : {
+  "persistent" : {
     "cluster.max_shards_per_node": null
   }
 }

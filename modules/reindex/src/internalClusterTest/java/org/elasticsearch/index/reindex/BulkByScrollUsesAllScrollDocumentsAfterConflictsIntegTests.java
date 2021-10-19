@@ -96,6 +96,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         internalCluster().startMasterOnlyNode();
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
     }
 
     public void testUpdateByQuery() throws Exception {
@@ -180,13 +181,13 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         assertThat(writeThreads, equalTo(1));
         final EsThreadPoolExecutor writeThreadPool = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE);
         final CyclicBarrier barrier = new CyclicBarrier(writeThreads + 1);
-        final CountDownLatch blockTransportBulkAction = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(1);
 
         // Block the write thread pool
         writeThreadPool.submit(() -> {
             try {
                 barrier.await();
-                blockTransportBulkAction.await();
+                latch.await();
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
@@ -214,30 +215,11 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         }
 
         // The bulk request is enqueued before the update by query
-        final ActionFuture<BulkResponse> bulkFuture = client().bulk(conflictingUpdatesBulkRequest);
-
-        // Ensure that the concurrent writes are enqueued before the update by query request is sent
-        assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
-
-        // Since #77731, TransportBulkAction is dispatched in the Write ThreadPool, therefore
-        // we should allow that task to be executed and then wait until TransportShardBulkAction
-        // dispatches the shard operation in the Write ThreadPool.
-        final CyclicBarrier transportShardBulkBarrier = new CyclicBarrier(writeThreads + 1);
-        final CountDownLatch blockWriteThreadPool = new CountDownLatch(1);
-        // Block the write thread pool
-        writeThreadPool.submit(() -> {
-            try {
-                transportShardBulkBarrier.await();
-                blockWriteThreadPool.await();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-
-        // Let the TransportBulkAction task to be executed and enqueue the TransportShardBulkAction
-        blockTransportBulkAction.countDown();
-        // Ensure that the write thread blocking task is currently executing
-        transportShardBulkBarrier.await();
+        // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
+        // since this test makes use of a deterministic task order in the data node write
+        // thread pool, ensure that the TransportBulkAction is executed in a coordinator node
+        // meaning that the data node thread pool behaves as it did before.
+        final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
 
         // Ensure that the concurrent writes are enqueued before the update by query request is sent
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
@@ -260,7 +242,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(2)));
 
         // Allow tasks from the write thread to make progress
-        blockWriteThreadPool.countDown();
+        latch.countDown();
 
         final BulkResponse bulkItemResponses = bulkFuture.actionGet();
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {

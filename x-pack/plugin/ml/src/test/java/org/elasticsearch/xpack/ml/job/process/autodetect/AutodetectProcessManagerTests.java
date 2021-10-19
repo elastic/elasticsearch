@@ -92,7 +92,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -185,23 +184,21 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(SETTING_INDEX_HIDDEN, true)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
+                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
                         .build())
                 .fPut(
-                    AnnotationIndex.LATEST_INDEX_NAME,
-                    IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
+                    AnnotationIndex.INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
                         .settings(
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(SETTING_INDEX_HIDDEN, true)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
-                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
                         .build())
                 .build())
             .build();

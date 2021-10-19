@@ -26,6 +26,8 @@ public class PassThroughConfig implements NlpConfig {
 
     public static final String NAME = "pass_through";
 
+    public static PassThroughConfig EMPTY_PARAMS = new PassThroughConfig(null, null, null);
+
     public static PassThroughConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
     }

@@ -368,25 +368,25 @@ public class InferenceProcessor extends AbstractProcessor {
                 checkSupportedVersion(ClassificationConfig.EMPTY_PARAMS);
                 return ClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(FillMaskConfig.NAME)) {
-                checkSupportedVersion(new FillMaskConfig(null, null, null, null));
+                checkSupportedVersion(FillMaskConfig.EMPTY_PARAMS);
                 return FillMaskConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(NerConfig.NAME)) {
-                checkSupportedVersion(new NerConfig(null, null, null, null));
+                checkSupportedVersion(NerConfig.EMPTY_PARAMS);
                 return NerConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(PassThroughConfig.NAME)) {
-                checkSupportedVersion(new PassThroughConfig(null, null, null));
+                checkSupportedVersion(PassThroughConfig.EMPTY_PARAMS);
                 return PassThroughConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
-                checkSupportedVersion(new TextClassificationConfig(null, null, List.of("meeting", "requirements"), null, null));
+                checkSupportedVersion(TextClassificationConfig.EMPTY_PARAMS);
                 return TextClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
-                checkSupportedVersion(new TextEmbeddingConfig(null, null, null));
+                checkSupportedVersion(TextEmbeddingConfig.EMPTY_PARAMS);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
-                checkSupportedVersion(new ZeroShotClassificationConfig(List.of("unused"), null, null, null, null, null, null));
+                checkSupportedVersion(ZeroShotClassificationConfig.EMPTY_PARAMS);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
             }
             // TODO missing update types

@@ -27,6 +27,8 @@ public class FillMaskConfig implements NlpConfig {
     public static final String NAME = "fill_mask";
     public static final int DEFAULT_NUM_RESULTS = 5;
 
+    public static FillMaskConfig EMPTY_PARAMS = new FillMaskConfig(null, null, null, null);
+
     public static FillMaskConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null).build();
     }

@@ -8,26 +8,25 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -103,10 +102,10 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     private static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
         (XContentParser parser, Void context, String index) -> ClusterIndexHealth.innerFromXContent(parser, index);
-    static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "return_200_for_cluster_health_timeout";
+    private static final String ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY = "es.cluster_health.request_timeout_200";
     static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "The HTTP status code for a cluster health timeout " +
         "will be changed from 408 to 200 in a future version. Set the [" + ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + "] " +
-        "query parameter to [true] to suppress this message and opt in to the future behaviour now.";
+        "system property to [true] to suppress this message and opt in to the future behaviour now.";
 
     static {
         // ClusterStateHealth fields
@@ -139,7 +138,15 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private boolean timedOut = false;
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
-    private boolean return200ForClusterHealthTimeout;
+    private boolean esClusterHealthRequestTimeout200 = readEsClusterHealthRequestTimeout200FromProperty();
+
+    public ClusterHealthResponse() {
+    }
+
+    /** For the testing of opting in for the 200 status code without setting a system property */
+    ClusterHealthResponse(boolean esClusterHealthRequestTimeout200) {
+        this.esClusterHealthRequestTimeout200 = esClusterHealthRequestTimeout200;
+    }
 
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
@@ -151,21 +158,15 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards= in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            return200ForClusterHealthTimeout = in.readBoolean();
-        }
     }
 
     /** needed for plugins BWC */
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState,
-                                 boolean return200ForServerTimeout) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0),
-            return200ForServerTimeout);
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
     }
 
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks,
-                                 int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime,
-                                 boolean return200ForServerTimeout) {
+                                 int numberOfInFlightFetch, int delayedUnassignedShards, TimeValue taskMaxWaitingTime) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
@@ -173,7 +174,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.taskMaxWaitingTime = taskMaxWaitingTime;
         this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
-        this.return200ForClusterHealthTimeout = return200ForServerTimeout;
     }
 
     /**
@@ -305,11 +305,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeBoolean(return200ForClusterHealthTimeout);
-        } else if (return200ForClusterHealthTimeout) {
-            throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());
-        }
     }
 
     @Override
@@ -322,7 +317,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (return200ForClusterHealthTimeout) {
+        if (esClusterHealthRequestTimeout200) {
             return RestStatus.OK;
         } else {
             deprecationLogger.critical(DeprecationCategory.API,"cluster_health_request_timeout",
@@ -387,5 +382,18 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     public int hashCode() {
         return Objects.hash(clusterName, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassignedShards, taskMaxWaitingTime,
                 timedOut, clusterStateHealth, clusterHealthStatus);
+    }
+
+    private static boolean readEsClusterHealthRequestTimeout200FromProperty() {
+        String property = System.getProperty(ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY);
+        if (property == null) {
+            return false;
+        }
+        if (Boolean.parseBoolean(property)) {
+            return true;
+        } else {
+            throw new IllegalArgumentException(ES_CLUSTER_HEALTH_REQUEST_TIMEOUT_200_KEY + " can only be unset or [true] but was ["
+                + property + "]");
+        }
     }
 }

@@ -7,6 +7,8 @@ Also see <<breaking-changes-7.12,Breaking changes in 7.12>>.
 [discrete]
 === Known issues
 
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
+
 * Snapshot and restore: If an index is deleted while the cluster is
 concurrently taking more than one snapshot then there is a risk that one of the
 snapshots may never complete and also that some shard data may be lost from the
@@ -138,6 +140,19 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22137[CVE-2021-22137]
 [[known-issues-7.12.0]]
 [discrete]
 === Known issues
+
+// tag::frozen-tier-79371-known-issue[]
+* Frozen tier: (Windows only) The frozen data tier relies on multiple caching mechanisms
+to speed up access to searchable snapshot files. One of these caches uses
+https://en.wikipedia.org/wiki/Sparse_file[sparse files] to avoid creating large
+files on disk when it is not strictly required. A bug prevented files from being
+created with the right options to enable sparse support on Windows, leading {es} to
+create potentially large files that can end up consuming all the disk space.
++
+This issue is fixed in {es} versions 7.15.2 and later. There is no known workaround
+for earlier versions. Filesystems that enable sparse files by default are not affected.
+For more details, see {es-issue}79371[#79371].
+// end::frozen-tier-79371-known-issue[]
 
 * If autoscaling is enabled for machine learning, the administrator of the cluster
   should increase the cluster setting `xpack.ml.max_open_jobs`. This allows autoscaling

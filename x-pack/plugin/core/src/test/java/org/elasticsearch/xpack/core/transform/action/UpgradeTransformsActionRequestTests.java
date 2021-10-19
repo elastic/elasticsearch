@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
 
@@ -20,7 +21,7 @@ public class UpgradeTransformsActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomBoolean());
+        return new Request(randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 
 }

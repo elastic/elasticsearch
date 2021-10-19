@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -29,7 +30,12 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean());
+        Request request = new Request(
+            randomTransformConfigUpdate(),
+            randomAlphaOfLength(10),
+            randomBoolean(),
+            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+        );
         if (randomBoolean()) {
             request.setConfig(TransformConfigTests.randomTransformConfig());
         }
@@ -54,7 +60,8 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             assertThat(oldRequest.getUpdate().getSource().getIndex(), is(equalTo(newRequest.getUpdate().getSource().getIndex())));
             assertThat(
                 oldRequest.getUpdate().getSource().getQueryConfig(),
-                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig())));
+                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig()))
+            );
             // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
             assertThat(oldRequest.getUpdate().getSource().getRuntimeMappings(), is(anEmptyMap()));
         }
@@ -76,7 +83,8 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             assertThat(newRequestFromOld.getUpdate().getSource().getIndex(), is(equalTo(newRequest.getUpdate().getSource().getIndex())));
             assertThat(
                 newRequestFromOld.getUpdate().getSource().getQueryConfig(),
-                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig())));
+                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig()))
+            );
             // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
             assertThat(newRequestFromOld.getUpdate().getSource().getRuntimeMappings(), is(anEmptyMap()));
         }

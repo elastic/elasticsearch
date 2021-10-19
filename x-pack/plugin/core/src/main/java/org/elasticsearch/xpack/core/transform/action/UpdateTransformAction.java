@@ -49,10 +49,11 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         private final boolean deferValidation;
         private TransformConfig config;
 
-        public Request(TransformConfigUpdate update, String id, boolean deferValidation) {
+        public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
             this.id = id;
             this.deferValidation = deferValidation;
+            this.setTimeout(timeout);
         }
 
         // use fromStreamWithBWC, this can be changed back to public after BWC is not required anymore
@@ -71,11 +72,16 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 return new Request(in);
             }
             UpdateTransformActionPre78.Request r = new UpdateTransformActionPre78.Request(in);
-            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation());
+            return new Request(r.getUpdate(), r.getId(), r.isDeferValidation(), r.timeout());
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation);
+        public static Request fromXContent(
+            final XContentParser parser,
+            final String id,
+            final boolean deferValidation,
+            final TimeValue timeout
+        ) {
+            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation, timeout);
         }
 
         /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
@@ -16,7 +17,7 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomTransformConfig(), randomBoolean());
+        return new Request(randomTransformConfig(), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 
     @Override

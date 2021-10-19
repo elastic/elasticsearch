@@ -27,7 +27,15 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
 
     protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
 
+    /**
+     * @deprecated The constructor with the explicit timeout value should be used instead.
+     */
+    @Deprecated
     protected AcknowledgedRequest() {
+    }
+
+    protected AcknowledgedRequest(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {

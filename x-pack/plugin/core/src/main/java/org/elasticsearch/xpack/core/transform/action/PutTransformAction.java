@@ -44,7 +44,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         private final TransformConfig config;
         private final boolean deferValidation;
 
-        public Request(TransformConfig config, boolean deferValidation) {
+        public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
+            super(timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }
@@ -59,8 +60,13 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             }
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation);
+        public static Request fromXContent(
+            final XContentParser parser,
+            final String id,
+            final boolean deferValidation,
+            final TimeValue timeout
+        ) {
+            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation, timeout);
         }
 
         /**

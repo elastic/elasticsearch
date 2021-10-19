@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -29,6 +30,6 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     @Override
     protected Request createTestInstance() {
         TransformConfig config = TransformConfigTests.randomTransformConfigWithoutHeaders(transformId);
-        return new Request(config, randomBoolean());
+        return new Request(config, randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
     }
 }

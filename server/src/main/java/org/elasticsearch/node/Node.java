@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -328,9 +329,15 @@ public class Node implements Closeable {
             }
 
             if (initialEnvironment.dataFiles().length > 1) {
-                throw new IllegalArgumentException("Multiple [path.data] values found. Specify a single data path.");
-            } else if (Environment.dataPathUsesList(tmpSettings)) {
-                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+                // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths",
+                    "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
+                        "multiple disks. This feature will be removed in a future release.");
+            }
+            if (Environment.dataPathUsesList(tmpSettings)) {
+                // already checked for multiple values above, so if this is a list it is a single valued list
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
+                    "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
             }
 
             if (logger.isDebugEnabled()) {
@@ -557,6 +564,7 @@ public class Node implements Closeable {
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService =
                 new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService);
+            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService, indicesService);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -688,6 +696,7 @@ public class Node implements Closeable {
                     b.bind(AliasValidator.class).toInstance(aliasValidator);
                     b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
+                    b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));

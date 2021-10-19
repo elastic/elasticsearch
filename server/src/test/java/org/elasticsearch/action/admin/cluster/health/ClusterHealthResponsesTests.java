@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -43,21 +42,21 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<ClusterHealthResponse> {
     private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
 
-    public void testTimeoutReturns408WhenCompatibleWithV7() {
-        ClusterHealthResponse res = new ClusterHealthResponse();
-        res.setRestApiVersion(RestApiVersion.V_7);
+    public void testIsTimeout() {
+        ClusterHealthResponse res = new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, false);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             if (res.isTimedOut()) {
                 assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
+                assertWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
             } else {
                 assertEquals(RestStatus.OK, res.status());
             }
         }
     }
 
-    public void testAlwaysReturns200RegardlessTimeout() {
-        ClusterHealthResponse res = new ClusterHealthResponse();
+    public void testTimeoutReturns200IfOptedIn() {
+        ClusterHealthResponse res = new ClusterHealthResponse("", new String[]{}, ClusterState.EMPTY_STATE, true);
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             assertEquals(RestStatus.OK, res.status());
@@ -71,7 +70,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {Metadata.ALL},
-            clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime, RestApiVersion.current());
+            clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime, false);
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);
         assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));

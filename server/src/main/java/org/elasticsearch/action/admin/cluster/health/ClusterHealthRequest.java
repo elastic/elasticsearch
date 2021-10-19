@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
@@ -36,12 +35,13 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
+    private boolean return200ForClusterHealthTimeout;
+
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
      */
     private Level level = Level.CLUSTER;
-    private RestApiVersion restApiVersion = RestApiVersion.current();
 
     public ClusterHealthRequest() {
     }
@@ -69,9 +69,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         } else {
             indicesOptions = IndicesOptions.lenientExpandOpen();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            restApiVersion = RestApiVersion.valueOf(in.readString());
-        }
+        return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     @Override
@@ -102,9 +100,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeString(restApiVersion.name());
-        }
+        out.writeBoolean(return200ForClusterHealthTimeout);
     }
 
     @Override
@@ -248,6 +244,18 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this.waitForEvents;
     }
 
+    public boolean doesReturn200ForClusterHealthTimeout() {
+        return return200ForClusterHealthTimeout;
+    }
+
+    /**
+     * Sets whether to return HTTP 200 status code instead of HTTP 408 in case of a
+     * cluster health timeout from the server side.
+     */
+    public void return200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
+        this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
+    }
+
     /**
      * Set the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
@@ -267,14 +275,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    public RestApiVersion restApiVersion() {
-        return restApiVersion;
-    }
-
-    public void setRestApiVersion(RestApiVersion restApiVersion) {
-        this.restApiVersion = restApiVersion;
     }
 
     public enum Level {

@@ -176,7 +176,6 @@ public class RestIndicesAction extends AbstractCatAction {
         request.indices(indices);
         request.indicesOptions(indicesOptions);
         request.masterNodeTimeout(masterNodeTimeout);
-        request.setRestApiVersion(restApiVersion);
 
         client.admin().cluster().health(request, listener);
     }

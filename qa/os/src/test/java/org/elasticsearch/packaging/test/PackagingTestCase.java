@@ -671,7 +671,7 @@ public abstract class PackagingTestCase extends Assert {
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
                 .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        } else {
+        } else if (es.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
                 .forEach(
@@ -685,8 +685,19 @@ public abstract class PackagingTestCase extends Assert {
             configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir);
+        } else {
+            assert es.distribution.isPackage();
+            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+                .forEach(
+                    file -> assertThat(
+                        es.config(autoConfigDirName.get()).resolve(file),
+                        FileMatcher.file(File, "root", "elasticsearch", p660)
+                    )
+                );
+            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
+            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         }
-
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
@@ -723,6 +734,12 @@ public abstract class PackagingTestCase extends Assert {
      */
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
+        if (es.distribution.isPackage()) {
+            assertThat(
+                sh.run(es.executables().keystoreTool + " list").stdout,
+                not(Matchers.containsString("autoconfiguration.password_hash"))
+            );
+        }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
         Path caCert = ServerUtils.getCaCert(installation);

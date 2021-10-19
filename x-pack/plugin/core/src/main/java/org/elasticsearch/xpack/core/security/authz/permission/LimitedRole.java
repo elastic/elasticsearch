@@ -89,7 +89,6 @@ public final class LimitedRole extends Role {
             super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
         IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
                 fieldPermissionsCache);
-
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 

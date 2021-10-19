@@ -37,9 +37,14 @@ Do not set `cluster.join.timeout` in your `elasticsearch.yml` file.
 [%collapsible]
 ====
 *Details* +
-The HTTP status code for the case of an internal server timeout has been changed
-from 408 REQUEST_TIMEOUT to 200 OK. 408 is not an appropriate status code because it
-indicates a client timeout, not an internal server one.
+The {ref}/cluster-health.html[cluster health API] includes options for waiting
+for certain health conditions to be satisfied. If the requested conditions are
+not satisfied within a timeout then {es} will send back a normal response
+including the field `"timed_out": true`. In earlier versions it would also use
+the HTTP response code `408 Request timeout` if the request timed out, and `200
+OK` otherwise. The `408 Request timeout` response code is not appropriate for
+this situation, so from version 8.0.0 {es} will use the response code `200 OK`
+for both cases.
 
 *Impact* +
 To detect a server timeout, check the `timed_out` field of the JSON response.

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -204,10 +205,23 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             @SuppressWarnings("unchecked")
             Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
             settings.putAll(innerBodySettingsMap);
+            checkMixedRequest(bodySettings);
         } else {
             settings.putAll(bodySettings);
         }
         return this.settings(settings);
+    }
+
+    /**
+     * Checks if the request is a "mixed request". A mixed request contains both a
+     * "settings" map and "other" properties. Detection of a mixed request
+     * will result in a parse exception being thrown.
+     */
+    private static void checkMixedRequest(Map<String, Object> bodySettings) {
+        assert bodySettings.containsKey("settings");
+        if (bodySettings.size() > 1) {
+            throw new ElasticsearchParseException("mix of settings map and top-level properties");
+        }
     }
 
     @Override

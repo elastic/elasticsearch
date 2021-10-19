@@ -7,6 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -494,7 +495,7 @@ public class XPackLicenseState {
     void checkExpiry() {
         String warning = status.expiryWarning;
         if (warning != null) {
-            HeaderWarning.addWarning(warning);
+            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
         }
     }
 

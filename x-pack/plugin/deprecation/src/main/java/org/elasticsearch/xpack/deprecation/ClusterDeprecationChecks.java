@@ -136,11 +136,12 @@ public class ClusterDeprecationChecks {
         });
 
         if (templatesContainingFieldNames.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
-                    "https://ela.st/es-deprecation-7-field_names-settings",
-                    "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
-                            + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
-                                    + "in the next major version and needs to be removed from existing mappings and templates.",
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Disabling the \"_field_names\" field in a template's index " +
+                "mappings is deprecated",
+                "https://ela.st/es-deprecation-7-field_names-settings",
+                String.format(Locale.ROOT, "Remove the \"%s\" mapping that configures the enabled setting from the " +
+                    "following templates: \"%s\". There's no longer a need to disable this field to reduce index overhead if you have a lot " +
+                    "of fields.", FieldNamesFieldMapper.NAME, templatesContainingFieldNames.stream().collect(Collectors.joining(","))),
                 false, null);
         }
         return null;

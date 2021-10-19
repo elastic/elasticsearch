@@ -174,9 +174,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(1, issues.size());
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Multi-fields within multi-fields",
+            "Defining multi-fields within multi-fields is deprecated",
             "https://ela.st/es-deprecation-7-chained-multi-fields",
-            "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]", false, null);
+            "Remove chained multi-fields from the \"invalid-field\" mapping. Multi-fields within multi-fields are not supported in 8.0.",
+            false, null);
         assertEquals(singletonList(expected), issues);
     }
 
@@ -425,8 +426,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DeprecationIssue issue = issues.get(0);
         assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
         assertEquals("https://ela.st/es-deprecation-7-field_names-settings", issue.getUrl());
-        assertEquals("Index mapping contains explicit `_field_names` enabling settings.", issue.getMessage());
-        assertEquals("The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
+        assertEquals("Disabling the \"_field_names\" field in the index mappings is deprecated", issue.getMessage());
+        assertEquals("Remove the \"field_names\" mapping that configures the enabled setting. There's no longer a need to disable this " +
+                "field to reduce index overhead if you have a lot of fields.",
                 issue.getDetails());
     }
 

@@ -244,11 +244,11 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
             assertEquals("https://ela.st/es-deprecation-7-field_names-settings"
                     , issue.getUrl());
-            assertEquals("Index templates contain _field_names settings.", issue.getMessage());
-            assertEquals("Index templates [" + badTemplateName + "] "
-                    + "use the deprecated `enable` setting for the `" + FieldNamesFieldMapper.NAME +
-                    "` field. Using this setting in new index mappings will throw an error in the next major version and " +
-                    "needs to be removed from existing mappings and templates.", issue.getDetails());
+            assertEquals("Disabling the \"_field_names\" field in a template's index mappings is deprecated", issue.getMessage());
+            assertEquals("Remove the \"_field_names\" mapping that configures the enabled setting from the following templates: " +
+                "\"" + badTemplateName + "\". There's no longer a need to disable this field to reduce index overhead if you have a lot " +
+                    "of fields.",
+                issue.getDetails());
         } else {
             assertTrue(issues.isEmpty());
         }

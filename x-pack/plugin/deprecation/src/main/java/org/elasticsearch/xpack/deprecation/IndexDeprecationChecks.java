@@ -113,7 +113,7 @@ public class IndexDeprecationChecks {
     }
 
     private static String formatField(String type, Map.Entry<?, ?> entry) {
-        return "type: " + type + ", field: " + entry.getKey();
+        return entry.getKey().toString();
     }
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
@@ -187,9 +187,11 @@ public class IndexDeprecationChecks {
                 IndexDeprecationChecks::containsChainedMultiFields, IndexDeprecationChecks::formatField, "[", "]"))));
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Multi-fields within multi-fields",
+                "Defining multi-fields within multi-fields is deprecated",
                 "https://ela.st/es-deprecation-7-chained-multi-fields",
-                "The names of fields that contain chained multi-fields: " + issues, false, null);
+                String.format(Locale.ROOT, "Remove chained multi-fields from the \"%s\" mapping%s. Multi-fields within multi-fields " +
+                "are not supported in 8.0.", issues.stream().collect(Collectors.joining(",")), issues.size() > 1 ? "s" : ""),
+                false, null);
         }
         return null;
     }
@@ -214,9 +216,10 @@ public class IndexDeprecationChecks {
         MappingMetadata mapping = indexMetadata.mapping();
         if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "Index mapping contains explicit `_field_names` enabling settings.",
+                    "Disabling the \"_field_names\" field in the index mappings is deprecated",
                     "https://ela.st/es-deprecation-7-field_names-settings",
-                    "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
+                    "Remove the \"field_names\" mapping that configures the enabled setting. There's no longer a need to disable this " +
+                        "field to reduce index overhead if you have a lot of fields.",
                 false, null);
         }
         return null;

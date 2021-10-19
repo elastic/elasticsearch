@@ -11,10 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -32,20 +30,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 /** Runs rest tests against external cluster */
 // TODO: Remove this timeout increase once this test suite is broken up

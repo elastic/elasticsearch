@@ -576,7 +576,7 @@ public class MetadataCreateIndexService {
         final List<Map<String, Object>> mappings =
             collectSystemV2Mappings(template, componentTemplates, xContentRegistry, request.index());
 
-        final Settings aggregatedIndexSettings = aggregateIndexSettings(
+        final Settings aggregatedIndexSettings = Settings.builder().put(aggregateIndexSettings(
             currentState,
             request,
             resolveSettings(template, componentTemplates),
@@ -586,7 +586,9 @@ public class MetadataCreateIndexService {
             shardLimitValidator,
             indexSettingProviders,
             this.enforceDefaultTierPreference
-        );
+        ))
+            .put(SETTING_INDEX_HIDDEN, true)
+            .build();
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 

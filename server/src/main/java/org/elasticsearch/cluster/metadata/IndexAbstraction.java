@@ -220,6 +220,7 @@ public interface IndexAbstraction {
                     Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
             }
 
+            // TODO[wrb]: how do we handle system alias visibility?
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
             this.isSystem = indices.stream().allMatch(IndexMetadata::isSystem);
             dataStreamAlias = false;
@@ -362,7 +363,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
-            return dataStream.isHidden();
+            return isSystem() || dataStream.isHidden();
         }
 
         @Override

@@ -93,7 +93,7 @@ public class SecurityRestFilter implements RestHandler {
         } else {
             if (request.method() != Method.OPTIONS) {
                 HeaderWarning.addWarning(DeprecationLogger.CRITICAL, "Elasticsearch built-in security features are not enabled. Without " +
-                    "authentication, your clustercould be accessible to anyone. See " +
+                    "authentication, your cluster could be accessible to anyone. See " +
                     "https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." + Version.CURRENT.minor +
                     "/security-minimal-setup.html to enable security.");
             }

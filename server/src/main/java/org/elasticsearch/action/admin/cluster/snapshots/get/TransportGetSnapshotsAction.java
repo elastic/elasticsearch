@@ -703,15 +703,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         private static final SnapshotPredicates MATCH_ALL = new SnapshotPredicates(null, null);
 
-        @Nullable // if all snapshots match
-        private final Predicate<SnapshotInfo> snapshotPredicate;
-
         @Nullable // if all snapshot IDs match
         private final BiPredicate<SnapshotId, RepositoryData> preflightPredicate;
 
+        @Nullable // if all snapshots match
+        private final Predicate<SnapshotInfo> snapshotPredicate;
+
         private SnapshotPredicates(
-            @Nullable Predicate<SnapshotInfo> snapshotPredicate,
-            @Nullable BiPredicate<SnapshotId, RepositoryData> preflightPredicate
+            @Nullable BiPredicate<SnapshotId, RepositoryData> preflightPredicate,
+            @Nullable Predicate<SnapshotInfo> snapshotPredicate
         ) {
             this.snapshotPredicate = snapshotPredicate;
             this.preflightPredicate = preflightPredicate;
@@ -733,8 +733,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return this == MATCH_ALL ? other
                 : other == MATCH_ALL ? this
                 : new SnapshotPredicates(
-                    snapshotPredicate == null ? other.snapshotPredicate : other.snapshotPredicate == null ? snapshotPredicate : null,
-                    preflightPredicate == null ? other.preflightPredicate : other.preflightPredicate == null ? preflightPredicate : null
+                    preflightPredicate == null ? other.preflightPredicate : other.preflightPredicate == null ? preflightPredicate : null,
+                    snapshotPredicate == null ? other.snapshotPredicate : other.snapshotPredicate == null ? snapshotPredicate : null
                 );
         }
 
@@ -768,17 +768,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
             final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
             final boolean matchWithoutPolicy = matchNoPolicy;
-            return new SnapshotPredicates(snapshotInfo -> {
-                final Map<String, Object> metadata = snapshotInfo.userMetadata();
-                final String policy;
-                if (metadata == null) {
-                    policy = null;
-                } else {
-                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                    policy = policyFound instanceof String ? (String) policyFound : null;
-                }
-                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-            }, ((snapshotId, repositoryData) -> {
+            return new SnapshotPredicates(((snapshotId, repositoryData) -> {
                 final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
                 final String policy;
                 if (details == null || (details.getSlmPolicy() == null)) {
@@ -790,7 +780,17 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     policy = policyFound.isEmpty() ? null : policyFound;
                 }
                 return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-            }));
+            }), snapshotInfo -> {
+                final Map<String, Object> metadata = snapshotInfo.userMetadata();
+                final String policy;
+                if (metadata == null) {
+                    policy = null;
+                } else {
+                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                    policy = policyFound instanceof String ? (String) policyFound : null;
+                }
+                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
+            });
         }
 
         private static boolean matchPolicy(String[] includes, String[] excludes, boolean matchWithoutPolicy, @Nullable String policy) {
@@ -811,45 +811,39 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             switch (sortBy) {
                 case START_TIME:
                     final long after = Long.parseLong(fromSortValue);
-                    return new SnapshotPredicates(
-                        filterByLongOffset(SnapshotInfo::startTime, after, order),
-                        order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                            final long startTime = getStartTime(snapshotId, repositoryData);
-                            return startTime == -1 || after <= startTime;
-                        } : (snapshotId, repositoryData) -> {
-                            final long startTime = getStartTime(snapshotId, repositoryData);
-                            return startTime == -1 || after >= startTime;
-                        }
-                    );
+                    return new SnapshotPredicates(order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
+                        final long startTime = getStartTime(snapshotId, repositoryData);
+                        return startTime == -1 || after <= startTime;
+                    } : (snapshotId, repositoryData) -> {
+                        final long startTime = getStartTime(snapshotId, repositoryData);
+                        return startTime == -1 || after >= startTime;
+                    }, filterByLongOffset(SnapshotInfo::startTime, after, order));
 
                 case NAME:
                     return new SnapshotPredicates(
-                        null,
                         order == SortOrder.ASC
                             ? (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) <= 0
-                            : (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) >= 0
+                            : (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) >= 0,
+                        null
                     );
 
                 case DURATION:
                     final long afterDuration = Long.parseLong(fromSortValue);
-                    return new SnapshotPredicates(
-                        filterByLongOffset(info -> info.endTime() - info.startTime(), afterDuration, order),
-                        order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                            final long duration = getDuration(snapshotId, repositoryData);
-                            return duration == -1 || afterDuration <= duration;
-                        } : (snapshotId, repositoryData) -> {
-                            final long duration = getDuration(snapshotId, repositoryData);
-                            return duration == -1 || afterDuration >= duration;
-                        }
-                    );
+                    return new SnapshotPredicates(order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
+                        final long duration = getDuration(snapshotId, repositoryData);
+                        return duration == -1 || afterDuration <= duration;
+                    } : (snapshotId, repositoryData) -> {
+                        final long duration = getDuration(snapshotId, repositoryData);
+                        return duration == -1 || afterDuration >= duration;
+                    }, filterByLongOffset(info -> info.endTime() - info.startTime(), afterDuration, order));
 
                 case INDICES:
                     final int afterIndexCount = Integer.parseInt(fromSortValue);
                     return new SnapshotPredicates(
-                        null,
                         order == SortOrder.ASC
                             ? (snapshotId, repositoryData) -> afterIndexCount <= indexCount(snapshotId, repositoryData)
-                            : (snapshotId, repositoryData) -> afterIndexCount >= indexCount(snapshotId, repositoryData)
+                            : (snapshotId, repositoryData) -> afterIndexCount >= indexCount(snapshotId, repositoryData),
+                        null
                     );
 
                 case REPOSITORY:
@@ -858,13 +852,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
                 case SHARDS:
                     return new SnapshotPredicates(
-                        filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(fromSortValue), order),
-                        null
+                        null,
+                        filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(fromSortValue), order)
                     );
                 case FAILED_SHARDS:
                     return new SnapshotPredicates(
-                        filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(fromSortValue), order),
-                        null
+                        null,
+                        filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(fromSortValue), order)
                     );
                 default:
                     throw new AssertionError("unexpected sort column [" + sortBy + "]");

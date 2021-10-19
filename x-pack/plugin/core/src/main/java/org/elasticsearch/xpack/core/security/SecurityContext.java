@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -157,12 +158,19 @@ public class SecurityContext {
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, Version version) {
+        // Preserve request headers other than authentication
+        final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                 authentication.getLookedUpBy(), version, authentication.getAuthenticationType(),
                 rewriteMetadataForApiKeyRoleDescriptors(version, authentication)));
+            existingRequestHeaders.forEach((k, v) -> {
+                if (false == AuthenticationField.AUTHENTICATION_KEY.equals(k)) {
+                    threadContext.putHeader(k, v);
+                }
+            });
             consumer.accept(original);
         }
     }

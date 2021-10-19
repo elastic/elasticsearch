@@ -13,29 +13,41 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
     public void testCheckTransientSettingsExistence() {
+        Settings persistentSettings = Settings.builder()
+            .put("xpack.monitoring.collection.enabled", true)
+            .build();
+
         Settings transientSettings = Settings.builder()
             .put("indices.recovery.max_bytes_per_sec", "20mb")
+            .put("action.auto_create_index", true)
+            .put("cluster.routing.allocation.enable", "primaries")
             .build();
         Metadata metadataWithTransientSettings = Metadata.builder()
+            .persistentSettings(persistentSettings)
             .transientSettings(transientSettings)
             .build();
 
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithTransientSettings).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkTransientSettingsExistence(badState);
+        String expectedDetails = String.format(Locale.ROOT,
+            "Use persistent settings instead of transient settings for the following: [%s]",
+            String.join(", ", "action", "cluster", "indices"));
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Transient cluster settings are in the process of being removed.",
                 "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Use persistent settings to define your cluster settings instead.",
+                expectedDetails,
                 false, null)
         ));
 
-        Settings persistentSettings = Settings.builder()
+        persistentSettings = Settings.builder()
             .put("indices.recovery.max_bytes_per_sec", "20mb")
             .build();
         Metadata metadataWithoutTransientSettings = Metadata.builder()

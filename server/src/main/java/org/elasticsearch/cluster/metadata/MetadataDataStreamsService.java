@@ -9,10 +9,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -20,8 +20,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -37,9 +35,9 @@ public class MetadataDataStreamsService {
         this.indicesService = indicesService;
     }
 
-    public void updateBackingIndices(final ModifyDataStreamRequest request,
-                                     final ActionListener<AcknowledgedResponse> listener) {
-        if (request.actions().size() == 0) {
+    public void modifyDataStream(final ModifyDataStreamsAction.Request request,
+                                 final ActionListener<AcknowledgedResponse> listener) {
+        if (request.getActions().size() == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         } else {
             clusterService.submitStateUpdateTask("update-backing-indices",
@@ -48,7 +46,7 @@ public class MetadataDataStreamsService {
                     public ClusterState execute(ClusterState currentState) {
                         return modifyDataStream(
                             currentState,
-                            request.actions(),
+                            request.getActions(),
                             indexMetadata -> {
                                 try {
                                     return indicesService.createIndexMapperService(indexMetadata);
@@ -66,7 +64,7 @@ public class MetadataDataStreamsService {
      * Computes the resulting cluster state after applying all requested data stream modifications in order.
      *
      * @param currentState current cluster state
-     * @param actions ordered list of modifications to perform
+     * @param actions      ordered list of modifications to perform
      * @return resulting cluster state after all modifications have been performed
      */
     static ClusterState modifyDataStream(
@@ -78,20 +76,20 @@ public class MetadataDataStreamsService {
 
         for (var action : actions) {
             Metadata.Builder builder = Metadata.builder(updatedMetadata);
-            if (action instanceof DataStreamAction.AddBackingIndex) {
+            if (action.getType() == DataStreamAction.Type.ADD_BACKING_INDEX) {
                 addBackingIndex(
                     updatedMetadata,
                     builder,
                     mapperSupplier,
                     action.getDataStream(),
-                    ((DataStreamAction.AddBackingIndex) action).getIndex()
+                    action.getIndex()
                 );
-            } else if (action instanceof DataStreamAction.RemoveBackingIndex) {
+            } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
                 removeBackingIndex(
                     updatedMetadata,
                     builder,
                     action.getDataStream(),
-                    ((DataStreamAction.RemoveBackingIndex) action).getIndex()
+                    action.getIndex()
                 );
             } else {
                 throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
@@ -153,19 +151,6 @@ public class MetadataDataStreamsService {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
         return index;
-    }
-
-    public static final class ModifyDataStreamRequest extends ClusterStateUpdateRequest<ModifyDataStreamRequest> {
-
-        private final List<DataStreamAction> actions;
-
-        public ModifyDataStreamRequest(List<DataStreamAction> actions) {
-            this.actions = Collections.unmodifiableList(actions);
-        }
-
-        public List<DataStreamAction> actions() {
-            return actions;
-        }
     }
 
 }

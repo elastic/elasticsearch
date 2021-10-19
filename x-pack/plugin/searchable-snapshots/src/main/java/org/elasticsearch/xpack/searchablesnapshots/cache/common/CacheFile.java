@@ -127,10 +127,9 @@ public class CacheFile {
     private volatile FileChannelReference channelRef;
 
     /**
-     * Indicates if the file should be created when it is open for the first time.
-     * This is required to pass the right options for sparse file support.
+     * {@code true} if the physical cache file exists on disk
      */
-    private volatile boolean created;
+    private volatile boolean fileExists;
 
     public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
         this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener, false);
@@ -146,7 +145,7 @@ public class CacheFile {
         this.file = Objects.requireNonNull(file);
         this.listener = Objects.requireNonNull(listener);
         assert fileExists == Files.exists(file) : file + " exists? " + fileExists;
-        this.created = fileExists;
+        this.fileExists = fileExists;
         assert invariant();
     }
 
@@ -192,8 +191,8 @@ public class CacheFile {
                     ensureOpen();
                     if (listeners.isEmpty()) {
                         assert channelRef == null;
-                        channelRef = new FileChannelReference(created ? OPEN_OPTIONS : CREATE_OPTIONS);
-                        created = true;
+                        channelRef = new FileChannelReference(fileExists ? OPEN_OPTIONS : CREATE_OPTIONS);
+                        fileExists = true;
                     }
                     final boolean added = listeners.add(listener);
                     assert added : "listener already exists " + listener;

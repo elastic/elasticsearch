@@ -34,6 +34,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
 view the cluster settings and `manage` cluster privileges to change them.
@@ -201,6 +202,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// TEST[warning:[xpack.monitoring.elasticsearch.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 If {es} {security-features} are enabled, you must have `monitor` cluster
 privileges to view the cluster settings and `manage` cluster privileges

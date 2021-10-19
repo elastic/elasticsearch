@@ -301,11 +301,6 @@ public class IndicesAccessControl {
         }
 
         @Override
-        public boolean isGranted() {
-            return true;
-        }
-
-        @Override
         public String toString() {
             return "AllowAllIndicesAccessControl{}";
         }

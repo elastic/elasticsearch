@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -141,6 +143,55 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(removedIndex, notNullValue());
         assertThat(removedIndex.getSettings().get("index.hidden"), equalTo("false"));
         assertNull(newState.metadata().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
+    }
+
+    public void testRemoveWriteIndexIsProhibited() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(1, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        Metadata.Builder mb = Metadata.builder();
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] =
+                IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putMapping(generateMapping("@timestamp"))
+                    .build();
+            mb.put(backingIndices[k], false);
+        }
+
+        mb.put(new DataStream(
+                dataStreamName,
+                createTimestampField("@timestamp"),
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).collect(Collectors.toList())
+            )
+        );
+
+        final IndexMetadata indexToRemove = backingIndices[numBackingIndices - 1];
+        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                originalState,
+                List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
+                this::getMapperService
+            )
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    indexToRemove.getIndex().getName(),
+                    dataStreamName
+                )
+           )
+        );
     }
 
     public void testAddRemoveAddRoundtripInSingleRequest() {

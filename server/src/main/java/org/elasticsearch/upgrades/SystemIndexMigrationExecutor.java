@@ -108,7 +108,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(
+        return org.elasticsearch.core.List.of(new NamedWriteableRegistry.Entry(
                 PersistentTaskState.class,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SystemIndexMigrationTaskState::new

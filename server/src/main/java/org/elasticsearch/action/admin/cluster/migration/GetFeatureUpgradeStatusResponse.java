@@ -221,7 +221,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      */
     public static class IndexInfo implements Writeable, ToXContentObject {
         private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS =
-            Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false");
+            org.elasticsearch.core.Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false");
 
         private final String indexName;
         private final Version version;

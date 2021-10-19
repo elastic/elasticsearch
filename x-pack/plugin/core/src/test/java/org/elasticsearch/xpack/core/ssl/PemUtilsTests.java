@@ -93,7 +93,7 @@ public class PemUtilsTests extends ESTestCase {
 
     public void testReadEncryptedPKCS8KeyPBES2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
-        assertTrue("Can't read PBES2 on OpenJDK before v11", Constants.JRE_IS_MINIMUM_JAVA11);
+        assumeTrue("Can't read PBES2 on OpenJDK before v11", Constants.JRE_IS_MINIMUM_JAVA11);
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));

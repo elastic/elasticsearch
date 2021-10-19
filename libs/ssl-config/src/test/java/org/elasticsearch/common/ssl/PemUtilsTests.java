@@ -10,6 +10,7 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -85,7 +86,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.parsePrivateKey(
+        PrivateKey privateKey = PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes1_des.pem"),
             TESTNODE_PASSWORD
         );
@@ -98,7 +99,7 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.parsePrivateKey(
+        PrivateKey privateKey = PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes2_aes.pem"),
             TESTNODE_PASSWORD
         );
@@ -113,7 +114,7 @@ public class PemUtilsTests extends ESTestCase {
         // Rather than add our own support for this we just detect that our error message is clear and meaningful
         final GeneralSecurityException exception = expectThrows(
             GeneralSecurityException.class,
-            () -> PemUtils.parsePrivateKey(getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes2_des.pem"), TESTNODE_PASSWORD)
+            () -> PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes2_des.pem"), TESTNODE_PASSWORD)
         );
         assertThat(
             exception.getMessage(),
@@ -167,15 +168,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-<<<<<<< HEAD
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
-            EMPTY_PASSWORD);
-=======
-        PrivateKey privateKey = PemUtils.parsePrivateKey(
+        PrivateKey privateKey = PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/dsa_key_openssl_plain_with_params.pem"),
             EMPTY_PASSWORD
         );
->>>>>>> 7cc9edbf1bb (Fix parsing of PBES2 encrypted PKCS#8 keys (#78904))
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -205,15 +201,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-<<<<<<< HEAD
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
-            EMPTY_PASSWORD);
-=======
-        PrivateKey privateKey = PemUtils.parsePrivateKey(
+        PrivateKey privateKey = PemUtils.readPrivateKey(
             getDataPath("/certs/pem-utils/ec_key_openssl_plain_with_params.pem"),
             EMPTY_PASSWORD
         );
->>>>>>> 7cc9edbf1bb (Fix parsing of PBES2 encrypted PKCS#8 keys (#78904))
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));

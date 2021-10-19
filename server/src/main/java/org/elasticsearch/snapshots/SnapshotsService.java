@@ -939,15 +939,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
+        final ClusterState currentState = event.state();
         try {
             if (event.localNodeMaster()) {
-                // We don't remove old master when master flips anymore. So, we need to check for change in master
-                SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
-                processExternalChanges(
-                    newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
-                    event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
+                // Check if the indices or nodes in the cluster changed and update executing snapshots or deletes if necessary
+                final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                    SnapshotDeletionsInProgress.TYPE,
+                    SnapshotDeletionsInProgress.EMPTY
                 );
+                if (snapshotsInProgress.isEmpty() == false || deletionsInProgress.getEntries().isEmpty() == false) {
+                    final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                    processExternalChanges(
+                        newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
+                        event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
+                    );
+                }
             } else if (snapshotCompletionListeners.isEmpty() == false) {
                 // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
                 // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
@@ -962,8 +969,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             logger.warn("Failed to update snapshot state ", e);
         }
-        assert assertConsistentWithClusterState(event.state());
-        assert assertNoDanglingSnapshots(event.state());
+        assert assertConsistentWithClusterState(currentState);
+        assert assertNoDanglingSnapshots(currentState);
     }
 
     private boolean assertConsistentWithClusterState(ClusterState state) {

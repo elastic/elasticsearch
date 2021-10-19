@@ -127,8 +127,8 @@ public class CacheFile {
     private volatile FileChannelReference channelRef;
 
     /**
-     * Indicates if the file has already been created.
-     * This is useful to pass the right options when opening the file.
+     * Indicates if the file should be created when it is open for the first time.
+     * This is required to pass the right options for sparse file support.
      */
     private volatile boolean created;
 
@@ -145,6 +145,7 @@ public class CacheFile {
         this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
         this.listener = Objects.requireNonNull(listener);
+        assert fileExists == Files.exists(file) : file + " exists? " + fileExists;
         this.created = fileExists;
         assert invariant();
     }

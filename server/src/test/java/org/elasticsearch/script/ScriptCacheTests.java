@@ -21,7 +21,7 @@ public class ScriptCacheTests extends ESTestCase {
     public void testCompilationCircuitBreaking() throws Exception {
         String context = randomFrom(
             ScriptModule.CORE_CONTEXTS.values().stream().filter(
-                c -> c.maxCompilationRateDefault.equals(ScriptCache.UNLIMITED_COMPILATION_RATE) == false
+                c -> c.compilationRateLimited
             ).collect(Collectors.toList())
         ).name;
         final TimeValue expire = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
@@ -85,7 +85,7 @@ public class ScriptCacheTests extends ESTestCase {
     public void testUnlimitedCompilationRate() {
         String context = randomFrom(
             ScriptModule.CORE_CONTEXTS.values().stream().filter(
-                c -> c.maxCompilationRateDefault.equals(ScriptCache.UNLIMITED_COMPILATION_RATE) == false
+                c -> c.compilationRateLimited
             ).collect(Collectors.toList())
         ).name;
         final Integer size = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);

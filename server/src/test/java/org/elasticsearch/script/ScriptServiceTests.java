@@ -27,6 +27,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +41,7 @@ import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
+import static org.elasticsearch.script.ScriptService.USE_CONTEXT_RATE_KEY;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -53,6 +55,7 @@ public class ScriptServiceTests extends ESTestCase {
     private ScriptService scriptService;
     private Settings baseSettings;
     private ClusterSettings clusterSettings;
+    private Map<String, ScriptContext<?>> rateLimitedContexts;
 
     @Before
     public void setup() throws IOException {
@@ -71,6 +74,7 @@ public class ScriptServiceTests extends ESTestCase {
         engines.put(scriptEngine.getType(), scriptEngine);
         engines.put("test", new MockScriptEngine("test", scripts, Collections.emptyMap()));
         logger.info("--> setup script service");
+        rateLimitedContexts = compilationRateLimitedContexts();
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
@@ -252,9 +256,9 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testContextCacheStats() throws IOException {
-        ScriptContext<?> contextA = randomFrom(contexts.values());
+        ScriptContext<?> contextA = randomFrom(rateLimitedContexts.values());
         String aRate = "2/10m";
-        ScriptContext<?> contextB = randomValueOtherThan(contextA, () -> randomFrom(contexts.values()));
+        ScriptContext<?> contextB = randomValueOtherThan(contextA, () -> randomFrom(rateLimitedContexts.values()));
         String bRate = "3/10m";
         BiFunction<String, String, String> msg = (rate, ctx) -> (
             "[script] Too many dynamic script compilations within, max: [" + rate +
@@ -262,6 +266,7 @@ public class ScriptServiceTests extends ESTestCase {
             ".max_compilations_rate] setting"
         );
         buildScriptService(Settings.builder()
+            .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), USE_CONTEXT_RATE_KEY)
             .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), 1)
             .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contextA.name).getKey(), aRate)
             .put(SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contextB.name).getKey(), 2)
@@ -468,8 +473,8 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testCacheHolderContextConstructor() throws IOException {
-        String a = randomFrom(contexts.keySet());
-        String b = randomValueOtherThan(a, () -> randomFrom(contexts.keySet()));
+        String a = randomFrom(rateLimitedContexts.keySet());
+        String b = randomValueOtherThan(a, () -> randomFrom(rateLimitedContexts.keySet()));
         String aCompilationRate = "77/5m";
         String bCompilationRate = "78/6m";
 
@@ -535,7 +540,8 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testCacheHolderChangeSettings() throws IOException {
-        Set<String> contextNames = contexts.keySet();
+        Set<String> contextNames = contexts.entrySet().stream().filter(e -> e.getValue().compilationRateLimited)
+                .map(Map.Entry::getKey).collect(Collectors.toSet());
         String a = randomFrom(contextNames);
         String aRate = "77/5m";
         String b = randomValueOtherThan(a, () -> randomFrom(contextNames));
@@ -615,7 +621,7 @@ public class ScriptServiceTests extends ESTestCase {
             Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "75/5m").build()
         );
 
-        String name = "ingest";
+        String name = "score";
 
         // Use context specific
         scriptService.setCacheHolder(Settings.builder()
@@ -634,7 +640,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(contextCacheSize, holder.contextCache.get(name).get().cacheSize);
         assertEquals(contextExpire, holder.contextCache.get(name).get().cacheExpire);
 
-        ScriptContext<?> ingest = contexts.get(name);
+        ScriptContext<?> score = contexts.get(name);
         // Fallback to context defaults
         buildScriptService(Settings.EMPTY);
 
@@ -643,9 +649,19 @@ public class ScriptServiceTests extends ESTestCase {
         assertNotNull(holder.contextCache.get(name));
         assertNotNull(holder.contextCache.get(name).get());
 
-        assertEquals(ingest.maxCompilationRateDefault, holder.contextCache.get(name).get().rate.asTuple());
-        assertEquals(ingest.cacheSizeDefault, holder.contextCache.get(name).get().cacheSize);
-        assertEquals(ingest.cacheExpireDefault, holder.contextCache.get(name).get().cacheExpire);
+        assertEquals(ScriptContext.DEFAULT_COMPILATION_RATE_LIMIT, holder.contextCache.get(name).get().rate.asTuple());
+        assertEquals(score.cacheSizeDefault, holder.contextCache.get(name).get().cacheSize);
+        assertEquals(score.cacheExpireDefault, holder.contextCache.get(name).get().cacheExpire);
+    }
+
+    protected HashMap<String, ScriptContext<?>> compilationRateLimitedContexts() {
+        HashMap<String, ScriptContext<?>> rateLimited = new HashMap<>();
+        for (Map.Entry<String, ScriptContext<?>> entry: contexts.entrySet()) {
+            if (entry.getValue().compilationRateLimited) {
+                rateLimited.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return rateLimited;
     }
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext<?> scriptContext) {

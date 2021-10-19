@@ -41,10 +41,6 @@ public class XPackLicenseState {
      * Each value defines the licensed state necessary for the feature to be allowed.
      */
     public enum Feature {
-        SECURITY_AUDITING(OperationMode.GOLD, false),
-        SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
-        SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
-        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
 
         OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
 

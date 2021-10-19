@@ -11,7 +11,6 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
@@ -21,15 +20,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toSet;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for {@link XContent} filtering.
@@ -46,17 +48,16 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
 
     protected static Builder builderFor(String file) {
         return builder -> {
-            try (
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        AbstractFilteringTestCase.class.getResourceAsStream(file)
-                    )
-            ) {
-                // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
-                return builder.copyCurrentStructure(new FilterXContentParser(parser) {
-                });
+            try (InputStream stream = AbstractFilteringTestCase.class.getResourceAsStream(file)) {
+                assertThat("Couldn't find [" + file + "]", stream, notNullValue());
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)
+                ) {
+                    // copyCurrentStructure does not property handle filters when it is passed a json parser. So we hide it.
+                    return builder.copyCurrentStructure(new FilterXContentParser(parser) {
+                    });
+                }
             }
         };
     }
@@ -397,7 +398,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     }
 
     /**
-     * Generalization of {@link XContentMapValuesTests#testSupplementaryCharactersInPaths()}
+     * Tests that we can extract paths containing non-ascii characters.
      */
     public void testFilterSupplementaryCharactersInPaths() throws IOException {
         Builder sample = builder -> builder.startObject().field("搜索", 2).field("指数", 3).endObject();
@@ -410,7 +411,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     }
 
     /**
-     * Generalization of {@link XContentMapValuesTests#testSharedPrefixes()}
+     * Tests that we can extract paths which share a prefix with other paths.
      */
     public void testFilterSharedPrefixes() throws IOException {
         Builder sample = builder -> builder.startObject().field("foobar", 2).field("foobaz", 3).endObject();
@@ -423,7 +424,7 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     }
 
     /**
-     * Generalization of {@link XContentMapValuesTests#testPrefix()}
+     * Tests that we can extract paths which have another path as a prefix.
      */
     public void testFilterPrefix() throws IOException {
         Builder sample = builder -> builder.startObject().array("photos", "foo", "bar").field("photosCount", 2).endObject();
@@ -447,10 +448,12 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
             .endObject()
             .endObject()
             .endObject();
-        Set<String> manyFilters = Files.readAllLines(
-            PathUtils.get(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
-            StandardCharsets.UTF_8
-        ).stream().filter(s -> false == s.startsWith("#")).collect(toSet());
-        testFilter(deep, deep, manyFilters, emptySet());
+        try (InputStream stream = AbstractFilteringTestCase.class.getResourceAsStream("many_filters.txt")) {
+            assertThat("Couldn't find [many_filters.txt]", stream, notNullValue());
+            Set<String> manyFilters = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8)).lines()
+                .filter(s -> false == s.startsWith("#"))
+                .collect(toSet());
+            testFilter(deep, deep, manyFilters, emptySet());
+        }
     }
 }

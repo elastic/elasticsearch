@@ -666,7 +666,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
     }
 
-    private static Tuple<Predicate<SnapshotInfo>, BiPredicate<SnapshotId, RepositoryData>> filterBySLMPolicies(String[] slmPolicies) {
+    private static SnapshotPredicate filterBySLMPolicies(String[] slmPolicies) {
         final List<String> includePatterns = new ArrayList<>();
         final List<String> excludePatterns = new ArrayList<>();
         boolean seenWildcard = false;
@@ -686,29 +686,35 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
         final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
         final boolean matchWithoutPolicy = matchNoPolicy;
-        return Tuple.tuple(snapshotInfo -> {
-            final Map<String, Object> metadata = snapshotInfo.userMetadata();
-            final String policy;
-            if (metadata == null) {
-                policy = null;
-            } else {
-                final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                policy = policyFound instanceof String ? (String) policyFound : null;
+        return new SnapshotPredicate() {
+            @Override
+            public boolean matchesPreflight(SnapshotId snapshotId, RepositoryData repositoryData) {
+                final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
+                final String policy;
+                if (details == null || (details.getSlmPolicy() == null)) {
+                    // no SLM policy recorded
+                    return true;
+                } else {
+                    final String policyFound = details.getSlmPolicy();
+                    // empty string means that snapshot was not created by an SLM policy
+                    policy = policyFound.isEmpty() ? null : policyFound;
+                }
+                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
             }
-            return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-        }, (snapshotId, repositoryData) -> {
-            final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-            final String policy;
-            if (details == null || (details.getSlmPolicy() == null)) {
-                // no SLM policy recorded
-                return true;
-            } else {
-                final String policyFound = details.getSlmPolicy();
-                // empty string means that snapshot was not created by an SLM policy
-                policy = policyFound.isEmpty() ? null : policyFound;
+
+            @Override
+            public boolean matches(SnapshotInfo snapshotInfo) {
+                final Map<String, Object> metadata = snapshotInfo.userMetadata();
+                final String policy;
+                if (metadata == null) {
+                    policy = null;
+                } else {
+                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                    policy = policyFound instanceof String ? (String) policyFound : null;
+                }
+                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
             }
-            return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-        });
+        };
     }
 
     private static boolean matchPolicy(String[] includes, String[] excludes, boolean matchWithoutPolicy, @Nullable String policy) {
@@ -777,9 +783,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final String fromSortValue = request.fromSortValue();
             BiPredicate<SnapshotId, RepositoryData> preflightPredicate = null;
             if (slmPolicies.length > 0) {
-                final Tuple<Predicate<SnapshotInfo>, BiPredicate<SnapshotId, RepositoryData>> predicates = filterBySLMPolicies(slmPolicies);
-                snapshotPredicate = predicates.v1();
-                preflightPredicate = predicates.v2();
+                final SnapshotPredicate predicate = filterBySLMPolicies(slmPolicies);
+                snapshotPredicate = predicate::matches;
+                preflightPredicate = predicate::matchesPreflight;
             }
             final GetSnapshotsRequest.SortBy sortBy = request.sort();
             final SortOrder order = request.order();
@@ -869,6 +875,19 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return preflightPredicate;
         }
 
+    }
+
+    private interface SnapshotPredicate {
+
+        /**
+         * Checks if a snapshot matches the predicate by testing its {@link SnapshotId} for a given {@link RepositoryData}.
+         */
+        boolean matchesPreflight(SnapshotId snapshotId, RepositoryData repositoryData);
+
+        /**
+         * Checks if a snapshot matches the predicate by testing its {@link SnapshotInfo}.
+         */
+        boolean matches(SnapshotInfo snapshotInfo);
     }
 
     private static final class SnapshotsInRepo {

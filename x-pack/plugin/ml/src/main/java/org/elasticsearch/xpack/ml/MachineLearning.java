@@ -1268,8 +1268,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     public static boolean criticalTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        // The notifications index template is not critical up-front because every
-        // notification checks that it's installed and installs it if necessary
+        // The templates for the notifications and stats indices are not critical up-front because
+        // every notification and stats update checks if the appropriate template is installed and
+        // installs it if necessary
         List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);

@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -1591,12 +1592,12 @@ public final class TokenService {
 
     private boolean isEnabled() {
         return enabled && licenseState.isSecurityEnabled() &&
-            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE);
+            Security.TOKEN_SERVICE_FEATURE.check(licenseState);
     }
 
     private void ensureEnabled() {
         if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_TOKEN_SERVICE) == false) {
+            Security.TOKEN_SERVICE_FEATURE.check(licenseState) == false) {
             throw LicenseUtils.newComplianceException("security tokens");
         }
         if (enabled == false) {

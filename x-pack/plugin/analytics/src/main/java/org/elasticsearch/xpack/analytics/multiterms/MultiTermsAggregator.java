@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -110,7 +111,6 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             .collect(Collectors.toList());
         keyConverters = values.stream().map(TermValuesSource::keyConverter).collect(Collectors.toList());
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
-
     }
 
     private boolean subAggsNeedScore() {
@@ -218,6 +218,11 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
                 }
             }
         };
+    }
+
+    @Override
+    protected void doClose() {
+        Releasables.close(bucketOrds);
     }
 
     @Override

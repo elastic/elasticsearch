@@ -32,6 +32,7 @@ public class StartRecoveryRequest extends TransportRequest {
     private Store.MetadataSnapshot metadataSnapshot;
     private boolean primaryRelocation;
     private long startingSeqNo;
+    private boolean canDownloadSnapshotFiles;
 
     public StartRecoveryRequest(StreamInput in) throws IOException {
         super(in);
@@ -47,19 +48,25 @@ public class StartRecoveryRequest extends TransportRequest {
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
+        if (in.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION)) {
+            canDownloadSnapshotFiles = in.readBoolean();
+        } else {
+            canDownloadSnapshotFiles = true;
+        }
     }
 
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId            the shard ID to recover
-     * @param targetAllocationId the allocation id of the target shard
-     * @param sourceNode         the source node to remover from
-     * @param targetNode         the target node to recover to
-     * @param metadataSnapshot   the Lucene metadata
-     * @param primaryRelocation  whether or not the recovery is a primary relocation
-     * @param recoveryId         the recovery ID
-     * @param startingSeqNo      the starting sequence number
+     * @param shardId                  the shard ID to recover
+     * @param targetAllocationId       the allocation id of the target shard
+     * @param sourceNode               the source node to remover from
+     * @param targetNode               the target node to recover to
+     * @param metadataSnapshot         the Lucene metadata
+     * @param primaryRelocation        whether or not the recovery is a primary relocation
+     * @param recoveryId               the recovery ID
+     * @param startingSeqNo            the starting sequence number
+     * @param canDownloadSnapshotFiles flag that indicates if the snapshot files can be downloaded
      */
     public StartRecoveryRequest(final ShardId shardId,
                                 final String targetAllocationId,
@@ -68,7 +75,8 @@ public class StartRecoveryRequest extends TransportRequest {
                                 final Store.MetadataSnapshot metadataSnapshot,
                                 final boolean primaryRelocation,
                                 final long recoveryId,
-                                final long startingSeqNo) {
+                                final long startingSeqNo,
+                                final boolean canDownloadSnapshotFiles) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -77,6 +85,7 @@ public class StartRecoveryRequest extends TransportRequest {
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
+        this.canDownloadSnapshotFiles = canDownloadSnapshotFiles;
         assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
                         "starting seq no is set but not history uuid";
     }
@@ -113,6 +122,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return startingSeqNo;
     }
 
+    public boolean canDownloadSnapshotFiles() {
+        return canDownloadSnapshotFiles;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -125,6 +138,10 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeBoolean(primaryRelocation);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeLong(startingSeqNo);
+        }
+
+        if (out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION)) {
+            out.writeBoolean(canDownloadSnapshotFiles);
         }
     }
 

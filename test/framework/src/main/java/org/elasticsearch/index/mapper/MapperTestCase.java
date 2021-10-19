@@ -772,6 +772,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "All fields that match routing_path must be keyword time_series_dimensions but [field] was [" + mapper.typeName() + "]";
+        return "All fields that match routing_path must be unscripted keyword time_series_dimensions but [field] was ["
+            + mapper.typeName()
+            + "]";
     }
 }

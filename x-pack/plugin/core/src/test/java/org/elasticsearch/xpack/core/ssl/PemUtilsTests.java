@@ -8,16 +8,12 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.ssl.SslConfigException;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AlgorithmParameters;
-import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -28,7 +24,6 @@ import java.security.spec.ECParameterSpec;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class PemUtilsTests extends ESTestCase {

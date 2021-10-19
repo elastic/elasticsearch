@@ -142,12 +142,12 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22137[CVE-2021-22137]
 === Known issues
 
 // tag::frozen-tier-79371-known-issue[]
-* Frozen Tier: (Windows only) The Frozen Tier relies on multiple caching mechanisms
-to speed up access to searchable snapshots files. One of those caches extensively uses
+* Frozen tier: (Windows only) The frozen data tier relies on multiple caching mechanisms
+to speed up access to searchable snapshot files. One of these caches uses
 https://en.wikipedia.org/wiki/Sparse_file[sparse files] to avoid creating large
-files on disk when it is not strictly required. A bug prevented the files to be
+files on disk when it is not strictly required. A bug prevented files from being
 created with the right options to enable sparse support on Windows, leading {es} to
-create regular, potentially large files that can end up consuming all the disk space.
+create potentially large files that can end up consuming all the disk space.
 +
 This issue is fixed in {es} versions 7.15.2 and later. There is no known workaround
 for earlier versions. Filesystems that enable sparse files by default are not affected.

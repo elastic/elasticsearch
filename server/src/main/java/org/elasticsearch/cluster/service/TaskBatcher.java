@@ -131,14 +131,38 @@ public abstract class TaskBatcher {
             }
 
             if (toExecute.isEmpty() == false) {
-                final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
-                    String tasks = updateTask.describeTasks(entry.getValue());
-                    return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
-
-                run(updateTask.batchingKey, toExecute, tasksSummary);
+                run(updateTask.batchingKey, toExecute, buildTasksDescription(updateTask, toExecute, processTasksBySource));
             }
         }
+    }
+
+    private String buildTasksDescription(BatchedTask updateTask,
+                                         List<BatchedTask> toExecute,
+                                         Map<String, List<BatchedTask>> processTasksBySource) {
+        final StringBuilder output = new StringBuilder();
+        int len = 0;
+        int count = 0;
+        int taskCount = 0;
+        for (Map.Entry<String, List<BatchedTask>> entry : processTasksBySource.entrySet()) {
+            String tasks = updateTask.describeTasks(entry.getValue());
+            final String description = tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
+            if (len > 0) {
+                output.append(", ");
+            }
+            len += description.length();
+            count++;
+            taskCount += entry.getValue().size();
+            output.append(description);
+            // don't render additional task descriptions beyond 8k chars
+            if (len > 8 * 1024) {
+                break;
+            }
+        }
+        final int remaining = processTasksBySource.size() - count;
+        if (remaining > 0) {
+            output.append(", ").append(toExecute.size() - taskCount).append(" additional tasks for ").append(remaining).append(" sources");
+        }
+        return output.toString();
     }
 
     /**

@@ -46,7 +46,30 @@ public interface ClusterStateTaskExecutor<T> {
      * This allows groupd task description but the submitting source.
      */
     default String describeTasks(List<T> tasks) {
-        return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);
+        final StringBuilder output = new StringBuilder();
+        int len = 0;
+        final int count = tasks.size();
+        int i = 0;
+        for (; i < count; i++) {
+            T task = tasks.get(i);
+            String t = task.toString();
+            if (t.length() > 0) {
+                if (len > 0) {
+                    output.append(", ");
+                }
+                len += t.length();
+                output.append(t);
+            }
+            // don't render additional task descriptions beyond 1024 chars
+            if (len > 1024) {
+                break;
+            }
+        }
+        final int remaining = count - i;
+        if (remaining > 0) {
+            output.append(", ").append(remaining).append(" additional tasks");
+        }
+        return output.toString();
     }
 
     /**

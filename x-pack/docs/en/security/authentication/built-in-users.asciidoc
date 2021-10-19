@@ -179,7 +179,7 @@ for these users.
 The `apm_system` user is used internally within APM when monitoring is enabled.
 
 To enable this feature in APM, you need to update the
-APM configuration file to
+`apm-server.yml` configuration file to
 reference the correct username and password. For example:
 
 [source,yaml]

@@ -345,7 +345,7 @@ the setting to use the default or set it to a custom rate limit, such as
 `200/10m`, which allows 200 compilations for every 10 minute period.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the removed setting value.
+To avoid deprecation warnings, discontinue use of the deprecated setting value.
 ====
 
 [[script-context-cache-max-compile-deprecated]]
@@ -367,7 +367,7 @@ the general script cache size is dynamically updatable with a higher default
 size.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the removed settings.
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 
 [[script-context-cache-size-deprecated]]
@@ -381,7 +381,7 @@ of the deprecation of the context-specific script cache.
 Use `script.cache.max_size` to set the size of the script cache for all scripts.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the removed settings.
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 
 [[script-context-cache-expire-deprecated]]
@@ -394,6 +394,6 @@ Script context-specific cache settings have been deprecated.  Use
 for all scripts.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the removed settings.
+To avoid deprecation warnings, discontinue use of the deprecated settings.
 ====
 // end::notable-breaking-changes[]

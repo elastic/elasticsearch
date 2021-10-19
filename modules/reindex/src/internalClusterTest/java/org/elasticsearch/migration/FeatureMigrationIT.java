@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
@@ -160,10 +161,38 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
-        assertIndexHasCorrectProperties(finalMetadata, ".int-man-old-reindexed-for-8", INTERNAL_MANAGED_FLAG_VALUE, true, true);
-        assertIndexHasCorrectProperties(finalMetadata, ".int-unman-old-reindexed-for-8", INTERNAL_UNMANAGED_FLAG_VALUE, false, true);
-        assertIndexHasCorrectProperties(finalMetadata, ".ext-man-old-reindexed-for-8", EXTERNAL_MANAGED_FLAG_VALUE, true, false);
-        assertIndexHasCorrectProperties(finalMetadata, ".ext-unman-old-reindexed-for-8", EXTERNAL_UNMANAGED_FLAG_VALUE, false, false);
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".int-man-old-reindexed-for-8",
+            INTERNAL_MANAGED_FLAG_VALUE,
+            true,
+            true,
+            Arrays.asList(".int-man-old", ".internal-managed-alias")
+        );
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".int-unman-old-reindexed-for-8",
+            INTERNAL_UNMANAGED_FLAG_VALUE,
+            false,
+            true,
+            Collections.singletonList(".int-unman-old")
+        );
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".ext-man-old-reindexed-for-8",
+            EXTERNAL_MANAGED_FLAG_VALUE,
+            true,
+            false,
+            Arrays.asList(".ext-man-old", ".external-managed-alias")
+        );
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".ext-unman-old-reindexed-for-8",
+            EXTERNAL_UNMANAGED_FLAG_VALUE,
+            false,
+            false,
+            Collections.singletonList(".ext-unman-old")
+        );
     }
 
     public void assertIndexHasCorrectProperties(
@@ -171,8 +200,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         String indexName,
         int settingsFlagValue,
         boolean isManaged,
-        boolean isInternal
-    ) {
+        boolean isInternal,
+        Collection<String> aliasNames) {
         IndexMetadata imd = metadata.index(indexName);
         assertThat(imd.getSettings().get(FlAG_SETTING_KEY), equalTo(Integer.toString(settingsFlagValue)));
         final Map<String, Object> mapping = imd.mapping().getSourceAsMap();
@@ -182,6 +211,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(meta.get(DESCRIPTOR_INTERNAL_META_KEY), is(isInternal));
 
         assertThat(imd.isSystem(), is(true));
+
+        Set<String> actualAliasNames = imd.getAliases().keySet();
+        assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
 
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
         assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));

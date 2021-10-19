@@ -30,6 +30,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -209,12 +210,47 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getException(), nullValue());
 
         // Finally, verify that all the indices exist and have the properties we expect.
-        assertIndexHasCorrectProperties(finalMetadata, ".int-man-old-reindexed-for-8", INTERNAL_MANAGED_FLAG_VALUE, true, true);
-        assertIndexHasCorrectProperties(finalMetadata, ".int-unman-old-reindexed-for-8", INTERNAL_UNMANAGED_FLAG_VALUE, false, true);
-        assertIndexHasCorrectProperties(finalMetadata, ".ext-man-old-reindexed-for-8", EXTERNAL_MANAGED_FLAG_VALUE, true, false);
-        assertIndexHasCorrectProperties(finalMetadata, ".ext-unman-old-reindexed-for-8", EXTERNAL_UNMANAGED_FLAG_VALUE, false, false);
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".int-man-old-reindexed-for-8",
+            INTERNAL_MANAGED_FLAG_VALUE,
+            true,
+            true,
+            Arrays.asList(".int-man-old", ".internal-managed-alias")
+        );
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".int-unman-old-reindexed-for-8",
+            INTERNAL_UNMANAGED_FLAG_VALUE,
+            false,
+            true,
+            Collections.singletonList(".int-unman-old")
+        );
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".ext-man-old-reindexed-for-8",
+            EXTERNAL_MANAGED_FLAG_VALUE,
+            true,
+            false,
+            Arrays.asList(".ext-man-old", ".external-managed-alias")
+        );
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".ext-unman-old-reindexed-for-8",
+            EXTERNAL_UNMANAGED_FLAG_VALUE,
+            false,
+            false,
+            Collections.singletonList(".ext-unman-old")
+        );
 
-        assertIndexHasCorrectProperties(finalMetadata, ".second-int-man-old-reindexed-for-8", SECOND_FEATURE_IDX_FLAG_VALUE, true, true);
+        assertIndexHasCorrectProperties(
+            finalMetadata,
+            ".second-int-man-old-reindexed-for-8",
+            SECOND_FEATURE_IDX_FLAG_VALUE,
+            true,
+            true,
+            Arrays.asList(".second-int-man-old", ".second-internal-managed-alias")
+        );
     }
 
     private static final SystemIndexDescriptor SECOND_FEATURE_IDX_DESCIPTOR = SystemIndexDescriptor.builder()

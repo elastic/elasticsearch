@@ -14,6 +14,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -439,13 +441,29 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         BulkByScrollResponse bulkByScrollResponse,
         ActionListener<BulkByScrollResponse> listener
     ) {
-        return unsetReadOnlyResponse -> migrationInfo.createClient(baseClient)
-            .admin()
-            .indices()
-            .prepareAliases()
-            .removeIndex(migrationInfo.getCurrentIndexName())
-            .addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName())
-            .execute(ActionListener.wrap(deleteIndexResponse -> listener.onResponse(bulkByScrollResponse), listener::onFailure));
+        final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
+        aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
+        aliasesRequest.addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName());
+
+        // Copy all the aliases from the old index
+        IndexMetadata imd = clusterService.state().metadata().index(migrationInfo.getCurrentIndexName());
+        imd.getAliases().values().forEach(aliasToAdd -> {
+            aliasesRequest.addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(migrationInfo.getNextIndexName())
+                    .alias(aliasToAdd.alias())
+                    .indexRouting(aliasToAdd.indexRouting())
+                    .searchRouting(aliasToAdd.searchRouting())
+                    .filter(aliasToAdd.filter() == null ? null : aliasToAdd.filter().string())
+                    .writeIndex(null)
+            );
+        });
+
+        // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
+        // while we're trying to migrate them.
+        return unsetReadOnlyResponse -> aliasesRequest.execute(
+            ActionListener.wrap(deleteIndexResponse -> listener.onResponse(bulkByScrollResponse), listener::onFailure)
+        );
     }
 
     /**

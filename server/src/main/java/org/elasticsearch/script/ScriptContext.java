@@ -47,6 +47,8 @@ import java.lang.reflect.Method;
  * be {@code boolean needs_score()}.
  */
 public final class ScriptContext<FactoryType> {
+    /** The default compilation rate limit for contexts with compilation rate limiting enabled */
+    public static final Tuple<Integer, TimeValue> DEFAULT_COMPILATION_RATE_LIMIT = new Tuple<>(150, TimeValue.timeValueMinutes(5));
 
     /** A unique identifier for this context. */
     public final String name;
@@ -66,15 +68,15 @@ public final class ScriptContext<FactoryType> {
     /** The default expiration of a script in the cache for the context, if not overridden */
     public final TimeValue cacheExpireDefault;
 
-    /** The default max compilation rate for scripts in this context.  Script compilation is throttled if this is exceeded */
-    public final Tuple<Integer, TimeValue> maxCompilationRateDefault;
+    /** Is compilation rate limiting enabled for this context? */
+    public final boolean compilationRateLimited;
 
     /** Determines if the script can be stored as part of the cluster state. */
     public final boolean allowStoredScript;
 
     /** Construct a context with the related instance and compiled classes with caller provided cache defaults */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-                        Tuple<Integer, TimeValue> maxCompilationRateDefault, boolean allowStoredScript) {
+    ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
+                  boolean compilationRateLimited, boolean allowStoredScript) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -98,7 +100,7 @@ public final class ScriptContext<FactoryType> {
 
         this.cacheSizeDefault = cacheSizeDefault;
         this.cacheExpireDefault = cacheExpireDefault;
-        this.maxCompilationRateDefault = maxCompilationRateDefault;
+        this.compilationRateLimited = compilationRateLimited;
         this.allowStoredScript = allowStoredScript;
     }
 
@@ -106,7 +108,17 @@ public final class ScriptContext<FactoryType> {
      *  maxCompilationRateDefault and allow scripts of this context to be stored scripts */
     public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         // cache size default, cache expire default, max compilation rate are defaults from ScriptService.
-        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), new Tuple<>(75, TimeValue.timeValueMinutes(5)), true);
+        this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), true, true);
+    }
+
+    /**
+     * Construct a context for a system script usage, using the:
+     *  - default cache size (only relevant when context caching enabled): 200
+     *  - default cache expiration: no expiration
+     *  - unlimited compilation rate
+     */
+    public ScriptContext(String name, Class<FactoryType> factoryClazz, boolean allowStoredScript) {
+        this(name, factoryClazz, 200, TimeValue.timeValueMillis(0), false, allowStoredScript);
     }
 
     /** Returns a method with the given name, or throws an exception if multiple are found. */

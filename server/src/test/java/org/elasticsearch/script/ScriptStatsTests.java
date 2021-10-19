@@ -40,6 +40,7 @@ public class ScriptStatsTests extends ESTestCase {
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
+        /* TODO(stu): master only
         String expected = "{\n" +
             "  \"script\" : {\n" +
             "    \"compilations\" : 1100,\n" +
@@ -69,6 +70,14 @@ public class ScriptStatsTests extends ESTestCase {
             "        \"compilation_limit_triggered\" : 302\n" +
             "      }\n" +
             "    ]\n" +
+            "  }\n" +
+            "}";
+         */
+        String expected = "{\n" +
+            "  \"script\" : {\n" +
+            "    \"compilations\" : 1100,\n" +
+            "    \"cache_evictions\" : 2211,\n" +
+            "    \"compilation_limit_triggered\" : 3322\n" +
             "  }\n" +
             "}";
         assertThat(Strings.toString(builder), equalTo(expected));

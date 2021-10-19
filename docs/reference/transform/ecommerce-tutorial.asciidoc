@@ -9,8 +9,8 @@ pivot and summarize your data with {transforms}.
 
 NOTE: {transforms-cap} might have more configuration options provided by the 
 APIs than the options available in {kib}. For example, you can set an ingest 
-pipeline for `dest` by calling the <<put-transform>>. Refer to the 
-<<transform-apis,documentation>> for all the {transform} configuration options.
+pipeline for `dest` by calling the <<put-transform>>. For all the {transform} 
+configuration options, refer to the <<transform-apis,documentation>>.
 
 . Verify that your environment is set up properly to use {transforms}. If the
 {es} {security-features} are enabled, to complete this tutorial you need a user

@@ -19,6 +19,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+
 /**
  * Abstract base for scripts to execute to build scripted fields. Inspired by
  * {@link AggregationScript} but hopefully with less historical baggage.
@@ -30,21 +32,33 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     public static final int MAX_VALUES = 100;
 
     static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
-        /*
-         * We rely on the script cache in two ways:
-         * 1. It caches the "heavy" part of mappings generated at runtime.
-         * 2. Mapping updates tend to try to compile the script twice. Not
-         *    for any good reason. They just do.
-         * Thus we use the default cache size.
-         *
-         * We also disable compilation rate limits for runtime fields so we
-         * don't prevent mapping updates because we've performed too
-         * many recently. That'd just be lame. We also compile these
-         * scripts during search requests so this could totally be a
-         * source of runaway script compilations. We think folks will
-         * mostly reuse scripts though.
-         */
-        return new ScriptContext<>(name, factoryClass, false);
+        return new ScriptContext<>(
+            name,
+            factoryClass,
+            /*
+             * We rely on the script cache in two ways:
+             * 1. It caches the "heavy" part of mappings generated at runtime.
+             * 2. Mapping updates tend to try to compile the script twice. Not
+             *    for any good reason. They just do.
+             * Thus we use the default 100.
+             */
+            100,
+            timeValueMillis(0),
+            /*
+             * Disable compilation rate limits for runtime fields so we
+             * don't prevent mapping updates because we've performed too
+             * many recently. That'd just be lame. We also compile these
+             * scripts during search requests so this could totally be a
+             * source of runaway script compilations. We think folks will
+             * mostly reuse scripts though.
+             */
+            false,
+            /*
+             * Disable runtime fields scripts from being allowed
+             * to be stored as part of the script meta data.
+             */
+            false
+        );
     }
 
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.core.Map.of(

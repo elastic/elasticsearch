@@ -332,7 +332,7 @@ cache.
 
 Previously, you could set this setting to `use-context` to have a
 script cache, compilation rate limit settings, cache expiration and
-cache size per cluster.
+cache size per context.
 
 However, these settings were used to handle system scripts triggering
 compilation rate limits and to compensate for an undersized general script
@@ -340,12 +340,12 @@ cache.
 Now, system scripts are exempt from compilation rate limiting and
 the general script cache size is able to be set dynamically.
 
-Do not use `use-context` as a value for this setting.  Instead, remove
-the setting to use the default or set it to a custom rate limit, such as
-`200/10m`, which allows 200 compilations for every 10 minute period.
-
 *Impact* +
-To avoid deprecation warnings, discontinue use of the deprecated setting value.
+To avoid deprecation warnings, do not set `script.max_compilations_rate` to
+`use-context`.
+
+Instead, remove the setting to use the default or set it to a custom rate limit,
+such as `200/10m`, which allows 200 compilations for every 10 minute period.
 ====
 
 [[script-context-cache-max-compile-deprecated]]
@@ -367,7 +367,10 @@ the general script cache size is dynamically updatable with a higher default
 size.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the deprecated settings.
+To avoid deprecation warnings, do not use the
+`script.context.$CONTEXT.max_compilations_rate` family of settings.  Instead,
+set `script.max_compilations_rate` to the highest value from that family
+of settings.
 ====
 
 [[script-context-cache-size-deprecated]]
@@ -381,7 +384,11 @@ of the deprecation of the context-specific script cache.
 Use `script.cache.max_size` to set the size of the script cache for all scripts.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the deprecated settings.
+To avoid deprecation warnings, discontinue use of the
+`script.context.$CONTEXT.cache_max_size` family of settings.  Set
+`script.cache.max_size` to be large enough for all scripts you use.
+See the `compilations` value from <<cluster-nodes-stats,node stats API>>
+for help setting the max size.
 ====
 
 [[script-context-cache-expire-deprecated]]
@@ -394,6 +401,8 @@ Script context-specific cache settings have been deprecated.  Use
 for all scripts.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the deprecated settings.
+To avoid deprecation warnings, discontinue use of the
+`script.context.$CONTEXT.cache_expire` family of settings.  Use
+`script.cache.expire` instead.
 ====
 // end::notable-breaking-changes[]

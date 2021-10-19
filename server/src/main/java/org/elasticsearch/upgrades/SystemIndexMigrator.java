@@ -231,7 +231,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
             final String newIndexName = migrationInfo.getNextIndexName();
-            logger.info("Removing index [{}] from previous incomplete migration", newIndexName);
+            logger.info("removing index [{}] from previous incomplete migration", newIndexName);
 
             migrationInfo.createClient(baseClient)
                 .admin()
@@ -244,7 +244,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     }
                 }, this::markAsFailed));
         } else {
-            logger.debug("No incomplete index to remove");
+            logger.debug("no incomplete index to remove");
             clearResults(clusterService, ActionListener.wrap(listener::accept, this::markAsFailed));
         }
     }
@@ -317,7 +317,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         synchronized (migrationQueue) {
             assert migrationQueue != null;
             if (migrationQueue.isEmpty()) {
-                logger.info("Finished migrating features.");
+                logger.info("finished migrating feature indices");
                 markAsCompleted();
                 return;
             }
@@ -370,13 +370,17 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         String oldIndexName = migrationInfo.getCurrentIndexName();
         final IndexMetadata imd = clusterState.metadata().index(oldIndexName);
         if (imd.getState().equals(CLOSE)) {
-            logger.error("unable to migrate index [{}] because it is closed", oldIndexName);
+            logger.error(
+                "unable to migrate index [{}] from feature [{}] because it is closed",
+                oldIndexName,
+                migrationInfo.getFeatureName()
+            );
             markAsFailed(new IllegalStateException("unable to migrate index [" + oldIndexName + "] because it is closed"));
             return;
         }
         Index oldIndex = imd.getIndex();
         String newIndexName = migrationInfo.getNextIndexName();
-        logger.info("migrating index [{}] to new index [{}]", oldIndexName, newIndexName);
+        logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
             Exception versionException = checkNodeVersionsReadyForMigration(clusterState);
@@ -385,12 +389,20 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
             createIndex(migrationInfo, ActionListener.wrap(shardsAcknowledgedResponse -> {
-                logger.info("Got create index response: [{}]", Strings.toString(shardsAcknowledgedResponse));
+                logger.debug(
+                    "while migrating [{}] , got create index response: [{}]",
+                    oldIndexName,
+                    Strings.toString(shardsAcknowledgedResponse)
+                );
                 setWriteBlock(
                     oldIndex,
                     true,
                     ActionListener.wrap(setReadOnlyResponse -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.info("Got reindex response: [{}]", Strings.toString(bulkByScrollResponse));
+                        logger.debug(
+                            "while migrating [{}], got reindex response: [{}]",
+                            oldIndexName,
+                            Strings.toString(bulkByScrollResponse)
+                        );
                         if ((bulkByScrollResponse.getBulkFailures() != null && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
                             || (bulkByScrollResponse.getSearchFailures() != null
                                 && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
@@ -411,13 +423,29 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                             );
                         }
                     }, e -> {
-                        logger.error("error occurred while reindexing", e);
+                        logger.error(
+                            new ParameterizedMessage(
+                                "error occurred while reindexing index [{}] from feature [{}] to destination index [{}]",
+                                oldIndexName,
+                                migrationInfo.getFeatureName(),
+                                newIndexName
+                            ),
+                            e
+                        );
                         removeReadOnlyBlockOnReindexFailure(oldIndex, innerListener, e);
                     })), innerListener::onFailure)
                 );
             }, innerListener::onFailure));
         } catch (Exception ex) {
-            logger.error("error occurred while migrating index", ex);
+            logger.error(
+                new ParameterizedMessage(
+                    "error occurred while migrating index [{}] from feature [{}] to new index [{}]",
+                    oldIndexName,
+                    migrationInfo.getFeatureName(),
+                    newIndexName
+                ),
+                ex
+            );
             removeReadOnlyBlockOnReindexFailure(oldIndex, innerListener, ex);
             innerListener.onFailure(ex);
         }

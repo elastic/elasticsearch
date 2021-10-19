@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.xcontent.support.filtering;
+package org.elasticsearch.xcontent.support.filtering;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.util.Arrays;
 import java.util.LinkedHashSet;

@@ -59,6 +59,45 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
     }
 
+    def "supports sspl by convention"() {
+        given:
+        buildFile << """
+        plugins {
+            id 'java'
+            id 'elasticsearch.internal-licenseheaders'
+        }
+        """
+        dualLicensedFile()
+
+        when:
+        def result = gradleRunner("licenseHeaders").build()
+
+        then:
+        result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
+    }
+
+    def "sspl default additional license can be overridden"() {
+        given:
+        buildFile << """
+        plugins {
+            id 'java'
+            id 'elasticsearch.internal-licenseheaders'
+        }
+
+        tasks.named("licenseHeaders").configure {
+            additionalLicense 'ELAST', 'Elastic License 2.0', '2.0; you may not use this file except in compliance with the Elastic License'
+        }
+        """
+        elasticLicensed()
+        dualLicensedFile()
+
+        when:
+        def result = gradleRunner("licenseHeaders").buildAndFail()
+
+        then:
+        result.task(":licenseHeaders").outcome == TaskOutcome.FAILED
+    }
+
     private File unapprovedSourceFile(String filePath = "src/main/java/org/acme/UnapprovedLicensed.java") {
         File sourceFile = file(filePath);
         sourceFile << """
@@ -111,6 +150,21 @@ class LicenseHeadersPrecommitPluginFuncTest extends AbstractGradleFuncTest {
 
  package org.acme;
  public class DualLicensed {
+ }
+ """
+    }
+
+    private File elasticLicensed() {
+        file("src/main/java/org/acme/ElasticLicensed.java") << """
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+ package org.acme;
+ public class ElasticLicensed {
  }
  """
     }

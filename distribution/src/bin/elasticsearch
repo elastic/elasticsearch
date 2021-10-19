@@ -56,7 +56,7 @@ if [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.ConfigInitialNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    "`dirname "$0"`"/elasticsearch-cli "$@" <<<"$KEYSTORE_PASSWORD"; then
+    bin/elasticsearch-cli "$@" <<<"$KEYSTORE_PASSWORD"; then
       :
   else
     retval=$?

@@ -105,7 +105,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     @Override
     protected void doClose() {
         super.doClose();
-        Releasables.close(this.analyzer, this.bytesRefHash);
+        Releasables.close(this.analyzer, this.bytesRefHash, this.bucketOrds, this.categorizers);
     }
 
     @Override

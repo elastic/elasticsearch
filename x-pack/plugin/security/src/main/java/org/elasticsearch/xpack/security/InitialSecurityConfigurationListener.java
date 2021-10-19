@@ -30,8 +30,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.core.XPackSettings.ENROLLMENT_ENABLED;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_ELASTIC_PASSWORD_HASH;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 import static org.fusesource.jansi.Ansi.ansi;
 
@@ -48,6 +50,7 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
     private final SSLService sslService;
     private final Client client;
 
+    // TODO rename to InitialNode
     private InitialSecurityConfigurationListener(
         NativeUsersStore nativeUsersStore,
         SecurityIndexManager securityIndexManager,
@@ -63,10 +66,61 @@ public class InitialSecurityConfigurationListener implements BiConsumer<Security
         // TODO register the constructor in a static method
     }
 
+    public static void initializeStartupContinuePostConfig(
+        NativeUsersStore nativeUsersStore,
+        SecurityIndexManager securityIndexManager,
+        SSLService sslService,
+        Client client,
+        Environment environment
+    ) {
+        // assume no auto-configuration must run if enrollment is disabled when the node starts
+        if (false == ENROLLMENT_ENABLED.get(environment.settings())) {
+            return;
+        }
+        // if enrollment is enabled, we assume (and document this assumption) that the node is auto-configured in a specific way
+        // wrt to TLS and cluster formation
+        final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
+        final boolean processOutputAttachedToTerminal = out != null &&
+            out.getType() != AnsiType.Redirected && // output is a pipe
+            out.getType() != AnsiType.Unsupported && // could not determine terminal type
+            out.getTerminalWidth() > 0; // hack to determine when logs are output to a terminal inside a docker container, but the docker
+        // output itself is redirected;
+        if (false == processOutputAttachedToTerminal) {
+            // Avoid outputting secrets if output is not a terminal, because we assume that the output could eventually end up in a file and
+            // we should avoid printing credentials (even temporary ones) to files.
+            // The HTTPS CA fingerprint, which is not a secret, IS printed, but as a LOG ENTRY rather than a saliently formatted
+            // human-friendly message, in order to avoid breaking parsers that expect the node output to only contain log entries.
+            // TODO log
+            return;
+        }
+        final boolean generateEnrollmentTokens = ENROLLMENT_ENABLED.get(environment.settings());
+        final boolean presetElasticCredential = BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
+            || AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings());
+        // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the first
+        // time a node starts it will form a cluster by itself and can hold the .security index
+        final boolean generateElasticCredential = ENROLLMENT_ENABLED.get(environment.settings()) && false == presetElasticCredential;
+        // WHAT now
+        securityIndexManager.addStateListener((SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) -> {
+            assert out != null;
+            boolean stateJustRecovered = previousState == UNRECOVERED_STATE && currentState != UNRECOVERED_STATE;
+            if (stateJustRecovered && false == currentState.indexExists()) {
+                if (false == currentState.indexExists()) {
+
+                } else {
+                    securityIndexManager.removeStateListener(this);
+                }
+            } else if (previousState != UNRECOVERED_STATE) {
+                securityIndexManager.removeStateListener(this);
+            }
+        });
+    }
+
     @Override
     public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         assert shouldPrintCredentials();
         final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
+        // TODO
+        securityIndexManager.freeze();
         boolean stateJustRecovered = false == securityIndexManager.isStateRecovered() &&
             securityIndexManager.isStateRecovered();
         if (stateJustRecovered && false == securityIndexManager.indexExists() && shouldPrintCredentials()) {

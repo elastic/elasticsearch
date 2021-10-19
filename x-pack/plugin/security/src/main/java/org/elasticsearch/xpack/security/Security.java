@@ -599,6 +599,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // certificates. In this case, and further if the node forms a new cluster, rather than joining an existing one, we
         // complete the auto-configuration by generating and printing credentials and enrollment tokens (when the .security index
         // becomes available)
+
+        // We assume that the node has been configured in a certain way, with respect to TLS and cluster formation, when
+        // if {@code ENROLLMENT_ENABLED} is {@code true} then
         if (XPackSettings.ENROLLMENT_ENABLED.get(settings)) {
             if (InitialSecurityConfigurationListener.shouldPrintCredentials()) {
                 InitialSecurityConfigurationListener initialSecurityConfigurationListener = new InitialSecurityConfigurationListener(

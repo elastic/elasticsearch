@@ -137,7 +137,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
       'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
       'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
       'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster',
-      'mixed_cluster/130_operator_privileges/Test operator pivileges will work in the mixed cluster'
+      'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
     ].join(',')
   }
 

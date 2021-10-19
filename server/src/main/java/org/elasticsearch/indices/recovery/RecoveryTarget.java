@@ -81,7 +81,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private volatile boolean recoveryMonitorEnabled = true;
 
-    @Nullable // if we're not downloading files from snapshots in this recovery
+    @Nullable // if we're not downloading files from snapshots in this recovery or we're retrying
     private volatile Releasable snapshotFileDownloadsPermit;
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed

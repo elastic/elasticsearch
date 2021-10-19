@@ -120,7 +120,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78736")
     public void testTemplateCheckBlocksAfterSuccessfulVersion() {
         final Exception exception = failureGetException();
         final boolean firstSucceeds = randomBoolean();
@@ -159,8 +158,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 expectedGets += successful + 1; // the string of successes, then the last failure.
             }
 
-            if (unsuccessful == 0) {
-                // There is only going to be one response, and it will be an exception
+            if (successfulFirst && unsuccessful == 0) {
+                // In this case, there will be only one failed response, and it'll be an exception
                 expectedResult = null;
             } else {
                 // The first bad response will be either a 404 or a template with an old version

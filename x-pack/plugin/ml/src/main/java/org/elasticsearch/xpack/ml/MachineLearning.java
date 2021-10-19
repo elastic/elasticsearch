@@ -23,7 +23,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -180,7 +179,6 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
-import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -424,7 +422,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -531,6 +528,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // as the current node could be running in a cluster where some nodes are still using
     // that setting.  From 8.0.0 onwards we have the flexibility to increase it...
     private static final int MAX_MAX_OPEN_JOBS_PER_NODE = 512;
+    public static final int DEFAULT_MAX_OPEN_JOBS_PER_NODE = MAX_MAX_OPEN_JOBS_PER_NODE;
     // This setting is cluster-wide and can be set dynamically. However, prior to version 7.1 it was
     // a non-dynamic per-node setting. n a mixed version cluster containing 6.7 or 7.0 nodes those
     // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
@@ -538,7 +536,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting(
                 "xpack.ml.max_open_jobs",
-                MAX_MAX_OPEN_JOBS_PER_NODE,
+                DEFAULT_MAX_OPEN_JOBS_PER_NODE,
                 1,
                 MAX_MAX_OPEN_JOBS_PER_NODE,
                 Property.Dynamic,
@@ -1091,9 +1089,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         var infoAction =
             new ActionHandler<>(XPackInfoFeatureAction.MACHINE_LEARNING, MachineLearningInfoTransportAction.class);
         if (false == enabled) {
-            return Arrays.asList(usageAction, infoAction);
+            return List.of(usageAction, infoAction);
         }
-        return Arrays.asList(
+        return List.of(
                 new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
                 new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
                 new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class),
@@ -1216,7 +1214,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         ScalingExecutorBuilder datafeed = new ScalingExecutorBuilder(DATAFEED_THREAD_POOL_NAME,
             1, MAX_MAX_OPEN_JOBS_PER_NODE, TimeValue.timeValueMinutes(1), "xpack.ml.datafeed_thread_pool");
 
-        return Arrays.asList(jobComms, utility, datafeed);
+        return List.of(jobComms, utility, datafeed);
     }
 
     @Override
@@ -1244,14 +1242,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public List<SignificanceHeuristicSpec<?>> getSignificanceHeuristics() {
-        return Arrays.asList(
+        return List.of(
             new SignificanceHeuristicSpec<>(PValueScore.NAME, PValueScore::new, PValueScore.PARSER)
         );
     }
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
+        return List.of(
             new AggregationSpec(
                 CategorizeTextAggregationBuilder.NAME,
                 CategorizeTextAggregationBuilder::new,
@@ -1261,21 +1259,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         );
     }
 
-    @Override
-    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    public static boolean allTemplatesInstalled(ClusterState clusterState) {
+    public static boolean criticalTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        List<String> templateNames =
-            Arrays.asList(
-                NotificationsIndex.NOTIFICATIONS_INDEX,
-                STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        // The templates for the notifications and stats indices are not critical up-front because
+        // every notification and stats update checks if the appropriate template is installed and
+        // installs it if necessary
+        List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
-            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState,
-                MlIndexTemplateRegistry.COMPOSABLE_TEMPLATE_SWITCH_VERSION);
+            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
 
         return allPresent;

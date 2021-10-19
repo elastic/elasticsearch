@@ -437,7 +437,7 @@ public class Docker {
 
         Stream.of("jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
-        // We write to the elasticsearch.yml and elasticsearch.keystore in ConfigInitialNode so it gets owned by elasticsearch.
+        // We write to the elasticsearch.yml and elasticsearch.keystore in AutoConfigureNode so it gets owned by elasticsearch.
         assertThat(es.config("elasticsearch.yml"), file("elasticsearch", "root", p664));
         assertThat(es.config("elasticsearch.keystore"), file("elasticsearch", "root", p660));
 

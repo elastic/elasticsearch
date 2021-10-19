@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;

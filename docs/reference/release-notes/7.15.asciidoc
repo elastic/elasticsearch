@@ -3,6 +3,12 @@
 
 Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
 
+[[known-issues-7.15.1]]
+[discrete]
+=== Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
+
 [[enhancement-7.15.1]]
 [float]
 === Enhancements
@@ -90,6 +96,8 @@ Also see <<breaking-changes-7.15,Breaking changes in 7.15>>.
 [[known-issues-7.15.0]]
 [discrete]
 === Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.14.asciidoc[tag=ccs-agg-mem-known-issue]
 

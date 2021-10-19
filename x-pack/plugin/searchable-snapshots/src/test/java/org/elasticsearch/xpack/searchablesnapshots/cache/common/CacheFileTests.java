@@ -58,6 +58,7 @@ public class CacheFileTests extends ESTestCase {
     private static final CacheKey CACHE_KEY = new CacheKey("_snap_uuid", "_snap_index", new ShardId("_name", "_uuid", 0), "_filename");
 
     public void testGetCacheKey() throws Exception {
+        final Path file = createTempDir().resolve("file.new");
         final CacheKey cacheKey = new CacheKey(
             UUIDs.randomBase64UUID(random()),
             randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
@@ -65,7 +66,7 @@ public class CacheFileTests extends ESTestCase {
             randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
         );
 
-        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), createTempFile(), NOOP);
+        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), file, NOOP);
         assertThat(cacheFile.getCacheKey(), sameInstance(cacheKey));
     }
 

@@ -3,6 +3,7 @@
     "_meta" : {
       "version" : "${xpack.ml.version}"
     },
+    "dynamic" : false,
     "properties" : {
       "annotation" : {
         "type" : "text"

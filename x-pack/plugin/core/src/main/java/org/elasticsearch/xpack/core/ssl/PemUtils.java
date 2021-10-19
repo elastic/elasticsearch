@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.jdk.JavaVersion;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -359,6 +360,12 @@ public class PemUtils {
             parser = algSeq.getParser();
             final String algId = parser.readAsn1Object().getOid();
             if (PBES2_OID.equals(algId)) {
+                if (JavaVersion.current().compareTo(JavaVersion.parse("11.0.0")) < 0) {
+                    throw new GeneralSecurityException(
+                        "PKCS#8 Private Key is encrypted with PBES2 which is not supported on JDK [" + JavaVersion.current() + "]",
+                        e
+                    );
+                }
                 final DerParser.Asn1Object algData = parser.readAsn1Object(DerParser.SEQUENCE);
                 parser = algData.getParser();
                 final DerParser.Asn1Object ignoreKdf = parser.readAsn1Object(DerParser.SEQUENCE);

@@ -8,20 +8,22 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.engine.frozen.FrozenEngine;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -459,6 +461,23 @@ public class IndexDeprecationChecks {
                 false,
                 null
             );
+        }
+        return null;
+    }
+
+    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState, IndexMetadata indexMetadata) {
+        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
+            final List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
+            if (tierPreference.isEmpty()) {
+                String indexName = indexMetadata.getIndex().getName();
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "index [" + indexName + "] does not have a [" + DataTier.TIER_PREFERENCE + "] setting, " +
+                        "in 8.0 this setting will be required for all indices and may not be empty or null.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html",
+                    "Update the settings for this index to specify an appropriate tier preference.",
+                    false,
+                    null);
+            }
         }
         return null;
     }

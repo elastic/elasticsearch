@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.DefaultOperatorPrivilegesService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.junit.Before;
@@ -44,14 +45,14 @@ import static org.mockito.Mockito.when;
 
 public class OperatorPrivilegesTests extends ESTestCase {
 
-    private XPackLicenseState xPackLicenseState;
+    private MockLicenseState xPackLicenseState;
     private FileOperatorUsersStore fileOperatorUsersStore;
     private OperatorOnlyRegistry operatorOnlyRegistry;
     private OperatorPrivilegesService operatorPrivilegesService;
 
     @Before
     public void init() {
-        xPackLicenseState = mock(XPackLicenseState.class);
+        xPackLicenseState = mock(MockLicenseState.class);
         fileOperatorUsersStore = mock(FileOperatorUsersStore.class);
         operatorOnlyRegistry = mock(OperatorOnlyRegistry.class);
         operatorPrivilegesService = new DefaultOperatorPrivilegesService(xPackLicenseState, fileOperatorUsersStore, operatorOnlyRegistry);
@@ -61,7 +62,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("xpack.security.operator_privileges.enabled", randomBoolean())
             .build();
-        when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(false);
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(false);
         final ThreadContext threadContext = new ThreadContext(settings);
 
         operatorPrivilegesService.maybeMarkOperatorUser(mock(Authentication.class), threadContext);
@@ -77,7 +78,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("xpack.security.operator_privileges.enabled", true)
             .build();
-        when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final Authentication operatorAuth = mock(Authentication.class);
         final Authentication nonOperatorAuth = mock(Authentication.class);
         final User operatorUser = new User("operator_user");
@@ -142,7 +143,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("xpack.security.operator_privileges.enabled", true)
             .build();
-        when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
 
         final String operatorAction = "cluster:operator_only/action";
         final String nonOperatorAction = "cluster:non_operator/action";
@@ -167,7 +168,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
     }
 
     public void testCheckWillPassForInternalUsers() {
-        when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(true);
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final Authentication internalAuth = mock(Authentication.class);
         when(internalAuth.getUser()).thenReturn(
             randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE));
@@ -178,7 +179,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
 
     public void testMaybeInterceptRequest() throws IllegalAccessException {
         final boolean licensed = randomBoolean();
-        when(xPackLicenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES)).thenReturn(licensed);
+        when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         final MockLogAppender appender = new MockLogAppender();

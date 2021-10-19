@@ -30,7 +30,6 @@ import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -404,7 +403,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
             "Remove the [thread_pool.listener.queue_size] setting. The listener pool is no longer used in 8.0.", false, null);
         assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.queue_size"));
     }
 
     public void testThreadPoolListenerSize() {
@@ -419,56 +418,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
             "Remove the [thread_pool.listener.size] setting. The listener pool is no longer used in 8.0.", false, null);
         assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.size"));
     }
 
-    public void testGeneralScriptSizeSetting() {
-        final int size = randomIntBetween(1, 4);
-        final Settings settings = Settings.builder().put("script.cache.max_size", size).build();
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "Setting [script.cache.max_size] is deprecated",
-            "https://ela.st/es-deprecation-7-script-cache-size-setting",
-            "Remove the [script.cache.max_size] setting. Set [script.context.*.cache_max_size] to [" + size + "], where * is the script " +
-                "context.", false, null);
-        assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
-    }
-
-    public void testGeneralScriptExpireSetting() {
-        final String expire = randomIntBetween(1, 4) + "m";
-        final Settings settings = Settings.builder().put("script.cache.expire", expire).build();
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "Setting [script.cache.expire] is deprecated",
-            "https://ela.st/es-deprecation-7-script-cache-expire-setting",
-            "Remove the [script.cache.expire] setting. Set [script.context.*.cache_expire] to [" + expire + "], where * is the script " +
-            "context.",
-            false, null);
-        assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
-    }
-
-    public void testGeneralScriptCompileSettings() {
-        final String rate = randomIntBetween(1, 100) + "/" + randomIntBetween(1, 200) + "m";
-        final Settings settings = Settings.builder().put("script.max_compilations_rate", rate).build();
-        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
-        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "Setting [script.max_compilations_rate] is deprecated",
-            "https://ela.st/es-deprecation-7-script-max-compilations-rate-setting",
-            "Remove the [script.max_compilations_rate] setting. Set [script.context.*.max_compilations_rate] to [" + rate + "], where * " +
-                "is the script context.", false, null);
-        assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
+    private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
+        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
+            Setting.Property.Deprecated)).toArray(Setting[]::new);
     }
 
     public void testClusterRemoteConnectSetting() {

@@ -20,6 +20,8 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-22145[CVE-2021-22145]
 [discrete]
 === Known issues
 
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
+
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 [[bug-7.13.4]]
@@ -41,17 +43,19 @@ Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 [[security-updates-7.13.3]]
 === Security updates
 
-* An uncontrolled recursion vulnerability that could lead to a 
-denial of service attack was identified in the {es} Grok parser. 
-A user with the ability to submit arbitrary queries to {es} could create 
+* An uncontrolled recursion vulnerability that could lead to a
+denial of service attack was identified in the {es} Grok parser.
+A user with the ability to submit arbitrary queries to {es} could create
 a malicious Grok query that will crash the {es} node.
-All versions of {es} prior to 7.13.3 are affected by this flaw. 
-You must upgrade to {es} version 7.13.3 to obtain the fix.  
+All versions of {es} prior to 7.13.3 are affected by this flaw.
+You must upgrade to {es} version 7.13.3 to obtain the fix.
 https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22144[CVE-2021-22144]
 
 [[known-issues-7.13.3]]
 [discrete]
 === Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
@@ -106,6 +110,8 @@ Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 [discrete]
 === Known issues
 
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
+
 include::7.13.asciidoc[tag=snapshot-repo-corruption-75598-known-issue]
 
 [[bug-7.13.2]]
@@ -145,6 +151,8 @@ Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 [[known-issues-7.13.1]]
 [discrete]
 === Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 // tag::snapshot-repo-corruption-75598-known-issue[]
 * Snapshot and restore: If a running snapshot is cancelled while a
@@ -203,6 +211,8 @@ Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
 [[known-issues-7.13.0]]
 [discrete]
 === Known issues
+
+include::7.12.asciidoc[tag=frozen-tier-79371-known-issue]
 
 * If autoscaling is enabled for machine learning, the administrator of the
 cluster should increase the cluster setting `xpack.ml.max_open_jobs` to the

@@ -35,10 +35,10 @@ public class HeaderWarningAppender extends AbstractAppender {
             String messagePattern = esLogMessage.getMessagePattern();
             Object[] arguments = esLogMessage.getArguments();
 
-            HeaderWarning.addWarning(messagePattern, arguments);
+            HeaderWarning.addWarning(event.getLevel(), messagePattern, arguments);
         } else {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            HeaderWarning.addWarning(formattedMessage);
+            HeaderWarning.addWarning(event.getLevel(), formattedMessage);
         }
     }
 

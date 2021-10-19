@@ -150,7 +150,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards= in.readInt();
         taskMaxWaitingTime = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             return200ForClusterHealthTimeout = in.readBoolean();
         }
     }
@@ -304,7 +304,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
         out.writeTimeValue(taskMaxWaitingTime);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeBoolean(return200ForClusterHealthTimeout);
         } else if (return200ForClusterHealthTimeout) {
             throw new IllegalArgumentException("Can't fix response code in a cluster involving nodes with version " + out.getVersion());

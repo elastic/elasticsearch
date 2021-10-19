@@ -1478,7 +1478,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -1632,7 +1632,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));

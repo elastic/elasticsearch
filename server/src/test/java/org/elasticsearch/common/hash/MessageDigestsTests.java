@@ -8,16 +8,32 @@
 
 package org.elasticsearch.common.hash;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class MessageDigestsTests extends ESTestCase {
-    private void assertHash(String expected, String test, MessageDigest messageDigest) {
-        String actual = MessageDigests.toHexString(messageDigest.digest(test.getBytes(StandardCharsets.UTF_8)));
-        assertEquals(expected, actual);
+
+    private void assertHexString(String expected, byte[] bytes) {
+        final String actualDirect = MessageDigests.toHexString(bytes);
+        assertThat(actualDirect, equalTo(expected));
+    }
+
+    private void assertHash(String expected, String test, MessageDigest messageDigest) throws IOException {
+        final byte[] testBytes = test.getBytes(StandardCharsets.UTF_8);
+
+        assertHexString(expected, messageDigest.digest(testBytes));
+        assertHexString(expected, MessageDigests.digest(new BytesArray(testBytes), messageDigest));
+        try (var in = new ByteArrayInputStream(testBytes)) {
+            assertHexString(expected, MessageDigests.digest(in, messageDigest));
+        }
     }
 
     public void testMd5() throws Exception {

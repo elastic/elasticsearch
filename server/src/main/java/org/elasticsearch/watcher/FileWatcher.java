@@ -9,6 +9,7 @@ package org.elasticsearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 
@@ -27,6 +28,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private FileObserver rootFileObserver;
     private final Path path;
+    private final boolean checkFileContents;
 
     private static final Logger logger = LogManager.getLogger(FileWatcher.class);
 
@@ -35,7 +37,19 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
      * @param path the directory to watch
      */
     public FileWatcher(Path path) {
+        this(path, false);
+    }
+
+    /**
+     * Creates new file watcher on the given directory
+     * @param path the directory to watch
+     * @param checkFileContents whether to inspect the content of the file for changes (via a message digest)
+     *                          - this is a "best efforts" check and will err on the side of sending extra change notifications if the file
+     *                          <em>might</em> have changed.
+     */
+    public FileWatcher(Path path, boolean checkFileContents) {
         this.path = path;
+        this.checkFileContents = checkFileContents;
         rootFileObserver = new FileObserver(path);
     }
 
@@ -65,11 +79,13 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private class FileObserver {
         private final Path path;
+
         private boolean exists;
         private long length;
         private long lastModified;
         private boolean isDirectory;
         private FileObserver[] children;
+        private byte[] digest;
 
         FileObserver(Path path) {
             this.path = path;
@@ -118,7 +134,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                             onFileCreated(false);
                         } else {
                             // Remained file
-                            if (prevLastModified != lastModified || prevLength != length) {
+                            if (fileHasChanged(prevLength, prevLastModified)) {
                                 onFileChanged();
                             }
                         }
@@ -142,6 +158,39 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 }
             }
 
+        }
+
+        private boolean fileHasChanged(long prevLength, long prevLastModified) {
+            if (prevLength != length) {
+                // Forcibly clear the digest
+                this.digest = null;
+                // Change in length means the file definitely changed
+                return true;
+            }
+            if (prevLastModified == lastModified) {
+                // Same last modified timestamp, means the file didn't change
+                return false;
+            }
+            if (checkFileContents == false) {
+                // If not configured to check contents, then a change to lastModified is sufficient to mark the file as changed
+                return true;
+            }
+            byte[] prevDigest = this.digest;
+            try (var in = Files.newInputStream(path)) {
+                this.digest = MessageDigests.digest(in, MessageDigests.md5());
+                // If this is the first time the file's "last modified" has changed, then this will also be the first time we calculated
+                // the digest so "prevDigest" will be null & this "equals" check will be false
+                // That means we will notify of one additional change that might not be real (but might be), and then not notify again
+                // until the content actually changes
+                return Arrays.equals(this.digest, prevDigest) == false;
+            } catch (IOException e) {
+                logger.warn(
+                    "failed to read file [{}] while checking for file changes [{}] - assuming file has been modified",
+                    path,
+                    e.toString()
+                );
+                return true;
+            }
         }
 
         private void init(boolean initial) throws IOException {

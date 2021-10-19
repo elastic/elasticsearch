@@ -300,11 +300,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         try {
             multiFileWriter.close();
         } finally {
-            releaseSnapshotFileDownloadsPermit();
             // free store. increment happens in constructor
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
+            releaseSnapshotFileDownloadsPermit();
         }
     }
 

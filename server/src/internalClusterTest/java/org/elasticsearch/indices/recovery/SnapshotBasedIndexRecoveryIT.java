@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -891,7 +892,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79420")
     public void testRecoveryUsingSnapshotsPermitIsReturnedAfterFailureOrCancellation() throws Exception {
         executeRecoveryWithSnapshotFileDownloadThrottled((indices,
                                                           sourceNode,
@@ -904,7 +904,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             assertAcked(
                 client().admin().indices().prepareUpdateSettings(indexRecoveredFromSnapshot1)
                     .setSettings(Settings.builder()
-                        .put("index.routing.allocation.require._name", targetNode)).get()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put("index.routing.allocation.require._name", (String) null)
+                        .put("index.routing.allocation.include._name", sourceNode + "," + targetNode)).get()
             );
 
             awaitForRecoverSnapshotFileRequestReceived.run();
@@ -935,11 +937,14 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 targetMockTransportService.clearAllRules();
                 channelRef.get().sendResponse(new IOException("unable to clean files"));
-                assertAcked(
-                    client().admin().indices().prepareUpdateSettings(indexRecoveredFromSnapshot1)
-                        .setSettings(Settings.builder()
-                            .put("index.routing.allocation.require._name", sourceNode)).get()
-                );
+                PeerRecoveryTargetService peerRecoveryTargetService =
+                    internalCluster().getInstance(PeerRecoveryTargetService.class, targetNode);
+                assertBusy(() -> {
+                    // Wait until the current RecoveryTarget releases the snapshot download permit
+                    Releasable snapshotDownloadPermit = peerRecoveryTargetService.tryAcquireSnapshotDownloadPermits();
+                    assertThat(snapshotDownloadPermit, is(notNullValue()));
+                    snapshotDownloadPermit.close();
+                });
             }
 
             String indexRecoveredFromSnapshot2 = indices.get(1);
@@ -1092,10 +1097,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 createIndex(indexName,
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                         .put("index.routing.allocation.require._name", dataNodes.get(0))
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.allocation.max_retries", 0)
                         .build()
                 );
                 indices.add(indexName);

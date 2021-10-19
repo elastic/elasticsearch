@@ -138,7 +138,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
-        final Releasable snapshotFileDownloadsPermit = recoverySettings.tryAcquireSnapshotDownloadPermits();
+        final Releasable snapshotFileDownloadsPermit = tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(
             indexShard,
@@ -219,6 +219,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
         transportService.sendRequest(startRequest.sourceNode(), actionName, requestToSend,
                 new RecoveryResponseHandler(startRequest, timer));
+    }
+
+    // Visible for testing
+    Releasable tryAcquireSnapshotDownloadPermits() {
+        return recoverySettings.tryAcquireSnapshotDownloadPermits();
     }
 
     /**

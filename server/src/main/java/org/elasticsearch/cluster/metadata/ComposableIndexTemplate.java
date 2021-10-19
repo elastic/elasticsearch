@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
@@ -45,6 +46,20 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField METADATA = new ParseField("_meta");
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
+
+    /**
+     * A mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
+     */
+    public static final CompressedXContent DS_MAPPING_SNIPPET;
+
+    static {
+        try {
+            DS_MAPPING_SNIPPET = new CompressedXContent((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME).field("enabled", true).endObject().endObject());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
@@ -294,14 +309,6 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         public String getTimestampField() {
             return FIXED_TIMESTAMP_FIELD;
-        }
-
-        /**
-         * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
-         */
-        public Map<String, Object> getDataStreamMappingSnippet() {
-            // _data_stream_timestamp meta fields default to @timestamp:
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)));
         }
 
         public boolean isHidden() {

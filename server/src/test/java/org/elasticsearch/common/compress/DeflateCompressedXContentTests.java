@@ -11,10 +11,8 @@ package org.elasticsearch.common.compress;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
@@ -97,13 +95,13 @@ public class DeflateCompressedXContentTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject);
         assertEquals("{}", compressedXContent.string());
     }
 
     public void testToXContentFragment() throws IOException {
         ToXContentFragment toXContentFragment = (builder, params) -> builder.field("field", "value");
-        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment);
         assertEquals("{\"field\":\"value\"}", compressedXContent.string());
     }
 }

@@ -182,7 +182,7 @@ public class SystemIndexManager implements ClusterStateListener {
     private void upgradeIndexMetadata(SystemIndexDescriptor descriptor, ActionListener<AcknowledgedResponse> listener) {
         final String indexName = descriptor.getPrimaryIndex();
 
-        PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
+        PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings().string(), XContentType.JSON);
 
         final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
 

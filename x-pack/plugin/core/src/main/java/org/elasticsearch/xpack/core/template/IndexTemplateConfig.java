@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
@@ -21,8 +24,7 @@ public class IndexTemplateConfig {
     private final String templateName;
     private final String fileName;
     private final int version;
-    private final String versionProperty;
-    private final Map<String, String> variables;
+    private final BytesReference bytes;
 
     /**
      * Describes a template to be loaded from a resource file. Includes handling for substituting a version property into the template.
@@ -68,8 +70,12 @@ public class IndexTemplateConfig {
         this.templateName = templateName;
         this.fileName = fileName;
         this.version = version;
-        this.versionProperty = versionProperty;
-        this.variables = Objects.requireNonNull(variables);
+        final String templateString =
+            TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionProperty, Objects.requireNonNull(variables));
+        assert templateString != null && templateString.length() > 0;
+        assert Pattern.compile("\"version\"\\s*:\\s*" + version).matcher(templateString).find()
+                : "index template must have a version property set to the given version property";
+        bytes = new BytesArray(templateString.getBytes(StandardCharsets.UTF_8));
     }
 
     public String getFileName() {
@@ -88,11 +94,7 @@ public class IndexTemplateConfig {
      * Loads the template from disk as a UTF-8 byte array.
      * @return The template as a UTF-8 byte array.
      */
-    public byte[] loadBytes() {
-        String template = TemplateUtils.loadTemplate(fileName, Integer.toString(version), versionProperty, variables);
-        assert template != null && template.length() > 0;
-        assert Pattern.compile("\"version\"\\s*:\\s*" + version).matcher(template).find()
-            : "index template must have a version property set to the given version property";
-        return template.getBytes(StandardCharsets.UTF_8);
+    public BytesReference loadBytes() {
+        return bytes;
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -252,6 +253,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
         return mapping(MapperService.SINGLE_MAPPING_NAME, source);
+    }
+
+    public CreateIndexRequest mapping(CompressedXContent source) {
+        return mapping(source.compressedReference(), XContentType.JSON);
     }
 
     /**

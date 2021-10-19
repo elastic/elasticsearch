@@ -107,7 +107,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
             Metadata.builder()
                 .put(getIndexMetadata(d1, null, 6, IndexMetadata.State.OPEN))
-                .put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN))
+                .put(getIndexMetadata(d2, d2.getMappings().string(), 6, IndexMetadata.State.OPEN))
                 .build()
         );
 
@@ -143,7 +143,7 @@ public class SystemIndexManagerTests extends ESTestCase {
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
-            Metadata.builder().put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN)).build()
+            Metadata.builder().put(getIndexMetadata(d2, d2.getMappings().string(), 6, IndexMetadata.State.OPEN)).build()
         );
 
         assertThat(eligibleDescriptors, hasSize(1));
@@ -245,7 +245,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterState() {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings());
+        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings().string());
     }
 
     private static ClusterState.Builder createClusterState(String mappings) {
@@ -253,7 +253,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterState(IndexMetadata.State state) {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), 6, state);
+        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings().string(), 6, state);
     }
 
     private static ClusterState.Builder createClusterState(String mappings, IndexMetadata.State state) {
@@ -261,7 +261,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder createClusterState(int format) {
-        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
+        return createClusterState(SystemIndexManagerTests.DESCRIPTOR.getMappings().string(), format, IndexMetadata.State.OPEN);
     }
 
     private static ClusterState.Builder createClusterState(String mappings, int format, IndexMetadata.State state) {

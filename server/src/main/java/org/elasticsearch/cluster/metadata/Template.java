@@ -18,14 +18,15 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -53,10 +54,20 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             XContentParser.Token token = p.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
                 return new CompressedXContent(Base64.getDecoder().decode(p.text()));
-            } else if(token == XContentParser.Token.VALUE_EMBEDDED_OBJECT){
+            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                 return new CompressedXContent(p.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT){
-                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                return new CompressedXContent(new ToXContent() {
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        return builder.copyCurrentStructure(p);
+                    }
+
+                    @Override
+                    public boolean isFragment() {
+                        return false;
+                    }
+                });
             } else {
                 throw new IllegalArgumentException("Unexpected token: " + token);
             }

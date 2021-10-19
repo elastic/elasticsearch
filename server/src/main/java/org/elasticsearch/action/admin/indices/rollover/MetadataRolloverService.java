@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -34,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -274,7 +276,8 @@ public class MetadataRolloverService {
     static CreateIndexClusterStateUpdateRequest prepareDataStreamCreateIndexRequest(final String dataStreamName,
                                                                                     final String targetIndexName,
                                                                                     CreateIndexRequest createIndexRequest,
-                                                                                    final SystemDataStreamDescriptor descriptor) {
+                                                                                    final SystemDataStreamDescriptor descriptor)
+            throws IOException {
         Settings settings = descriptor != null ? Settings.EMPTY : HIDDEN_INDEX_SETTINGS;
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
             .dataStreamName(dataStreamName)
@@ -282,13 +285,13 @@ public class MetadataRolloverService {
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(
-        final String providedIndexName, final String targetIndexName, CreateIndexRequest createIndexRequest) {
+        final String providedIndexName, final String targetIndexName, CreateIndexRequest createIndexRequest) throws IOException {
         return prepareCreateIndexRequest(providedIndexName, targetIndexName, "rollover_index", createIndexRequest, null);
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String providedIndexName, final String targetIndexName,
                                                                           final String cause, CreateIndexRequest createIndexRequest,
-                                                                          Settings settings) {
+                                                                          Settings settings) throws IOException {
         Settings.Builder b = Settings.builder().put(createIndexRequest.settings());
         if (settings != null) {
             b.put(settings);
@@ -299,7 +302,7 @@ public class MetadataRolloverService {
             .settings(b.build())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings());
+            .mappings(new CompressedXContent(createIndexRequest.mappings()));
     }
 
     /**

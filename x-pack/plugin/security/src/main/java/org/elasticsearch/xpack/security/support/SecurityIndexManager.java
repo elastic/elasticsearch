@@ -399,7 +399,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                         descriptorForVersion.getAliasName()
                     );
                     PutMappingRequest request = new PutMappingRequest(state.concreteIndexName).source(
-                        descriptorForVersion.getMappings(),
+                        descriptorForVersion.getMappings().uncompressed(),
                         XContentType.JSON
                     ).origin(descriptorForVersion.getOrigin());
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), descriptorForVersion.getOrigin(), request,

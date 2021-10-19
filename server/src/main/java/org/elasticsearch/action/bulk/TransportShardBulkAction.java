@@ -42,7 +42,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexingPressure;
@@ -283,7 +282,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             try {
                 primary.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                    new CompressedXContent(result.getRequiredMappingUpdate(), XContentType.JSON, ToXContent.EMPTY_PARAMS),
+                    new CompressedXContent(result.getRequiredMappingUpdate()),
                     MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT);
             } catch (Exception e) {
                 logger.info(() -> new ParameterizedMessage("{} mapping update rejected by primary", primary.shardId()), e);

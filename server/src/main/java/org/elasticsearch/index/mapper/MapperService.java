@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +20,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -39,6 +38,7 @@ import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -168,9 +168,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Parses the mappings (formatted as JSON) into a map
      */
-    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)) {
+    public static Map<String, Object> parseMappingAsMap(NamedXContentRegistry xContentRegistry,
+                                                        CompressedXContent mappingSource) throws IOException {
+        try (InputStream in = CompressorFactory.COMPRESSOR.threadLocalInputStream(mappingSource.compressedReference().streamInput());
+             XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, in)) {
             return parser.map();
         }
     }
@@ -255,8 +256,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
-        CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
-        mergeAndApplyMappings(type, content, reason);
+        mergeAndApplyMappings(type, new CompressedXContent((builder, params) -> builder.mapContents(mappings)), reason);
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {

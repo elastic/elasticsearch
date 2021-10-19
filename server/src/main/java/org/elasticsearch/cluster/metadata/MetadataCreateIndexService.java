@@ -604,31 +604,31 @@ public class MetadataCreateIndexService {
                                                               final NamedXContentRegistry xContentRegistry,
                                                               final String indexName) throws Exception {
         List<CompressedXContent> templateMappings =
-            MetadataIndexTemplateService.collectMappings(composableIndexTemplate, componentTemplates, indexName, xContentRegistry);
-        return collectV2Mappings("{}", templateMappings, xContentRegistry);
+            MetadataIndexTemplateService.collectMappings(composableIndexTemplate, componentTemplates, indexName);
+        return collectV2Mappings(CompressedXContent.EMPTY_JSON, templateMappings, xContentRegistry);
     }
 
-    public static List<Map<String, Object>> collectV2Mappings(final String requestMappings,
+    public static List<Map<String, Object>> collectV2Mappings(final CompressedXContent requestMappings,
                                                               final ClusterState currentState,
                                                               final String templateName,
                                                               final NamedXContentRegistry xContentRegistry,
                                                               final String indexName) throws Exception {
         List<CompressedXContent> templateMappings =
-            MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName, xContentRegistry);
+            MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
         return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 
-    public static List<Map<String, Object>> collectV2Mappings(final String requestMappings,
+    public static List<Map<String, Object>> collectV2Mappings(final CompressedXContent requestMappings,
                                                               final List<CompressedXContent> templateMappings,
                                                               final NamedXContentRegistry xContentRegistry) throws Exception {
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (CompressedXContent templateMapping : templateMappings) {
-            Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
+            Map<String, Object> parsedTemplateMapping = MapperService.parseMappingAsMap(xContentRegistry, templateMapping);
             result.add(parsedTemplateMapping);
         }
 
-        Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
+        Map<String, Object> parsedRequestMappings = MapperService.parseMappingAsMap(xContentRegistry, requestMappings);
         result.add(parsedRequestMappings);
         return result;
     }
@@ -641,7 +641,7 @@ public class MetadataCreateIndexService {
                                                                                             throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
 
-        final Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, request.mappings());
+        final Map<String, Object> mappings = MapperService.parseMappingAsMap(xContentRegistry, request.mappings());
         if (mappings.isEmpty() == false) {
             throw new IllegalArgumentException("mappings are not allowed when creating an index from a source index, " +
                 "all mappings are copied from the source index");
@@ -671,13 +671,13 @@ public class MetadataCreateIndexService {
      * {@link IndexTemplateMetadata#order()}). This merging makes no distinction between field
      * definitions, as may result in an invalid field definition
      */
-    static Map<String, Object> parseV1Mappings(String mappingsJson, List<CompressedXContent> templateMappings,
+    static Map<String, Object> parseV1Mappings(CompressedXContent mappingsJson, List<CompressedXContent> templateMappings,
                                                NamedXContentRegistry xContentRegistry) throws Exception {
-        Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
+        Map<String, Object> mappings = MapperService.parseMappingAsMap(xContentRegistry, mappingsJson);
         // apply templates, merging the mappings into the request mapping if exists
         for (CompressedXContent mapping : templateMappings) {
             if (mapping != null) {
-                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                Map<String, Object> templateMapping = MapperService.parseMappingAsMap(xContentRegistry, mapping);
                 if (templateMapping.isEmpty()) {
                     // Someone provided an empty '{}' for mappings, which is okay, but to avoid
                     // tripping the below assertion, we can safely ignore it

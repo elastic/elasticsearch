@@ -33,10 +33,9 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -45,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -107,7 +105,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         RollupAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws IOException {
+    ) {
         String originalIndexName = request.getSourceIndex();
 
         final String rollupIndexName;
@@ -119,7 +117,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         String tmpIndexName = ".rolluptmp-" + rollupIndexName;
 
-        final XContentBuilder mapping;
+        final CompressedXContent mapping;
         try {
             mapping = getMapping(request.getRollupConfig());
         } catch (IOException e) {
@@ -144,8 +142,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             "rollup",
             tmpIndexName,
             tmpIndexName
-        ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS)
-            .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
+        ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS).mappings(mapping);
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
@@ -253,11 +250,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private XContentBuilder getMapping(RollupActionConfig config) throws IOException {
+    private static CompressedXContent getMapping(RollupActionConfig config) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder = getDynamicTemplates(builder);
         builder = getProperties(builder, config);
-        return builder.endObject();
+        return new CompressedXContent((b, params) -> {
+            getDynamicTemplates(b);
+            getProperties(b, config);
+            return b;
+        });
     }
 
     /**

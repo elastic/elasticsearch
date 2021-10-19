@@ -288,7 +288,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         final ComposableIndexTemplate indexTemplate;
         try {
             indexTemplate = ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, composableTemplate.loadBytes()));
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, composableTemplate.loadBytes().streamInput()));
         } catch (Exception e) {
             throw new ElasticsearchParseException("unable to parse composable template " + composableTemplate.getTemplateName(), e);
         }
@@ -331,7 +331,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(templateName);
             try {
                 request.componentTemplate(ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, config.loadBytes())));
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, config.loadBytes().streamInput())));
             } catch (Exception e) {
                 throw new ElasticsearchParseException("unable to parse component template " + config.getTemplateName(), e);
             }
@@ -364,7 +364,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName);
             try {
                 request.indexTemplate(ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, config.loadBytes())));
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, config.loadBytes().streamInput())));
             } catch (Exception e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + config.getTemplateName(), e);
             }

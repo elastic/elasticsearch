@@ -17,6 +17,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +42,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final IndexMetadata currentIndex;
     private final String featureName;
     private final Settings settings;
-    private final String mapping;
+    private final CompressedXContent mapping;
     private final String origin;
     private final SystemIndices.Feature owningFeature;
 
@@ -53,7 +54,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         IndexMetadata currentIndex,
         String featureName,
         Settings settings,
-        String mapping,
+        CompressedXContent mapping,
         String origin,
         SystemIndices.Feature owningFeature
     ) {
@@ -96,7 +97,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     /**
      * Gets the mappings to be used for the post-migration index.
      */
-    String getMappings() {
+    CompressedXContent getMappings() {
         return mapping;
     }
 
@@ -191,13 +192,13 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         }
         Settings settings = settingsBuilder.build();
 
-        String mapping = descriptor.getMappings();
+        CompressedXContent mapping = descriptor.getMappings();
         if (descriptor.isAutomaticallyManaged() == false) {
             // Get Settings from old index
             settings = copySettingsForNewIndex(currentIndex.getSettings(), indexScopedSettings);
 
             // Copy mapping from the old index
-            mapping = currentIndex.mapping().source().string();
+            mapping = currentIndex.mapping().source();
         }
         return new SystemIndexMigrationInfo(
             currentIndex,

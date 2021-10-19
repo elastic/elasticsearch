@@ -57,7 +57,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ComposableIndexTemplate template =
             ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, TEMPLATE_SLM_HISTORY.loadBytes()));
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, TEMPLATE_SLM_HISTORY.loadBytes().streamInput()));
         ClusterState state = clusterService.state();
         Metadata.Builder metadataBuilder =
             Metadata.builder(state.getMetadata()).indexTemplates(Map.of(TEMPLATE_SLM_HISTORY.getTemplateName(), template));

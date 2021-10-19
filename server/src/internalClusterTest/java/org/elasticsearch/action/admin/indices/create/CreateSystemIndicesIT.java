@@ -14,23 +14,19 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Map;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
-import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -118,7 +114,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      * Note that in the case of the mappings, this is just a dumb string comparison, so order of keys matters.
      */
-    private void assertMappingsAndSettings(String expectedMappings, String concreteIndex) {
+    private void assertMappingsAndSettings(CompressedXContent expectedMappings, String concreteIndex) {
         final GetMappingsResponse getMappingsResponse = client().admin()
             .indices()
             .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
@@ -130,13 +126,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             mappings.containsKey(concreteIndex),
             equalTo(true)
         );
-        final Map<String, Object> sourceAsMap = mappings.get(concreteIndex).getSourceAsMap();
-
-        try {
-            assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        assertThat(mappings.get(concreteIndex).source(), equalTo(expectedMappings));
 
         final GetSettingsResponse getSettingsResponse = client().admin()
             .indices()

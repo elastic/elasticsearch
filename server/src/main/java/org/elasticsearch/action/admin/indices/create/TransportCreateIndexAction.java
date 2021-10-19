@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -31,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -62,7 +64,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
     @Override
     protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
-                                   final ActionListener<CreateIndexResponse> listener) {
+                                   final ActionListener<CreateIndexResponse> listener) throws IOException {
         String cause = request.cause();
         if (cause.isEmpty()) {
             cause = "api";
@@ -115,11 +117,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause,
-                                                                    String indexName, long nameResolvedAt) {
+                                                                    String indexName, long nameResolvedAt) throws IOException {
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
-            .mappings(request.mappings())
+            .mappings(new CompressedXContent(request.mappings()))
             .aliases(request.aliases())
             .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
@@ -129,7 +131,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         CreateIndexRequest request,
         String cause,
         SystemIndexDescriptor descriptor
-    ) {
+    ) throws IOException {
         final Settings settings = Objects.requireNonNullElse(descriptor.getSettings(), Settings.EMPTY);
 
         final Set<Alias> aliases;

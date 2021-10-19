@@ -81,7 +81,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
     private ComposableIndexTemplate parseIndexTemplate(IndexTemplateConfig c) {
         try {
             return ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, c.loadBytes()));
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, c.loadBytes().streamInput()));
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -73,7 +72,7 @@ public final class Mapping implements ToXContentFragment {
      */
     public CompressedXContent toCompressedXContent() {
         try {
-            return new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            return new CompressedXContent(this);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
         }

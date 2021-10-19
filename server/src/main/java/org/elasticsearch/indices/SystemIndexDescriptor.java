@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -61,7 +63,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final CharacterRunAutomaton indexPatternAutomaton;
 
     /** For internally-managed indices, contains the index mappings JSON */
-    private final String mappings;
+    private final CompressedXContent mappings;
 
     /** For internally-managed indices, contains the index settings */
     private final Settings settings;
@@ -292,7 +294,15 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
 
         this.description = description;
-        this.mappings = mappings;
+        if (mappings != null) {
+            try {
+                this.mappings = new CompressedXContent(mappings);
+            } catch (IOException e) {
+                throw new AssertionError("This must never throw", e);
+            }
+        } else {
+            this.mappings = null;
+        }
 
         if (Objects.nonNull(settings) && settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
             throw new IllegalArgumentException("System indices cannot have " + IndexMetadata.SETTING_INDEX_HIDDEN +
@@ -380,7 +390,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "], aliasName=[" + aliasName + "]]";
     }
 
-    public String getMappings() {
+    public CompressedXContent getMappings() {
         return mappings;
     }
 

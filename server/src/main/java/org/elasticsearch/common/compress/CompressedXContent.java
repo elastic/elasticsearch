@@ -34,6 +34,16 @@ import java.util.zip.CheckedOutputStream;
  */
 public final class CompressedXContent {
 
+    public static final CompressedXContent EMPTY_JSON;
+
+    static {
+        try {
+            EMPTY_JSON = new CompressedXContent("{}");
+        } catch (IOException e) {
+            throw new AssertionError();
+        }
+    }
+
     private static int crc32(BytesReference data) {
         CRC32 crc32 = new CRC32();
         try {
@@ -53,6 +63,10 @@ public final class CompressedXContent {
         this.bytes = compressed;
         this.crc32 = crc32;
         assertConsistent();
+    }
+
+    public CompressedXContent(ToXContent xcontent) throws IOException {
+        this(xcontent, XContentType.JSON, ToXContent.EMPTY_PARAMS);
     }
 
     /**

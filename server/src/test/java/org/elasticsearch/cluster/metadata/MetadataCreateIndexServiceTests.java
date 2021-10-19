@@ -553,7 +553,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             templateBuilder.putAlias(AliasMetadata.builder("alias1"));
             templateBuilder.putMapping("_doc", createMapping("mapping_from_template", "text"));
         });
-        request.mappings(createMapping("mapping_from_request", "text").string());
+        request.mappings(createMapping("mapping_from_request", "text"));
 
         Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(request.mappings(),
             List.of(templateMetadata.getMappings()), NamedXContentRegistry.EMPTY);
@@ -621,7 +621,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .settings(Settings.builder().put("key1", "templateValue"))
         );
 
-        request.mappings(reqMapping.string());
+        request.mappings(reqMapping);
         request.aliases(Set.of(new Alias("alias").searchRouting("fromRequest")));
         request.settings(Settings.builder().put("key1", "requestValue").build());
 
@@ -832,7 +832,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             }
         });
 
-        Map<String, Object> mappings = parseV1Mappings("{\"_doc\":{}}", List.of(templateMetadata.mappings()), xContentRegistry());
+        Map<String, Object> mappings =
+            parseV1Mappings(new CompressedXContent("{\"_doc\":{}}"), List.of(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -845,7 +846,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Object> mappings = parseV1Mappings("", List.of(templateMetadata.mappings()), xContentRegistry());
+        Map<String, Object> mappings =
+            parseV1Mappings(CompressedXContent.EMPTY_JSON, List.of(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 
@@ -857,7 +859,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }
         });
-        Map<String, Object> mappings = parseV1Mappings("", List.of(templateMetadata.mappings()), xContentRegistry());
+        Map<String, Object> mappings =
+            parseV1Mappings(CompressedXContent.EMPTY_JSON, List.of(templateMetadata.mappings()), xContentRegistry());
         assertThat(mappings, Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
     }
 

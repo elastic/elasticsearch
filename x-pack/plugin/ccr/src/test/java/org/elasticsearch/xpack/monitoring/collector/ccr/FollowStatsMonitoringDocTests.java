@@ -240,9 +240,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
-        byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
-        Map<String, Object> template =
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), loadedTemplate, 0, loadedTemplate.length, false);
+        BytesReference loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
+        Map<String, Object> template = XContentHelper.convertToMap(loadedTemplate, false, XContentType.JSON).v2();
         Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues
             .extractValue("mappings._doc.properties.ccr_stats.properties", template);
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));

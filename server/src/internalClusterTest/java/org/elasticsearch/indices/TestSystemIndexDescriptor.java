@@ -10,16 +10,14 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * A special kind of {@link SystemIndexDescriptor} that can toggle what kind of mappings it
@@ -39,8 +37,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .build();
 
     TestSystemIndexDescriptor() {
-        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", getOldMappings(), SETTINGS, INDEX_NAME, 0, "version", "stack",
-            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_MANAGED, List.of(), List.of(), null, false);
+        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", getOldMappings().string(), SETTINGS, INDEX_NAME, 0, "version",
+            "stack", Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_MANAGED, List.of(), List.of(), null, false);
     }
 
     @Override
@@ -49,16 +47,14 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
     }
 
     @Override
-    public String getMappings() {
+    public CompressedXContent getMappings() {
         return useNewMappings.get() ? getNewMappings() : getOldMappings();
     }
 
-    public static String getOldMappings() {
+    public static CompressedXContent getOldMappings() {
         try {
-            final XContentBuilder builder = jsonBuilder();
-
-            builder.startObject();
-            {
+            return new CompressedXContent((builder, params) -> {
+                builder.startObject(MapperService.SINGLE_MAPPING_NAME);
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.previousMajor().toString());
                 builder.endObject();
@@ -69,22 +65,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.field("type", "text");
                     builder.endObject();
                 }
-                builder.endObject();
-            }
-
-            builder.endObject();
-            return Strings.toString(builder);
+                builder.endObject().endObject();
+                return builder;
+            });
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build .test-index-1 index mappings", e);
         }
     }
 
-    public static String getNewMappings() {
+    public static CompressedXContent getNewMappings() {
         try {
-            final XContentBuilder builder = jsonBuilder();
-
-            builder.startObject();
-            {
+            return new CompressedXContent((builder, params) -> {
+                builder.startObject(MapperService.SINGLE_MAPPING_NAME);
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
                 builder.endObject();
@@ -98,11 +90,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.field("type", "text");
                     builder.endObject();
                 }
-                builder.endObject();
-            }
-
-            builder.endObject();
-            return Strings.toString(builder);
+                return builder.endObject().endObject();
+            });
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build .test-index-1 index mappings", e);
         }

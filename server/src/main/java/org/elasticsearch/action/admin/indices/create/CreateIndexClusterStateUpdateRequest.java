@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -38,7 +39,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private Settings settings = Settings.EMPTY;
 
-    private String mappings = "{}";
+    private CompressedXContent mappings = CompressedXContent.EMPTY_JSON;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -57,7 +58,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest mappings(String mappings) {
+    public CreateIndexClusterStateUpdateRequest mappings(CompressedXContent mappings) {
         this.mappings = mappings;
         return this;
     }
@@ -112,7 +113,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return settings;
     }
 
-    public String mappings() {
+    public CompressedXContent mappings() {
         return mappings;
     }
 

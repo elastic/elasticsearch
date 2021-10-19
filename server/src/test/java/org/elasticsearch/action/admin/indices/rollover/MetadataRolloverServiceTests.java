@@ -299,7 +299,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             indexNameExpressionResolver));
     }
 
-    public void testCreateIndexRequest() {
+    public void testCreateIndexRequest() throws IOException {
         String alias = randomAlphaOfLength(10);
         String rolloverIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAlphaOfLength(10));
@@ -319,7 +319,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
     }
 
-    public void testCreateIndexRequestForDataStream() {
+    public void testCreateIndexRequestForDataStream() throws IOException {
         DataStream dataStream = DataStreamTestHelper.randomInstance();
         final String newWriteIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
         final RolloverRequest rolloverRequest = new RolloverRequest(dataStream.getName(), randomAlphaOfLength(10));

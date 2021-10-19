@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -26,7 +25,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -92,7 +90,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
         }
         if (randomBoolean()) {
-            pr.mappings("{}");
+            pr.mappings(CompressedXContent.EMPTY_JSON);
         }
         if (randomBoolean()) {
             pr.aliases(Collections.singleton(new Alias("alias")));
@@ -199,9 +197,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
-        request.mappings(Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                        .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
-                        .endObject().endObject().endObject()));
+        request.mappings(new CompressedXContent(
+            (builder, params) -> builder.startObject("_doc")
+                .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
+                .endObject().endObject()));
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));
@@ -209,22 +208,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), containsString("analyzer [custom_1] has not been configured in mappings"));
     }
 
-    public void testBrokenMapping() throws Exception {
-        PutRequest request = new PutRequest("api", "broken_mapping");
-        request.patterns(singletonList("te*"));
-        request.mappings("abcde");
-
-        List<Throwable> errors = putTemplateDetail(request);
-        assertThat(errors.size(), equalTo(1));
-        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping"));
-    }
-
     public void testAliasInvalidFilterInvalidJson() throws Exception {
         //invalid json: put index template fails
         PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(singletonList("te*"));
-        request.mappings("{}");
+        request.mappings(CompressedXContent.EMPTY_JSON);
         Set<Alias> aliases = new HashSet<>();
         aliases.add(new Alias("invalid_alias").filter("abcde"));
         request.aliases(aliases);
@@ -240,7 +228,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final String aliasName = "alias_with_settings";
         PutRequest request = new PutRequest("api", templateName);
         request.patterns(singletonList("te*"));
-        request.mappings("{}");
+        request.mappings(CompressedXContent.EMPTY_JSON);
         Alias alias = new Alias(aliasName)
             .filter(randomBoolean() ? null : "{\"term\":{\"user_id\":12}}")
             .indexRouting(randomBoolean() ? null : "route1")
@@ -864,15 +852,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index",
-            xContentRegistry());
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
         List<Map<String, Object>> parsedMappings = mappings.stream()
             .map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -928,15 +915,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index",
-            xContentRegistry());
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
         List<Map<String, Object>> parsedMappings = mappings.stream()
             .map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -981,14 +967,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state = service.addIndexTemplateV2(state, true, "logs-data-stream-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-data-stream-template",
-                DataStream.getDefaultBackingIndexName("logs", 1L), xContentRegistry());
+                DataStream.getDefaultBackingIndexName("logs", 1L));
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(4));
             List<Map<String, Object>> parsedMappings = mappings.stream()
                 .map(m -> {
                     try {
-                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                        return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -1019,15 +1005,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 List.of("ct1"), 0L, 1L, null, null, null);
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template", "timeseries",
-                xContentRegistry());
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template", "timeseries");
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(2));
             List<Map<String, Object>> parsedMappings = mappings.stream()
                 .map(m -> {
                     try {
-                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                        return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -1044,14 +1029,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
             // if the index name matches that of a data stream backing index
             mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template",
-                DataStream.getDefaultBackingIndexName("timeseries", 1L), xContentRegistry());
+                DataStream.getDefaultBackingIndexName("timeseries", 1L));
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(2));
             parsedMappings = mappings.stream()
                 .map(m -> {
                     try {
-                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                        return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());
@@ -1088,17 +1073,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state = service.addIndexTemplateV2(state, true, "logs-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-template",
-                DataStream.getDefaultBackingIndexName("logs", 1L), xContentRegistry());
+                DataStream.getDefaultBackingIndexName("logs", 1L));
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(3));
             List<Map<String, Object>> parsedMappings = mappings.stream()
                 .map(m -> {
                     try {
-                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                        return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                     } catch (Exception e) {
                         logger.error(e);
-                        fail("failed to parse mappings: " + m.string());
+                        fail("failed to parse mappings: " + m);
                         return null;
                     }
                 })
@@ -1123,14 +1108,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template",
-                DataStream.getDefaultBackingIndexName("timeseries-template", 1L), xContentRegistry());
+                DataStream.getDefaultBackingIndexName("timeseries-template", 1L));
 
             assertNotNull(mappings);
             assertThat(mappings.size(), equalTo(3));
             List<Map<String, Object>> parsedMappings = mappings.stream()
                 .map(m -> {
                     try {
-                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                        return MapperService.parseMappingAsMap(new NamedXContentRegistry(List.of()), m);
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -158,10 +159,10 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
             if (descriptor != null && descriptor.isAutomaticallyManaged() && descriptor.hasDynamicMappings() == false) {
-                final String descriptorMappings = descriptor.getMappings();
+                final CompressedXContent descriptorMappings = descriptor.getMappings();
                 // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually
                 // update a descriptor's mappings.
-                if (descriptorMappings.equals(requestMappings) == false) {
+                if (descriptorMappings.string().equals(requestMappings) == false) {
                     violations.add(index.getName());
                 }
             }

@@ -933,6 +933,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 targetMockTransportService.clearAllRules();
                 channelRef.get().sendResponse(new IOException("unable to clean files"));
+                assertAcked(
+                    client().admin().indices().prepareUpdateSettings(indexRecoveredFromSnapshot1)
+                        .setSettings(Settings.builder()
+                            .put("index.routing.allocation.require._name", sourceNode)).get()
+                );
             }
 
             String indexRecoveredFromSnapshot2 = indices.get(1);

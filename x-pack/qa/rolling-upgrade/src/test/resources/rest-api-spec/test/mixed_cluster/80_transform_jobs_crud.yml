@@ -303,3 +303,9 @@
           {
             "description": "old simple continuous transform"
           }
+---
+"Test upgrade transform disallowed":
+  - do:
+      catch: /Cannot upgrade transforms. All nodes must be the same version \[.*\]/
+      transform.upgrade_transforms:
+        dry_run: false

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermission
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.util.Collections;
@@ -52,7 +53,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
@@ -112,7 +113,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);

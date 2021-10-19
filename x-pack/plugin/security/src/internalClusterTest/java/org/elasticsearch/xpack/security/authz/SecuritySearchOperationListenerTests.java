@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.Scroll;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
@@ -126,9 +128,9 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
+            MockLicenseState licenseState = mock(MockLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
-            when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+            when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrail auditTrail = mock(AuditTrail.class);
@@ -225,9 +227,9 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         final String action = randomAlphaOfLength(4);
         TransportRequest request = Empty.INSTANCE;
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         AuditTrail auditTrail = mock(AuditTrail.class);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 

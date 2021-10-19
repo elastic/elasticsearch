@@ -17,6 +17,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetAddress;
@@ -43,7 +44,7 @@ public class AuditTrailService {
 
     public AuditTrail get() {
         if (compositeAuditTrail.isEmpty() == false && licenseState.isSecurityEnabled()) {
-            if (licenseState.checkFeature(Feature.SECURITY_AUDITING)) {
+            if (Security.AUDITING_FEATURE.check(licenseState)) {
                 return compositeAuditTrail;
             } else {
                 maybeLogAuditingDisabled();

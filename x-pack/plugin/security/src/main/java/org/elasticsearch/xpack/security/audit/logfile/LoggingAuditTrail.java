@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -132,6 +133,8 @@ import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestConten
 
 public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
+    private static final Logger LOGGER = LogManager.getLogger(LoggingAuditTrail.class);
+
     public static final String REST_ORIGIN_FIELD_VALUE = "rest";
     public static final String LOCAL_ORIGIN_FIELD_VALUE = "local_node";
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
@@ -209,12 +212,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Collections.emptyList(), Function.identity(), value -> AuditLevel.parse(List.of(), value),
         Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> INCLUDE_REQUEST_BODY = Setting.boolSetting(setting("audit.logfile.events.emit_request_body"),
-            false, Property.NodeScope, Property.Dynamic);
+        false, Property.NodeScope, Property.Dynamic);
     // actions (and their requests) that are audited as "security change" events
     public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
-            SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
-            DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
-            DeletePrivilegesAction.NAME, CreateServiceAccountTokenAction.NAME, DeleteServiceAccountTokenAction.NAME);
+        SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
+        DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
+        DeletePrivilegesAction.NAME, CreateServiceAccountTokenAction.NAME, DeleteServiceAccountTokenAction.NAME);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
@@ -281,7 +284,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
-                    .changePrincipalsFilter(filtersList);
+                .changePrincipalsFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_REALMS, (policyName, filtersList) -> {
@@ -1663,23 +1666,22 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             // the default origin is local
             commonFields.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
-            final Boolean isEmitClusterNameEnabled = EMIT_CLUSTER_NAME_SETTING.get(settings);
-            final Boolean isEmitClusterUuidEnabled = EMIT_CLUSTER_UUID_SETTING.get(settings);
-            if (isEmitClusterNameEnabled || isEmitClusterUuidEnabled) {
+            if (Lifecycle.State.STARTED.equals(clusterService.lifecycleState())) {
                 ClusterState clusterState;
                 try {
                     clusterState = this.clusterService.state(); // may throw java.lang.AssertionError during startup
                 } catch (AssertionError e) {
                     clusterState = null; // asserts "initial cluster state not set yet"
+                    LOGGER.trace("Cluster state not available", e);
                 }
                 if (clusterState != null) {
-                    if (isEmitClusterNameEnabled) {
+                    if (EMIT_CLUSTER_NAME_SETTING.get(settings)) {
                         final String clusterName = clusterState.getClusterName().value();
                         if (Strings.hasLength(clusterName)) {
                             commonFields.put(CLUSTER_NAME_FIELD_NAME, clusterName);
                         }
                     }
-                    if (isEmitClusterUuidEnabled) {
+                    if (EMIT_CLUSTER_UUID_SETTING.get(settings)) {
                         final String clusterUuId = clusterState.metadata().clusterUUID();
                         if (Strings.hasLength(clusterUuId)) {
                             commonFields.put(CLUSTER_UUID_FIELD_NAME, clusterUuId);

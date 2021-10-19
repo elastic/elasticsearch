@@ -26,6 +26,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -165,7 +166,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build());
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields, not(hasKey(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME)));
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true);
         updateSettings(settingsBuilder.build());
@@ -173,7 +174,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), false);
         updateSettings(settingsBuilder.build());
-        assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME), is(false));
+        assertThat(loggingAuditTrail.entryCommonFields.commonFields, not(hasKey(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME)));
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), true);
         updateSettings(settingsBuilder.build());

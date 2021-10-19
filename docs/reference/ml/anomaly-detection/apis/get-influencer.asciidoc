@@ -33,6 +33,19 @@ the anomalies. Influencer results are available only if an
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
+
+[[ml-get-influencer-query-parms]]
+== {api-query-parms-title}
+
+`from`::
+    (Optional, integer) Skips the specified number of influencers. Defaults to 
+    `0`.
+
+`size`::
+    (Optional, integer) Specifies the maximum number of influencers to obtain.
+    Defaults to `100`.
+
+
 [[ml-get-influencer-request-body]]
 == {api-request-body-title}
 

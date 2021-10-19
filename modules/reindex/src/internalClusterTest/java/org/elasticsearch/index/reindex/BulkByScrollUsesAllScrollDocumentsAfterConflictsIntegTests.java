@@ -99,6 +99,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final boolean scriptEnabled = randomBoolean();
@@ -134,6 +135,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79300")
     public void testDeleteByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         executeConcurrentUpdatesOnSubsetOfDocs(indexName,
@@ -216,9 +218,10 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         // The bulk request is enqueued before the update by query
         // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
-        // since this test makes use of a deterministic task order in the data node write
-        // thread pool, ensure that the TransportBulkAction is executed in a coordinator node
-        // meaning that the data node thread pool behaves as it did before.
+        // this test makes use of a deterministic task order in the data node write
+        // thread pool. To ensure that ordering, execute the TransportBulkAction
+        // in a coordinator node preventing that additional tasks are scheduled into
+        // the data node write thread pool.
         final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
 
         // Ensure that the concurrent writes are enqueued before the update by query request is sent

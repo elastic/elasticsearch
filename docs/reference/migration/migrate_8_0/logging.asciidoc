@@ -6,7 +6,7 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.{es} JSON logs now comply with ECS
+.{es} JSON logs now comply with ECS.
 [%collapsible]
 ====
 *Details* +
@@ -25,17 +25,22 @@ format.
 ====
 
 
-.{es} plaintext logs (except server) are removed
+.{es} no longer emits deprecation logs or slow logs in plaintext.
 [%collapsible]
 ====
 *Details* +
-{es} no longer emits plaintext search slow logs, indexing slow logs and deprecation logs.
-All of these are available in JSON format.
+{es} no longer emits a plaintext version of the following logs:
 
-Server logs are available in both JSON and plaintext format.
+* Deprecation logs
+* Indexing slow logs
+* Search slow logs
+
+These logs are now only available in JSON.
+
+Server logs are still available in both a JSON and plaintext format.
 
 *Impact* +
-If your application parses {es}'s plaintext logs, update it to support the new ECS
+If your application parses {es}'s plaintext logs, update it to use the new ECS
 JSON logs.
 ====
 

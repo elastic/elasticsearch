@@ -314,6 +314,7 @@ public class Archives {
                 powerShellProcessUserSetup = "";
             }
             // this starts the server in the background. the -d flag is unsupported on windows
+            final String parameterString = parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : "";
             return sh.run(
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "
                     + "$processInfo.FileName = '"
@@ -321,7 +322,7 @@ public class Archives {
                     + "'; "
                     + "$processInfo.Arguments = '-v -p "
                     + installation.home.resolve("elasticsearch.pid")
-                    + parameters != null && parameters.isEmpty() == false ? String.join(" ", parameters) : ""
+                    + parameterString
                     + "'; "
                     + powerShellProcessUserSetup
                     + "$processInfo.RedirectStandardOutput = $true; "

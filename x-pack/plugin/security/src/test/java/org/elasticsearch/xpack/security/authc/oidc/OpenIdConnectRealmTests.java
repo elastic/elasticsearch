@@ -10,15 +10,15 @@ import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.Nonce;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
@@ -28,9 +28,10 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -448,8 +449,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
     }
 
     private void initializeRealms(Realm... realms) {
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {

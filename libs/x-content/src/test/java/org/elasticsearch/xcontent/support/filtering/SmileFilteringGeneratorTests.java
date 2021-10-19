@@ -6,24 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.xcontent.support.filtering;
+package org.elasticsearch.xcontent.support.filtering;
 
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
-public class YamlFilteringGeneratorTests extends AbstractXContentFilteringTestCase {
+public class SmileFilteringGeneratorTests extends AbstractXContentFilteringTestCase {
 
     @Override
     protected XContentType getXContentType() {
-        return XContentType.YAML;
+        return XContentType.SMILE;
     }
 
     @Override
     protected void assertFilterResult(XContentBuilder expected, XContentBuilder actual) {
-        if (randomBoolean()) {
-            assertXContentBuilderAsString(expected, actual);
-        } else {
-            assertXContentBuilderAsBytes(expected, actual);
-        }
+        assertXContentBuilderAsBytes(expected, actual);
     }
 }

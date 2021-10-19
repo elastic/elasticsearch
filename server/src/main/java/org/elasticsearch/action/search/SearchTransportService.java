@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -19,12 +20,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -51,9 +54,12 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 
 /**
@@ -73,6 +79,7 @@ public class SearchTransportService {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
     public static final String QUERY_CAN_MATCH_NAME = "indices:data/read/search[can_match]";
+    public static final String QUERY_CAN_MATCH_NODE_NAME = "indices:data/read/search[can_match][n]";
 
     private final TransportService transportService;
     private final NodeClient client;
@@ -117,9 +124,57 @@ public class SearchTransportService {
     }
 
     public void sendCanMatch(Transport.Connection connection, final ShardSearchRequest request, SearchTask task, final
-                            ActionListener<SearchService.CanMatchResponse> listener) {
+                            ActionListener<CanMatchShardResponse> listener) {
         transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NAME, request, task,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new));
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchShardResponse::new));
+    }
+
+    public void sendCanMatch(Transport.Connection connection, final CanMatchNodeRequest request, SearchTask task, final
+                             ActionListener<CanMatchNodeResponse> listener) {
+        if (connection.getVersion().onOrAfter(Version.V_7_16_0) &&
+            connection.getNode().getVersion().onOrAfter(Version.V_7_16_0)) {
+            transportService.sendChildRequest(connection, QUERY_CAN_MATCH_NODE_NAME, request, task,
+                TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new));
+        } else {
+            // BWC layer: translate into shard-level requests
+            final List<ShardSearchRequest> shardSearchRequests = request.createShardSearchRequests();
+            final AtomicReferenceArray<CanMatchNodeResponse.ResponseOrFailure> results =
+                new AtomicReferenceArray<>(shardSearchRequests.size());
+            final CountDown counter = new CountDown(shardSearchRequests.size());
+            final Runnable maybeFinish = () -> {
+                if (counter.countDown()) {
+                    final CanMatchNodeResponse.ResponseOrFailure[] responses =
+                        new CanMatchNodeResponse.ResponseOrFailure[shardSearchRequests.size()];
+                    for (int i = 0; i < responses.length; i++) {
+                        responses[i] = results.get(i);
+                    }
+                    final CanMatchNodeResponse response = new CanMatchNodeResponse(Arrays.asList(responses));
+                    listener.onResponse(response);
+                }
+            };
+            for (int i = 0; i < shardSearchRequests.size(); i++) {
+                final ShardSearchRequest shardSearchRequest = shardSearchRequests.get(i);
+                final int finalI = i;
+                try {
+                    sendCanMatch(connection, shardSearchRequest, task, new ActionListener<>() {
+                        @Override
+                        public void onResponse(CanMatchShardResponse response) {
+                            results.set(finalI, new CanMatchNodeResponse.ResponseOrFailure(response));
+                            maybeFinish.run();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            results.set(finalI, new CanMatchNodeResponse.ResponseOrFailure(e));
+                            maybeFinish.run();
+                        }
+                    });
+                } catch (Exception e) {
+                    results.set(finalI, new CanMatchNodeResponse.ResponseOrFailure(e));
+                    maybeFinish.run();
+                }
+            }
+        }
     }
 
     public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
@@ -363,7 +418,13 @@ public class SearchTransportService {
             (request, channel, task) -> {
                 searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, true, SearchService.CanMatchResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, true, CanMatchShardResponse::new);
+
+        transportService.registerRequestHandler(QUERY_CAN_MATCH_NODE_NAME, ThreadPool.Names.SEARCH_COORDINATION, CanMatchNodeRequest::new,
+            (request, channel, task) -> {
+                searchService.canMatch(request, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+            });
+        TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
     }
 
 

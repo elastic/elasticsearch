@@ -73,6 +73,16 @@ class AuthenticatorChain {
 
     void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
+        // Check whether authentication is an operator user and mark the threadContext
+        final ActionListener<Authentication> opMarkingListener = listener.map(authentication -> {
+            operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
+            return authentication;
+        });
+        // If a token is directly provided in the context, authenticate with it
+        if (context.getMostRecentAuthenticationToken() != null) {
+            authenticateAsyncWithExistingAuthenticationToken(context, opMarkingListener);
+            return;
+        }
         final Authentication authentication;
         try {
             authentication = lookForExistingAuthentication(context);
@@ -82,9 +92,9 @@ class AuthenticatorChain {
         }
         if (authentication != null) {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
-            listener.onResponse(authentication);
+            opMarkingListener.onResponse(authentication);
         } else {
-            doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
+            doAuthenticate(context, true, ActionListener.runBefore(opMarkingListener, context::close));
         }
     }
 
@@ -94,7 +104,7 @@ class AuthenticatorChain {
      * This method currently uses a shorter chain to match existing behaviour. But there is no reason
      * why this could not use the same chain.
      */
-    void authenticateAsyncWithExistingCredentials(
+    private void authenticateAsyncWithExistingAuthenticationToken(
         Authenticator.Context context,
         ActionListener<Authentication> listener) {
         assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
@@ -331,9 +341,6 @@ class AuthenticatorChain {
         try {
             authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
-            // Header for operator privileges will only be written if authentication actually happens,
-            // i.e. not read from either header or transient header
-            operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
         } catch (Exception e) {
             logger.debug(new ParameterizedMessage("Failed to store authentication [{}] for request [{}]",
                 authentication,

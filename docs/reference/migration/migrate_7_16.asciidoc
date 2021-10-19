@@ -277,14 +277,14 @@ use only persistent settings.
 [%collapsible]
 ====
 *Details* +
-The <<cluster-health>> API includes options for waiting for certain health
-conditions to be satisfied. If the requested conditions are not satisfied
-within a timeout then {es} will send back a normal response including the field
-`"timed_out": true`. In earlier versions it would also use the HTTP response
-code `408 Request timeout` if the request timed out, and `200 OK` otherwise.
-The `408 Request timeout` response code is not appropriate for this situation
-and its use is deprecated. Future versions will use the response code `200 OK`
-for both cases.
+The {ref}/cluster-health.html[cluster health API] includes options for waiting
+for certain health conditions to be satisfied. If the requested conditions are
+not satisfied within a timeout then {es} will send back a normal response
+including the field `"timed_out": true`. In earlier versions it would also use
+the HTTP response code `408 Request timeout` if the request timed out, and `200
+OK` otherwise. The `408 Request timeout` response code is not appropriate for
+this situation and its use is deprecated. Future versions will use the response
+code `200 OK` for both cases.
 
 *Impact* +
 Update your application to read the `"timed_out"` field of the response instead

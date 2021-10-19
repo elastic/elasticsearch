@@ -13,14 +13,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -135,24 +136,25 @@ public class DeprecationChecks {
             ).collect(Collectors.toList());
         }
 
-    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
+    static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::oldIndicesCheck,
-            IndexDeprecationChecks::tooManyFieldsCheck,
-            IndexDeprecationChecks::chainedMultiFieldsCheck,
-            IndexDeprecationChecks::deprecatedDateTimeFormat,
-            IndexDeprecationChecks::translogRetentionSettingCheck,
-            IndexDeprecationChecks::fieldNamesDisabledCheck,
-            IndexDeprecationChecks::checkIndexDataPath,
-            IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::searchSlowLogLevelSettingCheck,
-            IndexDeprecationChecks::storeTypeSettingCheck,
-            IndexDeprecationChecks::checkIndexRoutingRequireSetting,
-            IndexDeprecationChecks::checkIndexRoutingIncludeSetting,
-            IndexDeprecationChecks::checkIndexRoutingExcludeSetting,
-            IndexDeprecationChecks::checkIndexMatrixFiltersSetting,
-            IndexDeprecationChecks::checkGeoShapeMappings,
-            IndexDeprecationChecks::frozenIndexSettingCheck
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.deprecatedDateTimeFormat(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.translogRetentionSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.fieldNamesDisabledCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexDataPath(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.indexingSlowLogLevelSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.searchSlowLogLevelSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.storeTypeSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingRequireSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingIncludeSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexRoutingExcludeSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexMatrixFiltersSetting(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata),
+            IndexDeprecationChecks::emptyDataTierPreferenceCheck
         ));
 
     /**

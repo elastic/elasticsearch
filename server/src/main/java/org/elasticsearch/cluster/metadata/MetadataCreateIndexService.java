@@ -814,15 +814,25 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(requestSettings.build());
 
         if (sourceMetadata == null) { // not for shrink/split/clone
+            String currentTierPreference = indexSettingsBuilder.get(DataTier.TIER_PREFERENCE);
+            List<String> preferredTiers = DataTier.parseTierList(currentTierPreference);
             if (enforceDefaultTierPreference) {
                 // regardless of any previous logic, we're going to force there
                 // to be an appropriate non-empty value for the tier preference
-                String currentTierPreference = indexSettingsBuilder.get(DataTier.TIER_PREFERENCE);
-                if (DataTier.parseTierList(currentTierPreference).isEmpty()) {
+                if (preferredTiers.isEmpty()) {
                     String newTierPreference = isDataStreamIndex ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
                     logger.debug("enforcing default [{}] setting for [{}] creation, replacing [{}] with [{}]",
                         DataTier.TIER_PREFERENCE, request.index(), currentTierPreference, newTierPreference);
                     indexSettingsBuilder.put(DataTier.TIER_PREFERENCE, newTierPreference);
+                }
+            } else {
+                // if we're not enforcing the tier preference, then maybe warn
+                if (preferredTiers.isEmpty()) {
+                    if (DataTier.dataNodesWithoutAllDataRoles(currentState).isEmpty() == false) {
+                        DEPRECATION_LOGGER.warn(DeprecationCategory.INDICES, "index_without_tier_preference",
+                            "[{}] creating index with an empty [{}] setting, in 8.0 this setting will be required for all indices",
+                            request.index(), DataTier.TIER_PREFERENCE);
+                    }
                 }
             }
         }

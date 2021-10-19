@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.DataTierTests;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -996,13 +997,24 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             request.dataStreamName(null);
         }
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateSettings,
+
+        ClusterState clusterState = ClusterState.EMPTY_STATE;
+        if (randomBoolean()) {
+            clusterState = DataTierTests.clusterStateWithoutAllDataRoles();
+        }
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateSettings,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
             org.elasticsearch.core.Set.of(new DataTier.DefaultHotAllocationSettingProvider()), enforceDefaultTierPreference);
 
         if (aggregatedIndexSettings.keySet().contains(DataTier.TIER_PREFERENCE)) {
             return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
         } else {
+            if (clusterState != ClusterState.EMPTY_STATE) {
+                assertWarnings("[" + request.index() + "] creating index with " +
+                    "an empty [" + DataTier.TIER_PREFERENCE + "] setting, in 8.0 this setting will be required for all indices");
+            }
+
             return Optional.empty();
         }
     }

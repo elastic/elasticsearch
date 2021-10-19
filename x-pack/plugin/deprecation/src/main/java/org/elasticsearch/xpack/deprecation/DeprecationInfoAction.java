@@ -25,9 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -198,14 +199,16 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param clusterSettingsChecks The list of cluster-level checks
          * @return The list of deprecation issues found in the cluster
          */
-        public static DeprecationInfoAction.Response from(ClusterState state,
-                                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                                          Request request,
-                                                          NodesDeprecationCheckResponse nodeDeprecationResponse,
-                                                          List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
-                                                          List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
-                                                          Map<String, List<DeprecationIssue>> pluginSettingIssues,
-                                                          List<String> skipTheseDeprecatedSettings) {
+        public static DeprecationInfoAction.Response from(
+            ClusterState state,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Request request,
+            NodesDeprecationCheckResponse nodeDeprecationResponse,
+            List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks,
+            List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
+            Map<String, List<DeprecationIssue>> pluginSettingIssues,
+            List<String> skipTheseDeprecatedSettings
+        ) {
             // Allow system index access here to prevent deprecation warnings when we call this API
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
             ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
@@ -217,7 +220,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetadata));
+                    c -> c.apply(state, indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }

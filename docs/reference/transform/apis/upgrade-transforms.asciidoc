@@ -86,5 +86,4 @@ When all {transforms} are upgraded, you receive a summary:
   "no_action": 1
 }
 ----
-// TESTRESPONSE[s/"updated": 2/"updated" : $body.updated/]
-// TESTRESPONSE[s/"no_action" : 1/"no_action" : $body.no_action/]
+// TESTRESPONSE[skip:TBD]

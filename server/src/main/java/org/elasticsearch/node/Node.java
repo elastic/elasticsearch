@@ -349,7 +349,7 @@ public class Node implements Closeable {
                 // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
                 deprecationLogger.warn(DeprecationCategory.SETTINGS, "multiple-data-paths",
                     "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
-                        "multiple disks. This feature will be in a future release.");
+                        "multiple disks. This feature will be removed in a future release.");
             }
             if (Environment.dataPathUsesList(tmpSettings)) {
                 // already checked for multiple values above, so if this is a list it is a single valued list

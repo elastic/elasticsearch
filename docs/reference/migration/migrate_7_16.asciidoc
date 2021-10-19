@@ -230,18 +230,79 @@ Update your ILM policies to remove the `freeze` action from the `cold` phase.
 [[breaking_716_monitoring_changes]]
 ==== Monitoring deprecations
 
+[[monitoring-deprecation-settings]]
+.Collecting and shipping monitoring data with the Monitoring plugin has been deprecated
+[%collapsible]
+====
+*Details* +
+Using the Monitoring plugin to collect and ship monitoring data is deprecated. {metricbeat} is
+the recommended method for collecting and shipping monitoring data to a monitoring cluster.
+
+*Impact* +
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection. Learn more about <<configuring-metricbeat>>.
+
+The following settings are now deprecated:
+
+** xpack.monitoring.elasticsearch.collection.enabled
+** xpack.monitoring.collection.enabled
+** xpack.monitoring.collection.interval
+** xpack.monitoring.collection.indices
+** xpack.monitoring.collection.index.recovery.active_only
+** xpack.monitoring.collection.ccr.stats.timeout
+** xpack.monitoring.collection.enrich.stats.timeout
+** xpack.monitoring.collection.index.recovery.timeout
+** xpack.monitoring.collection.index.stats.timeout
+** xpack.monitoring.collection.ml.job.stats.timeout
+** xpack.monitoring.collection.node.stats.timeout
+** xpack.monitoring.collection.cluster.stats.timeout
+** xpack.monitoring.history.duration
+** xpack.monitoring.exporters.*.enabled
+** xpack.monitoring.exporters.*.type
+** xpack.monitoring.exporters.*.index.name.time_format
+** xpack.monitoring.exporters.*.index.template.master_timeout
+** xpack.monitoring.exporters.*.cluster_alerts.management.enabled
+** xpack.monitoring.exporters.*.cluster_alerts.management.blacklist
+** xpack.monitoring.exporters.*.host
+** xpack.monitoring.exporters.*.auth.username
+** xpack.monitoring.exporters.*.auth.secure_password
+** xpack.monitoring.exporters.*.bulk.timeout
+** xpack.monitoring.exporters.*.connection.timeout
+** xpack.monitoring.exporters.*.connection.read_timeout
+** xpack.monitoring.exporters.*.headers.*
+** xpack.monitoring.exporters.*.proxy.base_path
+** xpack.monitoring.exporters.*.sniff.enabled
+** xpack.monitoring.exporters.*.ssl.*
+** xpack.monitoring.exporters.*.wait_master.timeout
+** xpack.monitoring.migration.decommission_alerts
+====
+
+[[monitoring-deprecation-alerts]]
+.The default alerts from the Monitoring plugin have been deprecated
+[%collapsible]
+====
+*Details* +
+The default alerts from Monitoring plugin will no longer be installed by default in 8.0.0.
+The recommended method for alerting based on monitoring data is {kib} alerts.
+
+*Impact* +
+If you have previously configured alerts from the Monitoring plugin, you should
+migrate to using {kib} alerts instead. Alerts installed from previous versions will continue to
+function until uninstalled. Learn more about {kibana-ref}/kibana-alerts.html[{kib} alerts].
+====
+
 [[monitoring-use-ingest-setting-deprecation]]
 .The `use_ingest` setting on Monitoring exporter configurations is deprecated.
 [%collapsible]
 ====
 *Details* +
 The `xpack.monitoring.exporters.*.use_ingest` property has been deprecated in 7.16.0 and
-will be removed in 8.0.0. This parameter controls the creation of pipelines for monitoring
+will be removed in a release after 8.0.0. This parameter controls the creation of pipelines for monitoring
 indices. These pipelines currently have no function.
 
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.use_ingest` setting
-as it will no longer be recognized in the next major release.
+as it will have no functionality in 8.0.0 and will eventually be removed.
 ====
 
 [[monitoring-pipeline-master-timeout-setting-deprecation]]
@@ -252,11 +313,11 @@ as it will no longer be recognized in the next major release.
 The `xpack.monitoring.exporters.*.index.pipeline.master_timeout` property has been
 deprecated in 7.16.0. This parameter sets the timeout when waiting for the remote
 Monitoring cluster to create pipelines. These pipelines for monitoring indices currently
-have no function and will be removed in 8.0.0.
+have no function and will be removed in a release after 8.0.0.
 
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.index.pipeline.master_timeout` setting
-as it will no longer be recognized in the next major release.
+as it will have no functionality in 8.0.0 and will eventually be removed.
 ====
 
 [[monitoring-template-create-legacy-setting-deprecation]]
@@ -272,7 +333,7 @@ longer of any use.
 
 *Impact* +
 Discontinue the use of the `xpack.monitoring.exporters.*.index.template.create_legacy_templates` setting
-as it will no longer be recognized in the next major release.
+as it will have no functionality in 8.0.0 and will eventually be removed.
 ====
 
 [discrete]

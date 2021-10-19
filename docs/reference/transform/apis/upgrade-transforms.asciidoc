@@ -82,7 +82,7 @@ When all {transforms} are upgraded, you receive a summary:
 [source,console-result]
 ----
 {
-  "updated": 2
+  "updated": 2,
   "no_action": 1
 }
 ----

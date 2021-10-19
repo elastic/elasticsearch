@@ -62,6 +62,8 @@ def restTestBlacklist = []
 tasks.withType(RestIntegTestTask).configureEach {
   // TODO: fix this rest test to not depend on a hardcoded port!
   restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+  // TODO: move the monitoring YAML tests to the monitoring plugin to avoid cluster wide deprecation messages
+  restTestBlacklist.addAll(['monitoring/*'])
   if (BuildParams.isSnapshotBuild() == false) {
     // these tests attempt to install basic/internal licenses signed against the dev/public.key
     // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
@@ -192,8 +194,6 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
-  setting 'xpack.monitoring.exporters._local.type', 'local'
-  setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'

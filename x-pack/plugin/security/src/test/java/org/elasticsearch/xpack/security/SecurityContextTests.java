@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SecurityContextTests extends ESTestCase {
@@ -119,6 +120,11 @@ public class SecurityContextTests extends ESTestCase {
         RealmRef authBy = new RealmRef("ldap", "foo", "node1");
         final Authentication original = new Authentication(user, authBy, authBy);
         original.writeToContext(threadContext);
+        final Map<String, String> requestHeaders = Map.of(
+            AuthenticationField.PRIVILEGE_CATEGORY_KEY, randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)
+        );
+        threadContext.putHeader(requestHeaders);
 
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
@@ -129,6 +135,8 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
+            // Other request headers should be preserved
+            requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
         }, VersionUtils.getPreviousVersion());
 
         final Authentication authAfterExecution = securityContext.getAuthentication();

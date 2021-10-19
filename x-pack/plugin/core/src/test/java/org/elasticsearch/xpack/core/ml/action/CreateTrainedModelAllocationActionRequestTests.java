@@ -14,7 +14,14 @@ public class CreateTrainedModelAllocationActionRequestTests extends AbstractWire
 
     @Override
     protected Request createTestInstance() {
-        return new Request(StartTrainedModelDeploymentTaskParamsTests.createRandom());
+        return new Request(
+            new StartTrainedModelDeploymentAction.TaskParams(
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomIntBetween(1, 8),
+                randomIntBetween(1, 8)
+            )
+        );
     }
 
     @Override

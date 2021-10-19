@@ -307,7 +307,6 @@ public class DeploymentManager {
 
         @Override
         protected void doRun() throws Exception {
-            logger.info("Request [{}] running", requestId);
             final String requestIdStr = String.valueOf(requestId);
             try {
                 // The request builder expect a list of inputs which are then batched.
@@ -393,11 +392,7 @@ public class DeploymentManager {
             this.task = Objects.requireNonNull(task);
             resultProcessor = new PyTorchResultProcessor(task.getModelId());
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
-            this.executorService = new ProcessWorkerExecutorService(
-                threadPool.getThreadContext(),
-                "pytorch_inference",
-                task.getParams().getQueueCapacity()
-            );
+            this.executorService = new ProcessWorkerExecutorService(threadPool.getThreadContext(), "pytorch_inference", 1024);
         }
 
         PyTorchResultProcessor getResultProcessor() {

@@ -477,7 +477,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexSettings,
             query,
             breakerService,
-            builder.bytesToPreallocate(),
+            randomBoolean() ? 0 : builder.bytesToPreallocate(),
             maxBucket,
             fieldTypes
         );

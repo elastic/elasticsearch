@@ -27,8 +27,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
 
 /**
@@ -37,7 +35,7 @@ import java.util.stream.IntStream;
 public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AnalyticsPlugin.class);
+        return org.elasticsearch.core.List.of(AnalyticsPlugin.class);
     }
 
     /**
@@ -51,9 +49,9 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
             true,
             IntStream.range(0, randomIntBetween(10, 1000))
                 .mapToObj(
-                    i -> client().prepareIndex("test")
+                    i -> client().prepareIndex("test", "_doc")
                         .setId("id_" + i)
-                        .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
+                        .setSource(org.elasticsearch.core.Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )
                 .toArray(IndexRequestBuilder[]::new)
         );
@@ -70,7 +68,7 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
             client().prepareSearch("test")
                 .addAggregation(
                     new MultiTermsAggregationBuilder("xxx").terms(
-                        List.of(
+                        org.elasticsearch.core.List.of(
                             new MultiValuesSourceFieldConfig.Builder().setFieldName("field0.keyword").build(),
                             new MultiValuesSourceFieldConfig.Builder().setFieldName("field1.keyword").build()
                         )

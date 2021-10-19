@@ -9,8 +9,6 @@
 
 package org.elasticsearch.script.field;
 
-import java.util.List;
-
 /** A field in a document accessible via scripting. */
 public interface Field {
 

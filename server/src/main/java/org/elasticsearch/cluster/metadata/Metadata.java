@@ -35,6 +35,7 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -1785,7 +1786,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     // log as debug, this method is executed each time a new cluster state is created and
                     // could result in many logs:
                     logger.debug(warning);
-                    HeaderWarning.addWarning(warning);
+                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
                 }
             }
         }

@@ -100,9 +100,14 @@ public class Setting<T> implements ToXContentObject {
         Final,
 
         /**
-         * mark this setting as deprecated
+         * mark this setting as deprecated (critical level)
          */
         Deprecated,
+
+        /**
+         * mark this setting as deprecated (warning level)
+         */
+        DeprecatedWarning,
 
         /**
          * Node scope
@@ -169,6 +174,9 @@ public class Setting<T> implements ToXContentObject {
             }
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Deprecated) && propertiesAsSet.contains(Property.DeprecatedWarning)) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be deprecated at both critical and warning levels");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -382,7 +390,11 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
     public boolean isDeprecated() {
-        return properties.contains(Property.Deprecated);
+        return properties.contains(Property.Deprecated) || properties.contains(Property.DeprecatedWarning);
+    }
+
+    private boolean isDeprecatedWarningOnly() {
+        return properties.contains(Property.DeprecatedWarning);
     }
 
     /**
@@ -561,13 +573,16 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-
             DeprecationCategory category = this.isSecure(settings) ? DeprecationCategory.SECURITY : DeprecationCategory.SETTINGS;
             List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
             if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                Settings.DeprecationLoggerHolder.deprecationLogger
-                    .critical(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                        + "See the breaking changes documentation for the next major version.", key);
+                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version.";
+                if (this.isDeprecatedWarningOnly()) {
+                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(category, key, message, key);
+                } else {
+                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(category, key, message, key);
+                }
             }
         }
     }

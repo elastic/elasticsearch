@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -97,25 +98,14 @@ public class PemUtilsTests extends ESTestCase {
 
     public void testReadEncryptedPKCS8KeyPBES2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+        assertTrue("Can't read PBES2 on OpenJDK before v11", Constants.JRE_IS_MINIMUM_JAVA11);
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted_pbes2_aes.pem");
-        if (isJdk8()) {
-            final IllegalStateException exception = expectThrows(
-                IllegalStateException.class,
-                () -> PemUtils.readPrivateKey(keyPath, "testnode"::toCharArray)
-            );
-            assertThat(exception.getMessage(), containsString("key_pkcs8_encrypted_pbes2_aes.pem"));
-            Throwable cause = exception.getCause();
-            assertThat(cause, instanceOf(GeneralSecurityException.class));
-            assertThat(cause.getMessage(), startsWith("PKCS#8 Private Key is encrypted with PBES2 which is not supported on JDK [8"));
-            assertThat(cause.getCause(), instanceOf(IOException.class));
-        } else {
-            PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, "testnode"::toCharArray);
-            assertThat(privateKey, notNullValue());
-            assertThat(privateKey, equalTo(key));
-        }
+        PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, "testnode"::toCharArray);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
     }
 
     public void testReadDESEncryptedPKCS1Key() throws Exception {
@@ -261,9 +251,5 @@ public class PemUtilsTests extends ESTestCase {
             keyStore.load(in, "testnode".toCharArray());
             return keyStore.getKey("testnode_" + algo, "testnode".toCharArray());
         }
-    }
-
-    private boolean isJdk8() {
-        return JavaVersion.current().getVersion().get(0) == 8;
     }
 }

@@ -360,12 +360,6 @@ public class PemUtils {
             parser = algSeq.getParser();
             final String algId = parser.readAsn1Object().getOid();
             if (PBES2_OID.equals(algId)) {
-                if (JavaVersion.current().compareTo(JavaVersion.parse("11.0.0")) < 0) {
-                    throw new GeneralSecurityException(
-                        "PKCS#8 Private Key is encrypted with PBES2 which is not supported on JDK [" + JavaVersion.current() + "]",
-                        e
-                    );
-                }
                 final DerParser.Asn1Object algData = parser.readAsn1Object(DerParser.SEQUENCE);
                 parser = algData.getParser();
                 final DerParser.Asn1Object ignoreKdf = parser.readAsn1Object(DerParser.SEQUENCE);
@@ -379,6 +373,14 @@ public class PemUtils {
                             + encryptionId
                             + "]"
                             + (name == null ? "" : " (" + name + ")"),
+                        e
+                    );
+                }
+                if (JavaVersion.current().compareTo(JavaVersion.parse("11.0.0")) < 0) {
+                    // PBES2 appears to be supported on Oracle 8, but not OpenJDK8
+                    // We don't both clarifying that here because it is supported on the bundled JDK, and that's what people should use
+                    throw new GeneralSecurityException(
+                        "PKCS#8 Private Key is encrypted with PBES2 which is not supported on this JDK [" + JavaVersion.current() + "]",
                         e
                     );
                 }

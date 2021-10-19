@@ -103,20 +103,24 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(key, instanceOf(PrivateKey.class));
 
         final Path keyPath = getDataPath("/certs/pem-utils/key_pkcs8_encrypted_pbes2_aes.pem");
-        if (isJdk8()) {
-            final SslConfigException exception = expectThrows(
-                SslConfigException.class,
-                () -> PemUtils.readPrivateKey(keyPath, TESTNODE_PASSWORD)
-            );
-            assertThat(exception.getMessage(), containsString("key_pkcs8_encrypted_pbes2_aes.pem"));
-            Throwable cause = exception.getCause();
-            assertThat(cause, instanceOf(GeneralSecurityException.class));
-            assertThat(cause.getMessage(), startsWith("PKCS#8 Private Key is encrypted with PBES2 which is not supported on JDK [8"));
-            assertThat(cause.getCause(), instanceOf(IOException.class));
-        } else {
+        try {
             PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, TESTNODE_PASSWORD);
             assertThat(privateKey, notNullValue());
             assertThat(privateKey, equalTo(key));
+        } catch (SslConfigException exception) {
+            if (isJdk8()) {
+                // We know that PBES2 is not supported on OpenJDK8
+                assertThat(exception.getMessage(), containsString("key_pkcs8_encrypted_pbes2_aes.pem"));
+                Throwable cause = exception.getCause();
+                assertThat(cause, instanceOf(GeneralSecurityException.class));
+                assertThat(
+                    cause.getMessage(),
+                    startsWith("PKCS#8 Private Key is encrypted with PBES2 which is not supported on this JDK [8")
+                );
+                assertThat(cause.getCause(), instanceOf(IOException.class));
+            } else {
+                throw exception;
+            }
         }
     }
 
@@ -132,15 +136,14 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("key_pkcs8_encrypted_pbes2_des.pem"));
         Throwable cause = exception.getCause();
         assertThat(cause, instanceOf(GeneralSecurityException.class));
-        if (isJdk8()) {
-            assertThat(cause.getMessage(), startsWith("PKCS#8 Private Key is encrypted with PBES2 which is not supported on JDK [8"));
-            assertThat(cause.getCause(), instanceOf(IOException.class));
-        } else {
-            assertThat(
-                cause.getMessage(),
-                equalTo("PKCS#8 Private Key is encrypted with unsupported PBES2 algorithm [1.3.14.3.2.7] (DES-CBC)")
-            );
-            assertThat(cause.getCause(), instanceOf(IOException.class));
+        final Throwable rootCause = cause.getCause();
+        assertThat(rootCause, instanceOf(IOException.class));
+
+        assertThat(
+            cause.getMessage(),
+            equalTo("PKCS#8 Private Key is encrypted with unsupported PBES2 algorithm [1.3.14.3.2.7] (DES-CBC)")
+        );
+        if (isJdk8() == false) {
             assertThat(cause.getCause().getMessage(), startsWith("PBE parameter parsing error"));
         }
     }

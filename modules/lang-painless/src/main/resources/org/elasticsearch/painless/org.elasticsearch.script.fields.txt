@@ -13,9 +13,6 @@ class org.elasticsearch.script.field.Field @dynamic_type {
   String getName()
   boolean isEmpty()
   int size()
-  List getValues()
-  def getValue(def)
-  def getValue(int, def)
 }
 
 class org.elasticsearch.script.DocBasedScript {

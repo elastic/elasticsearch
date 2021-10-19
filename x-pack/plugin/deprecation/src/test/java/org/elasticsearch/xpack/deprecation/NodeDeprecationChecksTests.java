@@ -199,7 +199,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "The ["+settingKey+"] settings are deprecated and will be removed after 8.0",
                 expectedUrl,
-                "Remove the following settings from elasticsearch.yml: ["+settingKey+"]",
+                "Remove the following settings from the keystore: ["+settingKey+"]",
                 false, null)));
     }
 

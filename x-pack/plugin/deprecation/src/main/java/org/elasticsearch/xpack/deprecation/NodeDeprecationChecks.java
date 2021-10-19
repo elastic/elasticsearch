@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -134,27 +133,6 @@ public class NodeDeprecationChecks {
         return new DeprecationIssue(warningLevel, message, url, details, false, null);
     }
 
-    private static DeprecationIssue deprecatedAffixSecureSetting(Setting.AffixSetting<SecureString> deprecatedAffixSetting,
-                                                                 String detailPattern, String url, DeprecationIssue.Level warningLevel,
-                                                                 Settings settings) {
-        List<Setting<?>> deprecatedConcreteSettings = deprecatedAffixSetting.getAllConcreteSettings(settings)
-            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
-
-        if (deprecatedConcreteSettings.isEmpty()) {
-            return null;
-        }
-
-        final String concatSettingNames = deprecatedConcreteSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
-        final String message = String.format(
-            Locale.ROOT,
-            "The [%s] settings are deprecated and will be removed after 8.0",
-            concatSettingNames
-        );
-        final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
-
-        return new DeprecationIssue(warningLevel, message, url, details, false, null);
-    }
-
     private static DeprecationIssue deprecatedAffixGroupedSetting(Setting.AffixSetting<Settings> deprecatedAffixSetting,
                                                                   String detailPattern, String url, DeprecationIssue.Level warningLevel,
                                                                   Settings settings) {
@@ -206,10 +184,10 @@ public class NodeDeprecationChecks {
     }
 
     static DeprecationIssue genericMonitoringAffixSecureSetting(final Settings settings, final String deprecatedSuffix) {
-        return deprecatedAffixSecureSetting(
+        return deprecatedAffixSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix,
                 k -> SecureSetting.secureString(k, null)),
-            "Remove the following settings from elasticsearch.yml: [%s]",
+            "Remove the following settings from the keystore: [%s]",
             MONITORING_SETTING_DEPRECATION_LINK,
             DeprecationIssue.Level.WARNING,
             settings);

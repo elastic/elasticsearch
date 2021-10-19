@@ -282,7 +282,8 @@ public final class RepositoryData {
         return snapshotDetails == null
             || snapshotDetails.getVersion() == null
             || snapshotDetails.getStartTimeMillis() == -1
-            || snapshotDetails.getEndTimeMillis() == -1;
+            || snapshotDetails.getEndTimeMillis() == -1
+            || snapshotDetails.getSlmPolicy() == null;
     }
 
     /**
@@ -638,6 +639,7 @@ public final class RepositoryData {
     private static final String MIN_VERSION = "min_version";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String END_TIME_MILLIS = "end_time_millis";
+    private static final String SLM_POLICY = "slm_policy";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -723,6 +725,9 @@ public final class RepositoryData {
             }
             if (snapshotDetails.getEndTimeMillis() != -1) {
                 builder.field(END_TIME_MILLIS, snapshotDetails.getEndTimeMillis());
+            }
+            if (snapshotDetails.getSlmPolicy() != null) {
+                builder.field(SLM_POLICY, snapshotDetails.getSlmPolicy());
             }
 
             builder.endObject();
@@ -890,6 +895,7 @@ public final class RepositoryData {
             Version version = null;
             long startTimeMillis = -1;
             long endTimeMillis = -1;
+            String slmPolicy = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
@@ -917,12 +923,14 @@ public final class RepositoryData {
                         assert endTimeMillis == -1;
                         endTimeMillis = parser.longValue();
                         break;
+                    case SLM_POLICY:
+                        slmPolicy = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                 }
             }
             assert (startTimeMillis == -1) == (endTimeMillis == -1) : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", ";
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
             if (state != null || version != null) {
-                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis));
+                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis, slmPolicy));
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
@@ -1036,7 +1044,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1);
+        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;
@@ -1050,11 +1058,23 @@ public final class RepositoryData {
         // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
         private final long endTimeMillis;
 
-        public SnapshotDetails(@Nullable SnapshotState snapshotState, @Nullable Version version, long startTimeMillis, long endTimeMillis) {
+        // May be null if unknown, which happens if the snapshot was taken before 7.16 and hasn't been updated yet. Empty string indicates
+        // that this snapshot was not created by an SLM policy.
+        @Nullable
+        private final String slmPolicy;
+
+        public SnapshotDetails(
+            @Nullable SnapshotState snapshotState,
+            @Nullable Version version,
+            long startTimeMillis,
+            long endTimeMillis,
+            @Nullable String slmPolicy
+        ) {
             this.snapshotState = snapshotState;
             this.version = version;
             this.startTimeMillis = startTimeMillis;
             this.endTimeMillis = endTimeMillis;
+            this.slmPolicy = slmPolicy;
         }
 
         @Nullable
@@ -1081,6 +1101,15 @@ public final class RepositoryData {
             return endTimeMillis;
         }
 
+        /**
+         * @return the SLM policy that the snapshot was created by or an empty string if it was not created by an SLM policy or
+         *         {@code null} if unknown.
+         */
+        @Nullable
+        public String getSlmPolicy() {
+            return slmPolicy;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -1089,12 +1118,13 @@ public final class RepositoryData {
             return startTimeMillis == that.startTimeMillis
                 && endTimeMillis == that.endTimeMillis
                 && snapshotState == that.snapshotState
-                && Objects.equals(version, that.version);
+                && Objects.equals(version, that.version)
+                && Objects.equals(slmPolicy, that.slmPolicy);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis);
+            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
         }
 
     }

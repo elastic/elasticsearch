@@ -71,7 +71,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
-        transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.MANAGEMENT,
+        transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.SEARCH_COORDINATION,
             FieldCapabilitiesNodeRequest::new, new NodeTransportHandler());
     }
 
@@ -111,7 +111,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             localIndices,
             nowInMillis,
             concreteIndices,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             indexResponse -> indexResponses.putIfAbsent(indexResponse.getIndexName(), indexResponse),
             indexFailures::collect,
             countDown
@@ -163,7 +163,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     if (request.isMergeResults()) {
                         // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
                         // on a transport thread in case of large numbers of indices and/or fields
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT).submit(
+                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION).submit(
                             ActionRunnable.supply(
                                 listener,
                                 () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)))

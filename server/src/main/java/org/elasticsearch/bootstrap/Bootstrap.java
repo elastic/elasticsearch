@@ -31,6 +31,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -42,7 +43,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.management.ManagementFactory;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -157,20 +157,7 @@ final class Bootstrap {
         ProcessProbe.getInstance();
         OsProbe.getInstance();
         JvmInfo.jvmInfo();
-    }
-
-    static void initializeRuntimeMonitoring() {
-        // We'll let the JVM boot without this functionality, however certain APIs like HotThreads will not
-        // function and report an error.
-        if (ManagementFactory.getThreadMXBean().isThreadContentionMonitoringSupported() == false) {
-            LogManager.getLogger(Bootstrap.class).info("Thread wait/blocked time accounting not supported.");
-        } else {
-            try {
-                ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
-            } catch (UnsupportedOperationException monitoringUnavailable) {
-                LogManager.getLogger(Bootstrap.class).warn("Thread wait/blocked time accounting cannot be enabled.");
-            }
-        }
+        HotThreads.initializeRuntimeMonitoring();
     }
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
@@ -190,9 +177,6 @@ final class Bootstrap {
 
         // initialize probes before the security manager is installed
         initializeProbes();
-
-        // initialize monitoring in the JVM runtime, helps with thread wait/blocked time accounting
-        initializeRuntimeMonitoring();
 
         if (addShutdownHook) {
             Runtime.getRuntime().addShutdownHook(new Thread() {

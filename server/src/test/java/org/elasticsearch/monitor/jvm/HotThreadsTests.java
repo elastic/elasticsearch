@@ -250,13 +250,26 @@ public class HotThreadsTests extends ESTestCase {
         return allInfos;
     }
 
-    public void testInnerDetect() throws Exception {
+    private ThreadMXBean makeMockMXBeanHelper() {
         ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
         when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
+        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
+        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(true);
 
+        return mockedMXBean;
+    }
+
+    private SunThreadInfo makeMockSunThreadInfoHelper() {
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
         when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(true);
         when(mockedSunThreadInfo.isThreadAllocatedMemoryEnabled()).thenReturn(true);
+
+        return mockedSunThreadInfo;
+    }
+
+    public void testInnerDetectCPUMode() throws Exception {
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
+        SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
         long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
         long mockCurrentThreadId = 0L;
@@ -265,10 +278,6 @@ public class HotThreadsTests extends ESTestCase {
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds, 100_000);
         List<ThreadInfo> cpuOrderedInfos = List.of(allInfos.get(0), allInfos.get(1), allInfos.get(2), allInfos.get(3));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
-
-        // Test with support for wait/blocked time accounting
-        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
-        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(true);
 
         HotThreads hotThreads = new HotThreads()
             .busiestThreads(4)
@@ -301,14 +310,9 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("0.0% [cpu=0.0%, other=0.0%] (0s out of 10ms) cpu usage by thread 'Thread 1'"));
 
         // Test with the legacy sort order
-
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds, 100_000);
         cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
-
-        // Test with support for wait/blocked time accounting
-        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
-        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(true);
 
         hotThreads = new HotThreads()
             .busiestThreads(4)
@@ -331,6 +335,15 @@ public class HotThreadsTests extends ESTestCase {
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
         assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
+    }
+
+    public void testInnerDetectWaitMode() throws Exception {
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
+        SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
+
+        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long mockCurrentThreadId = 0L;
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
         HotThreads hotWaitingThreads = new HotThreads()
             .busiestThreads(4)
@@ -339,7 +352,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
         List<ThreadInfo> waitOrderedInfos = List.of(allInfos.get(3), allInfos.get(1), allInfos.get(0), allInfos.get(2));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(waitOrderedInfos.toArray(new ThreadInfo[0]));
 
@@ -371,7 +384,15 @@ public class HotThreadsTests extends ESTestCase {
             "4.0% (2ms out of 50ms) wait usage by thread 'Thread 2'",
             "0.0% (0s out of 50ms) wait usage by thread 'Thread 1'",
             "0.0% (0s out of 50ms) wait usage by thread 'Thread 3'"));
+    }
 
+    public void testInnerDetectBlockedMode() throws Exception {
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
+        SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
+
+        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long mockCurrentThreadId = 0L;
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
         HotThreads hotBlockedThreads = new HotThreads()
             .busiestThreads(4)
             .type(HotThreads.ReportType.BLOCK)
@@ -379,7 +400,7 @@ public class HotThreadsTests extends ESTestCase {
             .threadElementsSnapshotCount(11)
             .ignoreIdleThreads(false);
 
-        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
         List<ThreadInfo> blockOrderedInfos = List.of(allInfos.get(2), allInfos.get(0), allInfos.get(1), allInfos.get(3));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(blockOrderedInfos.toArray(new ThreadInfo[0]));
 
@@ -411,41 +432,25 @@ public class HotThreadsTests extends ESTestCase {
             "1.7% (1ms out of 60ms) block usage by thread 'Thread 1'",
             "0.0% (0s out of 60ms) block usage by thread 'Thread 2'",
             "0.0% (0s out of 60ms) block usage by thread 'Thread 4'"));
+    }
 
-        // Test with only one stack to trigger the different print in innerDetect
+    public void testInnerDetectMemoryMode() throws Exception {
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
+        SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
 
-        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long mockCurrentThreadId = 0L;
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
-        hotThreads = new HotThreads()
-            .busiestThreads(4)
-            .type(HotThreads.ReportType.CPU)
-            .interval(TimeValue.timeValueNanos(10))
-            .threadElementsSnapshotCount(1)
-            .ignoreIdleThreads(false);
-
-        String singleResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
-
-        assertThat(singleResult, containsString("  unique snapshot"));
-        assertEquals(5, singleResult.split(" unique snapshot").length);
-        assertThat(singleResult, containsString("40.0% [cpu=40.0%, other=0.0%] (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
-        assertThat(singleResult, containsString("30.0% [cpu=30.0%, other=0.0%] (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
-        assertThat(singleResult, containsString("20.0% [cpu=20.0%, other=0.0%] (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
-        assertThat(singleResult, containsString("10.0% [cpu=10.0%, other=0.0%] (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
-        assertThat(innerResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
-
-        allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        List<ThreadInfo> cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
         when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         for (long threadId : threadIds) {
             when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId*100);
         }
 
-        hotThreads = new HotThreads()
+        HotThreads hotThreads = new HotThreads()
             .busiestThreads(4)
             .type(HotThreads.ReportType.MEM)
             .interval(TimeValue.timeValueNanos(10))
@@ -487,11 +492,41 @@ public class HotThreadsTests extends ESTestCase {
             "100b memory allocated by thread 'Thread 1'"));
     }
 
+    public void testInnerDetectSingleSnapshot() throws Exception {
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
+        SunThreadInfo mockedSunThreadInfo = makeMockSunThreadInfoHelper();
+
+        long[] threadIds = new long[]{1, 2, 3, 4}; // Adds up to 10, the intervalNanos for calculating time percentages
+        long mockCurrentThreadId = 0L;
+        when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
+
+        // Test with only one stack to trigger the different print in innerDetect
+        List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
+        List<ThreadInfo> cpuOrderedInfos = List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
+        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+
+        HotThreads hotThreads = new HotThreads()
+            .busiestThreads(4)
+            .type(HotThreads.ReportType.CPU)
+            .interval(TimeValue.timeValueNanos(10))
+            .threadElementsSnapshotCount(1)
+            .ignoreIdleThreads(false);
+
+        String singleResult = hotThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
+
+        assertThat(singleResult, containsString("  unique snapshot"));
+        assertEquals(5, singleResult.split(" unique snapshot").length);
+        assertThat(singleResult, containsString("40.0% [cpu=40.0%, other=0.0%] (4nanos out of 10nanos) cpu usage by thread 'Thread 4'"));
+        assertThat(singleResult, containsString("30.0% [cpu=30.0%, other=0.0%] (3nanos out of 10nanos) cpu usage by thread 'Thread 3'"));
+        assertThat(singleResult, containsString("20.0% [cpu=20.0%, other=0.0%] (2nanos out of 10nanos) cpu usage by thread 'Thread 2'"));
+        assertThat(singleResult, containsString("10.0% [cpu=10.0%, other=0.0%] (1nanos out of 10nanos) cpu usage by thread 'Thread 1'"));
+        assertThat(singleResult, containsString("org.elasticsearch.monitor.test.method_0(Some_File:1)"));
+        assertThat(singleResult, containsString("org.elasticsearch.monitor.test.method_1(Some_File:1)"));
+        assertThat(singleResult, containsString("org.elasticsearch.monitor.testOther.methodFinal(Some_File:1)"));
+    }
+
     public void testEnsureInnerDetectSkipsCurrentThread() throws Exception {
-        ThreadMXBean mockedMXBean = mock(ThreadMXBean.class);
-        when(mockedMXBean.isThreadCpuTimeSupported()).thenReturn(true);
-        when(mockedMXBean.isThreadContentionMonitoringSupported()).thenReturn(true);
-        when(mockedMXBean.isThreadContentionMonitoringEnabled()).thenReturn(true);
+        ThreadMXBean mockedMXBean = makeMockMXBeanHelper();
 
         long mockCurrentThreadId = 5L;
         long[] threadIds = new long[]{mockCurrentThreadId}; // Matches half the intervalNanos for calculating time percentages

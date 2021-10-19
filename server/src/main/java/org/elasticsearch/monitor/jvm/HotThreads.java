@@ -8,6 +8,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.time.DateFormatter;
@@ -42,7 +43,7 @@ public class HotThreads {
     private TimeValue threadElementsSnapshotDelay = new TimeValue(10, TimeUnit.MILLISECONDS);
     private int threadElementsSnapshotCount = 10;
     private ReportType type = ReportType.CPU;
-    private SortOrder sortOder = SortOrder.TOTAL;
+    private SortOrder sortOrder = SortOrder.TOTAL;
 
     private boolean ignoreIdleThreads = true;
 
@@ -77,6 +78,8 @@ public class HotThreads {
             return type;
         }
 
+        // Custom enum from string because of legacy support. The standard Enum.valueOf is static
+        // and cannot be overriden to show a nice error message in case the enum value isn't found
         public static ReportType of(String type) {
             for (var report : values()) {
                 if (report.type.equals(type)) {
@@ -102,6 +105,8 @@ public class HotThreads {
             return order;
         }
 
+        // Custom enum from string because of legacy support. The standard Enum.valueOf is static
+        // and cannot be overriden to show a nice error message in case the enum value isn't found
         public static SortOrder of(String order) {
             for (var sortOrder : values()) {
                 if (sortOrder.order.equals(order)) {
@@ -143,7 +148,7 @@ public class HotThreads {
     }
 
     public HotThreads sortOrder(SortOrder order) {
-        this.sortOder = order;
+        this.sortOrder = order;
         return this;
     }
 
@@ -268,7 +273,8 @@ public class HotThreads {
         // Sort by delta CPU time on thread.
         List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
 
-        if (type == ReportType.CPU && sortOder == SortOrder.TOTAL)  {
+        // Special comparator for CPU mode with TOTAL sort type only. Otherwise, we simply use the value.
+        if (type == ReportType.CPU && sortOrder == SortOrder.TOTAL)  {
             CollectionUtil.introSort(topThreads,
                 Comparator.comparingLong(ThreadTimeAccumulator::getRunnableTime)
                     .thenComparingLong(ThreadTimeAccumulator::getCpuTime).reversed());
@@ -477,5 +483,19 @@ public class HotThreads {
     @FunctionalInterface
     public interface SleepFunction<T, R> {
         R apply(T t) throws InterruptedException;
+    }
+
+    public static void initializeRuntimeMonitoring() {
+        // We'll let the JVM boot without this functionality, however certain APIs like HotThreads will not
+        // function and report an error.
+        if (ManagementFactory.getThreadMXBean().isThreadContentionMonitoringSupported() == false) {
+            LogManager.getLogger(HotThreads.class).info("Thread wait/blocked time accounting not supported.");
+        } else {
+            try {
+                ManagementFactory.getThreadMXBean().setThreadContentionMonitoringEnabled(true);
+            } catch (UnsupportedOperationException monitoringUnavailable) {
+                LogManager.getLogger(HotThreads.class).warn("Thread wait/blocked time accounting cannot be enabled.");
+            }
+        }
     }
 }

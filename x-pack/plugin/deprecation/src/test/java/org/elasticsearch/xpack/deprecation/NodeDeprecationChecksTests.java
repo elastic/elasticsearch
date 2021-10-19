@@ -404,7 +404,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
             "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting", false, null);
         assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.queue_size"));
     }
 
     public void testThreadPoolListenerSize() {
@@ -419,7 +419,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
             "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting", false, null);
         assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+        assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.size"));
+    }
+
+    private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
+        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
+            Setting.Property.Deprecated)).toArray(Setting[]::new);
     }
 
     public void testClusterRemoteConnectSetting() {

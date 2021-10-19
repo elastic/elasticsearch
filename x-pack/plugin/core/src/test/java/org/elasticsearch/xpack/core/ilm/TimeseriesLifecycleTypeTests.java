@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -168,7 +170,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
         }
         if (actions.containsKey(FreezeAction.NAME)) {
-            assertSettingDeprecationsAndWarnings(new String[0], TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING);
+            assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+                new DeprecationWarning(DeprecationLogger.CRITICAL, TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
         }
     }
 
@@ -180,7 +183,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
         Map<String, Phase> coldPhase = Collections.singletonMap("cold", new Phase("cold", TimeValue.ZERO, actions));
         TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
-        assertSettingDeprecationsAndWarnings(new String[0], TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[0],
+            new DeprecationWarning(DeprecationLogger.CRITICAL, TimeseriesLifecycleType.FREEZE_ACTION_DEPRECATION_WARNING));
     }
 
     public void testValidateDeletePhase() {

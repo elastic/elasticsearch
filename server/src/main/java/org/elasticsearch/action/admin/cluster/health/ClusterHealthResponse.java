@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -311,10 +312,15 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public RestStatus status() {
+        return status(RestApiVersion.current());
+    }
+
+    @Override
+    public RestStatus status(RestApiVersion restApiVersion) {
         if (isTimedOut() == false) {
             return RestStatus.OK;
         }
-        if (return200ForClusterHealthTimeout) {
+        if (return200ForClusterHealthTimeout || restApiVersion == RestApiVersion.V_8) {
             return RestStatus.OK;
         } else {
             deprecationLogger.compatibleCritical("cluster_health_request_timeout", CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);

@@ -42,17 +42,21 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -144,9 +148,9 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             final int numberOfIterations = randomIntBetween(1, 5);
             logger.debug("list of all open ports {}", ports);
             // go one iteration through and attempt a bind
+            final Map<Integer, AtomicInteger> bindCountPerPort = new HashMap<>();
             for (int iteration = 0; iteration < numberOfIterations; iteration++) {
                 logger.debug("iteration [{}]", iteration);
-                int previousPort = -2;
                 for (Integer expectedPort : ports) {
                     logger.debug("attempting connection with expected port [{}]", expectedPort);
                     LDAPConnection connection = null;
@@ -158,22 +162,8 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                             connection = finalConnection;
                             final int connectedPort = finalConnection.getConnectedPort();
                             logger.debug("established connection with port [{}] expected port [{}]", connectedPort, expectedPort);
-                            if (connectedPort == previousPort) {
-                                // This happens due to the behaviour in RoundRobinServerSet
-                                // The logic there increments the index into the round-robin set independent of failing servers
-                                // So if you have a set of servers [ "bad", "good-1", "good-2" ]
-                                // Then the round-robin logic produces: [ "good-1" (as a substitute for "bad") , "good-1" , "good-2" ]
-                                // This is a questionable implementation, but it's what UnboundID does, and it's hard to work around
-                                final InMemoryDirectoryServer connectedServer = ldapServersList.stream()
-                                    .filter(s -> s.getListenPort() == connectedPort)
-                                    .findFirst()
-                                    .orElseThrow();
-                                final int serverIndex = ldapServersList.indexOf(connectedServer);
-                                final InMemoryDirectoryServer previousServer = ldapServersList.get(
-                                    (serverIndex == 0 ? ldapServersList.size() : serverIndex) - 1
-                                );
-                                assertThat("Expected to have skipped over a failed server", ldapServersToKill, hasItem(previousServer));
-                            } else if (connectedPort != expectedPort) {
+                            bindCountPerPort.computeIfAbsent(connectedPort, ignore -> new AtomicInteger(0)).incrementAndGet();
+                            if (connectedPort != expectedPort) {
                                 if (shutdownPorts.contains(connectedPort)) {
                                     // If we connected to the shutdown port, verify that it's something unbindable (our mock socket)
                                     LDAPException e = expectThrows(
@@ -182,19 +172,17 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                                     );
                                     assertThat(e.getMessage(), containsString("not connected"));
                                     finalConnection.close();
-                                } else {
+                                } else if (ports.contains(connectedPort) == false) {
                                     fail(
                                         "Round robin scheme connected to port ["
                                             + connectedPort
-                                            + "] but expected either the active ["
-                                            + expectedPort
-                                            + "] or one of the shutdown ["
+                                            + "] but expected either an active port ["
+                                            + ports
+                                            + "] or one of the shutdown port ["
                                             + shutdownPorts
                                             + "]"
                                     );
                                 }
-                            } else {
-                                previousPort = connectedPort;
                             }
                         } while (connection.getConnectedPort() != expectedPort);
 
@@ -205,6 +193,23 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                         }
                     }
                 }
+            }
+            if (com.unboundid.ldap.sdk.Version.getShortVersionString().equals("unboundid-ldapsdk-6.0.2")) {
+                // This is the behaviour in 6.0.2, but per it should be fixed in 6.0.3
+                // See: https://github.com/pingidentity/ldapsdk/issues/118
+                // See: https://github.com/pingidentity/ldapsdk/commit/2d08c5258c3a62b7c90cd4e878c4a0d25ae01a82
+                ports.forEach(port -> {
+                    int count = bindCountPerPort.get(port).get();
+                    assertThat("Connections to port [" + port + "]", count, greaterThanOrEqualTo(numberOfIterations));
+                    assertThat("Connections to port [" + port + "]", count, lessThanOrEqualTo(numberOfIterations * (1 + numberToKill)));
+                });
+            } else {
+                // Best guess about what behaviour to expect in 6.0.3 or later.
+                // This may need to be tweaked when we do an upgrade of LDAP SDK
+                ports.forEach(port -> {
+                    int count = bindCountPerPort.get(port).get();
+                    assertThat("Connections to port [" + port + "]", count, equalTo(numberOfIterations));
+                });
             }
         } finally {
             closeLatch.countDown();

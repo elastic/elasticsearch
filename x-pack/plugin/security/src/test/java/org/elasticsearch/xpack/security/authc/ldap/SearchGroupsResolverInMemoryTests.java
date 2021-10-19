@@ -126,10 +126,7 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     public void testSearchWithConnectionPoolForOneResult() throws Exception {
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
 
-        try (LDAPConnectionPool pool =
-                     LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
-                             new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"), 0, 20))) {
-
+        try (LDAPConnectionPool pool = createConnectionPool(ldapurl)) {
             final Settings settings = Settings.builder()
                     .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
                             "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -147,6 +144,17 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
             List<String> resolvedDNs = future.actionGet();
             assertEquals(1, resolvedDNs.size());
         }
+    }
+
+    private LDAPConnectionPool createConnectionPool(LDAPURL ldapurl) throws LDAPException {
+        return LdapUtils.privilegedConnect(
+            () -> new LDAPConnectionPool(
+                new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
+                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                0,
+                20
+            )
+        );
     }
 
     private void connect(LDAPConnectionOptions options) throws LDAPException {

@@ -264,7 +264,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     void validateCacheSettings(Settings settings) {
         boolean useContext = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
         if (useContext) {
-            deprecationLogger.critical(DeprecationCategory.SCRIPTING, "scripting-context-cache",
+            deprecationLogger.warn(DeprecationCategory.SCRIPTING, "scripting-context-cache",
                     USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
         }
         List<Setting.AffixSetting<?>> affixes = Arrays.asList(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, SCRIPT_CACHE_EXPIRE_SETTING,

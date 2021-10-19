@@ -34,7 +34,13 @@ import java.util.stream.IntStream;
  */
 public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
 
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return org.elasticsearch.core.List.of(AnalyticsPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return org.elasticsearch.core.List.of(AnalyticsPlugin.class);
     }
 

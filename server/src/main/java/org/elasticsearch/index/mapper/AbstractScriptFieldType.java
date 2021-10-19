@@ -188,6 +188,17 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
     }
 
+    @Override
+    public void validateMatchedRoutingPath() {
+        throw new IllegalArgumentException(
+            "All fields that match routing_path must be unscripted keyword time_series_dimensions but ["
+                + name()
+                + "] was a runtime ["
+                + typeName()
+                + "]"
+        );
+    }
+
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");

@@ -55,7 +55,7 @@ public class SystemIndexMigrationTaskState implements PersistentTaskState {
     public SystemIndexMigrationTaskState(String currentIndex, String currentFeature, Map<String, Object> featureCallbackMetadata) {
         this.currentIndex = Objects.requireNonNull(currentIndex);
         this.currentFeature = Objects.requireNonNull(currentFeature);
-        this.featureCallbackMetadata = Objects.requireNonNullElse(featureCallbackMetadata, new HashMap<>());
+        this.featureCallbackMetadata = featureCallbackMetadata == null ? new HashMap<>() : featureCallbackMetadata;
     }
 
     public SystemIndexMigrationTaskState(StreamInput in) throws IOException {

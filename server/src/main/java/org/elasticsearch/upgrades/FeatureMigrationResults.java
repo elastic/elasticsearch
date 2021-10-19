@@ -61,7 +61,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
     private final Map<String, SingleFeatureMigrationResult> featureStatuses;
 
     public FeatureMigrationResults(Map<String, SingleFeatureMigrationResult> featureStatuses) {
-        this.featureStatuses = Objects.requireNonNullElse(featureStatuses, new HashMap<>());
+        this.featureStatuses = featureStatuses == null ? new HashMap<>() : featureStatuses;
     }
 
     public FeatureMigrationResults(StreamInput in) throws IOException {

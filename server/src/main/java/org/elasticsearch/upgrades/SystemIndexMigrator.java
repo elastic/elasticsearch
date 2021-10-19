@@ -43,10 +43,10 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -459,8 +459,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         );
 
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(migrationInfo.getMappings())
-            .settings(Objects.requireNonNullElse(migrationInfo.getSettings(), Settings.EMPTY));
+            .mappings(Collections.singletonMap("_doc", migrationInfo.getMappings()))
+            .settings(migrationInfo.getSettings() == null ? Settings.EMPTY : migrationInfo.getSettings());
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 

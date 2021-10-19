@@ -238,14 +238,14 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             );
         }
         if (descriptor.getMappings() == null) {
-            createRequest.setMapping(createSimpleMapping(false, descriptor.isInternal()));
+            createRequest.addMapping("_doc", createSimpleMapping(false, descriptor.isInternal()));
         }
         CreateIndexResponse response = createRequest.get();
         assertTrue(response.isShardsAcknowledged());
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(client().prepareIndex("_doc", indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(indexName).setDocs(true).get();

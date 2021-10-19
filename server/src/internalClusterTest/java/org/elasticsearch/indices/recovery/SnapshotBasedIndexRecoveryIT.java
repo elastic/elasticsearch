@@ -1022,10 +1022,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 (MockTransportService) internalCluster().getInstance(TransportService.class, sourceNode);
 
             CountDownLatch startRecoveryRetryReceived = new CountDownLatch(1);
-            AtomicBoolean first = new AtomicBoolean();
+            AtomicBoolean delayRecoveryExceptionSent = new AtomicBoolean();
             sourceMockTransportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY,
                 (handler, request, channel, task) -> {
-                if (first.compareAndSet(false, true)) {
+                if (delayRecoveryExceptionSent.compareAndSet(false, true)) {
                     channel.sendResponse(new DelayRecoveryException("delay"));
                 } else {
                     startRecoveryRetryReceived.countDown();

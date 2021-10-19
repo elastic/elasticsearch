@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPURL;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -19,8 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -96,7 +97,7 @@ public class LdapRealmTests extends LdapTestCase {
     private ResourceWatcherService resourceWatcherService;
     private Settings defaultGlobalSettings;
     private SSLService sslService;
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
 
     @Before
     public void init() throws Exception {
@@ -108,9 +109,9 @@ public class LdapRealmTests extends LdapTestCase {
         }
         defaultGlobalSettings = builder.put("path.home", createTempDir()).build();
         sslService = new SSLService(defaultGlobalSettings, TestEnvironment.newEnvironment(defaultGlobalSettings));
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After

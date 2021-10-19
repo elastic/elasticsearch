@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -31,6 +32,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     static final String TYPES_DEPRECATION_MESSAGE =
             "[types removal] Looking up doc types [_type] in scripts is deprecated.";
 
+    private final Map<String, DocValuesField<?>> localCacheScriptFieldData = new HashMap<>(4);
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
@@ -48,6 +50,37 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     public void setDocument(int docId) {
         this.docId = docId;
+    }
+
+    public DocValuesField<?> getScriptField(String fieldName) {
+        DocValuesField<?> field = localCacheScriptFieldData.get(fieldName);
+
+        if (field == null) {
+            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
+
+            if (fieldType == null) {
+                throw new IllegalArgumentException("no field found for [" + fieldName + "] in mapping");
+            }
+
+            // Load the field data on behalf of the script. Otherwise, it would require
+            // additional permissions to deal with pagedbytes/ramusagestimator/etc.
+            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField<?>>() {
+                @Override
+                public DocValuesField<?> run() {
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
+                }
+            });
+
+            localCacheScriptFieldData.put(fieldName, field);
+        }
+
+        try {
+            field.setNextDocId(docId);
+        } catch (IOException ioe) {
+            throw ExceptionsHelper.convertToElastic(ioe);
+        }
+
+        return field;
     }
 
     @Override

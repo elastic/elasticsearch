@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -137,7 +138,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+        return licenseState != null && MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

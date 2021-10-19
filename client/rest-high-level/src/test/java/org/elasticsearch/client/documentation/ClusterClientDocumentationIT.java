@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.cluster.RemoteConnectionInfo;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.client.cluster.RemoteInfoResponse;
@@ -127,8 +128,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout("1m"); // <2>
         // end::put-settings-request-masterTimeout
 
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
         // tag::put-settings-execute
-        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, options);
         // end::put-settings-execute
 
         // tag::put-settings-response
@@ -144,7 +146,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.transientSettings(Settings.builder().putNull(transientSettingKey).build()); // <1>
         // tag::put-settings-request-reset-transient
         request.persistentSettings(Settings.builder().putNull(persistentSettingKey));
-        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, options);
 
         assertTrue(resetResponse.isAcknowledged());
     }

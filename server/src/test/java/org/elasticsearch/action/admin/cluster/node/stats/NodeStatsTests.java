@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
@@ -623,7 +624,15 @@ public class NodeStatsTests extends ESTestCase {
                 ? new PublishClusterStateStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomNonNegativeLong())
+                randomNonNegativeLong(),
+                new ClusterStateSerializationStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                ))
                 : null,
             randomBoolean()
                 ? new ClusterStateUpdateStats(

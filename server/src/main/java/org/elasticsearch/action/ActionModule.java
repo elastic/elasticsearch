@@ -205,7 +205,6 @@ import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
-import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesIndexAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -635,8 +634,7 @@ public class ActionModule extends AbstractModule {
         actions.register(GetScriptContextAction.INSTANCE, TransportGetScriptContextAction.class);
         actions.register(GetScriptLanguageAction.INSTANCE, TransportGetScriptLanguageAction.class);
 
-        actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
-            TransportFieldCapabilitiesIndexAction.class);
+        actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class);
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);

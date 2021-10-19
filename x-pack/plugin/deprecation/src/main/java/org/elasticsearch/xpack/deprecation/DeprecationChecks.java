@@ -53,7 +53,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting,
             ClusterDeprecationChecks::checkGeoShapeTemplates,
             ClusterDeprecationChecks::checkSparseVectorTemplates,
-            ClusterDeprecationChecks::checkILMFreezeActions
+            ClusterDeprecationChecks::checkILMFreezeActions,
+            ClusterDeprecationChecks::checkTransientSettingsExistence
         ));
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
@@ -81,9 +82,6 @@ public class DeprecationChecks {
                         NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
                     NodeDeprecationChecks::checkClusterRemoteConnectSetting,
                     NodeDeprecationChecks::checkNodeLocalStorageSetting,
-                    NodeDeprecationChecks::checkGeneralScriptSizeSetting,
-                    NodeDeprecationChecks::checkGeneralScriptExpireSetting,
-                    NodeDeprecationChecks::checkGeneralScriptCompileSettings,
                     (settings, pluginsAndModules, clusterState, licenseState) ->
                         NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
                     (settings, pluginsAndModules, clusterState, licenseState) ->

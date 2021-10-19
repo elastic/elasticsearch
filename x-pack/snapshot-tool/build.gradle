@@ -68,7 +68,7 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
@@ -85,8 +85,12 @@ dependencyLicenses {
 
 // TODO: Investigate using the new Gradle test-fixture plugin here after the upgrade to 5.6
 // There is only AbstractCleanupTests class in test directory and it's abstract
-test.enabled = false
-testingConventions.enabled = false
+tasks.named("test").configure {
+  it.enabled = false
+}
+tasks.named("testingConventions").configure {
+  it.enabled = false
+}
 
 tasks.register("unpackArchive", Copy) {
   dependsOn "assemble"

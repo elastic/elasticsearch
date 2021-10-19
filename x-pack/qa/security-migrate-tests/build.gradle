@@ -27,7 +27,7 @@ tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
 }
 
-testingConventions {
+tasks.named("testingConventions").configure {
   naming.clear()
   naming {
     IT {

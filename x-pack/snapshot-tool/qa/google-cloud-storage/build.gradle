@@ -16,10 +16,12 @@ dependencies {
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)
 }
 
-test.enabled = false
+tasks.named('test').configure {
+  enabled = false
+}
 
-task gcsThirdPartyTests {
-  dependsOn check
+tasks.register("gcsThirdPartyTests") {
+  dependsOn "check"
 }
 
 boolean useGCSFixture = false
@@ -43,7 +45,7 @@ def encodedCredentials = {
   Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
 }
 
-task gcsThirdPartyTest(type: Test) {
+def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
   include '**/GCSCleanupTests.class'
 
   systemProperty 'tests.security.manager', false
@@ -54,8 +56,12 @@ task gcsThirdPartyTest(type: Test) {
 }
 
 if (useGCSFixture) {
-  gcsThirdPartyTest.enabled = false;
-  testingConventions.enabled = false;
+  gcsThirdPartyTest.configure {
+    enabled = false
+  }
+  tasks.named('testingConventions').configure {
+    enabled = false
+  }
   /*
 
   See: https://github.com/elastic/elasticsearch/issues/46813 Fails with --parallel
@@ -87,4 +93,6 @@ if (useGCSFixture) {
   */
 }
 
-check.dependsOn(gcsThirdPartyTest)
+tasks.named("check").configure {
+  dependsOn(gcsThirdPartyTest)
+}

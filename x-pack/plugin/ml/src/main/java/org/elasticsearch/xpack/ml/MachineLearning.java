@@ -180,7 +180,6 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
-import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -1267,16 +1266,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return UnaryOperator.identity();
     }
 
-    public static boolean allTemplatesInstalled(ClusterState clusterState) {
+    public static boolean criticalTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        List<String> templateNames =
-            Arrays.asList(
-                NotificationsIndex.NOTIFICATIONS_INDEX,
-                STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        // The notifications index template is not critical up-front because every
+        // notification checks that it's installed and installs it if necessary
+        List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
-            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState,
-                MlIndexTemplateRegistry.COMPOSABLE_TEMPLATE_SWITCH_VERSION);
+            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
 
         return allPresent;

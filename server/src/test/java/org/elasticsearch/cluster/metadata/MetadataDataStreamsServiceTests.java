@@ -145,7 +145,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertNull(newState.metadata().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
     }
 
-    public void testRemoveWriteIndexIsProhibited() {
+    public void testRemoveWriteIndexIsProhibited() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
@@ -157,7 +157,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
-                    .putMapping(generateMapping("@timestamp"))
+                    .putMapping("_doc", generateMapping("@timestamp"))
                     .build();
             mb.put(backingIndices[k], false);
         }
@@ -176,7 +176,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
                 originalState,
-                List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
+                org.elasticsearch.core.List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
                 this::getMapperService
             )
         );
@@ -194,7 +194,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         );
     }
 
-    public void testAddRemoveAddRoundtripInSingleRequest() {
+    public void testAddRemoveAddRoundtripInSingleRequest() throws Exception {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);

@@ -29,7 +29,7 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_data_stream/_modify"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_data_stream/_modify"));
     }
 
     @Override

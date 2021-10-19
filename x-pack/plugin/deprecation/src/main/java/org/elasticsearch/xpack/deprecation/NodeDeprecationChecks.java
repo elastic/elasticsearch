@@ -994,11 +994,11 @@ class NodeDeprecationChecks {
                                                     final ClusterState clusterState,
                                                     final XPackLicenseState licenseState) {
         if (ScriptService.isUseContextCacheSet(settings)) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.16/" +
-                    "breaking-changes-7.16.html#deprecate-script-context-cache-removed",
-                "found script context caches in use, change setting to compilation rate or remove setting to use the default.",
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                "found deprecated script context caches in use, change setting to compilation rate or remove " +
+                    "setting to use the default",
                 false, null);
         }
         return null;
@@ -1014,14 +1014,13 @@ class NodeDeprecationChecks {
             String maxSettings = contextCompilationRates.stream().sorted().map(
                 c -> maxSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT, "settings [" + maxSettings + "] for context specific rate limits are deprecated and will"
                     + " not be available in a future version."
                     + " Use [" + ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to rate limit the compilation"
                     + " of user scripts, system scripts are exempt.", maxSettings),
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.16/" +
-                    "breaking-changes-7.16.html#deprecate-script-context-cache-max-compile-removed",
-                String.format(Locale.ROOT, "found [%s] settings. Discontinue use of these settings.", maxSettings),
+                "https://ela.st/es-deprecation-7-script-context-max-compile",
+                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", maxSettings),
                 false, null);
         }
         return null;
@@ -1037,15 +1036,14 @@ class NodeDeprecationChecks {
             String cacheSizeSettings = contextCacheSizes.stream().sorted().map(
                 c -> cacheSizeSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT, "settings [" + cacheSizeSettings + "] for context specific script cache sizes are"
                         + " deprecated and will not be available in a future version."
                         + " Use [" + ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey() + "] to size the context cache for all"
                         + " scripts.",
                     cacheSizeSettings),
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.16/" +
-                    "breaking-changes-7.16.html#deprecate-script-context-cache-size-removed",
-                String.format(Locale.ROOT, "found [%s] settings. Discontinue use of these settings.", cacheSizeSettings),
+                "https://ela.st/es-deprecation-7-script-context-size",
+                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheSizeSettings),
                 false, null);
         }
         return null;
@@ -1061,15 +1059,14 @@ class NodeDeprecationChecks {
             String cacheExpireSettings = contextCacheExpires.stream().sorted().map(
                 c -> cacheExpireSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT, "settings [" + cacheExpireSettings + "] for context specific script cache expiration are"
                         + " deprecated and will not be available in a future version."
                         + " Use [" + ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey() + "]"
                         + " to set the cache expiration all scripts.",
                     cacheExpireSettings),
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.16/" +
-                    "breaking-changes-7.16.html#deprecate-script-context-cache-expire-removed",
-                String.format(Locale.ROOT, "found [%s] settings. Discontinue use of these settings.", cacheExpireSettings),
+                "https://ela.st/es-deprecation-7-script-context-expire-deprecated",
+                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheExpireSettings),
                 false, null);
         }
         return null;

@@ -584,4 +584,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
 
+    @Override
+    protected void validateMatchedRoutingPath() {
+        if (false == fieldType().isDimension()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be keyword time_series_dimensions but ["
+                    + name()
+                    + "] was not a time_series_dimension"
+            );
+        }
+    }
 }

@@ -36,13 +36,13 @@ public class NumericRateAggregator extends AbstractRateAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, valuesSourceConfig, rateUnit, rateMode, context, parent, metadata);
-        docCountProvider = new DocCountProvider();
+        docCountProvider = computeWithDocCount ? new DocCountProvider() : null;
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        if (computeRateOnDocs) {
+        if (computeWithDocCount) {
             // No field or script has been set at the rate agg. So, rate will be computed based on the doc_counts.
             // This implementation hard-wires the DocCountProvider and reads the _doc_count fields when available.
             // A better approach would be to create a DOC_COUNT ValuesSource type and use that as valuesSource

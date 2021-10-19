@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.UPGRADE_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -50,7 +50,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
 
     /** If constructor is called with null for a list, we just use an empty list */
     public void testConstructorHandlesNullLists() {
-        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, UPGRADE_NEEDED);
+        GetFeatureUpgradeStatusResponse response = new GetFeatureUpgradeStatusResponse(null, MIGRATION_NEEDED);
         assertThat(response.getFeatureUpgradeStatuses(), notNullValue());
         assertThat(response.getFeatureUpgradeStatuses(), equalTo(Collections.emptyList()));
     }

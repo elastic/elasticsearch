@@ -18,6 +18,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 
 public class OperatorPrivileges {
 
@@ -110,7 +111,7 @@ public class OperatorPrivileges {
         }
 
         private boolean shouldProcess() {
-            return licenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
+            return Security.OPERATOR_PRIVILEGES_FEATURE.check(licenseState);
         }
     }
 

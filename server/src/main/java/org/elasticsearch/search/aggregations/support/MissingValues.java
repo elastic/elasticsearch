@@ -76,6 +76,7 @@ public enum MissingValues {
                     return missing;
                 }
             }
+
             @Override
             public String toString() {
                 return "anon SortedBinaryDocValues of [" + super.toString() + "]";
@@ -109,6 +110,7 @@ public enum MissingValues {
                 final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
                 return replaceMissing(values, missing.doubleValue());
             }
+
             @Override
             public String toString() {
                 return "anon ValuesSource.Numeric of [" + super.toString() + "]";
@@ -209,17 +211,19 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
-                    throws IOException {
+            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) throws IOException {
                 SortedSetDocValues values = valuesSource.globalOrdinalsValues(context);
                 return replaceMissing(values, missing);
             }
 
             @Override
             public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
-                return getGlobalMapping(valuesSource.ordinalsValues(context),
-                        valuesSource.globalOrdinalsValues(context),
-                        valuesSource.globalOrdinalsMapping(context), missing);
+                return getGlobalMapping(
+                    valuesSource.ordinalsValues(context),
+                    valuesSource.globalOrdinalsValues(context),
+                    valuesSource.globalOrdinalsMapping(context),
+                    missing
+                );
             }
 
             @Override
@@ -230,8 +234,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedSetDocValues replaceMissing(final SortedSetDocValues values,
-            final BytesRef missing) throws IOException {
+    static SortedSetDocValues replaceMissing(final SortedSetDocValues values, final BytesRef missing) throws IOException {
         final long missingOrd = values.lookupTerm(missing);
         if (missingOrd >= 0) {
             // The value already exists
@@ -242,8 +245,7 @@ public enum MissingValues {
         }
     }
 
-    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values,
-            final long missingOrd) {
+    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values, final long missingOrd) {
         return new AbstractSortedSetDocValues() {
 
             private boolean hasOrds;
@@ -290,8 +292,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd,
-            final BytesRef missingValue) {
+    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd, final BytesRef missingValue) {
         return new AbstractSortedSetDocValues() {
 
             private boolean hasOrds;
@@ -348,8 +349,12 @@ public enum MissingValues {
         };
     }
 
-    static LongUnaryOperator getGlobalMapping(SortedSetDocValues values, SortedSetDocValues globalValues,
-            LongUnaryOperator segmentToGlobalOrd, BytesRef missing) throws IOException {
+    static LongUnaryOperator getGlobalMapping(
+        SortedSetDocValues values,
+        SortedSetDocValues globalValues,
+        LongUnaryOperator segmentToGlobalOrd,
+        BytesRef missing
+    ) throws IOException {
         final long missingGlobalOrd = globalValues.lookupTerm(missing);
         final long missingSegmentOrd = values.lookupTerm(missing);
 

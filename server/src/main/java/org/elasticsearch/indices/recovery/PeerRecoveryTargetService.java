@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -137,9 +138,16 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
+        final Releasable snapshotFileDownloadsPermit = recoverySettings.tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
-        final long recoveryId =
-            onGoingRecoveries.startRecovery(indexShard, sourceNode, snapshotFilesProvider, listener, recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.startRecovery(
+            indexShard,
+            sourceNode,
+            snapshotFilesProvider,
+            listener,
+            recoverySettings.activityTimeout(),
+            snapshotFileDownloadsPermit
+        );
         // we fork off quickly here and go async but this is called from the cluster state applier thread too and that can cause
         // assertions to trip if we executed it on the same thread hence we fork off to the generic threadpool.
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
@@ -266,7 +274,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),
-            startingSeqNo);
+            startingSeqNo,
+            recoveryTarget.hasPermitToDownloadSnapshotFiles()
+        );
         return request;
     }
 
@@ -494,6 +504,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
+
     private ActionListener<Void> createOrFinishListener(final RecoveryRef recoveryRef, final TransportChannel channel,
                                                         final String action, final RecoveryTransportRequest request) {
         return createOrFinishListener(recoveryRef, channel, action, request, nullVal -> TransportResponse.Empty.INSTANCE);
@@ -603,6 +614,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     request.shardId().id()), e);
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
+                // the node is shutting down, we just fail the recovery to release resources
+                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,
+                        "node is shutting down", cause), false);
+                return;
+            }
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
                 onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,

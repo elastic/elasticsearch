@@ -14,8 +14,8 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -73,6 +73,7 @@ public final class DateFieldMapper extends FieldMapper {
     public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER =
         DateFormatter.forPattern("strict_date_optional_time_nanos||epoch_millis");
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+    private final String indexName;
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
@@ -231,6 +232,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<String> nullValue
             = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
         private final Parameter<Boolean> ignoreMalformed;
+        private String indexName;
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
@@ -241,13 +243,14 @@ public final class DateFieldMapper extends FieldMapper {
 
         public Builder(String name, Resolution resolution, DateFormatter dateFormatter,
                        ScriptCompiler scriptCompiler,
-                       boolean ignoreMalformedByDefault, Version indexCreatedVersion) {
+                       boolean ignoreMalformedByDefault, Version indexCreatedVersion, String indexName) {
             super(name);
             this.resolution = resolution;
             this.indexCreatedVersion = indexCreatedVersion;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.ignoreMalformed
                 = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.indexName = indexName;
 
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, index, docValues);
@@ -285,17 +288,18 @@ public final class DateFieldMapper extends FieldMapper {
             return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta);
         }
 
-        private Long parseNullValue(DateFieldType fieldType) {
+        private Long parseNullValue(DateFieldType fieldType, String indexName) {
             if (nullValue.getValue() == null) {
                 return null;
             }
             try {
-                return fieldType.parse(nullValue.getValue());
+                final String fieldName = fieldType.name();
+                return fieldType.parseNullValueWithDeprecation(nullValue.getValue(), fieldName, indexName);
             } catch (Exception e) {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "date_mapper_null_field",
+                    DEPRECATION_LOGGER.critical(DeprecationCategory.MAPPINGS, "date_mapper_null_field",
                         "Error parsing [" + nullValue.getValue()
                         + "] as date in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;
@@ -304,11 +308,12 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DateFieldMapper build(ContentPath contentPath) {
-            DateFieldType ft = new DateFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), docValues.getValue(),
+        public DateFieldMapper build(MapperBuilderContext context) {
+            DateFieldType ft = new DateFieldType(context.buildFullName(name()), index.getValue(), store.getValue(), docValues.getValue(),
                 buildFormatter(), resolution, nullValue.getValue(), scriptValues(), meta.getValue());
-            Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+
+            Long nullTimestamp = parseNullValue(ft, indexName);
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                 copyTo.build(), nullTimestamp, resolution, this);
         }
     }
@@ -316,13 +321,15 @@ public final class DateFieldMapper extends FieldMapper {
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(),
-            ignoreMalformedByDefault, c.indexVersionCreated());
+            ignoreMalformedByDefault, c.indexVersionCreated(),
+            c.getIndexSettings() != null ? c.getIndexSettings().getIndex().getName() : null);
     });
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(),
-            ignoreMalformedByDefault, c.indexVersionCreated());
+            ignoreMalformedByDefault, c.indexVersionCreated(),
+            c.getIndexSettings() != null ? c.getIndexSettings().getIndex().getName() : null);
     });
 
     public static final class DateFieldType extends MappedFieldType {
@@ -378,7 +385,31 @@ public final class DateFieldMapper extends FieldMapper {
 
         // Visible for testing.
         public long parse(String value) {
-            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
+            final Instant instant = getInstant(value);
+            return resolution.convert(instant);
+        }
+
+        public long parseWithDeprecation(String value, String fieldName, String indexName) {
+            final Instant instant = getInstant(value);
+            if (resolution == Resolution.MILLISECONDS && instant.getNano() % 1000000 != 0) {
+                DEPRECATION_LOGGER.warn(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
+                    "You are attempting to store a nanosecond resolution on a field [{}] of type date on index [{}]. " +
+                        "The nanosecond part was lost. Use date_nanos field type.", fieldName, indexName);
+            }
+            return resolution.convert(instant);
+        }
+
+        public long parseNullValueWithDeprecation(String value, String fieldName, String indexName) {
+            final Instant instant = getInstant(value);
+            if (resolution == Resolution.MILLISECONDS && instant.getNano() % 1000000 != 0) {
+                DEPRECATION_LOGGER.warn(DeprecationCategory.MAPPINGS, "date_field_with_nanos",
+                    "You are attempting to set null_value with a nanosecond resolution on a field [{}] of type date on index [{}]. " +
+                        "The nanosecond part was lost. Use date_nanos field type.", fieldName, indexName);
+            }
+            return resolution.convert(instant);
+        }
+        private Instant getInstant(String value) {
+            return DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant();
         }
 
         /**
@@ -671,11 +702,13 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
+        this.indexName = builder.indexName;
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), resolution, null, scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), resolution, null, scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion, indexName)
+            .init(this);
     }
 
     @Override
@@ -700,7 +733,9 @@ public final class DateFieldMapper extends FieldMapper {
             timestamp = nullValue;
         } else {
             try {
-                timestamp = fieldType().parse(dateAsString);
+                final String fieldName = fieldType().name();
+                final String indexName = context.indexSettings().getIndex().getName();
+                timestamp = fieldType().parseWithDeprecation(dateAsString, fieldName, indexName);
             } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());

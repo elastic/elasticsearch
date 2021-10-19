@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -21,16 +19,15 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder.MetricsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +37,9 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * Transforms a rest request in a vector tile request
@@ -59,7 +59,8 @@ class VectorTileRequest {
 
     protected enum GRID_TYPE {
         GRID,
-        POINT;
+        POINT,
+        CENTROID;
 
         private static GRID_TYPE fromString(String type) {
             switch (type.toLowerCase(Locale.ROOT)) {
@@ -67,6 +68,8 @@ class VectorTileRequest {
                     return GRID;
                 case "point":
                     return POINT;
+                case "centroid":
+                    return CENTROID;
                 default:
                     throw new IllegalArgumentException("Invalid grid type [" + type + "]");
             }
@@ -78,11 +81,12 @@ class VectorTileRequest {
         public static final List<FieldAndFormat> FETCH = emptyList();
         public static final Map<String, Object> RUNTIME_MAPPINGS = emptyMap();
         public static final QueryBuilder QUERY = null;
-        public static final AggregatorFactories.Builder AGGS = null;
+        public static final List<MetricsAggregationBuilder<?, ?>> AGGS = emptyList();
         public static final int GRID_PRECISION = 8;
         public static final GRID_TYPE GRID_TYPE = VectorTileRequest.GRID_TYPE.GRID;
         public static final int EXTENT = 4096;
         public static final boolean EXACT_BOUNDS = false;
+        public static final int TRACK_TOTAL_HITS_UP_TO = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     }
 
     private static final ObjectParser<VectorTileRequest, RestRequest> PARSER;
@@ -126,6 +130,15 @@ class VectorTileRequest {
         PARSER.declareString(VectorTileRequest::setGridType, GRID_TYPE_FIELD);
         PARSER.declareInt(VectorTileRequest::setExtent, EXTENT_FIELD);
         PARSER.declareBoolean(VectorTileRequest::setExactBounds, EXACT_BOUNDS_FIELD);
+        PARSER.declareField(VectorTileRequest::setTrackTotalHitsUpTo, (p) -> {
+            XContentParser.Token token = p.currentToken();
+            if (token == XContentParser.Token.VALUE_BOOLEAN
+                || (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(p.text()))) {
+                return p.booleanValue() ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+            } else {
+                return p.intValue();
+            }
+        }, SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD, ObjectParser.ValueType.VALUE);
     }
 
     static VectorTileRequest parseRestRequest(RestRequest restRequest) throws IOException {
@@ -136,8 +149,8 @@ class VectorTileRequest {
             Integer.parseInt(restRequest.param(X_PARAM)),
             Integer.parseInt(restRequest.param(Y_PARAM))
         );
-        if (restRequest.hasContent()) {
-            try (XContentParser contentParser = restRequest.contentParser()) {
+        if (restRequest.hasContentOrSourceParam()) {
+            try (XContentParser contentParser = restRequest.contentOrSourceParamParser()) {
                 PARSER.parse(contentParser, request, restRequest);
             }
         }
@@ -157,6 +170,19 @@ class VectorTileRequest {
         }
         if (restRequest.hasParam(EXACT_BOUNDS_FIELD.getPreferredName())) {
             request.setExactBounds(restRequest.paramAsBoolean(EXACT_BOUNDS_FIELD.getPreferredName(), Defaults.EXACT_BOUNDS));
+        }
+        if (restRequest.hasParam(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName())) {
+            if (Booleans.isBoolean(restRequest.param(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName()))) {
+                if (restRequest.paramAsBoolean(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), true)) {
+                    request.setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE);
+                } else {
+                    request.setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_DISABLED);
+                }
+            } else {
+                request.setTrackTotalHitsUpTo(
+                    restRequest.paramAsInt(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), DEFAULT_TRACK_TOTAL_HITS_UP_TO)
+                );
+            }
         }
         return request;
     }
@@ -181,10 +207,11 @@ class VectorTileRequest {
     private GRID_TYPE gridType = Defaults.GRID_TYPE;
     private int size = Defaults.SIZE;
     private int extent = Defaults.EXTENT;
-    private AggregatorFactories.Builder aggBuilder = Defaults.AGGS;
+    private List<MetricsAggregationBuilder<?, ?>> aggs = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
+    private int trackTotalHitsUpTo = Defaults.TRACK_TOTAL_HITS_UP_TO;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {
         this.indexes = indexes;
@@ -297,23 +324,19 @@ class VectorTileRequest {
         this.size = size;
     }
 
-    public AggregatorFactories.Builder getAggBuilder() {
-        return aggBuilder;
+    public List<MetricsAggregationBuilder<?, ?>> getAggBuilder() {
+        return aggs;
     }
 
     private void setAggBuilder(AggregatorFactories.Builder aggBuilder) {
+        List<MetricsAggregationBuilder<?, ?>> aggs = new ArrayList<>(aggBuilder.count());
         for (AggregationBuilder aggregation : aggBuilder.getAggregatorFactories()) {
-            final String type = aggregation.getType();
-            switch (type) {
-                case MinAggregationBuilder.NAME:
-                case MaxAggregationBuilder.NAME:
-                case AvgAggregationBuilder.NAME:
-                case SumAggregationBuilder.NAME:
-                case CardinalityAggregationBuilder.NAME:
-                    break;
-                default:
-                    // top term and percentile should be supported
-                    throw new IllegalArgumentException("Unsupported aggregation of type [" + type + "]");
+            if (aggregation instanceof MetricsAggregationBuilder<?, ?>) {
+                aggs.add((MetricsAggregationBuilder<?, ?>) aggregation);
+            } else {
+                throw new IllegalArgumentException(
+                    "Unsupported aggregation of type [" + aggregation.getType() + "]." + "Only metric aggregations are supported."
+                );
             }
         }
         for (PipelineAggregationBuilder aggregation : aggBuilder.getPipelineAggregatorFactories()) {
@@ -321,7 +344,7 @@ class VectorTileRequest {
             final String type = aggregation.getType();
             throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + type + "]");
         }
-        this.aggBuilder = aggBuilder;
+        this.aggs = aggs;
     }
 
     public List<SortBuilder<?>> getSortBuilders() {
@@ -343,5 +366,13 @@ class VectorTileRequest {
 
     private void setSortBuilders(List<SortBuilder<?>> sortBuilders) {
         this.sortBuilders = sortBuilders;
+    }
+
+    public int getTrackTotalHitsUpTo() {
+        return trackTotalHitsUpTo;
+    }
+
+    private void setTrackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
     }
 }

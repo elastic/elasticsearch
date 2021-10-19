@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ml.GetTrainedModelsStatsResponse;
@@ -16,21 +15,19 @@ import org.elasticsearch.client.ml.inference.TrainedModelStats;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -65,7 +62,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference\" : \"TRACE\"\n" +
             "    }" +
             "}");
@@ -80,11 +77,11 @@ public class InferenceIngestIT extends ESRestTestCase {
 
     @After
     public void cleanUpData() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
-            "\"transient\" : {\n" +
+            "\"persistent\" : {\n" +
             "        \"logger.org.elasticsearch.xpack.ml.inference\" : null\n" +
             "    }" +
             "}");

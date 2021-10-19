@@ -372,7 +372,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // We need to recover the replica async to release the main thread for the following task to fill missing
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, recoveryListener) {});
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, null, recoveryListener) {});
                 }
             }
             if (recoveryFuture != null) {
@@ -642,7 +642,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
             .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
-        try (Translog.Snapshot snapshot = leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+        try (Translog.Snapshot snapshot =
+                 leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operationsOnLeader.put(op.seqNo(), op);
@@ -656,7 +657,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
                 .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
-            try (Translog.Snapshot snapshot = followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
+            try (Translog.Snapshot snapshot =
+                     followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     Translog.Operation leaderOp = operationsOnLeader.get(op.seqNo());

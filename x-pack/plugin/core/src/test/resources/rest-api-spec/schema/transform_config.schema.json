@@ -180,6 +180,12 @@
           "title": "docs per second",
           "type": "number"
         },
+        "align_checkpoints": {
+          "$id": "#root/settings/align_checkpoints",
+          "title": "align checkpoints",
+          "type": "boolean",
+          "default": true
+        },
         "max_page_search_size": {
           "$id": "#root/settings/max_page_search_size",
           "title": "max page search size",
@@ -187,6 +193,11 @@
           "default": 500
         }
       }
+    },
+    "_meta": {
+      "$id": "#root/_meta",
+      "title": "Metadata",
+      "type": "object"
     },
     "retention_policy": {
       "$id": "#root/retention_policy",

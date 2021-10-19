@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -28,12 +29,14 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
@@ -75,7 +78,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
-        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors, new FieldPermissionsCache(Settings.EMPTY), null, RESTRICTED_INDICES_AUTOMATON, future);
         Role roles = future.actionGet();
         Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
@@ -87,21 +91,23 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetadata() {
-        Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role").add(IndexPrivilege.ALL, "*").build();
         Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
-        Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "user_role")
+            .add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
         Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRestrictedForDefaultRole() {
-        Role role = Role.builder(randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON,
+                    randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
                 .add(IndexPrivilege.ALL, "*")
                 .cluster(Set.of("all"), Set.of())
                 .build();
@@ -128,7 +134,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testSecurityIndicesAreNotRemovedFromUnrestrictedRole() {
-        Role role = Role.builder(randomAlphaOfLength(8))
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, randomAlphaOfLength(8))
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, "*")
                 .cluster(Set.of("all"), Set.of())
                 .build();
@@ -190,7 +196,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
-        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors, new FieldPermissionsCache(Settings.EMPTY), null, RESTRICTED_INDICES_AUTOMATON, future);
         Role roles = future.actionGet();
         Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
@@ -235,10 +242,11 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
-        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors, new FieldPermissionsCache(Settings.EMPTY), null, RESTRICTED_INDICES_AUTOMATON, future);
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[]{"a*"});
-        AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(null, request, SearchAction.NAME);
+        AuthorizationEngine.RequestInfo requestInfo = getRequestInfo( request, SearchAction.NAME);
         Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, requestInfo, metadata.getIndicesLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
@@ -253,6 +261,16 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public static AuthorizationEngine.RequestInfo getRequestInfo(TransportRequest request, String action) {
-        return new AuthorizationEngine.RequestInfo(null, request, action);
+        final Authentication.RealmRef realm = new Authentication.RealmRef(
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(4),
+            "node0" + randomIntBetween(1, 9)
+        );
+        return new AuthorizationEngine.RequestInfo(
+            new Authentication(new User(randomAlphaOfLength(8)), realm, realm),
+            request,
+            action,
+            null
+        );
     }
 }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -28,20 +29,24 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
+import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -157,6 +162,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         TrainedModelDeploymentTask loadingTask;
         logger.trace("attempting to load all currently queued models");
         // NOTE: As soon as this method exits, the timer for the scheduler starts ticking
+        Deque<TrainedModelDeploymentTask> loadingToRetry = new ArrayDeque<>();
         while ((loadingTask = loadingModels.poll()) != null) {
             final String modelId = loadingTask.getModelId();
             if (loadingTask.isStopped()) {
@@ -171,17 +177,24 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             }
             logger.trace(() -> new ParameterizedMessage("[{}] attempting to load model", modelId));
             final PlainActionFuture<TrainedModelDeploymentTask> listener = new PlainActionFuture<>();
-            deploymentManager.startDeployment(loadingTask, listener);
             try {
+                deploymentManager.startDeployment(loadingTask, listener);
                 // This needs to be synchronous here in the utility thread to keep queueing order
                 TrainedModelDeploymentTask deployedTask = listener.actionGet();
                 // kicks off asynchronous cluster state update
                 handleLoadSuccess(deployedTask);
             } catch (Exception ex) {
-                // kicks off asynchronous cluster state update
-                handleLoadFailure(loadingTask, ex);
+                if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
+                    handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(loadingTask.getModelId()));
+                } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
+                    // A search phase execution failure should be retried, push task back to the queue
+                    loadingToRetry.add(loadingTask);
+                } else {
+                    handleLoadFailure(loadingTask, ex);
+                }
             }
         }
+        loadingModels.addAll(loadingToRetry);
     }
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason) {
@@ -225,8 +238,16 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         );
     }
 
-    public void infer(TrainedModelDeploymentTask task, String input, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        deploymentManager.infer(task, input, timeout, listener);
+    public void infer(TrainedModelDeploymentTask task,
+                      InferenceConfig config,
+                      Map<String, Object> doc,
+                      TimeValue timeout,
+                      ActionListener<InferenceResults> listener) {
+        deploymentManager.infer(task, config, doc, timeout, listener);
+    }
+
+    public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
+        return deploymentManager.getStats(task);
     }
 
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {
@@ -259,9 +280,11 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 RoutingStateAndReason routingStateAndReason = trainedModelAllocation.getNodeRoutingTable().get(currentNode);
                 // Add new models to start loading
                 if (routingStateAndReason != null
-                    // periodic retries should be handled in a separate thread think
-                    && routingStateAndReason.getState().equals(RoutingState.STARTING)
+                    // periodic retries of `failed` should be handled in a separate process
+                    && routingStateAndReason.getState().isAnyOf(RoutingState.STARTING, RoutingState.STARTED)
                     // This means we don't already have a task and should attempt creating one and starting the model loading
+                    // If we don't have a task but are STARTED, this means the cluster state had a started allocation,
+                    //   the node crashed and then started again
                     && modelIdToTask.containsKey(trainedModelAllocation.getTaskParams().getModelId()) == false
                     // If we are in reset mode, don't start loading a new model on this node.
                     && isResetMode == false) {
@@ -401,12 +424,27 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 task.stoppedReason().orElse("_unknown_")
             ));
         }
-        // TODO: Do we want to remove from the modelIdToTask map? This would cause it to be reloaded by state updates on INITIALIZING
-        modelIdToTask.remove(task.getModelId());
+        // TODO: Do we want to stop the task? This would cause it to be reloaded by state updates on INITIALIZING
+        // We should stop the local task so that future task actions won't get routed to the older one.
+        Runnable stopTask = () -> stopDeploymentAsync(task, "model failed to load; reason [" + ex.getMessage() + "]",
+            ActionListener.wrap(r -> {}, e -> {}));
         updateStoredState(
             task.getModelId(),
             new RoutingStateAndReason(RoutingState.FAILED, ExceptionsHelper.unwrapCause(ex).getMessage()),
-            ActionListener.wrap(r -> {}, e -> {})
+            ActionListener.wrap(r -> stopTask.run(), e -> stopTask.run())
+        );
+    }
+
+    public void failAllocation(TrainedModelDeploymentTask task, String reason) {
+        updateStoredState(
+            task.getModelId(),
+            new RoutingStateAndReason(RoutingState.FAILED, reason),
+            ActionListener.wrap(r -> logger.debug(
+                    new ParameterizedMessage("[{}] Successfully updating allocation state to [{}] with reason [{}]",
+                        task.getModelId(), RoutingState.FAILED, reason))
+            , e -> logger.error(new ParameterizedMessage("[{}] Error while updating allocation state to [{}] with reason [{}]",
+                        task.getModelId(), RoutingState.FAILED, reason), e)
+            )
         );
     }
 }

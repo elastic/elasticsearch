@@ -169,7 +169,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new KeywordFieldMapper.Builder("field").build(new ContentPath()).fieldType();
+        MappedFieldType mapper = new KeywordFieldMapper.Builder("field")
+            .build(MapperBuilderContext.ROOT)
+            .fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));
@@ -179,7 +181,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
             .ignoreAbove(4)
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
@@ -187,7 +189,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(), ScriptCompiler.NONE)
             .normalizer("lowercase")
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
@@ -195,7 +197,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field")
             .nullValue("NULL")
-            .build(new ContentPath())
+            .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }

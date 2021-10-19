@@ -39,7 +39,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
         return newInstance(instance.getKey(), instance.getNextStepKey());
     }
 
-    public final void testNotAFollowerIndex() {
+    public final void testNotAFollowerIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(1)
@@ -48,7 +48,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
 
         T step = newInstance(randomStepKey(), randomStepKey());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, null, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
         Mockito.verifyZeroInteractions(client);
     }
 

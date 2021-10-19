@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -71,6 +73,7 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
+    public static final Version MIN_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
 
     // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
     // can only be done if the master node is on or after that version.
@@ -90,6 +93,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final XPackLicenseState licenseState;
 
     private volatile ClusterState clusterState;
 
@@ -99,13 +103,15 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                           DatafeedConfigProvider datafeedConfigProvider,
                                           MlMemoryTracker memoryTracker,
                                           Client client,
-                                          IndexNameExpressionResolver expressionResolver) {
+                                          IndexNameExpressionResolver expressionResolver,
+                                          XPackLicenseState licenseState) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -204,7 +210,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         jobTask.setAutodetectProcessManager(autodetectProcessManager);
         JobTaskState jobTaskState = (JobTaskState) state;
         JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
-        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+        ActionListener<Boolean> checkSnapshotVersionListener = ActionListener.wrap(
             mappingsUpdate -> jobResultsProvider.setRunningForecastsToFailed(params.getJobId(), ActionListener.wrap(
                 r -> runJob(jobTask, jobState, params),
                 e -> {
@@ -216,11 +222,22 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             )),
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
-                    jobTask.markAsFailed(e);
+                    logger.error(new ParameterizedMessage("[{}] Failed verifying snapshot version", params.getJobId()), e);
+                    failTask(jobTask, "failed snapshot verification; cause: " + e.getMessage());
                 }
             }
         );
+
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            mappingsUpdate -> verifyCurrentSnapshotVersion(params.getJobId(), checkSnapshotVersionListener),
+            e -> {
+                if (autodetectProcessManager.isNodeDying() == false) {
+                    logger.error(new ParameterizedMessage("[{}] Failed to update results mapping", params.getJobId()), e);
+                    failTask(jobTask, "failed to update results mapping; cause: " + e.getMessage());
+                }
+            }
+        );
+
         // We need to update the results index as we MAY update the current forecast results, setting the running forcasts to failed
         // This writes to the results index, which might need updating
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -266,7 +283,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                         response -> openJob(jobTask),
                         e -> {
                             if (autodetectProcessManager.isNodeDying() == false) {
-                                jobTask.markAsFailed(e);
+                                logger.error(new ParameterizedMessage("[{}] failed to revert to current snapshot", jobTask.getJobId()), e);
+                                failTask(jobTask, "failed to revert to current snapshot");
                             }
                         }
                     ));
@@ -276,12 +294,25 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             },
             e -> {
                 if (autodetectProcessManager.isNodeDying() == false) {
-                    jobTask.markAsFailed(e);
+                    logger.error(new ParameterizedMessage("[{}] failed to search for associated datafeed", jobTask.getJobId()), e);
+                    failTask(jobTask, "failed to search for associated datafeed");
                 }
             }
         );
 
         hasRunningDatafeedTask(jobTask.getJobId(), hasRunningDatafeedTaskListener);
+    }
+
+    private void failTask(JobTask jobTask, String reason) {
+        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
+        jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(
+            r -> logger.debug(() -> new ParameterizedMessage("[{}] updated task state to failed", jobTask.getJobId())),
+            e -> {
+                logger.error(new ParameterizedMessage("[{}] error while setting task state to failed; marking task as failed",
+                    jobTask.getJobId()), e);
+                jobTask.markAsFailed(e);
+            }
+        ));
     }
 
     private boolean isMasterNodeVersionOnOrAfter(Version version) {
@@ -306,6 +337,62 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         );
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
+    }
+
+    private void verifyCurrentSnapshotVersion(String jobId, ActionListener<Boolean> listener) {
+        ActionListener<GetJobsAction.Response> jobListener = ActionListener.wrap(
+            jobResponse -> {
+                List<Job> jobPage = jobResponse.getResponse().results();
+                // We requested a single concrete job so if it didn't exist we would get an error
+                assert jobPage.size() == 1;
+                String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
+                if (jobSnapshotId == null) {
+                    listener.onResponse(true);
+                    return;
+                }
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    GetModelSnapshotsAction.INSTANCE,
+                    new GetModelSnapshotsAction.Request(jobId, jobSnapshotId),
+                    ActionListener.wrap(
+                        snapshot -> {
+                            if (snapshot.getPage().count() == 0) {
+                                listener.onResponse(true);
+                                return;
+                            }
+                            assert snapshot.getPage().results().size() == 1;
+                            ModelSnapshot snapshotObj = snapshot.getPage().results().get(0);
+                            if (snapshotObj.getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
+                                listener.onResponse(true);
+                                return;
+                            }
+                            listener.onFailure(
+                                ExceptionsHelper.serverError(
+                                    "[{}] job snapshot [{}] has min version before [{}], " +
+                                        "please revert to a newer model snapshot or reset the job",
+                                    jobId,
+                                    jobSnapshotId,
+                                    MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
+                                )
+                            );
+                        },
+                        snapshotFailure -> {
+                            if (ExceptionsHelper.unwrapCause(snapshotFailure) instanceof ResourceNotFoundException) {
+                                listener.onResponse(true);
+                                return;
+                            }
+                            listener.onFailure(
+                                ExceptionsHelper.serverError("[{}] failed finding snapshot [{}]", snapshotFailure, jobId, jobSnapshotId)
+                            );
+                        }
+                    )
+                );
+            },
+            error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobId))
+        );
+        GetJobsAction.Request request = new GetJobsAction.Request(jobId).masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
     }
 
     private void revertToCurrentSnapshot(String jobId, ActionListener<Boolean> listener) {
@@ -333,6 +420,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     request.setForce(true);
                     request.setDeleteInterveningResults(true);
                     request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, ActionListener.wrap(
                         response -> listener.onResponse(true),
                         listener::onFailure
@@ -378,6 +466,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 if (unwrapped instanceof DocumentMissingException || unwrapped instanceof ResourceNotFoundException) {
                                     jobTask.markAsCompleted();
                                 } else if (autodetectProcessManager.isNodeDying() == false) {
+                                    // In this case we prefer to mark the task as failed, which means the job
+                                    // will appear closed. The reason is that the job closed successfully and
+                                    // we just failed to update some fields like the finish time. It is preferable
+                                    // to let the job close than setting it to failed.
                                     jobTask.markAsFailed(e);
                                 }
                             }
@@ -386,7 +478,8 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobTask.markAsCompleted();
                 }
             } else if (autodetectProcessManager.isNodeDying() == false) {
-                jobTask.markAsFailed(e2);
+                logger.error(new ParameterizedMessage("[{}] failed to open job", jobTask.getJobId()), e2);
+                failTask(jobTask, "failed to open job");
             }
         });
     }
@@ -395,7 +488,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                  Map<String, String> headers) {
-        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+        return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers, licenseState);
     }
 
     public static Optional<ElasticsearchException> checkAssignmentState(PersistentTasksCustomMetadata.Assignment assignment,

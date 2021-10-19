@@ -1,0 +1,54 @@
+{
+  "xpack-ml.start_datafeed":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html",
+      "description":"Starts one or more datafeeds."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/datafeeds/{datafeed_id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to start"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "start":{
+        "type":"string",
+        "required":false,
+        "description":"The start time from where the datafeed should begin"
+      },
+      "end":{
+        "type":"string",
+        "required":false,
+        "description":"The end time when the datafeed should stop. When not set, the datafeed continues in real time"
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until a datafeed has started. Default to 20 seconds"
+      }
+    },
+    "body":{
+      "description":"The start datafeed parameters"
+    }
+  }
+}

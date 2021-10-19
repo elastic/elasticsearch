@@ -29,6 +29,7 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -61,7 +62,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
@@ -310,7 +310,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(getRSAKeySize(certAndKey.v1().getPublicKey()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
         assertThat(getRSAKeySize(certAndKey.v2()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
 
-        final X509Certificate caCert = readPemCertificate(caCertPath);
+        final X509Certificate caCert = CertParsingUtils.readX509Certificate(caCertPath);
         verifyChain(certAndKey.v1(), caCert);
 
         // Verify the README
@@ -800,14 +800,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return new Tuple<>((X509Certificate) cert, (PrivateKey) key);
     }
 
-    private X509Certificate readPemCertificate(Path caCertPath) throws CertificateException, IOException {
-        final Certificate[] certificates = CertParsingUtils.readCertificates(List.of(caCertPath));
-        assertThat(certificates, arrayWithSize(1));
-        final Certificate cert = certificates[0];
-        assertThat(cert, instanceOf(X509Certificate.class));
-        return (X509Certificate) cert;
-    }
-
     private <T> T readPemObject(Path path, String expectedType,
                                 CheckedFunction<? super byte[], T, IOException> factory) throws IOException {
         assertThat(path, isRegularFile());
@@ -822,7 +814,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         KeyStore ks = KeyStore.getInstance(type);
         ks.load(null);
         if (randomBoolean()) {
-            final X509Certificate cert = readPemCertificate(getDataPath("ca.crt"));
+            final X509Certificate cert = CertParsingUtils.readX509Certificate(getDataPath("ca.crt"));
             ks.setCertificateEntry(randomAlphaOfLength(4), cert);
         }
         try (OutputStream out = Files.newOutputStream(path)) {

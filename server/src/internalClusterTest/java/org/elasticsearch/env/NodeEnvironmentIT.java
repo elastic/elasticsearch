@@ -10,15 +10,15 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,8 +26,10 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -95,15 +97,15 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
-    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path, Exception> onNodeStopped) {
+    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path[], Exception> onNodeStopped) {
         internalCluster().startNode();
-        final Path dataPath = internalCluster().getInstance(NodeEnvironment.class).nodeDataPath();
+        final Path[] dataPaths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
         return expectThrows(IllegalStateException.class,
             () -> internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     try {
-                        onNodeStopped.accept(dataPath);
+                        onNodeStopped.accept(dataPaths);
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
@@ -136,10 +138,14 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         // simulate older data path layout by moving data under "nodes/0" folder
-        final List<Path> dataPaths = List.of(PathUtils.get(Environment.PATH_DATA_SETTING.get(dataPathSettings)));
+        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings)
+            .stream().map(PathUtils::get).collect(Collectors.toList());
         dataPaths.forEach(path -> {
-                final Path targetPath = path.resolve("nodes").resolve("0");
+                final Path nodesPath = path.resolve("nodes");
+                final Path targetPath = nodesPath.resolve("0");
                 try {
+                    assertTrue(Files.isRegularFile(nodesPath));
+                    Files.delete(nodesPath);
                     Files.createDirectories(targetPath);
 
                     try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
@@ -192,12 +198,46 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         }
 
         // check that upgrade works
-        dataPaths.forEach(path -> assertTrue(Files.exists(path.resolve("nodes"))));
+        dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);
-        dataPaths.forEach(path -> assertFalse(Files.exists(path.resolve("nodes"))));
+        dataPaths.forEach(path -> assertTrue(Files.isRegularFile(path.resolve("nodes"))));
         assertEquals(nodeId, client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+    }
+
+    public void testFailsToStartOnDataPathsFromMultipleNodes() throws IOException {
+        final List<String> nodes = internalCluster().startNodes(2);
+        ensureStableCluster(2);
+
+        final List<String> node0DataPaths = Environment.PATH_DATA_SETTING.get(internalCluster().dataPathSettings(nodes.get(0)));
+        final List<String> node1DataPaths = Environment.PATH_DATA_SETTING.get(internalCluster().dataPathSettings(nodes.get(1)));
+
+        final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
+        allDataPaths.addAll(node1DataPaths);
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+            () -> PersistedClusterStateService.nodeMetadata(allDataPaths.stream().map(PathUtils::get).toArray(Path[]::new)));
+
+        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
+
+        illegalStateException = expectThrows(IllegalStateException.class,
+            () -> internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), allDataPaths)));
+
+        assertThat(illegalStateException.getMessage(), containsString("unexpected node ID in metadata"));
+
+        final List<String> node0DataPathsPlusOne = new ArrayList<>(node0DataPaths);
+        node0DataPathsPlusOne.add(createTempDir().toString());
+        internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), node0DataPathsPlusOne));
+
+        final List<String> node1DataPathsPlusOne = new ArrayList<>(node1DataPaths);
+        node1DataPathsPlusOne.add(createTempDir().toString());
+        internalCluster().startNode(Settings.builder().putList(Environment.PATH_DATA_SETTING.getKey(), node1DataPathsPlusOne));
+
+        ensureStableCluster(2);
     }
 }

@@ -78,4 +78,15 @@ and will be removed in a future major version.
 *Impact* +
 Use {ref}/ml-apis.html#ml-api-datafeed-endpoint[{dfeeds}] instead.
 ====
+
+.The `job_id` property of the Update {dfeeds} API has been removed.
+[%collapsible]
+====
+*Details* +
+The ability to update a `job_id` in a {dfeed} was deprecated in 7.3.0. and is 
+removed in 8.0.
+
+*Impact* +
+It is not possible to move {dfeeds} between {anomaly-jobs}.
+====
 // end::notable-breaking-changes[]

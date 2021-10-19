@@ -17,6 +17,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -74,8 +75,12 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
 
     @Override
     public ScriptDocValues<?> getScriptValues() {
-        // TODO: add support for scripts
-        throw new UnsupportedOperationException("Using unsigned_long in scripts is currently not supported!");
+        return new UnsignedLongScriptDocValues(getLongValues());
+    }
+
+    @Override
+    public DocValuesField<?> getScriptField(String name) {
+        return new UnsignedLongDocValuesField(getLongValues(), name);
     }
 
     @Override

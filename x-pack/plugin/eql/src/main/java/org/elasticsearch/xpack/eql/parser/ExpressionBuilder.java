@@ -12,7 +12,6 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
@@ -47,7 +46,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -58,6 +57,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.eql.util.StringUtils.toLikePattern;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -145,7 +145,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             case EqlBaseParser.EQ:
                 return new Equals(source, left, right, zoneId);
             case EqlBaseParser.NEQ:
-                return new NotEquals(source, left, right, zoneId);
+                return new Not(source, new Equals(source, left, right, zoneId));
             case EqlBaseParser.LT:
                 return new LessThan(source, left, right, zoneId);
             case EqlBaseParser.LTE:
@@ -176,12 +176,8 @@ public class ExpressionBuilder extends IdentifierBuilder {
                 return combineExpressions(predicate.constant(), c -> new InsensitiveWildcardEquals(source, expr, c, zoneId));
             case EqlBaseParser.LIKE:
             case EqlBaseParser.LIKE_INSENSITIVE:
-                return new Wildcard(
-                    source,
-                    expr,
-                    expressions(predicate.constant()),
-                    predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE
-                );
+                return combineExpressions(predicate.constant(), e -> new Like(source, expr,
+                    toLikePattern(e.fold().toString()), predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE));
             case EqlBaseParser.REGEX:
             case EqlBaseParser.REGEX_INSENSITIVE:
                 return new Match(

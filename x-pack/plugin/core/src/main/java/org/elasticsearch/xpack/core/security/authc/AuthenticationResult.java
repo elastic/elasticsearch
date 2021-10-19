@@ -80,7 +80,6 @@ public final class AuthenticationResult {
      * @param user The user that was authenticated. Cannot be {@code null}.
      */
     public static AuthenticationResult success(User user) {
-        Objects.requireNonNull(user);
         return success(user, null);
     }
 
@@ -90,6 +89,7 @@ public final class AuthenticationResult {
      * @see #success(User)
      */
     public static AuthenticationResult success(User user, @Nullable Map<String, Object> metadata) {
+        Objects.requireNonNull(user);
         return new AuthenticationResult(Status.SUCCESS, user, null, null, metadata);
     }
 
@@ -132,6 +132,20 @@ public final class AuthenticationResult {
      */
     public static AuthenticationResult terminate(String message, @Nullable Exception cause) {
         return new AuthenticationResult(Status.TERMINATE, null, message, cause, null);
+    }
+
+    /**
+     * Creates an {@code AuthenticationResult} that indicates that the realm attempted to handle the authentication request, was
+     * unsuccessful and wants to terminate this authentication request.
+     * The reason for the failure is given in the supplied message.
+     * <p>
+     * The {@link #getStatus() status} is set to {@link Status#TERMINATE}.
+     * </p><p>
+     * The {@link #getUser() user} is not populated.
+     * </p>
+     */
+    public static AuthenticationResult terminate(String message) {
+        return terminate(message, null);
     }
 
     public boolean isAuthenticated() {

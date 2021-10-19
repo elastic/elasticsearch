@@ -30,7 +30,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -108,6 +108,7 @@ public class StoreRecoveryTests extends ESTestCase {
         assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
+        assertThat(userData.get(Engine.ES_VERSION), equalTo(Version.CURRENT.toString()));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
             assertEquals("all sources must be flush",
                 info.info.getDiagnostics().get("source"), "flush");
@@ -195,11 +196,15 @@ public class StoreRecoveryTests extends ESTestCase {
             BytesRef ref;
             while((ref = iterator.next()) != null) {
                 String value = ref.utf8ToString();
-                assertEquals("value has wrong shards: " + value, targetShardId, OperationRouting.generateShardId(metadata, value, null));
+                assertEquals(
+                    "value has wrong shards: " + value,
+                    targetShardId,
+                    IndexRouting.fromIndexMetadata(metadata).getShard(value, null)
+                );
             }
             for (int i = 0; i < numDocs; i++) {
                 ref = new BytesRef(Integer.toString(i));
-                int shardId = OperationRouting.generateShardId(metadata, ref.utf8ToString(), null);
+                int shardId = IndexRouting.fromIndexMetadata(metadata).getShard(ref.utf8ToString(), null);
                 if (shardId == targetShardId) {
                     assertTrue(ref.utf8ToString() + " is missing", terms.iterator().seekExact(ref));
                 } else {

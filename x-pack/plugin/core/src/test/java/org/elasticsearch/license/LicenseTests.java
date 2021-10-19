@@ -13,9 +13,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.hamcrest.Matchers;
@@ -24,7 +24,7 @@ import java.nio.BufferUnderflowException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
+import static org.elasticsearch.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -154,10 +154,13 @@ public class LicenseTests extends ESTestCase {
         for (License.LicenseType type : License.LicenseType.values()) {
             final License license1 = randomLicense(type)
                 // We need a signature that parses correctly, but it doesn't need to verify
-                .signature("AAAABQAAAA2MUoEqXb9K9Ie5d6JJAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAAwVZKGAmDELUlS5PScBkhQsZa" +
-                    "DaQTtJ4ZP5EnZ/nLpmCt9Dj7d/FRsgMtHmSJLrr2CdrIo4Vx5VuhmbwzZvXMttLz2lrJzG7770PX3TnC9e7F9GdnE9ec0FP2U0ZlLOBOtPuirX0q+j" +
-                    "6GfB+DLyE5D+Lo1NQ3eLJGvbd3DBYPWJxkb+EBVHczCH2OrIEVWnN/TafmkdZCPX5PcultkNOs3j7d3s7b51EXHKoye8UTcB/RGmzZwMah+E6I/VJk" +
-                    "qu7UHL8bB01wJeqo6WxI4LC/9+f5kpmHrUu3CHe5pHbmMGDk7O6/cwt1pw/hnJXKIFCi36IGaKcHLgORxQdN0uzE=")
+                .signature(
+                    "AAAABQAAAA2MUoEqXb9K9Ie5d6JJAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAAwVZKGAmDELUlS5PScBkhQsZa"
+                        + "DaQTtJ4ZP5EnZ/nLpmCt9Dj7d/FRsgMtHmSJLrr2CdrIo4Vx5VuhmbwzZvXMttLz2lrJzG7770PX3TnC9e7F9GdnE9ec0FP2U0ZlL"
+                        + "OBOtPuirX0q+j6GfB+DLyE5D+Lo1NQ3eLJGvbd3DBYPWJxkb+EBVHczCH2OrIEVWnN/TafmkdZCPX5PcultkNOs3j7d3s7b51EXHK"
+                        + "oye8UTcB/RGmzZwMah+E6I/VJkqu7UHL8bB01wJeqo6WxI4LC/9+f5kpmHrUu3CHe5pHbmMGDk7O6/cwt1pw/hnJXKIFCi36IGaKc"
+                        + "HLgORxQdN0uzE="
+                )
                 .build();
             XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION,
                 Strings.toString(license1));
@@ -176,10 +179,15 @@ public class LicenseTests extends ESTestCase {
 
     public void testSerializationOfLicenseForEveryLicenseType() throws Exception {
         for (License.LicenseType type : License.LicenseType.values()) {
-            final String signature = randomBoolean() ? null : "AAAABQAAAA2MUoEqXb9K9Ie5d6JJAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEM" +
-                "hm4jAAABAAAwVZKGAmDELUlS5PScBkhQsZaDaQTtJ4ZP5EnZ/nLpmCt9Dj7d/FRsgMtHmSJLrr2CdrIo4Vx5VuhmbwzZvXMttLz2lrJzG7770PX3TnC9e7" +
-                "F9GdnE9ec0FP2U0ZlLOBOtPuirX0q+j6GfB+DLyE5D+Lo1NQ3eLJGvbd3DBYPWJxkb+EBVHczCH2OrIEVWnN/TafmkdZCPX5PcultkNOs3j7d3s7b51EXH" +
-                "Koye8UTcB/RGmzZwMah+E6I/VJkqu7UHL8bB01wJeqo6WxI4LC/9+f5kpmHrUu3CHe5pHbmMGDk7O6/cwt1pw/hnJXKIFCi36IGaKcHLgORxQdN0uzE=";
+            final String signature = randomBoolean()
+                ? null
+                : "AAAABQAAAA2MUoEqXb9K9Ie5d6JJAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEM"
+                    + "hm4jAAABAAAwVZKGAmDELUlS5PScBkhQsZaDaQTtJ4ZP5EnZ/nLpmCt9Dj7d/FRsgMtH"
+                    + "mSJLrr2CdrIo4Vx5VuhmbwzZvXMttLz2lrJzG7770PX3TnC9e7F9GdnE9ec0FP2U0ZlL"
+                    + "OBOtPuirX0q+j6GfB+DLyE5D+Lo1NQ3eLJGvbd3DBYPWJxkb+EBVHczCH2OrIEVWnN/T"
+                    + "afmkdZCPX5PcultkNOs3j7d3s7b51EXHKoye8UTcB/RGmzZwMah+E6I/VJkqu7UHL8bB"
+                    + "01wJeqo6WxI4LC/9+f5kpmHrUu3CHe5pHbmMGDk7O6/cwt1pw/hnJXKIFCi36IGaKcHL"
+                    + "gORxQdN0uzE=";
             final int version;
             if (type == License.LicenseType.ENTERPRISE) {
                 version = randomIntBetween(License.VERSION_ENTERPRISE, License.VERSION_CURRENT);

@@ -75,7 +75,8 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         }));
 
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions().unreleasedInfo(Version.fromString(distribution.getVersion()));
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions()
+                .unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
                 if (distribution.getBundledJdk() == false) {
                     throw new GradleException(
@@ -160,6 +161,12 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_IRONBANK) {
             return projectName + "ironbank-docker" + archString + "-export";
+        }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD) {
+            return projectName + "cloud-docker" + archString + "-export";
+        }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS) {
+            return projectName + "cloud-ess-docker" + archString + "-export";
         }
         return projectName + distribution.getType().getName();
     }

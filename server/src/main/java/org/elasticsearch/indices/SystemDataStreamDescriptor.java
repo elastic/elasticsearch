@@ -8,13 +8,18 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
 /**
  * Describes a {@link DataStream} that is reserved for use by a system component. The data stream will be managed by the system and also
@@ -29,6 +34,7 @@ public class SystemDataStreamDescriptor {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
     private final ExecutorNames executorNames;
+    private final CharacterRunAutomaton characterRunAutomaton;
 
     /**
      * Creates a new descriptor for a system data descriptor
@@ -70,10 +76,22 @@ public class SystemDataStreamDescriptor {
         this.executorNames = Objects.nonNull(executorNames)
             ? executorNames
             : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
+
+        this.characterRunAutomaton = new CharacterRunAutomaton(
+            buildAutomaton(backingIndexPatternForDataStream(this.dataStreamName)));
     }
 
     public String getDataStreamName() {
         return dataStreamName;
+    }
+
+    /**
+     * Retrieve backing indices for this system data stream
+     * @param metadata Metadata in which to look for indices
+     * @return List of names of backing indices
+     */
+    public List<String> getBackingIndexNames(Metadata metadata) {
+        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).collect(Collectors.toUnmodifiableList());
     }
 
     public String getDescription() {
@@ -89,7 +107,11 @@ public class SystemDataStreamDescriptor {
     }
 
     public String getBackingIndexPattern() {
-        return DataStream.BACKING_INDEX_PREFIX + getDataStreamName() + "-*";
+        return backingIndexPatternForDataStream(getDataStreamName());
+    }
+
+    private static String backingIndexPatternForDataStream(String dataStream) {
+        return DataStream.BACKING_INDEX_PREFIX + dataStream + "-*";
     }
 
     public List<String> getAllowedElasticProductOrigins() {

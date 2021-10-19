@@ -17,10 +17,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -77,10 +77,10 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
-            IndexMetadata rolledIndexMeta = dataStreamAbstraction.getWriteIndex();
-            if (rolledIndexMeta == null) {
+            if (dataStreamAbstraction.getWriteIndex() == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
+            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex() );
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -93,26 +93,27 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
             assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
-            IndexMetadata aliasWriteIndex = aliasAbstraction.getWriteIndex();
+            Index aliasWriteIndex = aliasAbstraction.getWriteIndex();
             if (aliasWriteIndex != null) {
-                rolledIndexName = aliasWriteIndex.getIndex().getName();
-                waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
+                IndexMetadata writeIndexImd = metadata.index(aliasWriteIndex);
+                rolledIndexName = writeIndexImd.getIndex().getName();
+                waitForActiveShardsSettingValue = writeIndexImd.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
             } else {
-                List<IndexMetadata> indices = aliasAbstraction.getIndices();
+                List<Index> indices = aliasAbstraction.getIndices();
                 int maxIndexCounter = -1;
-                IndexMetadata rolledIndexMeta = null;
-                for (IndexMetadata indexMetadata : indices) {
-                    int indexNameCounter = parseIndexNameCounter(indexMetadata.getIndex().getName());
+                Index tmpRolledIndex = null;
+                for (Index i : indices) {
+                    int indexNameCounter = parseIndexNameCounter(i.getName());
                     if (maxIndexCounter < indexNameCounter) {
                         maxIndexCounter = indexNameCounter;
-                        rolledIndexMeta = indexMetadata;
+                        tmpRolledIndex = i;
                     }
                 }
-                if (rolledIndexMeta == null) {
+                if (tmpRolledIndex == null) {
                     return getErrorResultOnNullMetadata(getKey(), index);
                 }
-                rolledIndexName = rolledIndexMeta.getIndex().getName();
-                waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
+                rolledIndexName = tmpRolledIndex.getName();
+                waitForActiveShardsSettingValue = metadata.index(rolledIndexName).getSettings().get("index.write.wait_for_active_shards");
             }
         }
 

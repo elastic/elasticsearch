@@ -441,7 +441,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             } else {
                 // remove node
                 if (state.nodes().getDataNodes().size() > 3) {
-                    DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(DiscoveryNode.class));
+                    DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values());
                     if (discoveryNode.equals(state.nodes().getMasterNode()) == false) {
                         state = cluster.removeNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);

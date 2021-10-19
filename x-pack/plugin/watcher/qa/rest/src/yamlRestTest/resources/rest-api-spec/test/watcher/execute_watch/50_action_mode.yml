@@ -71,3 +71,37 @@ teardown:
   - match: { watch_record.result.actions.0.id: "logging" }
   - match: { watch_record.result.actions.0.status: "simulated" }
 
+---
+"Test simulate index action":
+  - do:
+      watcher.execute_watch:
+        body: >
+          {
+            "watch": {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "actions": {
+                "index_payload" : {
+                  "transform": { "script": "return ['_doc':[['_id':'the-id','_index':'the-index','a':'b']]]"},
+                  "index" : {}
+                }
+              }
+            },
+            "action_modes" : {
+              "_all" : "simulate"
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.actions.0.id: "index_payload" }
+  - match: { watch_record.result.actions.0.status: "simulated" }
+  - match: { watch_record.result.actions.0.index.request.source.0._id: "the-id" }
+  - match: { watch_record.result.actions.0.index.request.source.0._index: "the-index" }

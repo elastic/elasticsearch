@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
@@ -30,7 +31,6 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.FileNotFoundException;
@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLHandshakeException;
@@ -102,7 +103,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        final SSLConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
 
         final Logger diagnosticLogger = LogManager.getLogger(DiagnosticTrustManager.class);
@@ -115,18 +116,26 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
              SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()) {
             Loggers.addAppender(diagnosticLogger, mockAppender);
 
+            String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
+                .replace('/', platformFileSeparator());
             mockAppender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
                 "ssl diagnostic",
                 DiagnosticTrustManager.class.getName(),
                 Level.WARN,
                 "failed to establish trust with server at \\[" + Pattern.quote(webServer.getHostName()) + "\\];" +
-                    " the server provided a certificate with subject name \\[CN=not-this-host\\]" +
-                    " and fingerprint \\[[0-9a-f]{40}\\];" +
+                    " the server provided a certificate with subject name \\[CN=not-this-host\\]," +
+                    " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;" +
+                    " the session uses cipher suite \\[TLS_[A-Z0-9_]*\\] and protocol \\[TLSv[0-9.]*\\];" +
                     " the certificate has subject alternative names \\[DNS:not\\.this\\.host\\];" +
                     " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]" +
                     " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
                     " the issuing certificate with fingerprint \\[[0-9a-f]{40}\\]" +
-                    " is trusted in this ssl context " + Pattern.quote("([" + HTTP_CLIENT_SSL + "])")));
+                    " is trusted in this ssl context " +
+                    Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{") +
+                    "\\S+" +
+                    Pattern.quote(fileName + "})])")
+            ));
+
             enableHttpsHostnameChecking(clientSocket);
             connect(clientSocket, webServer);
             assertThat(clientSocket.isConnected(), is(true));
@@ -150,7 +159,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private CloseableHttpClient buildHttpClient(SSLService sslService) {
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         final SSLSocketFactory socketFactory = sslService.sslSocketFactory(sslConfiguration);
         final SSLConnectionSocketFactory connectionSocketFactory = new SSLConnectionSocketFactory(socketFactory, verifier);
@@ -158,7 +167,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private RestClient buildRestClient(SSLService sslService, MockWebServer webServer) {
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final HttpHost httpHost = new HttpHost(webServer.getHostName(), webServer.getPort(), "https");
         return RestClient.builder(httpHost)
             .setHttpClientConfigCallback(client -> client.setSSLStrategy(sslService.sslIOSessionStrategy(sslConfiguration)))
@@ -189,16 +198,25 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             .put(prefix + ".enabled", true)
             .put(prefix + ".certificate", getPath(certificatePath))
             .put(prefix + ".key", getPath(keyPath))
-            .put(prefix + ".client_authentication", clientAuth.name())
-            .put(prefix + ".verification_mode", verificationMode.name());
+            .put(prefix + ".client_authentication", randomCapitalization(clientAuth))
+            .put(prefix + ".verification_mode", randomCapitalization(verificationMode));
         if (caPath != null) {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }
         return builder;
     }
 
+    @SuppressForbidden(reason = "Checking error message that outputs platform file separator")
+    private static char platformFileSeparator() {
+        return java.io.File.separatorChar;
+    }
+
+    private static String randomCapitalization(Enum<?> enumValue) {
+        return randomBoolean() ? enumValue.name() : enumValue.name().toLowerCase(Locale.ROOT);
+    }
+
     private MockWebServer initWebServer(SSLService sslService) throws IOException {
-        final SSLConfiguration httpSslConfig = sslService.getSSLConfiguration(HTTP_SERVER_SSL);
+        final SslConfiguration httpSslConfig = sslService.getSSLConfiguration(HTTP_SERVER_SSL);
         final MockWebServer webServer = new MockWebServer(sslService.sslContext(httpSslConfig), false);
 
         webServer.enqueue(new MockResponse().setBody("{}").setResponseCode(200));

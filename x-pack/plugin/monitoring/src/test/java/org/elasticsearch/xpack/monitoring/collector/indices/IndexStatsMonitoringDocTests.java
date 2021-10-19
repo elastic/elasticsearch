@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -47,6 +47,7 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
+import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -424,8 +425,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 --unassignedTotal;
                 --unassignedPrimaries;
 
-                final UnassignedInfo unassignedInfo =
-                        new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), randomAlphaOfLength(3));
+                final UnassignedInfo unassignedInfo = randomUnassignedInfo(randomAlphaOfLength(3));
                 final String nodeId;
                 final ShardRoutingState state;
 

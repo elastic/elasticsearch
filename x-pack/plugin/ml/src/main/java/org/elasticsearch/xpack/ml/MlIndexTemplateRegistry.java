@@ -10,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -29,11 +29,6 @@ import java.util.Map;
 
 public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
-    /**
-     * The version that the ML index templates were switched from legacy templates to composable templates.
-     */
-    public static final Version COMPOSABLE_TEMPLATE_SWITCH_VERSION = Version.V_7_14_0;
-
     private static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/";
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";
     private static final String VERSION_PATTERN = "xpack.ml.version";
@@ -46,7 +41,6 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final IndexTemplateConfig ANOMALY_DETECTION_STATE_TEMPLATE = stateTemplate();
 
     public static final IndexTemplateConfig NOTIFICATIONS_TEMPLATE = notificationsTemplate();
-    public static final IndexTemplateConfig NOTIFICATIONS_LEGACY_TEMPLATE = notificationsLegacyTemplate();
 
     private static final IndexTemplateConfig STATS_TEMPLATE = statsTemplate();
 
@@ -84,17 +78,6 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
         return new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             ROOT_RESOURCE_PATH + "notifications_index_template.json",
-            Version.CURRENT.id, VERSION_PATTERN,
-            variables);
-    }
-
-    private static IndexTemplateConfig notificationsLegacyTemplate() {
-        Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put("xpack.ml.notifications.mappings", NotificationsIndex.mapping());
-
-        return new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
-            ROOT_RESOURCE_PATH + "notifications_index_legacy_template.json",
             Version.CURRENT.id, VERSION_PATTERN,
             variables);
     }

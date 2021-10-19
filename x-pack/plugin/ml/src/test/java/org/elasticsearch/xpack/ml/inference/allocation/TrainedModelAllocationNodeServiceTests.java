@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,6 +32,8 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.junit.After;
@@ -37,6 +41,8 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,6 +132,38 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
+    public void testLoadQueuedModelsWhenFailureIsRetried() {
+        String modelToLoad = "loading-model";
+        String failedModelToLoad = "failed-search-loading-model";
+        withSearchingLoadFailure(failedModelToLoad);
+        TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
+
+        trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
+        trainedModelAllocationNodeService.prepareModelToLoad(newParams(failedModelToLoad));
+
+        trainedModelAllocationNodeService.loadQueuedModels();
+
+        trainedModelAllocationNodeService.loadQueuedModels();
+
+        ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        ArgumentCaptor<UpdateTrainedModelAllocationStateAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAllocationStateAction.Request.class
+        );
+        verify(deploymentManager, times(3)).startDeployment(startTaskCapture.capture(), any());
+        // Only the successful one is notifying, the failed one keeps retrying but not notifying as it is never successful
+        verify(trainedModelAllocationService, times(1)).updateModelAllocationState(requestCapture.capture(), any());
+
+        assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
+        assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
+        assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
+        assertThat(requestCapture.getAllValues().get(0).getRoutingState().getState(), equalTo(RoutingState.STARTED));
+
+        assertThat(startTaskCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
+        assertThat(startTaskCapture.getAllValues().get(2).getModelId(), equalTo(failedModelToLoad));
+
+        verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
+    }
+
     public void testLoadQueuedModelsWhenStopped() {
         TrainedModelAllocationNodeService trainedModelAllocationNodeService = createService();
 
@@ -186,7 +224,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
 
-    public void testLoadQueuedModelsWhenOneFails() {
+    public void testLoadQueuedModelsWhenOneFails() throws InterruptedException {
         String modelToLoad = "loading-model";
         String failedModelToLoad = "failed-loading-model";
         withLoadFailure(failedModelToLoad);
@@ -195,7 +233,15 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(failedModelToLoad));
 
+        CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(invocationOnMock -> {
+            latch.countDown();
+            return null;
+        }).when(deploymentManager).stopDeployment(any());
+
         trainedModelAllocationNodeService.loadQueuedModels();
+
+        latch.await(5, TimeUnit.SECONDS);
 
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAllocationStateAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -203,6 +249,9 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         );
         verify(deploymentManager, times(2)).startDeployment(startTaskCapture.capture(), any());
         verify(trainedModelAllocationService, times(2)).updateModelAllocationState(requestCapture.capture(), any());
+
+        ArgumentCaptor<TrainedModelDeploymentTask> stopTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        verify(deploymentManager).stopDeployment(stopTaskCapture.capture());
 
         assertThat(startTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
         assertThat(requestCapture.getAllValues().get(0).getModelId(), equalTo(modelToLoad));
@@ -213,6 +262,8 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         assertThat(requestCapture.getAllValues().get(1).getModelId(), equalTo(failedModelToLoad));
         assertThat(requestCapture.getAllValues().get(1).getNodeId(), equalTo(NODE_ID));
         assertThat(requestCapture.getAllValues().get(1).getRoutingState().getState(), equalTo(RoutingState.FAILED));
+
+        assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAllocationService);
     }
@@ -244,12 +295,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, NODE_ID)
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build())
@@ -282,6 +339,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         String modelOne = "model-1";
         String modelTwo = "model-2";
         String notUsedModel = "model-3";
+        String previouslyUsedModel = "model-4";
         ClusterChangedEvent event = new ClusterChangedEvent(
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
@@ -291,12 +349,39 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, NODE_ID)
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder
+                                        .empty(newParams(modelTwo))
+                                        .addNewRoutingEntry(NODE_ID)
+                                        .updateExistingRoutingEntry(
+                                            NODE_ID,
+                                            new RoutingStateAndReason(
+                                                randomFrom(RoutingState.STARTED, RoutingState.STARTING),
+                                                randomAlphaOfLength(10)
+                                            )
+                                        )
+                                ).addNewAllocation(
+                                    previouslyUsedModel,
+                                    TrainedModelAllocation.Builder
+                                        .empty(newParams(modelTwo))
+                                        .addNewRoutingEntry(NODE_ID)
+                                        .updateExistingRoutingEntry(
+                                            NODE_ID,
+                                            new RoutingStateAndReason(
+                                                randomFrom(RoutingState.STOPPED, RoutingState.FAILED, RoutingState.STOPPING),
+                                                randomAlphaOfLength(10)
+                                            )
+                                        )
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .build()
@@ -316,12 +401,18 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
-                                .addNewAllocation(newParams(modelTwo))
-                                .addNode(modelTwo, "some-other-node")
-                                .addNewAllocation(newParams(notUsedModel))
-                                .addNode(notUsedModel, "some-other-node")
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
+                                .addNewAllocation(
+                                    modelTwo,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo)).addNewRoutingEntry("some-other-node")
+                                )
+                                .addNewAllocation(
+                                    notUsedModel,
+                                    TrainedModelAllocation.Builder.empty(newParams(notUsedModel)).addNewRoutingEntry("some-other-node")
+                                )
                                 .build()
                         )
                         .build()
@@ -359,8 +450,10 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                         .putCustom(
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
-                                .addNewAllocation(newParams(modelOne))
-                                .addNode(modelOne, NODE_ID)
+                                .addNewAllocation(
+                                    modelOne,
+                                    TrainedModelAllocation.Builder.empty(newParams(modelOne)).addNewRoutingEntry(NODE_ID)
+                                )
                                 .build()
                         )
                         .build()
@@ -389,8 +482,22 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         }).when(deploymentManager).startDeployment(any(), any());
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private void withSearchingLoadFailure(String modelId) {
+        doAnswer(invocationOnMock -> {
+            TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) invocationOnMock.getArguments()[0];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            if (task.getModelId().equals(modelId)) {
+                listener.onFailure(new SearchPhaseExecutionException("all shards failed", "foo", ShardSearchFailure.EMPTY_ARRAY));
+            } else {
+                listener.onResponse(task);
+            }
+            return null;
+        }).when(deploymentManager).startDeployment(any(), any());
+    }
+
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong());
+        return new StartTrainedModelDeploymentAction.TaskParams(modelId, randomNonNegativeLong(), 1, 1);
     }
 
     private TrainedModelAllocationNodeService createService() {

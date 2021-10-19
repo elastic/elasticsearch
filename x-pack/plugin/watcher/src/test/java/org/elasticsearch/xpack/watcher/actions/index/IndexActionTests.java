@@ -22,8 +22,8 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +51,7 @@ import static java.util.Collections.unmodifiableSet;
 import static java.util.Map.entry;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class IndexActionTests extends ESTestCase {
@@ -382,5 +383,26 @@ public class IndexActionTests extends ESTestCase {
         } else {
             assertThat(result.status(), is(Status.FAILURE));
         }
+    }
+
+    public void testIndexSeveralDocumentsIsSimulated() throws Exception {
+        IndexAction action = new IndexAction("test-index", null, null, "@timestamp", null, null, refreshPolicy);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
+            TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+
+        String docId = randomAlphaOfLength(5);
+        final List<Map<String, String>> docs = List.of(Map.of("foo", "bar", "_id", docId));
+        Payload payload;
+        if (randomBoolean()) {
+            payload = new Payload.Simple("_doc", docs);
+        } else {
+            payload = new Payload.Simple("_doc", docs.toArray());
+        }
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", ZonedDateTime.now(ZoneOffset.UTC), payload);
+        when(ctx.simulateAction("my_id")).thenReturn(true);
+
+        Action.Result result = executable.execute("my_id", ctx, payload);
+        assertThat(result.status(), is(Status.SIMULATED));
+        verifyZeroInteractions(client);
     }
 }

@@ -21,7 +21,6 @@ import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +32,8 @@ import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+
+import javax.inject.Inject;
 
 /**
  * A wrapper around gradle's Exec task to capture output and log on error.
@@ -68,7 +69,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
                                 "Process '%s %s' finished with non-zero exit value %d",
                                 LoggedExec.this.getExecutable(),
                                 LoggedExec.this.getArgs(),
-                                    exitValue
+                                exitValue
                             )
                         );
                     }

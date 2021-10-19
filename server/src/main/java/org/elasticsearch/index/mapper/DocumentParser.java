@@ -17,11 +17,11 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -542,7 +542,7 @@ public final class DocumentParser {
             List<String> copyToFields = fieldMapper.copyTo().copyToFields();
             if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
                 XContentParser.Token currentToken = context.parser().currentToken();
-                if (currentToken.isValue() == false) {
+                if (currentToken.isValue() == false && currentToken != XContentParser.Token.VALUE_NULL) {
                     // sanity check, we currently support copy-to only for value-type field, not objects
                     throw new MapperParsingException("Cannot copy field [" + mapper.name() + "] to fields " + copyToFields +
                         ". Copy-to currently only works for value-type fields, not objects.");

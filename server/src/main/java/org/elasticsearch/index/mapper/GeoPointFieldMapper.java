@@ -27,8 +27,8 @@ import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.ShapeType;
@@ -132,7 +132,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public FieldMapper build(ContentPath contentPath) {
+        public FieldMapper build(MapperBuilderContext context) {
             Parser<GeoPoint> geoParser = new GeoPointParser(
                 name,
                 GeoPoint::new,
@@ -144,7 +144,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 ignoreZValue.get().value(),
                 ignoreMalformed.get().value());
             GeoPointFieldType ft = new GeoPointFieldType(
-                buildFullName(contentPath),
+                context.buildFullName(name),
                 indexed.get(),
                 stored.get(),
                 hasDocValues.get(),
@@ -152,7 +152,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 scriptValues(),
                 meta.get());
             if (this.script.get() == null) {
-                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
+                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
                     copyTo.build(), geoParser, this);
             }
             return new GeoPointFieldMapper(name, ft, geoParser, this);

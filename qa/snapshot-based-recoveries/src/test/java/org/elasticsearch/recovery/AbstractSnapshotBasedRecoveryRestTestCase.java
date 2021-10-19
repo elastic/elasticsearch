@@ -8,6 +8,7 @@
 
 package org.elasticsearch.recovery;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -24,10 +25,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTestCase {
@@ -57,9 +61,9 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
         );
         ensureGreen(indexName);
 
-        final int numDocs = randomIntBetween(1, 500);
+        final int numDocs = randomIntBetween(500, 1000);
         indexDocs(indexName, numDocs);
-
+        waitUntilGlobalCheckpointIsStable(indexName);
         forceMerge(indexName, randomBoolean(), randomBoolean());
 
         deleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, true);
@@ -68,28 +72,88 @@ public abstract class AbstractSnapshotBasedRecoveryRestTestCase extends ESRestTe
         // Add a new replica
         updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         ensureGreen(indexName);
+        assertSnapshotIsUsed(indexName);
 
-        for (int i = 0; i < 4; i++) {
-            assertSearchResultsAreCorrect(indexName, numDocs);
-        }
+        assertMatchAllReturnsAllDocuments(indexName, numDocs);
+        assertMatchQueryReturnsAllDocuments(indexName, numDocs);
+
         deleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, false);
     }
 
-    private void assertSearchResultsAreCorrect(String indexName, int numDocs) throws IOException {
-        if (randomBoolean()) {
-            Map<String, Object> searchResults = search(indexName, QueryBuilders.matchAllQuery());
-            assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
-            List<Map<String, Object>> hits = extractValue(searchResults, "hits.hits");
-            for (Map<String, Object> hit : hits) {
-                String docId = extractValue(hit, "_id");
-                assertThat(Integer.parseInt(docId), allOf(greaterThanOrEqualTo(0), lessThan(numDocs)));
-                assertThat(extractValue(hit, "_source.field"), equalTo(Integer.parseInt(docId)));
-                assertThat(extractValue(hit, "_source.text"), equalTo("Some text " + docId));
+    private void waitUntilGlobalCheckpointIsStable(String index) throws Exception {
+        assertBusy(() -> {
+            Request request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_stats?level=shards");
+            Response response = client().performRequest(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = responseAsMap(response);
+            Map<String, Object> indices = extractValue(responseAsMap, "indices");
+            Map<String, Object> indexShardsStats = extractValue(extractValue(indices, index), "shards");
+            List<Map<String, Object>> shardStats = extractValue(indexShardsStats, "0");
+            for (Map<String, Object> shardStat : shardStats) {
+                final boolean isPrimary = extractValue(shardStat, "routing.primary");
+                if (isPrimary == false) {
+                    continue;
+                }
+                Map<Object, Integer> seqNos = extractValue(shardStat, "seq_no");
+                assertThat(seqNos.toString(), seqNos.get("max_seq_no"), is(equalTo(seqNos.get("global_checkpoint"))));
             }
-        } else {
-            Map<String, Object> searchResults = search(indexName, QueryBuilders.matchQuery("text", "some"));
-            assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    private void assertMatchAllReturnsAllDocuments(String indexName, int numDocs) throws IOException {
+        Map<String, Object> searchResults = search(indexName, QueryBuilders.matchAllQuery());
+        assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+        List<Map<String, Object>> hits = extractValue(searchResults, "hits.hits");
+        for (Map<String, Object> hit : hits) {
+            String docId = extractValue(hit, "_id");
+            assertThat(Integer.parseInt(docId), allOf(greaterThanOrEqualTo(0), lessThan(numDocs)));
+            assertThat(extractValue(hit, "_source.field"), equalTo(Integer.parseInt(docId)));
+            assertThat(extractValue(hit, "_source.text"), equalTo("Some text " + docId));
         }
+    }
+
+    private void assertSnapshotIsUsed(String index) throws Exception {
+        Request request = new Request(HttpGet.METHOD_NAME, '/' + index + "/_recovery?detailed=true");
+        Response response = client().performRequest(request);
+        assertOK(response);
+        Map<String, Object> responseAsMap = responseAsMap(response);
+        List<Map<String, Object>> shardRecoveries = extractValue(responseAsMap, index + ".shards");
+        long totalRecoveredFromSnapshot = 0;
+        for (Map<String, Object> shardRecoveryState : shardRecoveries) {
+            String recoveryType = extractValue(shardRecoveryState, "type");
+            if (recoveryType.equals("PEER") == false) {
+                continue;
+            }
+            String stage = extractValue(shardRecoveryState, "stage");
+            assertThat(stage, is(equalTo("DONE")));
+
+            List<Map<String, Object>> fileDetails = extractValue(shardRecoveryState, "index.files.details");
+            for (Map<String, Object> fileDetail : fileDetails) {
+                int recoveredFromSnapshot = extractValue(fileDetail, "recovered_from_snapshot_in_bytes");
+                assertThat(recoveredFromSnapshot, is(greaterThan(0)));
+                totalRecoveredFromSnapshot += recoveredFromSnapshot;
+            }
+        }
+        long snapshotSize = getSnapshotSizeForIndex(index);
+        assertThat(totalRecoveredFromSnapshot, is(greaterThan(0L)));
+        assertThat(totalRecoveredFromSnapshot, is(equalTo(snapshotSize)));
+    }
+
+    private int getSnapshotSizeForIndex(String indexName) throws Exception {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME);
+        request.addParameter("index_details", "true");
+        Response response = client().performRequest(request);
+        assertOK(response);
+        Map<String, Object> snapshotsResponse = responseAsMap(response);
+        List<Map<String, Object>> snapshots = extractValue(snapshotsResponse, "snapshots");
+        assertThat(snapshots.size(), is(equalTo(1)));
+        Map<String, Object> snapshot = snapshots.get(0);
+        return extractValue(snapshot, "index_details." + indexName + ".size_in_bytes");
+    }
+
+    private void assertMatchQueryReturnsAllDocuments(String indexName, int numDocs) throws IOException {
+        Map<String, Object> searchResults = search(indexName, QueryBuilders.matchQuery("text", "some"));
+        assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
     }
 
     private static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {

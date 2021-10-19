@@ -10,12 +10,12 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,12 +33,22 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
-    InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
-                                     DocValueFormat formatter, Map<String, Object> metadata) {
+    InternalPercentilesBucket(
+        String name,
+        double[] percents,
+        double[] percentiles,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         if ((percentiles.length == percents.length) == false) {
-            throw new IllegalArgumentException("The number of provided percents and percentiles didn't match. percents: "
-                    + Arrays.toString(percents) + ", percentiles: " + Arrays.toString(percentiles));
+            throw new IllegalArgumentException(
+                "The number of provided percents and percentiles didn't match. percents: "
+                    + Arrays.toString(percents)
+                    + ", percentiles: "
+                    + Arrays.toString(percentiles)
+            );
         }
         this.format = formatter;
         this.percentiles = percentiles;
@@ -83,8 +93,13 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     public double percentile(double percent) throws IllegalArgumentException {
         Double percentile = percentileLookups.get(percent);
         if (percentile == null) {
-            throw new IllegalArgumentException("Percent requested [" + String.valueOf(percent) + "] was not" +
-                    " one of the computed percentiles.  Available keys are: " + Arrays.toString(percents));
+            throw new IllegalArgumentException(
+                "Percent requested ["
+                    + String.valueOf(percent)
+                    + "] was not"
+                    + " one of the computed percentiles.  Available keys are: "
+                    + Arrays.toString(percents)
+            );
         }
         return percentile;
     }

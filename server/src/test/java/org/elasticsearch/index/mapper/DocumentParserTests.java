@@ -17,10 +17,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -615,7 +615,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (int i = 0; i < nameParts.length - 1; ++i) {
             path.add(nameParts[i]);
         }
-        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(path);
+        return new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true).build(MapperBuilderContext.forPath(path));
     }
 
     public void testEmptyMappingUpdate() throws Exception {

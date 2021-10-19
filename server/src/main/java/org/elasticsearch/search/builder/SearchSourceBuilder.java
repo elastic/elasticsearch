@@ -16,13 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -49,6 +43,12 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1124,7 +1124,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     int parsedSize = parser.intValue();
                     if (parser.getRestApiVersion() == RestApiVersion.V_7 && parsedSize == -1) {
                         // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
-                        deprecationLogger.compatibleApiWarning(
+                        deprecationLogger.compatibleCritical(
                             "search-api-size-1",
                             "Using search size of -1 is deprecated and will be removed in future versions. "
                                 + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
@@ -1180,7 +1180,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                 } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
                     INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.compatibleApiWarning("indices_boost_object_format",
+                    deprecationLogger.compatibleCritical("indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -1213,9 +1213,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         } else {
                             SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
                             if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
-                                throw new IllegalStateException("The parsed [" + searchExtBuilder.getClass().getName() + "] object has a "
-                                        + "different writeable name compared to the name of the section that it was parsed from: found ["
-                                        + searchExtBuilder.getWriteableName() + "] expected [" + extSectionName + "]");
+                                throw new IllegalStateException(
+                                    "The parsed ["
+                                        + searchExtBuilder.getClass().getName()
+                                        + "] object has a different writeable name compared to the name of the section that "
+                                        + " it was parsed from: found ["
+                                        + searchExtBuilder.getWriteableName()
+                                        + "] expected ["
+                                        + extSectionName
+                                        + "]"
+                                );
                             }
                             extBuilders.add(searchExtBuilder);
                         }
@@ -1418,7 +1425,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (stats != null) {
-            builder.field(STATS_FIELD.getPreferredName(), stats);
+            builder.stringListField(STATS_FIELD.getPreferredName(), stats);
         }
 
         if (extBuilders != null && extBuilders.isEmpty() == false) {

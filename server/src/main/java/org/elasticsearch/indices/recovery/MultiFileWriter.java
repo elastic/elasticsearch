@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     public MultiFileWriter(Store store, RecoveryState.Index indexState, String tempFilePrefix, Logger logger, Runnable ensureOpen) {
-        super("multi_file_writer");
         this.store = store;
         this.indexState = indexState;
         this.tempFilePrefix = tempFilePrefix;
@@ -90,7 +89,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             long bytesWritten = 0;
             while ((length = stream.read(buffer)) > 0) {
                 indexOutput.writeBytes(buffer, length);
-                indexState.addRecoveredBytesToFile(fileName, length);
+                indexState.addRecoveredFromSnapshotBytesToFile(fileName, length);
                 bytesWritten += length;
             }
 
@@ -108,6 +107,18 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             store.deleteQuiet(tempFileName);
             indexState.resetRecoveredBytesOfFile(fileName);
             throw e;
+        } finally {
+            decRef();
+        }
+    }
+
+    public void deleteTempFiles() {
+        incRef();
+        try {
+            for (String tempFileName : tempFileNames.keySet()) {
+                store.deleteQuiet(tempFileName);
+            }
+            tempFileNames.clear();
         } finally {
             decRef();
         }

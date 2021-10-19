@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -118,7 +118,7 @@ public final class IndexModule {
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
-    private SetOnce<Function<IndexService,
+    private final SetOnce<Function<IndexService,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
@@ -488,8 +488,9 @@ public final class IndexModule {
         return factory;
     }
 
+    // By default we flush first so that the snapshot is as up-to-date as possible.
     public static final IndexStorePlugin.SnapshotCommitSupplier DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
-            = e -> e.acquireLastIndexCommit(true); // by default we flush first so that the snapshot is as up-to-date as possible.
+            = e -> e.acquireLastIndexCommit(true);
 
     private static IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier(
             final IndexSettings indexSettings,

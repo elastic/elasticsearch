@@ -19,6 +19,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
@@ -41,11 +42,14 @@ import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -114,7 +118,7 @@ public final class PainlessLookupBuilder {
                     origin = whitelistClass.origin;
                     painlessLookupBuilder.addPainlessClass(
                             whitelist.classLoader, whitelistClass.javaClassName,
-                            whitelistClass.painlessAnnotations.containsKey(NoImportAnnotation.class) == false);
+                            whitelistClass.painlessAnnotations);
                 }
             }
 
@@ -140,7 +144,8 @@ public final class PainlessLookupBuilder {
                     for (WhitelistField whitelistField : whitelistClass.whitelistFields) {
                         origin = whitelistField.origin;
                         painlessLookupBuilder.addPainlessField(
-                                targetCanonicalClassName, whitelistField.fieldName, whitelistField.canonicalTypeNameParameter);
+                                whitelist.classLoader, targetCanonicalClassName,
+                                whitelistField.fieldName, whitelistField.canonicalTypeNameParameter, whitelistField.painlessAnnotations);
                     }
                 }
 
@@ -187,6 +192,7 @@ public final class PainlessLookupBuilder {
     // of the values of javaClassNamesToClasses.
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClassBuilder> classesToPainlessClassBuilders;
+    private final Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses;
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
@@ -196,6 +202,7 @@ public final class PainlessLookupBuilder {
         javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
+        classesToDirectSubClasses = new HashMap<>();
 
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
@@ -229,7 +236,8 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessClass(ClassLoader classLoader, String javaClassName, boolean importClassName) {
+    public void addPainlessClass(ClassLoader classLoader, String javaClassName, Map<Class<?>, Object> annotations) {
+
         Objects.requireNonNull(classLoader);
         Objects.requireNonNull(javaClassName);
 
@@ -248,12 +256,12 @@ public final class PainlessLookupBuilder {
             clazz = loadClass(classLoader, javaClassName, () -> "class [" + javaClassName + "] not found");
         }
 
-        addPainlessClass(clazz, importClassName);
+        addPainlessClass(clazz, annotations);
     }
 
-    public void addPainlessClass(Class<?> clazz, boolean importClassName) {
+    public void addPainlessClass(Class<?> clazz, Map<Class<?>, Object> annotations) {
         Objects.requireNonNull(clazz);
-        //Matcher m = new Matcher();
+        Objects.requireNonNull(annotations);
 
         if (clazz == def.class) {
             throw new IllegalArgumentException("cannot add reserved class [" + DEF_CLASS_NAME + "]");
@@ -289,6 +297,7 @@ public final class PainlessLookupBuilder {
 
         if (existingPainlessClassBuilder == null) {
             PainlessClassBuilder painlessClassBuilder = new PainlessClassBuilder();
+            painlessClassBuilder.annotations.putAll(annotations);
 
             canonicalClassNamesToClasses.put(canonicalClassName.intern(), clazz);
             classesToPainlessClassBuilders.put(clazz, painlessClassBuilder);
@@ -296,6 +305,7 @@ public final class PainlessLookupBuilder {
 
         String javaClassName = clazz.getName();
         String importedCanonicalClassName = javaClassName.substring(javaClassName.lastIndexOf('.') + 1).replace('$', '.');
+        boolean importClassName = annotations.containsKey(NoImportAnnotation.class) == false;
 
         if (canonicalClassName.equals(importedCanonicalClassName)) {
             if (importClassName) {
@@ -426,6 +436,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnCanonicalTypeName);
         Objects.requireNonNull(canonicalTypeNameParameters);
+        Objects.requireNonNull(annotations);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
@@ -472,6 +483,7 @@ public final class PainlessLookupBuilder {
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);
         Objects.requireNonNull(typeParameters);
+        Objects.requireNonNull(annotations);
 
         if (targetClass == def.class) {
             throw new IllegalArgumentException("cannot add method to reserved class [" + DEF_CLASS_NAME + "]");
@@ -610,16 +622,31 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    public void addPainlessField(String targetCanonicalClassName, String fieldName, String canonicalTypeNameParameter) {
+    public void addPainlessField(ClassLoader classLoader, String targetCanonicalClassName,
+            String fieldName, String canonicalTypeNameParameter, Map<Class<?>, Object> annotations) {
+
+        Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(fieldName);
         Objects.requireNonNull(canonicalTypeNameParameter);
+        Objects.requireNonNull(annotations);
 
         Class<?> targetClass = canonicalClassNamesToClasses.get(targetCanonicalClassName);
 
         if (targetClass == null) {
             throw new IllegalArgumentException("target class [" + targetCanonicalClassName + "] not found for field " +
                     "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + canonicalTypeNameParameter + "]]");
+        }
+
+        String augmentedCanonicalClassName = annotations.containsKey(AugmentedAnnotation.class) ?
+                ((AugmentedAnnotation)annotations.get(AugmentedAnnotation.class)).getAugmentedCanonicalClassName() : null;
+
+        Class<?> augmentedClass = null;
+
+        if (augmentedCanonicalClassName != null) {
+            augmentedClass = loadClass(classLoader, augmentedCanonicalClassName,
+                    () -> "augmented class [" + augmentedCanonicalClassName + "] not found for field " +
+                            "[[" + targetCanonicalClassName + "], [" + fieldName + "]");
         }
 
         Class<?> typeParameter = canonicalTypeNameToType(canonicalTypeNameParameter);
@@ -630,13 +657,16 @@ public final class PainlessLookupBuilder {
         }
 
 
-        addPainlessField(targetClass, fieldName, typeParameter);
+        addPainlessField(targetClass, augmentedClass, fieldName, typeParameter, annotations);
     }
 
-    public void addPainlessField(Class<?> targetClass, String fieldName, Class<?> typeParameter) {
+    public void addPainlessField(Class<?> targetClass, Class<?> augmentedClass,
+            String fieldName, Class<?> typeParameter, Map<Class<?>, Object> annotations) {
+
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(fieldName);
         Objects.requireNonNull(typeParameter);
+        Objects.requireNonNull(annotations);
 
         if (targetClass == def.class) {
             throw new IllegalArgumentException("cannot add field to reserved class [" + DEF_CLASS_NAME + "]");
@@ -658,17 +688,33 @@ public final class PainlessLookupBuilder {
         }
 
         if (isValidType(typeParameter) == false) {
-            throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] not found " +
-                    "for field [[" + targetCanonicalClassName + "], [" + fieldName + "]");
+            throw new IllegalArgumentException("type parameter [" + typeToCanonicalTypeName(typeParameter) + "] not found for field " +
+                    "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]");
         }
 
         Field javaField;
 
-        try {
-            javaField = targetClass.getField(fieldName);
-        } catch (NoSuchFieldException nsme) {
-            throw new IllegalArgumentException(
-                    "reflection object not found for field [[" + targetCanonicalClassName + "], [" + fieldName + "]", nsme);
+        if (augmentedClass == null) {
+            try {
+                javaField = targetClass.getField(fieldName);
+            } catch (NoSuchFieldException nsfe) {
+                throw new IllegalArgumentException("reflection object not found for field " +
+                        "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]",
+                        nsfe);
+            }
+        } else {
+            try {
+                javaField = augmentedClass.getField(fieldName);
+
+                if (Modifier.isStatic(javaField.getModifiers()) == false || Modifier.isFinal(javaField.getModifiers()) == false) {
+                    throw new IllegalArgumentException("field [[" + targetCanonicalClassName + "], [" + fieldName + "] " +
+                            "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "] must be static and final");
+                }
+            } catch (NoSuchFieldException nsfe) {
+                throw new IllegalArgumentException("reflection object not found for field " +
+                        "[[" + targetCanonicalClassName + "], [" + fieldName + "], [" + typeToCanonicalTypeName(typeParameter) + "]]" +
+                        "with augmented class [" + typeToCanonicalTypeName(augmentedClass) + "]", nsfe);
+            }
         }
 
         if (javaField.getType() != typeToJavaType(typeParameter)) {
@@ -694,7 +740,7 @@ public final class PainlessLookupBuilder {
             }
 
             PainlessField existingPainlessField = painlessClassBuilder.staticFields.get(painlessFieldKey);
-            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, methodHandleGetter, null);
+            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, annotations, methodHandleGetter, null);
 
             if (existingPainlessField == null) {
                 newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);
@@ -718,7 +764,8 @@ public final class PainlessLookupBuilder {
             }
 
             PainlessField existingPainlessField = painlessClassBuilder.fields.get(painlessFieldKey);
-            PainlessField newPainlessField = new PainlessField(javaField, typeParameter, methodHandleGetter, methodHandleSetter);
+            PainlessField newPainlessField =
+                    new PainlessField(javaField, typeParameter, annotations, methodHandleGetter, methodHandleSetter);
 
             if (existingPainlessField == null) {
                 newPainlessField = painlessFieldCache.computeIfAbsent(newPainlessField, key -> key);
@@ -1216,7 +1263,7 @@ public final class PainlessLookupBuilder {
     }
 
     public PainlessLookup build() {
-        copyPainlessClassMembers();
+        buildPainlessClassHierarchy();
         setFunctionalInterfaceMethods();
         generateRuntimeMethods();
         cacheRuntimeHandles();
@@ -1247,71 +1294,66 @@ public final class PainlessLookupBuilder {
                 javaClassNamesToClasses,
                 canonicalClassNamesToClasses,
                 classesToPainlessClasses,
+                classesToDirectSubClasses,
                 painlessMethodKeysToImportedPainlessMethods,
                 painlessMethodKeysToPainlessClassBindings,
                 painlessMethodKeysToPainlessInstanceBindings);
     }
 
-    private void copyPainlessClassMembers() {
-        for (Class<?> parentClass : classesToPainlessClassBuilders.keySet()) {
-            copyPainlessInterfaceMembers(parentClass, parentClass);
+    private void buildPainlessClassHierarchy() {
+        for (Class<?> targetClass : classesToPainlessClassBuilders.keySet()) {
+            classesToDirectSubClasses.put(targetClass, new HashSet<>());
+        }
 
-            Class<?> childClass = parentClass.getSuperclass();
+        for (Class<?> subClass : classesToPainlessClassBuilders.keySet()) {
+            List<Class<?>> superInterfaces = new ArrayList<>(Arrays.asList(subClass.getInterfaces()));
 
-            while (childClass != null) {
-                if (classesToPainlessClassBuilders.containsKey(childClass)) {
-                    copyPainlessClassMembers(childClass, parentClass);
+            // we check for Object.class as part of the allow listed classes because
+            // it is possible for the compiler to work without Object
+            if (subClass.isInterface() && superInterfaces.isEmpty() && classesToPainlessClassBuilders.containsKey(Object.class)) {
+                classesToDirectSubClasses.get(Object.class).add(subClass);
+            } else {
+                Class<?> superClass = subClass.getSuperclass();
+
+                // this finds the nearest super class for a given sub class
+                // because the allow list may have gaps between classes
+                // example:
+                // class A {}        // allowed
+                // class B extends A // not allowed
+                // class C extends B // allowed
+                // in this case C is considered a direct sub class of A
+                while (superClass != null) {
+                    if (classesToPainlessClassBuilders.containsKey(superClass)) {
+                        break;
+                    } else {
+                        // this ensures all interfaces from a sub class that
+                        // is not allow listed are checked if they are
+                        // considered a direct super class of the sub class
+                        // because these interfaces may still be allow listed
+                        // even if their sub class is not
+                        superInterfaces.addAll(Arrays.asList(superClass.getInterfaces()));
+                    }
+
+                    superClass = superClass.getSuperclass();
                 }
 
-                copyPainlessInterfaceMembers(childClass, parentClass);
-                childClass = childClass.getSuperclass();
-            }
-        }
-
-        for (Class<?> javaClass : classesToPainlessClassBuilders.keySet()) {
-            if (javaClass.isInterface()) {
-                copyPainlessClassMembers(Object.class, javaClass);
-            }
-        }
-    }
-
-    private void copyPainlessInterfaceMembers(Class<?> parentClass, Class<?> targetClass) {
-        for (Class<?> childClass : parentClass.getInterfaces()) {
-            if (classesToPainlessClassBuilders.containsKey(childClass)) {
-                copyPainlessClassMembers(childClass, targetClass);
+                if (superClass != null) {
+                    classesToDirectSubClasses.get(superClass).add(subClass);
+                }
             }
 
-            copyPainlessInterfaceMembers(childClass, targetClass);
-        }
-    }
+            Set<Class<?>> resolvedInterfaces = new HashSet<>();
 
-    private void copyPainlessClassMembers(Class<?> originalClass, Class<?> targetClass) {
-        PainlessClassBuilder originalPainlessClassBuilder = classesToPainlessClassBuilders.get(originalClass);
-        PainlessClassBuilder targetPainlessClassBuilder = classesToPainlessClassBuilders.get(targetClass);
+            while (superInterfaces.isEmpty() == false) {
+                Class<?> superInterface = superInterfaces.remove(0);
 
-        Objects.requireNonNull(originalPainlessClassBuilder);
-        Objects.requireNonNull(targetPainlessClassBuilder);
-
-        for (Map.Entry<String, PainlessMethod> painlessMethodEntry : originalPainlessClassBuilder.methods.entrySet()) {
-            String painlessMethodKey = painlessMethodEntry.getKey();
-            PainlessMethod newPainlessMethod = painlessMethodEntry.getValue();
-            PainlessMethod existingPainlessMethod = targetPainlessClassBuilder.methods.get(painlessMethodKey);
-
-            if (existingPainlessMethod == null || existingPainlessMethod.targetClass != newPainlessMethod.targetClass &&
-                    existingPainlessMethod.targetClass.isAssignableFrom(newPainlessMethod.targetClass)) {
-                targetPainlessClassBuilder.methods.put(painlessMethodKey.intern(), newPainlessMethod);
-            }
-        }
-
-        for (Map.Entry<String, PainlessField> painlessFieldEntry : originalPainlessClassBuilder.fields.entrySet()) {
-            String painlessFieldKey = painlessFieldEntry.getKey();
-            PainlessField newPainlessField = painlessFieldEntry.getValue();
-            PainlessField existingPainlessField = targetPainlessClassBuilder.fields.get(painlessFieldKey);
-
-            if (existingPainlessField == null ||
-                    existingPainlessField.javaField.getDeclaringClass() != newPainlessField.javaField.getDeclaringClass() &&
-                    existingPainlessField.javaField.getDeclaringClass().isAssignableFrom(newPainlessField.javaField.getDeclaringClass())) {
-                targetPainlessClassBuilder.fields.put(painlessFieldKey.intern(), newPainlessField);
+                if (resolvedInterfaces.add(superInterface)) {
+                    if (classesToPainlessClassBuilders.containsKey(superInterface)) {
+                        classesToDirectSubClasses.get(superInterface).add(subClass);
+                    } else {
+                        superInterfaces.addAll(Arrays.asList(superInterface.getInterfaces()));
+                    }
+                }
             }
         }
     }

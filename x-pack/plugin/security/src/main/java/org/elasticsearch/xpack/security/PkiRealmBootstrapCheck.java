@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
                 .anyMatch(s -> s.getAsBoolean("enabled", true) && (false == s.getAsBoolean("delegation.enabled", false)));
         if (pkiRealmEnabledWithoutDelegation) {
             for (String contextName : getSslContextNames(settings)) {
-                final SSLConfiguration configuration = sslService.getSSLConfiguration(contextName);
+                final SslConfiguration configuration = sslService.getSSLConfiguration(contextName);
                 if (sslService.isSSLClientAuthEnabled(configuration)) {
                     return BootstrapCheckResult.success();
                 }

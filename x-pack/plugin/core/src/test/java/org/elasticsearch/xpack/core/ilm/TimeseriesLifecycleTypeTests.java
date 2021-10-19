@@ -623,51 +623,27 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testShouldMigrateDataToTiers() {
         {
-            // the allocate action contain allocation rules
+            // there's an allocate action
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
-            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
-            Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
-        }
-
-        {
-            // the allocate action only specifies the number of replicas
-            Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), new AllocateAction(2, 20, null, null, null));
+            actions.put(TEST_ALLOCATE_ACTION.getWriteableName(),
+                randomFrom(TEST_ALLOCATE_ACTION, new AllocateAction(2, 20, null, null, null)));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(true));
         }
 
         {
-            // there's an enabled migrate action specified
+            // there's a migrate action
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
+            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(randomBoolean()));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
         {
-            // there's a disabled migrate action specified
-            Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
-            Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
-        }
-
-        {
-            // test phase defines a `searchable_snapshot` action
+            // there's a searchable_snapshot action
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
-            Phase phase = new Phase(COLD_PHASE, TimeValue.ZERO, actions);
-            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
-        }
-
-        {
-            // test `frozen` phase defines a `searchable_snapshot` action
-            Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
-            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, actions);
+            Phase phase = new Phase(randomFrom(COLD_PHASE, FROZEN_PHASE), TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
@@ -801,10 +777,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
-            assertThat(err,
-                containsString("Your policy is configured to run the frozen phase "+
-                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
-                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+            assertThat(
+                err,
+                containsString(
+                    "Your policy is configured to run the frozen phase "
+                        + "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the"
+                        + " hot phase (min_age: 3d). You should change the phase timing so that the phases will execute"
+                        + " in the order of hot, warm, then cold."
+                )
+            );
         }
 
         {
@@ -817,10 +798,15 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             String err =
                 validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
-            assertThat(err,
-                containsString("Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "+
-                    "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the hot phase (min_age: 3d)."+
-                    " You should change the phase timing so that the phases will execute in the order of hot, warm, then cold."));
+            assertThat(
+                err,
+                containsString(
+                    "Your policy is configured to run the cold phase (min_age: 2d), the frozen phase "
+                        + "(min_age: 2d), the delete phase (min_age: 1d) and the warm phase (min_age: 2d) before the"
+                        + " hot phase (min_age: 3d). You should change the phase timing so that the phases will execute"
+                        + " in the order of hot, warm, then cold."
+                )
+            );
         }
     }
 

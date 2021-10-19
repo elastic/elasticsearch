@@ -98,8 +98,12 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelDeploymentTaskId(String modelId) {
-        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + modelId;
+    public static String trainedModelDeploymentTaskId(String deploymentId) {
+        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + deploymentId;
+    }
+
+    public static String trainedModelDeploymentId(String taskId) {
+        return taskId.substring(TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX.length());
     }
 
     @Nullable

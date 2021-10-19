@@ -23,6 +23,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -52,6 +54,10 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTask
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
+    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated," +
+        " because Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+
     public static final String TYPE = "geoip";
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
@@ -64,11 +70,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final boolean ignoreMissing;
     private final boolean firstOnly;
+    private final String databaseFile;
 
     /**
      * Construct a geo-IP processor.
-     *
-     * @param tag           the processor tag
+     *  @param tag           the processor tag
      * @param description   the processor description
      * @param field         the source field to geo-IP map
      * @param supplier      a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
@@ -77,6 +83,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param properties    the properties; ideally this is lazily-loaded once on first use
      * @param ignoreMissing true if documents with a missing value for the field should be ignored
      * @param firstOnly     true if only first result should be returned in case of array
+     * @param databaseFile
      */
     GeoIpProcessor(
         final String tag,
@@ -87,7 +94,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String targetField,
         final Set<Property> properties,
         final boolean ignoreMissing,
-        final boolean firstOnly) {
+        final boolean firstOnly,
+        final String databaseFile) {
         super(tag, description);
         this.field = field;
         this.isValid = isValid;
@@ -96,6 +104,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         this.properties = properties;
         this.ignoreMissing = ignoreMissing;
         this.firstOnly = firstOnly;
+        this.databaseFile = databaseFile;
     }
 
     boolean isIgnoreMissing() {
@@ -115,8 +124,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
         }
 
+        DatabaseReaderLazyLoader lazyLoader = this.supplier.get();
+        if (lazyLoader == null) {
+            tag(ingestDocument, databaseFile);
+            return ingestDocument;
+        }
+
         if (ip instanceof String) {
-            Map<String, Object> geoData = getGeoData((String) ip);
+            Map<String, Object> geoData = getGeoData(lazyLoader, (String) ip);
             if (geoData.isEmpty() == false) {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
@@ -127,7 +142,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 if (ipAddr instanceof String == false) {
                     throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                 }
-                Map<String, Object> geoData = getGeoData((String) ipAddr);
+                Map<String, Object> geoData = getGeoData(lazyLoader, (String) ipAddr);
                 if (geoData.isEmpty()) {
                     geoDataList.add(null);
                     continue;
@@ -148,8 +163,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return ingestDocument;
     }
 
-    private Map<String, Object> getGeoData(String ip) throws IOException {
-        DatabaseReaderLazyLoader lazyLoader = this.supplier.get();
+    private Map<String, Object> getGeoData(DatabaseReaderLazyLoader lazyLoader, String ip) throws IOException {
         try {
             final String databaseType = lazyLoader.getDatabaseType();
             final InetAddress ipAddress = InetAddresses.forString(ip);
@@ -369,7 +383,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GeoIpProcessor create(
+        public Processor create(
             final Map<String, Processor.Factory> registry,
             final String processorTag,
             final String description, final Map<String, Object> config) throws IOException {
@@ -379,10 +393,17 @@ public final class GeoIpProcessor extends AbstractProcessor {
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
-            boolean fallbackUsingDefaultDatabases = readBooleanProperty(TYPE, processorTag, config, "fallback_to_default_databases", true);
 
-            DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile, fallbackUsingDefaultDatabases);
-            if (lazyLoader == null) {
+            // noop, should be removed in 9.0
+            Object value = config.remove("fallback_to_default_databases");
+            if (value != null) {
+                DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+            }
+
+            DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile);
+            if (useDatabaseUnavailableProcessor(lazyLoader, databaseRegistry.getAvailableDatabases())) {
+                return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
+            } else if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
@@ -417,8 +438,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
-                DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile, fallbackUsingDefaultDatabases);
-                if (loader == null) {
+                DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile);
+                if (useDatabaseUnavailableProcessor(loader, databaseRegistry.getAvailableDatabases())) {
+                    return null;
+                } else if (loader == null) {
                     throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
                 }
                 // Only check whether the suffix has changed and not the entire database type.
@@ -447,15 +470,20 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
-                    HeaderWarning.addWarning("database [{}] was not updated for over 25 days, geoip processor will stop working if there " +
-                        "is no update for 30 days", databaseFile);
+                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, "database [{}] was not updated for over 25 days, geoip processor" +
+                        " will stop working if there is no update for 30 days", databaseFile);
                 }
 
                 return valid;
             };
             return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
-                firstOnly);
+                firstOnly, databaseFile);
         }
+
+        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, Set<String> availableDatabases) {
+            return loader == null && availableDatabases.isEmpty();
+        }
+
     }
 
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
@@ -517,5 +545,34 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     Arrays.toString(validProperties.toArray()));
             }
         }
+    }
+
+    static class DatabaseUnavailableProcessor extends AbstractProcessor {
+
+        private final String databaseName;
+
+        DatabaseUnavailableProcessor(String tag, String description, String databaseName) {
+            super(tag, description);
+            this.databaseName = databaseName;
+        }
+
+        @Override
+        public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+            tag(ingestDocument, databaseName);
+            return ingestDocument;
+        }
+
+        @Override
+        public String getType() {
+            return TYPE;
+        }
+
+        public String getDatabaseName() {
+            return databaseName;
+        }
+    }
+
+    private static void tag(IngestDocument ingestDocument, String databaseName) {
+        ingestDocument.appendFieldValue("tags", "_geoip_database_unavailable_" + databaseName, true);
     }
 }

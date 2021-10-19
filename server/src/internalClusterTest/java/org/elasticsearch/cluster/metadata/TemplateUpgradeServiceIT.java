@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
@@ -106,7 +106,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                 Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
             ).get());
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
@@ -153,7 +153,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                 Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
             ).get());
 

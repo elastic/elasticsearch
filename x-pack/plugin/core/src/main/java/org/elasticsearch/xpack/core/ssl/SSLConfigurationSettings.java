@@ -11,14 +11,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
-import javax.net.ssl.TrustManagerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -257,10 +256,6 @@ public class SSLConfigurationSettings {
 
         this.enabledSettings = Collections.unmodifiableList(enabled);
         this.disabledSettings = Collections.unmodifiableList(disabled);
-    }
-
-    public static String getKeyStoreType(Setting<Optional<String>> setting, Settings settings, String path) {
-        return setting.get(settings).orElseGet(() -> KeyStoreUtil.inferKeyStoreType(path));
     }
 
     public List<Setting<?>> getEnabledSettings() {

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.security.transport;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.hamcrest.Matchers;
 
@@ -33,12 +33,12 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
-        final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
+        final SslConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(3));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
-        assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
-        assertThat(profileConfigurations.get("cert").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
+        assertThat(profileConfigurations.get("full").getVerificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
+        assertThat(profileConfigurations.get("cert").getVerificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 
@@ -51,11 +51,11 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
-        final SSLConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Map<String, SSLConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
+        final SslConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
-        assertThat(profileConfigurations.get("none").verificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
+        assertThat(profileConfigurations.get("none").getVerificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 

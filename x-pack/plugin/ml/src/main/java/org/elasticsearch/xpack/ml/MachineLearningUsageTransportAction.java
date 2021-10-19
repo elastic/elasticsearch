@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -90,7 +90,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
             MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
-                licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING), enabled,
+                MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
@@ -107,7 +107,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             response -> {
                 addTrainedModelStats(response, inferenceUsage);
                 MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
-                    licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING),
+                    MachineLearningField.ML_API_FEATURE.checkWithoutTracking(licenseState),
                     enabled, jobsUsage, datafeedsUsage, analyticsUsage, inferenceUsage, nodeCount);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             },
@@ -413,12 +413,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private static String[] ingestNodes(final ClusterState clusterState) {
-        String[] ingestNodes = new String[clusterState.nodes().getIngestNodes().size()];
-        Iterator<String> nodeIterator = clusterState.nodes().getIngestNodes().keysIt();
-        int i = 0;
-        while(nodeIterator.hasNext()) {
-            ingestNodes[i++] = nodeIterator.next();
-        }
-        return ingestNodes;
+        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
     }
 }

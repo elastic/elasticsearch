@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,7 +38,7 @@ public class CompositeRuntimeField implements RuntimeField {
                 () -> null,
                 RuntimeField::parseScript,
                 RuntimeField.initializerNotSupported()
-            ).setValidator(s -> {
+            ).addValidator(s -> {
                 if (s == null) {
                     throw new IllegalArgumentException("composite runtime field [" + name + "] must declare a [script]");
                 }
@@ -50,7 +50,7 @@ public class CompositeRuntimeField implements RuntimeField {
                 Collections::emptyMap,
                 (f, p, o) -> parseFields(f, o),
                 RuntimeField.initializerNotSupported()
-            ).setValidator(objectMap -> {
+            ).addValidator(objectMap -> {
                 if (objectMap == null || objectMap.isEmpty()) {
                     throw new IllegalArgumentException("composite runtime field [" + name + "] must declare its [fields]");
                 }

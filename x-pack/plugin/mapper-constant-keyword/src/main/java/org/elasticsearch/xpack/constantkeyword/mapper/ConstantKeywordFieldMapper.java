@@ -24,16 +24,16 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -93,9 +93,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ConstantKeywordFieldMapper build(ContentPath contentPath) {
+        public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(buildFullName(contentPath), value.getValue(), meta.getValue()));
+                    name, new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue()));
         }
     }
 
@@ -141,8 +141,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
 
             return value == null
-                ? lookup -> List.of()
-                : lookup -> List.of(value);
+                ? (lookup, ignoredValues) -> List.of()
+                : (lookup, ignoredValues) -> List.of(value);
         }
 
 

@@ -162,7 +162,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ShardRouting corruptedShardRouting = corruptRandomPrimaryFile();
         logger.info("--> {} corrupted", corruptedShardRouting);
         enableAllocation("test");
-         /*
+        /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2").build();
@@ -545,9 +545,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
+            // no checkindex - we corrupt shards on purpose
+            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
+            // no translog based flush - it might change the .liv / segments.N files
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -607,12 +608,14 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private List<Path> findFilesToCorruptOnNode(final String nodeName, final ShardId shardId) throws IOException {
         List<Path> files = new ArrayList<>();
-        Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId).resolve("index");
-        if (Files.exists(path)) { // multi data path might only have one path in use
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-                for (Path item : stream) {
-                    if (item.getFileName().toString().startsWith("segments_")) {
-                        files.add(item);
+        for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
+            path = path.resolve("index");
+            if (Files.exists(path)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                    for (Path item : stream) {
+                        if (item.getFileName().toString().startsWith("segments_")) {
+                            files.add(item);
+                        }
                     }
                 }
             }

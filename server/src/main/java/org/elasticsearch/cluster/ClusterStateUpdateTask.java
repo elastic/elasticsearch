@@ -70,7 +70,7 @@ public abstract class ClusterStateUpdateTask
     public abstract void onFailure(String source, Exception e);
 
     @Override
-    public final void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+    public final void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
         // final, empty implementation here as this method should only be defined in combination
         // with a batching executor as it will always be executed within the system context.
     }

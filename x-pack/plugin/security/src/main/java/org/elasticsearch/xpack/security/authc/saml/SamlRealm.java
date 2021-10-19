@@ -13,8 +13,8 @@ import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import org.apache.http.client.HttpClient;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -28,6 +28,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -43,15 +45,13 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -85,6 +85,7 @@ import java.security.GeneralSecurityException;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -330,8 +331,11 @@ public final class SamlRealm extends Realm implements Releasable {
 
     private static List<X509Credential> buildCredential(RealmConfig config, String prefix, Setting.AffixSetting<String> aliasSetting,
                                                         boolean allowMultiple) {
-        final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
+        final SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(config.settings(), prefix, config.env(), false);
+        if (keyConfig.hasKeyMaterial() == false) {
+            return null;
+        }
+        final X509KeyManager keyManager = keyConfig.createKeyManager();
         if (keyManager == null) {
             return null;
         }
@@ -553,15 +557,15 @@ public final class SamlRealm extends Realm implements Releasable {
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
         final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         builder.setSSLSocketFactory(factory);
 
         HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
         TimeValue refresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
-        resolver.setMinRefreshDelay(refresh.millis());
-        resolver.setMaxRefreshDelay(refresh.millis());
+        resolver.setMinRefreshDelay(Duration.ofMillis(refresh.millis()));
+        resolver.setMaxRefreshDelay(Duration.ofMillis(refresh.millis()));
         initialiseResolver(resolver, config);
 
         return new Tuple<>(resolver, () -> {
@@ -611,7 +615,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         // We don't want to rely on the internal OpenSAML refresh timer, but we can't turn it off, so just set it to run once a day.
         // @TODO : Submit a patch to OpenSAML to optionally disable the timer
-        final long oneDayMs = TimeValue.timeValueHours(24).millis();
+        final Duration oneDayMs = Duration.ofMillis(TimeValue.timeValueHours(24).millis());
         resolver.setMinRefreshDelay(oneDayMs);
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);

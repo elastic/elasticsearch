@@ -22,12 +22,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -74,18 +78,21 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -178,21 +185,23 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_INDEX_HIDDEN, true)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
                         .build())
                 .fPut(
-                    AnnotationIndex.INDEX_NAME,
-                    IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
+                    AnnotationIndex.LATEST_INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.LATEST_INDEX_NAME)
                         .settings(
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_INDEX_HIDDEN, true)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
-                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true).build())
                         .build())
                 .build())
             .build();
@@ -579,12 +588,19 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testKillingAMissingJobFinishesTheTask() {
         AutodetectProcessManager manager = createSpyManager();
-        JobTask jobTask = mock(JobTask.class);
-        when(jobTask.getJobId()).thenReturn("foo");
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        AtomicBoolean markCalled = new AtomicBoolean();
+        JobTask jobTask = new JobTask("foo", 0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of(), licenseState) {
+            @Override
+            protected void doMarkAsCompleted() {
+                markCalled.set(true);
+            }
+        };
+        jobTask.init(mock(PersistentTasksService.class), mock(TaskManager.class), "taskid", 0);
 
         manager.killProcess(jobTask, false, null);
 
-        verify(jobTask).markAsCompleted();
+        assertThat(markCalled.get(), is(true));
     }
 
     public void testProcessData_GivenStateNotOpened() {

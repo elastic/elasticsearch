@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.EvictingQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -32,8 +32,14 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
     private GapPolicy gapPolicy;
     private int lag;
 
-    SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable DocValueFormat formatter, GapPolicy gapPolicy,
-                                 int lag, Map<String, Object> metadata) {
+    SerialDiffPipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        @Nullable DocValueFormat formatter,
+        GapPolicy gapPolicy,
+        int lag,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
@@ -43,9 +49,11 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
         @SuppressWarnings("rawtypes")
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-                histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-                InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        InternalMultiBucketAggregation<
+            ? extends InternalMultiBucketAggregation,
+            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
+                ? extends InternalMultiBucketAggregation,
+                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
@@ -76,8 +84,9 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             if (Double.isNaN(thisBucketValue) == false && Double.isNaN(lagValue) == false) {
                 double diff = thisBucketValue - lagValue;
 
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
-                        (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                    .map((p) -> (InternalAggregation) p)
+                    .collect(Collectors.toList());
                 aggs.add(new InternalSimpleValue(name(), diff, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             }

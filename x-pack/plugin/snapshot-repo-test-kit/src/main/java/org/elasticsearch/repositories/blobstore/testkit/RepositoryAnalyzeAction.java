@@ -7,9 +7,6 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -38,7 +35,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -55,10 +51,12 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -180,11 +178,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
     }
 
     private static List<DiscoveryNode> getSnapshotNodes(DiscoveryNodes discoveryNodes) {
-        final ObjectContainer<DiscoveryNode> nodesContainer = discoveryNodes.getMasterAndDataNodes().values();
-        final List<DiscoveryNode> nodes = new ArrayList<>(nodesContainer.size());
-        for (ObjectCursor<DiscoveryNode> cursor : nodesContainer) {
-            if (isSnapshotNode(cursor.value)) {
-                nodes.add(cursor.value);
+        final Collection<DiscoveryNode> nodesCollection = discoveryNodes.getMasterAndDataNodes().values();
+        final List<DiscoveryNode> nodes = new ArrayList<>(nodesCollection.size());
+        for (DiscoveryNode node : nodesCollection) {
+            if (isSnapshotNode(node)) {
+                nodes.add(node);
             }
         }
         return nodes;

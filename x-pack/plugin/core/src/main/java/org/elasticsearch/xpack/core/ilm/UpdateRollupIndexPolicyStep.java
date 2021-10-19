@@ -45,7 +45,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+                              ClusterStateObserver observer, ActionListener<Void> listener) {
         final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
@@ -61,7 +61,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
             .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
-                listener.onResponse(true);
+                listener.onResponse(null);
             } else {
                 listener.onFailure(new ElasticsearchException("settings update not acknowledged in step [" + getKey().toString() + "]"));
             }

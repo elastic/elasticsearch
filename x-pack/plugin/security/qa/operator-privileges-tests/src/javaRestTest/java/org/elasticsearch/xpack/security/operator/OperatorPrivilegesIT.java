@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,12 +49,6 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         getShutdownStatus.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
-            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
-            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
-            // runner's JVM.
-            return;
-        }
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
         List<String> nodeIds = nodesArray.stream()
             .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
@@ -74,6 +68,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         );
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
+        assertThat(responseException.getMessage(), containsString("because it requires operator privileges"));
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyApi() throws IOException {

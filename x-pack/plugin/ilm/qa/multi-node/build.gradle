@@ -1,10 +1,11 @@
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 File repoDir = file("$buildDir/testclusters/repo")
@@ -15,7 +16,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
 

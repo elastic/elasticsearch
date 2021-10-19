@@ -32,11 +32,11 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
         String followerIndex = indexMetadata.getIndex().getName();
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
@@ -48,12 +48,12 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
                     if (r.isAcknowledged() == false) {
                         throw new ElasticsearchException("close index request failed to be acknowledged");
                     }
-                    listener.onResponse(true);
+                    listener.onResponse(null);
                 },
                 listener::onFailure)
             );
         } else {
-            listener.onResponse(true);
+            listener.onResponse(null);
         }
     }
 }

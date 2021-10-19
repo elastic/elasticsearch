@@ -13,7 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -1512,7 +1512,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testContinuousStopWaitForCheckpoint() throws Exception {
         Request updateLoggingLevels = new Request("PUT", "/_cluster/settings");
         updateLoggingLevels.setJsonEntity(
-            "{\"transient\": {"
+            "{\"persistent\": {"
                 + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
                 + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
         );

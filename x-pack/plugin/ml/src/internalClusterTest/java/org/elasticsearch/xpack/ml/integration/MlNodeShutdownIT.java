@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,9 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
     public void testJobsVacateShuttingDownNode() throws Exception {
-
-        // TODO: delete this condition when the shutdown API is always available
-        assumeTrue("shutdown API is behind a snapshot-only feature flag", Build.CURRENT.isSnapshot());
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
@@ -78,9 +74,17 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         });
 
         // Call the shutdown API for the chosen node.
-        client().execute(PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), randomFrom(SingleNodeShutdownMetadata.Type.values()), "just testing"))
-            .actionGet();
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+        client().execute(
+            PutShutdownNodeAction.INSTANCE,
+            new PutShutdownNodeAction.Request(
+                nodeIdToShutdown.get(),
+                type,
+                "just testing",
+                null,
+                targetNodeName)
+        ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
         assertBusy(() -> {
@@ -98,9 +102,6 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
     }
 
     public void testCloseJobVacatingShuttingDownNode() throws Exception {
-
-        // TODO: delete this condition when the shutdown API is always available
-        assumeTrue("shutdown API is behind a snapshot-only feature flag", Build.CURRENT.isSnapshot());
 
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
@@ -145,8 +146,16 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         });
 
         // Call the shutdown API for the chosen node.
-        client().execute(PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), randomFrom(SingleNodeShutdownMetadata.Type.values()), "just testing"))
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+        client().execute(
+            PutShutdownNodeAction.INSTANCE,
+            new PutShutdownNodeAction.Request(
+                nodeIdToShutdown.get(), type,
+                "just testing",
+                null,
+                targetNodeName)
+        )
             .actionGet();
 
         if (randomBoolean()) {

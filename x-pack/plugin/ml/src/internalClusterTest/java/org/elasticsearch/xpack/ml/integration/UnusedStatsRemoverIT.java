@@ -12,11 +12,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -85,7 +85,8 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
                         .build())
                 )
                 .validate(true)
-                .build())).actionGet();
+                .build(),
+                false)).actionGet();
 
         indexStatDocument(new DataCounts("analytics-with-stats", 1, 1, 1),
             DataCounts.documentId("analytics-with-stats"));

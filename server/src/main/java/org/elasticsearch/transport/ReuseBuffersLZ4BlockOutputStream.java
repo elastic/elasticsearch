@@ -23,20 +23,16 @@
 
 package org.elasticsearch.transport;
 
+import net.jpountz.lz4.LZ4BlockInputStream;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4FrameOutputStream;
+import net.jpountz.util.SafeUtils;
+
+import org.apache.lucene.util.BytesRef;
+
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.zip.Checksum;
-
-import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FrameOutputStream;
-import net.jpountz.util.SafeUtils;
-import net.jpountz.xxhash.StreamingXXHash32;
-import net.jpountz.xxhash.XXHashFactory;
-
-import org.apache.lucene.util.BytesRef;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular it forks the following file
@@ -46,6 +42,8 @@ import org.apache.lucene.util.BytesRef;
  * the need to allocate two new byte arrays everytime a new stream is created. For the Elasticsearch use case,
  * a single thread should fully compress the stream in one go to avoid memory corruption.
  *
+ * Additionally, it does not checksum (or write a check) for the data compressed. We do not read the checksum
+ * when decompressing in Elasticsearch.
  *
  * Streaming LZ4 (not compatible with the LZ4 Frame format).
  * This class compresses data into fixed-size blocks of compressed data.
@@ -116,7 +114,6 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
     private final int blockSize;
     private final int compressionLevel;
     private final LZ4Compressor compressor;
-    private final Checksum checksum;
     private final ArrayBox arrayBox;
     private final byte[] buffer;
     private final byte[] compressedBuffer;
@@ -134,69 +131,21 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
      *                    must be &gt;= 64 and &lt;= 32 M
      * @param compressor  the {@link LZ4Compressor} instance to use to compress
      *                    data
-     * @param checksum    the {@link Checksum} instance to use to check data for
-     *                    integrity.
-     * @param syncFlush   true if pending data should also be flushed on {@link #flush()}
      */
-    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor, Checksum checksum,
-                                            boolean syncFlush) {
+    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor) {
         super(out);
         this.blockSize = blockSize;
         this.compressor = compressor;
-        this.checksum = checksum;
         this.compressionLevel = compressionLevel(blockSize);
         final int compressedBlockSize = HEADER_LENGTH + compressor.maxCompressedLength(blockSize);
         this.arrayBox = ARRAY_BOX.get();
         arrayBox.markOwnership(blockSize, compressedBlockSize);
         this.buffer = arrayBox.uncompressed;
         this.compressedBuffer = arrayBox.compressed;
-        this.syncFlush = syncFlush;
+        this.syncFlush = false;
         o = 0;
         finished = false;
         System.arraycopy(MAGIC, 0, compressedBuffer, 0, MAGIC_LENGTH);
-    }
-
-    /**
-     * Creates a new instance which checks stream integrity using
-     * {@link StreamingXXHash32} and doesn't sync flush.
-     *
-     * @param out         the {@link OutputStream} to feed
-     * @param blockSize   the maximum number of bytes to try to compress at once,
-     *                    must be &gt;= 64 and &lt;= 32 M
-     * @param compressor  the {@link LZ4Compressor} instance to use to compress
-     *                    data
-     *
-     * @see #ReuseBuffersLZ4BlockOutputStream(OutputStream, int, LZ4Compressor, Checksum, boolean)
-     * @see StreamingXXHash32#asChecksum()
-     */
-    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor) {
-        this(out, blockSize, compressor, XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), false);
-    }
-
-    /**
-     * Creates a new instance which compresses with the standard LZ4 compression
-     * algorithm.
-     *
-     * @param out         the {@link OutputStream} to feed
-     * @param blockSize   the maximum number of bytes to try to compress at once,
-     *                    must be &gt;= 64 and &lt;= 32 M
-     *
-     * @see #ReuseBuffersLZ4BlockOutputStream(OutputStream, int, LZ4Compressor)
-     * @see LZ4Factory#fastCompressor()
-     */
-    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize) {
-        this(out, blockSize, LZ4Factory.fastestInstance().fastCompressor());
-    }
-
-    /**
-     * Creates a new instance which compresses into blocks of 64 KB.
-     *
-     * @param out         the {@link OutputStream} to feed
-     *
-     * @see #ReuseBuffersLZ4BlockOutputStream(OutputStream, int)
-     */
-    public ReuseBuffersLZ4BlockOutputStream(OutputStream out) {
-        this(out, 1 << 16);
     }
 
     private void ensureNotFinished() {
@@ -256,9 +205,6 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
         if (o == 0) {
             return;
         }
-        checksum.reset();
-        checksum.update(buffer, 0, o);
-        final int check = (int) checksum.getValue();
         int compressedLength = compressor.compress(buffer, 0, o, compressedBuffer, HEADER_LENGTH);
         final int compressMethod;
         if (compressedLength >= o) {
@@ -272,7 +218,8 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
         compressedBuffer[MAGIC_LENGTH] = (byte) (compressMethod | compressionLevel);
         writeIntLE(compressedLength, compressedBuffer, MAGIC_LENGTH + 1);
         writeIntLE(o, compressedBuffer, MAGIC_LENGTH + 5);
-        writeIntLE(check, compressedBuffer, MAGIC_LENGTH + 9);
+        // Write 0 for checksum. We do not read it on decompress.
+        writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 9);
         assert MAGIC_LENGTH + 13 == HEADER_LENGTH;
         out.write(compressedBuffer, 0, HEADER_LENGTH + compressedLength);
         o = 0;
@@ -327,7 +274,7 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
     @Override
     public String toString() {
         return getClass().getSimpleName() + "(out=" + out + ", blockSize=" + blockSize
-            + ", compressor=" + compressor + ", checksum=" + checksum + ")";
+            + ", compressor=" + compressor + ")";
     }
 
 }

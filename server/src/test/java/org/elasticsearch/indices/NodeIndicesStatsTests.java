@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;

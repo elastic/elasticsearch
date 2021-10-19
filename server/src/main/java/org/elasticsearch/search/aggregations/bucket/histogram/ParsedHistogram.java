@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,12 +27,17 @@ public class ParsedHistogram extends ParsedMultiBucketAggregation<ParsedHistogra
         return buckets;
     }
 
-    private static final ObjectParser<ParsedHistogram, Void> PARSER =
-            new ObjectParser<>(ParsedHistogram.class.getSimpleName(), true, ParsedHistogram::new);
+    private static final ObjectParser<ParsedHistogram, Void> PARSER = new ObjectParser<>(
+        ParsedHistogram.class.getSimpleName(),
+        true,
+        ParsedHistogram::new
+    );
     static {
-        declareMultiBucketAggregationFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareMultiBucketAggregationFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedHistogram fromXContent(XContentParser parser, String name) throws IOException {

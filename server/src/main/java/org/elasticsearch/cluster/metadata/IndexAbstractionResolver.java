@@ -204,7 +204,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
+        IndexMetadata indexMetadata = metadata.index(indexAbstraction.getIndices().get(0));
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }

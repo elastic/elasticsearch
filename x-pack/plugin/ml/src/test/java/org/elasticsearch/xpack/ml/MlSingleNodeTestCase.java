@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -114,7 +114,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
+                    MachineLearning.criticalTemplatesInstalled(state));
         });
     }
 

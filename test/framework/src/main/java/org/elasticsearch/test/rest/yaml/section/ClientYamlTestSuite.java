@@ -10,10 +10,10 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -158,7 +158,8 @@ public class ClientYamlTestSuite {
                 .isEmpty())
             .filter(section -> false == hasSkipFeature("warnings_regex", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [warnings_regex] section " +
-                "without a corresponding [\"skip\": \"features\": \"warnings_regex\"] so runners that do not support the [warnings_regex] "+
+                "without a corresponding [\"skip\": \"features\": \"warnings_regex\"] so runners that do not " +
+                "support the [warnings_regex] "+
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)

@@ -13,6 +13,7 @@ import com.unboundid.ldap.sdk.LDAPInterface;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -10,22 +10,24 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response for the successful creation of an api key
@@ -40,6 +42,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("api_key"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("encoded"));
     }
 
     private final String name;
@@ -151,6 +154,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }
+        builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
         return builder.endObject();
     }
 

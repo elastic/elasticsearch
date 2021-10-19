@@ -23,7 +23,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
@@ -92,7 +94,8 @@ public abstract class LdapTestCase extends ESTestCase {
                     getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.key"),
                     ldapPassword
                 );
-                X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
+                final X509ExtendedKeyManager keyManager
+                    = KeyStoreUtil.createKeyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
                 final SSLContext context = SSLContext.getInstance(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS.get(0));
                 context.init(new KeyManager[] { keyManager }, null, null);
                 SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();

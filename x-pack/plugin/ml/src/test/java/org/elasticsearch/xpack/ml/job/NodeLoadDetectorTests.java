@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
+import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
@@ -88,18 +89,19 @@ public class NodeLoadDetectorTests extends ESTestCase {
                             TrainedModelAllocationMetadata.NAME,
                             TrainedModelAllocationMetadata.Builder.empty()
                                 .addNewAllocation(
-                                    new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT)
-                                )
-                                .addNode("model1", "_node_id4")
-                                .addFailedNode("model1", "_node_id2", "test")
-                                .addNode("model1", "_node_id1")
-                                .updateAllocation(
                                     "model1",
-                                    "_node_id1",
-                                    new RoutingStateAndReason(
-                                        randomFrom(RoutingState.STOPPED, RoutingState.FAILED),
-                                        "test"
-                                    )
+                                    TrainedModelAllocation.Builder
+                                        .empty(new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1))
+                                        .addNewRoutingEntry("_node_id4")
+                                        .addNewFailedRoutingEntry("_node_id2", "test")
+                                        .addNewRoutingEntry("_node_id1")
+                                        .updateExistingRoutingEntry(
+                                            "_node_id1",
+                                            new RoutingStateAndReason(
+                                                randomFrom(RoutingState.STOPPED, RoutingState.FAILED),
+                                                "test"
+                                            )
+                                        )
                                 )
                                 .build()
                         )
@@ -129,7 +131,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
         load = nodeLoadDetector.detectNodeLoad(cs, true, nodes.get("_node_id4"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(429916160L));
         assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(1L));
+        assertThat(load.getNumAssignedJobs(), equalTo(2L));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
     }

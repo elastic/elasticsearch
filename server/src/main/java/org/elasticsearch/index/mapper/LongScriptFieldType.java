@@ -83,9 +83,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
-        }
+        checkNoTimeZone(timeZone);
         if (format == null) {
             return DocValueFormat.RAW;
         }

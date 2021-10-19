@@ -10,13 +10,14 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -98,7 +99,20 @@ public class AllocationIdTests extends ESTestCase {
         shard = shard.moveToStarted();
 
         logger.info("-- move to unassigned");
-        shard = shard.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null));
+        shard = shard.moveToUnassigned(
+            new UnassignedInfo(
+                UnassignedInfo.Reason.NODE_LEFT,
+                this.getTestName(),
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet(),
+                randomAlphaOfLength(10)
+            )
+        );
         assertThat(shard.allocationId(), nullValue());
     }
 

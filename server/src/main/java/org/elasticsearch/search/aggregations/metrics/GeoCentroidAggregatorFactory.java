@@ -24,13 +24,15 @@ import java.util.Map;
 class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final MetricAggregatorSupplier aggregatorSupplier;
 
-    GeoCentroidAggregatorFactory(String name,
-                                    ValuesSourceConfig config,
-                                    AggregationContext context,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata,
-                                    MetricAggregatorSupplier aggregatorSupplier) throws IOException {
+    GeoCentroidAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        MetricAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.aggregatorSupplier = aggregatorSupplier;
     }
@@ -41,11 +43,8 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 

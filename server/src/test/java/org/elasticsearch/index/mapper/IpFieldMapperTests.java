@@ -18,7 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
@@ -219,33 +219,39 @@ public class IpFieldMapperTests extends MapperTestCase {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", true).field("doc_values", false);
+                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("dimension", true).field("index", false).field("doc_values", true);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
             })));
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] requires that [index] and [doc_values] are true"));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
+            );
         }
     }
 
     public void testDimensionMultiValuedField() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         }));
 
         Exception e = expectThrows(MapperParsingException.class,

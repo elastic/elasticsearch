@@ -11,8 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 
-import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.createParameters;
-
 public class XPackRestIT extends AbstractXPackRestTest {
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

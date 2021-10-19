@@ -1889,9 +1889,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    public void testFullWildcardSystemIndexResolutionAllowed() {
+    public void testFullWildcardSystemIndexResolutionWithExpandHiddenAllowed() {
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
@@ -1921,10 +1922,20 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
     }
 
+    public void testFullWildcardSystemIndicesAreHidden() {
+        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
+        ClusterState state = systemIndexTestClusterState();
+        SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+
+        List<String> indexNames = resolveConcreteIndexNameList(state, request);
+        assertThat(indexNames, containsInAnyOrder("some-other-index"));
+    }
+
     public void testFullWildcardSystemIndexResolutionDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));

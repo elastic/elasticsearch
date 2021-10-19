@@ -479,6 +479,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
+        assert isSystem == false || isHidden; // system indices must be hidden indices
         this.isHidden = isHidden;
         this.timestampRange = timestampRange;
         this.priority = priority;
@@ -677,7 +678,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return timestampRange;
     }
 
-    
+
 
     @Override
     public boolean equals(Object o) {
@@ -1354,6 +1355,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 // #IndexMetadataVerifier#convertSharedCacheTierPreference(IndexMetadata)} later so we just store a null
                 // to be able to build a temporary instance
                 tierPreference = null;
+            }
+
+            if (isSystem) {
+                settings = Settings.builder().put(settings).put(INDEX_HIDDEN_SETTING.getKey(), true).build();
             }
 
             return new IndexMetadata(

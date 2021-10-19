@@ -294,11 +294,18 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.description = description;
         this.mappings = mappings;
 
-        if (Objects.nonNull(settings) && settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-            throw new IllegalArgumentException("System indices cannot have " + IndexMetadata.SETTING_INDEX_HIDDEN +
+        settings = Objects.isNull(settings) ? Settings.EMPTY : settings;
+
+        if (settings.hasValue(IndexMetadata.SETTING_INDEX_HIDDEN) == false) {
+            settings = Settings.builder().put(settings).put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+        }
+
+        if (settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+            this.settings = settings;
+        } else {
+            throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN +
                 " set to true.");
         }
-        this.settings = settings;
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;

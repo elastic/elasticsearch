@@ -61,7 +61,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .system(false)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
 
-        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+        assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
     /**
@@ -73,10 +73,10 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .system(true)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
 
-        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+        assertSystemUpgradeAppliesHiddenSetting(hiddenIndexMetadata);
     }
 
-    private void assertSystemUpgradeRemovesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
+    private void assertSystemUpgradeAppliesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
         Metadata.Builder clusterMetadata = new Metadata.Builder();
         clusterMetadata.put(hiddenIndexMetadata);
 
@@ -89,7 +89,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
-        assertThat(result.getSettings().get(IndexMetadata.SETTING_INDEX_HIDDEN), equalTo("false"));
+        assertThat(result.isHidden(), equalTo(true));
     }
 
     private static Settings.Builder getSettingsBuilder() {

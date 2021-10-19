@@ -51,6 +51,7 @@ public class ClusterHealthRequestTests extends ESTestCase {
         assertTrue(defaultRequest.indicesOptions().expandWildcardsHidden());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79454")
     public void testBwcSerialization() throws Exception {
         for (int runs = 0; runs < randomIntBetween(5, 20); runs++) {
             // Generate a random cluster health request in version < 7.2.0 and serializes it

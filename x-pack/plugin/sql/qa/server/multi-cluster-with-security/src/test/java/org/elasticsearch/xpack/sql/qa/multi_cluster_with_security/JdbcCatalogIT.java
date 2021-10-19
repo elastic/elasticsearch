@@ -18,9 +18,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Properties;
 
-import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class JdbcCatalogIT extends JdbcIntegrationTestCase {

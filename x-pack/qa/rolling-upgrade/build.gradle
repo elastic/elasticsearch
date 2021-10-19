@@ -66,6 +66,11 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     if (bwcVersion.onOrAfter('6.6.0')) {
       setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
     }
+    if (bwcVersion.onOrAfter('7.11.0')) {
+      extraConfigFile 'operator_users.yml', file("${project.projectDir}/src/test/resources/operator_users.yml")
+//      setting 'xpack.security.operator_privileges.enabled', "true"
+      user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
+    }
 
     user username: "test_user", password: "x-pack-test-password"
 

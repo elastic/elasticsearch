@@ -111,7 +111,6 @@ public final class ScriptContext<FactoryType> {
         this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), true, true);
     }
 
-
     /**
      * Construct a context for a system script usage, using the:
      *  - default cache size (only relevant when context caching enabled): 200

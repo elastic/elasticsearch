@@ -117,7 +117,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
                                            Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener) {
@@ -194,7 +194,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             thread.start();
             IndexShard replica = shards.addReplica();
             Future<Void> fut = shards.asyncRecoverReplica(replica,
-                (shard, node) -> new RecoveryTarget(shard, node, null, recoveryListener) {
+                (shard, node) -> new RecoveryTarget(shard, node, null, null, recoveryListener) {
                     @Override
                     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                         try {

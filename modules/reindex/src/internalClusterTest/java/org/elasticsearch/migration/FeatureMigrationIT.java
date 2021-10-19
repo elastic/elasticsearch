@@ -232,7 +232,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         } else {
             createRequest.setSettings(
                 createSimpleSettings(
-                    Version.V_7_0_0,
+                    Version.V_6_0_0,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
@@ -270,12 +270,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(".int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, INTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSimpleSettings(Version.V_6_0_0, INTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createSimpleMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(Version.V_6_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -284,7 +284,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(Version.V_6_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor EXTERNAL_MANAGED = SystemIndexDescriptor.builder()
@@ -292,12 +292,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, EXTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSimpleSettings(Version.V_6_0_0, EXTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createSimpleMapping(true, false))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(Version.V_6_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -306,7 +306,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(Version.V_6_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 

@@ -38,7 +38,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
         assertThat(status.getUpgradeStatus(), equalTo(MIGRATION_NEEDED));
         assertThat(status.getFeatureName(), equalTo("test-feature"));
-        assertThat(status.getMinimumIndexVersion(), equalTo(Version.V_7_0_0));
+        assertThat(status.getMinimumIndexVersion(), equalTo(Version.V_6_0_0));
         assertThat(status.getIndexVersions().size(), equalTo(2)); // additional testing below
     }
 
@@ -55,7 +55,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
         }
         {
             GetFeatureUpgradeStatusResponse.IndexInfo version = versions.get(1);
-            assertThat(version.getVersion(), equalTo(Version.V_7_0_0));
+            assertThat(version.getVersion(), equalTo(Version.V_6_0_0));
             assertThat(version.getIndexName(), equalTo(".test-index-2"));
         }
     }
@@ -82,7 +82,7 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .build();
 
         IndexMetadata indexMetadata2 = IndexMetadata.builder(".test-index-2")
-            .settings(Settings.builder().put("index.version.created", Version.V_7_0_0).build())
+            .settings(Settings.builder().put("index.version.created", Version.V_6_0_0).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

@@ -62,7 +62,7 @@ public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_16_0;
     }
 
     @Override public boolean equals(Object obj) {

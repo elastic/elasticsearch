@@ -14,11 +14,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -221,6 +222,11 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     }
 
     @Override
+    protected void doClose() {
+        Releasables.close(bucketOrds);
+    }
+
+    @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
@@ -284,7 +290,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             otherDocCount,
-            org.elasticsearch.core.List.of(topBuckets),
+            List.of(topBuckets),
             0,
             formats,
             keyConverters,

@@ -323,10 +323,9 @@ public class SystemIndexManagerTests extends ESTestCase {
         );
 
         final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(getSettings());
         if (descriptor.getSettings() != null) {
             settingsBuilder.put(descriptor.getSettings());
-        } else {
-            settingsBuilder.put(getSettings());
         }
         settingsBuilder.put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format);
         indexMetadata.settings(settingsBuilder.build());

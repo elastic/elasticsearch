@@ -116,10 +116,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Number of fields exceeds automatic field expansion limit",
             "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-            "This index has [" + fieldCount + "] fields, which exceeds the automatic field expansion limit of 1024 " +
-                "and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, which may cause queries which use " +
-                "automatic field expansion, such as query_string, simple_query_string, and multi_match to fail if fields are not " +
-                "explicitly specified in the query.", false, null);
+            "This index has " + fieldCount + " fields, which exceeds the automatic field expansion limit (1024). Set " +
+                IndexSettings.DEFAULT_FIELD_SETTING.getKey() + " to prevent queries that support automatic field expansion from failing " +
+                "if no fields are specified. Otherwise, you must explicitly specify fields in all query_string, simple_query_string, and " +
+                "multi_match queries.", false, null);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsIndex));
         assertEquals(singletonList(expected), issues);
 
@@ -386,10 +386,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "translog retention settings are ignored",
+                "Translog retention settings are deprecated",
                 "https://ela.st/es-deprecation-7-translog-settings",
-                "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
+                "Remove the translog retention settings: \"index.translog.retention.size\" and \"index.translog.retention.age\". The " +
+                    "translog has not been used in peer recoveries with soft-deletes enabled since 7.0 and these settings have no effect.",
                 false, null)
         ));
     }

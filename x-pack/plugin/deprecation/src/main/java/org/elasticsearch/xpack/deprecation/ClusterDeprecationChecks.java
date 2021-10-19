@@ -73,10 +73,10 @@ public class ClusterDeprecationChecks {
             .collect(Collectors.toList());
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "User-Agent ingest plugin will always use ECS-formatted output",
+                "The User-Agent ingest processor's ecs parameter is deprecated",
                 "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
-                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig +
-                    " uses the [ecs] option which needs to be removed to work in 8.0", false, null);
+                "Remove the ecs parameter from your ingest pipelines. The User-Agent ingest processor always returns Elastic Common " +
+                    "Schema (ECS) fields in 8.0.", false, null);
         }
         return null;
     }

@@ -242,16 +242,14 @@ class NodeDeprecationChecks {
         } else {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "Realm names cannot start with [" + RESERVED_REALM_NAME_PREFIX + "] in a future major release.",
+                "Prefixing realm names with an underscore (_) is deprecated",
                 "https://ela.st/es-deprecation-7-realm-names",
-                String.format(Locale.ROOT, "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
-                        + " with reserved prefix [%s]: [%s]. "
-                        + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
-                    RESERVED_REALM_NAME_PREFIX,
+                String.format(Locale.ROOT, "Rename the following realm%s in the realm chain: %s.",
+                    reservedPrefixedRealmIdentifiers.size() > 1 ? "s" : "",
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
-                        .collect(Collectors.joining("; "))),
+                        .collect(Collectors.joining(", "))),
                false, null
             );
         }
@@ -569,13 +567,12 @@ class NodeDeprecationChecks {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT, "the default value [false] of setting [%s] is deprecated and will be changed to true" +
-                    " in a future version. This cluster has only one data node and behavior will therefore change when upgrading", key),
+                String.format(Locale.ROOT, "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
+                    key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
-                String.format(Locale.ROOT, "found [%s] defaulting to false on a single data node cluster." +
-                        " Set it to true to avoid this warning." +
-                        " Consider using [%s] to disable disk based allocation", key,
-                    disableDiskDecider),
+                String.format(Locale.ROOT, "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node" +
+                        " cluster when you upgrade. You can set \"%s\" to false to disable" +
+                        " disk based allocation.", disableDiskDecider),
                 false,
                 null
             );
@@ -1016,7 +1013,7 @@ class NodeDeprecationChecks {
                         String realm = concreteSamlPrincipalSettingKey.substring(0, principalKeySuffixIndex);
                         String concreteNameIdFormatSettingKey = realm + ".nameid_format";
                         if (settings.get(concreteNameIdFormatSettingKey) == null) {
-                            return String.format(Locale.ROOT, "no value for [%s] set in realm [%s]",
+                            return String.format(Locale.ROOT, "Configure \"%s\" for SAML realms: \"%s\".",
                                 concreteNameIdFormatSettingKey, realm);
                         }
                     }
@@ -1026,10 +1023,10 @@ class NodeDeprecationChecks {
         if (detailsList.isEmpty()) {
             return null;
         } else {
-            String message = "if nameid_format is not explicitly set, the previous default of " +
-                "'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no longer used";
+            String message = "The SAML nameid_format is not set and no longer defaults to " +
+                "\"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"";
             String url = "https://ela.st/es-deprecation-7-saml-nameid-format";
-            String details = detailsList.stream().collect(Collectors.joining(","));
+            String details = detailsList.stream().collect(Collectors.joining(" "));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
     }

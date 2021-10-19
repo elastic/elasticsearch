@@ -384,13 +384,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals(DeprecationIssue.Level.WARNING, deprecationIssue.getLevel());
-        assertEquals("Realm names cannot start with [_] in a future major release.", deprecationIssue.getMessage());
+        assertEquals("Prefixing realm names with an underscore (_) is deprecated", deprecationIssue.getMessage());
         assertEquals("https://ela.st/es-deprecation-7-realm-names", deprecationIssue.getUrl());
-        assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
-                + " with reserved prefix [_]: ["
-                + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
-                + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
-            deprecationIssue.getDetails());
+        String expectedDetails = String.format(Locale.ROOT, "Rename the following realm%s in the realm chain: %s.",
+            invalidRealmNames.size() > 1 ? "s" : "",
+            Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), ", "));
+        assertEquals(expectedDetails, deprecationIssue.getDetails());
     }
 
     public void testThreadPoolListenerQueueSize() {
@@ -737,13 +736,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl =
             "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting";
         DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "the default value [false] of setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node]" +
-                " is deprecated and will be changed to true in a future version." +
-                " This cluster has only one data node and behavior will therefore change when upgrading",
+            "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
             expectedUrl,
-            "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] defaulting to false" +
-                " on a single data node cluster. Set it to true to avoid this warning." +
-                " Consider using [cluster.routing.allocation.disk.threshold_enabled] to disable disk based allocation", false, null);
+            "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node cluster when you upgrade. You " +
+                "can set \"cluster.routing.allocation.disk.threshold_enabled\" to false to disable disk based allocation.", false, null);
 
         assertThat(issues, hasItem(deprecationIssue));
 
@@ -1438,10 +1434,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.authc.realms.saml.saml1.attributes.principal", randomIntBetween(30, 100))
             .build();
         DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
-                "longer used",
+            "The SAML nameid_format is not set and no longer defaults to \"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"",
             "https://ela.st/es-deprecation-7-saml-nameid-format",
-            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]",
+            "Configure \"xpack.security.authc.realms.saml.saml1.nameid_format\" for SAML realms: " +
+                "\"xpack.security.authc.realms.saml.saml1\".",
             false, null
         );
         assertThat(
@@ -1455,10 +1451,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.authc.realms.saml.saml2.nameid_format", randomIntBetween(1, 25))
             .build();
         expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
-                "longer used",
+            "The SAML nameid_format is not set and no longer defaults to \"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"",
             "https://ela.st/es-deprecation-7-saml-nameid-format",
-            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]",
+            "Configure \"xpack.security.authc.realms.saml.saml1.nameid_format\" for SAML realms: " +
+                "\"xpack.security.authc.realms.saml.saml1\".",
             false, null
         );
         assertThat(
@@ -1471,11 +1467,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.authc.realms.saml.saml2.attributes.principal", randomIntBetween(30, 100))
             .build();
         expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "if nameid_format is not explicitly set, the previous default of 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no " +
-                "longer used",
+            "The SAML nameid_format is not set and no longer defaults to \"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"",
             "https://ela.st/es-deprecation-7-saml-nameid-format",
-            "no value for [xpack.security.authc.realms.saml.saml1.nameid_format] set in realm [xpack.security.authc.realms.saml.saml1]," +
-                "no value for [xpack.security.authc.realms.saml.saml2.nameid_format] set in realm [xpack.security.authc.realms.saml.saml2]",
+            "Configure \"xpack.security.authc.realms.saml.saml1.nameid_format\" for SAML realms: " +
+                "\"xpack.security.authc.realms.saml.saml1\". Configure \"xpack.security.authc.realms.saml.saml2.nameid_format\" for SAML " +
+                "realms: \"xpack.security.authc.realms.saml.saml2\".",
             false, null
         );
         assertThat(

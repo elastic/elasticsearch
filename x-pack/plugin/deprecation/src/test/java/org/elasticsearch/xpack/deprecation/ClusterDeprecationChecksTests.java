@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
-import java.util.Locale;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
@@ -36,14 +34,11 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
 
         ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithTransientSettings).build();
         DeprecationIssue issue = ClusterDeprecationChecks.checkTransientSettingsExistence(badState);
-        String expectedDetails = String.format(Locale.ROOT,
-            "Use persistent settings instead of transient settings for the following: [%s]",
-            String.join(", ", "action", "cluster", "indices"));
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Transient cluster settings are in the process of being removed.",
+                "Transient cluster settings are deprecated",
                 "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                expectedDetails,
+                "Use persistent settings to configure your cluster.",
                 false, null)
         ));
 

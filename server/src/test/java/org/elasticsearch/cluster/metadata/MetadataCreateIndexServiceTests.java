@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -1011,8 +1012,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             return Optional.of(aggregatedIndexSettings.get(DataTier.TIER_PREFERENCE));
         } else {
             if (clusterState != ClusterState.EMPTY_STATE) {
-                assertWarnings("[" + request.index() + "] creating index with " +
-                    "an empty [" + DataTier.TIER_PREFERENCE + "] setting, in 8.0 this setting will be required for all indices");
+                assertWarnings(true, new DeprecationWarning(Level.WARN, "[" + request.index() +
+                    "] creating index with an empty [" + DataTier.TIER_PREFERENCE + "] setting, in 8.0 this setting will be required for " +
+                    "all indices"));
             }
 
             return Optional.empty();

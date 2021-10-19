@@ -74,8 +74,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     @Before
     public void setupForTests() throws Exception {
         waitForTemplates();
-        // TODO: move the monitoring YAML tests to the monitoring plugin to avoid cluster wide deprecation messages
-//        enableMonitoring();
+        enableMonitoring();
     }
 
     /**
@@ -194,8 +193,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
      */
     @After
     public void cleanup() throws Exception {
-        // TODO: move the monitoring YAML tests to the monitoring plugin to avoid cluster wide deprecation messages
-//        disableMonitoring();
+        disableMonitoring();
         clearMlState();
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise

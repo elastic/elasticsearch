@@ -33,7 +33,7 @@ When restoring data from a snapshot, keep the following in mind:
 * If you restore a data stream, you also restore its backing indices.
 
 * You can only restore an existing index if it's <<indices-close,closed>> and
-the index in the snapshot has the same number of primary shards.
+the index in the snapshot has the same number of primary shards. 
 
 * You can't restore an existing open index. This includes
 backing indices for a data stream.
@@ -126,7 +126,7 @@ indices, use `*,-.*`.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index,logs-my_app-default"
 }
@@ -151,7 +151,7 @@ any restored index or data stream.
 
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "my-index,logs-my_app-default",
   "rename_pattern": "(.+)",
@@ -277,7 +277,6 @@ PUT _cluster/settings
   }
 }
 ----
-// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 // TEST[continued]
 ////
 
@@ -343,7 +342,7 @@ any system indices in the snapshot.
 +
 [source,console]
 ----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
+POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore 
 {
   "indices": "*",
   "include_global_state": true

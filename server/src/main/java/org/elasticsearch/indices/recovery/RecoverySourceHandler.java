@@ -486,6 +486,7 @@ public class RecoverySourceHandler {
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
+                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
                 recoveryPlannerService.computeRecoveryPlan(shard.shardId(),
                     shardStateIdentifier,
                     recoverySourceMetadata,
@@ -493,7 +494,7 @@ public class RecoverySourceHandler {
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
-                    useSnapshots,
+                    canUseSnapshots,
                     ActionListener.wrap(plan ->
                         recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );

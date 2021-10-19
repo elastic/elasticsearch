@@ -23,6 +23,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
@@ -72,6 +74,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
@@ -1511,9 +1514,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        ThreadPool testThreadPool = mock(ThreadPool.class);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
-                null,
+                clusterService,
                 null,
                 null,
                 null,

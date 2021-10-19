@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.watcher.actions.throttler;
 
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.WatcherConstants;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
 import static org.hamcrest.Matchers.is;
@@ -26,7 +26,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result expectedResult = Throttler.Result.throttle(Throttler.Type.ACK, "_reason");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -41,7 +41,7 @@ public class WatchThrottlerTests extends ESTestCase {
         when(periodThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -57,7 +57,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result ackResult = Throttler.Result.throttle(Throttler.Type.ACK, "_reason_ack");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -72,7 +72,7 @@ public class WatchThrottlerTests extends ESTestCase {
         when(periodThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -85,7 +85,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(true);
         ActionThrottler throttler = new ActionThrottler(null, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
@@ -98,7 +98,7 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(WatcherConstants.WATCHER_FEATURE)).thenReturn(false);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(false);
         ActionThrottler throttler = new ActionThrottler(null, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());

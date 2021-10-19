@@ -69,6 +69,10 @@ public class StringMatcher implements Predicate<String> {
         return predicate.test(s);
     }
 
+    public boolean isTotal() {
+        return predicate == ALWAYS_TRUE_PREDICATE;
+    }
+
     // For testing
     Predicate<String> getPredicate() {
         return predicate;

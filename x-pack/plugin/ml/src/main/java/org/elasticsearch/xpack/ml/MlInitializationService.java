@@ -99,6 +99,7 @@ public class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
+        logger.info("About to start makeMlInternalIndicesHidden thread");
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
@@ -181,7 +182,7 @@ public class MlInitializationService implements ClusterStateListener {
                             .isHidden(true));
                 }
                 if (indicesAliasesRequest.getAliasActions().isEmpty()) {
-                    logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
+                    logger.info("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
                     finalListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
@@ -189,7 +190,7 @@ public class MlInitializationService implements ClusterStateListener {
                     indicesAliasesRequest.getAliasActions().stream()
                         .map(aliasAction -> aliasAction.indices()[0] + ": " + String.join(",", aliasAction.aliases()))
                         .collect(Collectors.joining("; "));
-                logger.debug("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
+                logger.info("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
                 executeAsyncWithOrigin(client, ML_ORIGIN, IndicesAliasesAction.INSTANCE, indicesAliasesRequest, finalListener);
             },
             finalListener::onFailure
@@ -219,12 +220,12 @@ public class MlInitializationService implements ClusterStateListener {
                         .map(Map.Entry::getKey)
                         .toArray(String[]::new);
                 if (nonHiddenIndices.length == 0) {
-                    logger.debug("There are no ML internal indices that need to be made hidden, [{}]", getSettingsResponse);
+                    logger.info("There are no ML internal indices that need to be made hidden, [{}]", getSettingsResponse);
                     updateSettingsListener.onResponse(AcknowledgedResponse.TRUE);
                     return;
                 }
                 String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
-                logger.debug("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
+                logger.info("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
                 UpdateSettingsRequest updateSettingsRequest =
                     new UpdateSettingsRequest()
                         .indices(nonHiddenIndices)

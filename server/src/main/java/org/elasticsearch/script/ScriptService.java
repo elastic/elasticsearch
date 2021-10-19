@@ -231,7 +231,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         // Handle all settings for context and general caches, this flips between general and context caches.
         clusterSettings.addSettingsUpdateConsumer(
-            (settings) -> setCacheHolder(settings),
+            this::setCacheHolder,
             Arrays.asList(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
                           SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                           SCRIPT_GENERAL_CACHE_SIZE_SETTING,
@@ -565,8 +565,9 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         } else if (current.general == null) {
             // Flipping to general
             cacheHolder.set(generalCacheHolder(settings));
-        } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false) {
-            // General compilation rate changed, that setting is the only dynamically updated general setting
+        } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false ||
+                   current.general.cacheExpire.equals(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings)) == false ||
+                   current.general.cacheSize != SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings)) {
             cacheHolder.set(generalCacheHolder(settings));
         }
     }
@@ -592,13 +593,15 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         Setting<ScriptCache.CompilationRate> rateSetting =
             SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
-        ScriptCache.CompilationRate rate = null;
-        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings) || compilationLimitsEnabled() == false) {
+        ScriptCache.CompilationRate rate;
+        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings)
+                || compilationLimitsEnabled() == false
+                || context.compilationRateLimited == false) {
             rate = SCRIPT_COMPILATION_RATE_ZERO;
         } else if (rateSetting.existsOrFallbackExists(settings)) {
             rate = rateSetting.get(settings);
         } else {
-            rate = new ScriptCache.CompilationRate(context.maxCompilationRateDefault);
+            rate = new ScriptCache.CompilationRate(ScriptContext.DEFAULT_COMPILATION_RATE_LIMIT);
         }
 
         return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());

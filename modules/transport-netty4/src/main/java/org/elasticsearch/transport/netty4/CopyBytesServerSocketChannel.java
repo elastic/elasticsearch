@@ -4,8 +4,9 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
- */
-/*
+ *
+ * ============================================================================
+ *
  * Copyright 2012 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,

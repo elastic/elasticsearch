@@ -31,3 +31,9 @@ restResources {
         include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
     }
 }
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+    systemProperty 'tests.rest.blacklist', [
+        '50_script_values/Scripted fields values return Long'
+    ].join(',')
+}

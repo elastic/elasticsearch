@@ -542,7 +542,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             0,
             mapperService.getIndexSettings(),
             null,
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, idxName, lookup) ->
+                ft.fielddataBuilder(idxName, lookup).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,

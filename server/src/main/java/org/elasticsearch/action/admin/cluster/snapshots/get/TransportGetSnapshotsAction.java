@@ -435,7 +435,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         );
         for (SnapshotsInProgress.Entry entry : entries) {
             if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
-                final SnapshotInfo snapshotInfo = new SnapshotInfo(entry);
+                final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
                 if (predicate.test(snapshotInfo)) {
                     snapshotSet.add(SnapshotInfo.inProgress(entry));
                 }

@@ -48,8 +48,8 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Data_Warm", null, false, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("noSuchRole", null, createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("*", null, createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("*", null, createContextWithoutSetting()));
     }
 
     public void testTermQuery() {

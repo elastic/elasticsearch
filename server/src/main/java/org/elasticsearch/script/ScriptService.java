@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -50,6 +52,7 @@ import java.util.stream.Collectors;
 public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptService.class);
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
@@ -59,15 +62,21 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     static final String USE_CONTEXT_RATE_KEY = "use-context";
 
     public static final Setting<Integer> SCRIPT_GENERAL_CACHE_SIZE_SETTING =
-        Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
+        Setting.intSetting("script.cache.max_size", 3000, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<TimeValue> SCRIPT_GENERAL_CACHE_EXPIRE_SETTING =
-        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<ScriptCache.CompilationRate> SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING =
-        new Setting<>("script.max_compilations_rate", USE_CONTEXT_RATE_KEY,
+        new Setting<>("script.max_compilations_rate", "150/5m",
             (String value) -> value.equals(USE_CONTEXT_RATE_KEY) ? USE_CONTEXT_RATE_VALUE: new ScriptCache.CompilationRate(value),
             Property.Dynamic, Property.NodeScope);
+
+    public static final String USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE = "[" + USE_CONTEXT_RATE_KEY + "] is deprecated for the setting [" +
+        SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] as system scripts are now exempt from the rate limit. " +
+        "Set to a value such as [150/5m] (a rate of 150 compilations per five minutes) to rate limit user scripts in case the " +
+        "script cache [" + SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey() + "] is undersized causing script compilation thrashing.";
+
 
     // Per-context settings
     static final String CONTEXT_PREFIX = "script.context.";
@@ -77,13 +86,14 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     public static final Setting.AffixSetting<Integer> SCRIPT_CACHE_SIZE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
             "cache_max_size",
-            key -> Setting.intSetting(key, SCRIPT_GENERAL_CACHE_SIZE_SETTING, 0, Property.NodeScope, Property.Dynamic));
+            key -> Setting.intSetting(key, SCRIPT_GENERAL_CACHE_SIZE_SETTING, 0,
+                                      Property.NodeScope, Property.Dynamic, Property.Deprecated));
 
     public static final Setting.AffixSetting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.affixKeySetting(CONTEXT_PREFIX,
             "cache_expire",
             key -> Setting.positiveTimeSetting(key, SCRIPT_GENERAL_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(0),
-                                               Property.NodeScope, Property.Dynamic));
+                                               Property.NodeScope, Property.Dynamic, Property.Deprecated));
 
     // Unlimited compilation rate for context-specific script caches
     static final String UNLIMITED_COMPILATION_RATE_KEY = "unlimited";
@@ -94,7 +104,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             key -> new Setting<ScriptCache.CompilationRate>(key, "75/5m",
                 (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY) ? ScriptCache.UNLIMITED_COMPILATION_RATE:
                                                                                  new ScriptCache.CompilationRate(value),
-                Property.NodeScope, Property.Dynamic));
+                Property.NodeScope, Property.Dynamic, Property.Deprecated));
 
     private static final ScriptCache.CompilationRate SCRIPT_COMPILATION_RATE_ZERO = new ScriptCache.CompilationRate(0, TimeValue.ZERO);
 
@@ -205,6 +215,10 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         this.setCacheHolder(settings);
     }
 
+    public static boolean isUseContextCacheSet(Settings settings) {
+        return SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
+    }
+
     /**
      * This is overridden in tests to disable compilation rate limiting.
      */
@@ -231,7 +245,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         // Handle all settings for context and general caches, this flips between general and context caches.
         clusterSettings.addSettingsUpdateConsumer(
-            (settings) -> setCacheHolder(settings),
+            this::setCacheHolder,
             Arrays.asList(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
                           SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
                           SCRIPT_GENERAL_CACHE_SIZE_SETTING,
@@ -249,6 +263,10 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
      */
     void validateCacheSettings(Settings settings) {
         boolean useContext = SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings).equals(USE_CONTEXT_RATE_VALUE);
+        if (useContext) {
+            deprecationLogger.warn(DeprecationCategory.SCRIPTING, "scripting-context-cache",
+                    USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
+        }
         List<Setting.AffixSetting<?>> affixes = Arrays.asList(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, SCRIPT_CACHE_EXPIRE_SETTING,
                                                               SCRIPT_CACHE_SIZE_SETTING);
         List<String> customRates = new ArrayList<>();
@@ -277,7 +295,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                     String.join(", ", customRates) + "] if compile rates disabled via [" +
                     SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.getKey() + "]");
             }
-            if (useContext == false) {
+            if (useContext == false && SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.exists(settings)) {
                 throw new IllegalArgumentException("Cannot set custom general compilation rates [" +
                     SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey() + "] to [" +
                     SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) + "] if compile rates disabled via [" +
@@ -565,8 +583,10 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         } else if (current.general == null) {
             // Flipping to general
             cacheHolder.set(generalCacheHolder(settings));
-        } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false) {
-            // General compilation rate changed, that setting is the only dynamically updated general setting
+        } else if (current.general.rate.equals(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings)) == false ||
+                   current.general.cacheExpire.equals(SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings)) == false ||
+                   current.general.cacheSize != SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings)) {
+            // General compilation rate, cache expiration or cache size changed
             cacheHolder.set(generalCacheHolder(settings));
         }
     }
@@ -592,13 +612,15 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
         Setting<ScriptCache.CompilationRate> rateSetting =
             SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name);
-        ScriptCache.CompilationRate rate = null;
-        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings) || compilationLimitsEnabled() == false) {
+        ScriptCache.CompilationRate rate;
+        if (SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING.get(settings)
+                || compilationLimitsEnabled() == false
+                || context.compilationRateLimited == false) {
             rate = SCRIPT_COMPILATION_RATE_ZERO;
         } else if (rateSetting.existsOrFallbackExists(settings)) {
             rate = rateSetting.get(settings);
         } else {
-            rate = new ScriptCache.CompilationRate(context.maxCompilationRateDefault);
+            rate = new ScriptCache.CompilationRate(ScriptContext.DEFAULT_COMPILATION_RATE_LIMIT);
         }
 
         return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());

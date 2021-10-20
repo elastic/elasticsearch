@@ -8,11 +8,13 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -80,8 +82,14 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
         }
 
         if (Names.LISTENER.equals(threadPoolName)) {
-            assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size", "thread_pool.listener.size"});
+            assertSettingDeprecationsAndWarnings(getDeprecatedSettingsForSettingNames("thread_pool.listener.queue_size",
+                "thread_pool.listener.size"));
         }
+    }
+
+    private Setting<?>[] getDeprecatedSettingsForSettingNames(String... settingNames) {
+        return Arrays.stream(settingNames).map(settingName -> Setting.intSetting(settingName, randomInt(),
+            Setting.Property.Deprecated)).toArray(Setting[]::new);
     }
 
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -61,7 +60,6 @@ public class MetadataUpdateSettingsService {
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
 
-    @Inject
     public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService,
                                          ShardLimitValidator shardLimitValidator, ThreadPool threadPool) {

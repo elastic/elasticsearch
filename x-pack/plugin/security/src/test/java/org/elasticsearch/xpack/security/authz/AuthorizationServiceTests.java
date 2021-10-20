@@ -109,7 +109,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -254,7 +253,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         threadContext = new ThreadContext(settings);
         threadPool = mock(ThreadPool.class);

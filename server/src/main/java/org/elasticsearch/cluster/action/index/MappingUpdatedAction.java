@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -29,8 +30,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-
-import java.util.concurrent.Semaphore;
 
 /**
  * Called by shards in the cluster when their mapping was dynamically updated and it needs to be updated
@@ -135,31 +134,5 @@ public class MappingUpdatedAction {
             return (RuntimeException) root;
         }
         return new UncategorizedExecutionException("Failed execution", root);
-    }
-
-    static class AdjustableSemaphore extends Semaphore {
-
-        private final Object maxPermitsMutex = new Object();
-        private int maxPermits;
-
-        AdjustableSemaphore(int maxPermits, boolean fair) {
-            super(maxPermits, fair);
-            this.maxPermits = maxPermits;
-        }
-
-        void setMaxPermits(int permits) {
-            synchronized (maxPermitsMutex) {
-                final int diff = Math.subtractExact(permits, maxPermits);
-                if (diff > 0) {
-                    // add permits
-                    release(diff);
-                } else if (diff < 0) {
-                    // remove permits
-                    reducePermits(Math.negateExact(diff));
-                }
-
-                maxPermits = permits;
-            }
-        }
     }
 }

@@ -45,13 +45,13 @@ enable <<deprecation-logging, deprecation logging>>.
 ====
 *Details* +
 Orchestrated environments such as {ess} and Elastic Cloud Enterprise rely on
-the <<cluster-routing-disk-threshold,disk thresholds>> in {es} to operate the
-cluster correctly. For example the disk thresholds help determine how large an
-auto-scaled cluster should be. Disabling these disk thresholds prevents the
-orchestration system from working correctly, so starting in 7.16.0 the
-`cluster.routing.allocation.disk.threshold_enabled` setting is an
-<<operator-only-dynamic-cluster-settings, operator only>> setting which cannot
-be changed by end-users.
+the {ref}/modules-cluster.html#cluster-routing-disk-threshold[disk thresholds]
+in {es} to operate the cluster correctly. For example the disk thresholds help
+determine how large an auto-scaled cluster should be. Disabling these disk
+thresholds prevents the orchestration system from working correctly, so starting
+in 7.16.0 the `cluster.routing.allocation.disk.threshold_enabled` setting is an
+{ref}/operator-only-functionality.html#operator-only-dynamic-cluster-settings[operator only]
+setting which cannot be changed by end-users.
 
 *Impact* +
 Discontinue use of this setting in orchestrated environments such as {ess} and
@@ -81,6 +81,34 @@ logging>>.
 [discrete]
 [[breaking_716_tls_changes]]
 ==== Security changes
+
+[[saml-realm-nameid-changes]]
+.The `nameid_format` SAML realm setting no longer has a default value.
+[%collapsible]
+====
+*Details* +
+In SAML, Identity Providers (IdPs) can either be explicitly configured to
+release a `NameID` with a specific format, or configured to attempt to conform 
+with the requirements of a Service Provider (SP). The SP declares its
+requirements in the `NameIDPolicy` element of a SAML Authentication Request.
+In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
+value.
+Previously, the default value for `nameid_format` was
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`. This setting created
+authentication requests that required the IdP to release `NameID` with a
+`transient` format.
+The default value has been removed, which means that {es} will create SAML Authentication Requests by default that don't put this requirement on the
+IdP. If you want to retain the previous behavior, set `nameid_format` to
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`.
+
+*Impact* +
+If you currently don't configure `nameid_format` explicitly, it's possible
+that your IdP will reject authentication requests from {es} because the requests 
+do not specify a `NameID` format (and your IdP is configured to expect one).
+This mismatch can result in a broken SAML configuration. If you're unsure whether 
+your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
+, try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
+====
 
 [[tls-ssl-transport-enabled-required]]
 .The `xpack.security.transport.ssl.enabled` setting will be required to configure `xpack.security.transport.ssl` settings.
@@ -266,5 +294,57 @@ unexpectedly, leading to a potentially undesired cluster configuration.
 To avoid deprecation warnings, discontinue use of transient settings when modifying
 your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
 use only persistent settings.
+====
+
+[discrete]
+[[breaking_716_cluster_deprecations]]
+==== Cluster deprecations
+
+[[deprecate-cluster-health-408]]
+.Distinguishing cluster health timeout status by HTTP response code is now deprecated.
+[%collapsible]
+====
+*Details* +
+The {ref}/cluster-health.html[cluster health API] includes options for waiting
+for certain health conditions to be satisfied. If the requested conditions are
+not satisfied within a timeout then {es} will send back a normal response
+including the field `"timed_out": true`. In earlier versions it would also use
+the HTTP response code `408 Request timeout` if the request timed out, and `200
+OK` otherwise. The `408 Request timeout` response code is not appropriate for
+this situation and its use is deprecated. Future versions will use the response
+code `200 OK` for both cases.
+
+*Impact* +
+Update your application to read the `"timed_out"` field of the response instead
+of the HTTP response code to determine whether the request timed out or not. To
+avoid deprecation warnings and opt into the future behaviour, include the query
+parameter `?return_200_for_cluster_health_timeout` in your request.
+====
+
+[[script-context-cache-deprecated]]
+.The script context cache is deprecated
+[%collapsible]
+====
+*Details* +
+Setting `script.max_compilations_rate` to `use-context` and
+configuring context-specific caches is deprecated.
+
+Context-specific caches are no longer needed to prevent system scripts
+from triggering rate limits.
+
+Configure the general cache to control the max compilation rate, cache size, and
+cache expiration for your scripts.
+
+*Impact* +
+Remove `script.max_compilations_rate: use-context` and the context-specific cache
+settings: `script.context.$CONTEXT.cache_max_size`,
+`script.context.$CONTEXT.max_compilations_rate`, `script.context.$CONTEXT.cache_expire`.
+
+The general cache defaults to a max size of 3000 with a rate limit of 150/5m,
+which allows 150 compilations per 5 minute period.  By default, the entries in the
+cache do not expire.
+
+To override the defaults, configure the `script.cache.max_size`,
+`script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
 // end::notable-breaking-changes[]

@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.util.Collections;
@@ -56,7 +56,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -109,7 +109,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

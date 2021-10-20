@@ -19,6 +19,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -31,12 +32,8 @@ public class DeprecationIndexingAppender extends AbstractAppender {
     public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
     private final Consumer<IndexRequest> requestConsumer;
+    private AtomicBoolean enabled;
 
-    /**
-     * You can't start and stop an appender to toggle it, so this flag reflects whether
-     * writes should in fact be carried out.
-     */
-    private volatile boolean isEnabled = false;
 
     /**
      * Creates a new appender.
@@ -44,19 +41,22 @@ public class DeprecationIndexingAppender extends AbstractAppender {
      * @param filter a filter to apply directly on the appender
      * @param layout the layout to use for formatting message. It must return a JSON string.
      * @param requestConsumer a callback to handle the actual indexing of the log message.
+     * @param enabled
      */
-    public DeprecationIndexingAppender(String name, Filter filter, Layout<String> layout, Consumer<IndexRequest> requestConsumer) {
+    public DeprecationIndexingAppender(String name, Filter filter, Layout<String> layout, Consumer<IndexRequest> requestConsumer,
+                                       AtomicBoolean enabled) {
         super(name, filter, layout);
         this.requestConsumer = Objects.requireNonNull(requestConsumer, "requestConsumer cannot be null");
+        this.enabled = enabled;
     }
 
     /**
      * Constructs an index request for a deprecation message, and passes it to the callback that was
-     * supplied to {@link #DeprecationIndexingAppender(String, Filter, Layout, Consumer)}.
+     * supplied to {@link #DeprecationIndexingAppender(String, Filter, Layout, Consumer, AtomicBoolean)}.
      */
     @Override
     public void append(LogEvent event) {
-        if (this.isEnabled == false) {
+        if (this.enabled.get() == false) {
             return;
         }
 
@@ -68,19 +68,4 @@ public class DeprecationIndexingAppender extends AbstractAppender {
         this.requestConsumer.accept(request);
     }
 
-    /**
-     * Sets whether this appender is enabled or disabled. When disabled, the appender will
-     * not perform indexing operations.
-     * @param isEnabled the enabled status of the appender.
-     */
-    public void setEnabled(boolean isEnabled) {
-        this.isEnabled = isEnabled;
-    }
-
-    /**
-     * Returns whether the appender is enabled i.e. performing indexing operations.
-     */
-    public boolean isEnabled() {
-        return isEnabled;
-    }
 }

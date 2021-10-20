@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -44,12 +47,19 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     private final DeprecationIndexingAppender appender;
     private final BulkProcessor processor;
     private final RateLimitingFilter rateLimitingFilterForIndexing;
+    private final CancellableBulk cancellableBulk;
 
+    private final AtomicBoolean enabled;
     public DeprecationIndexingComponent(Client client, Settings settings, RateLimitingFilter rateLimitingFilterForIndexing,
                                         boolean enableDeprecationLogIndexingDefault) {
-        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+        this.enabled = new AtomicBoolean(enableDeprecationLogIndexingDefault);
 
-        this.processor = getBulkProcessor(new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN), settings);
+        this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
+        final OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN);
+
+        this.cancellableBulk = new CancellableBulk(originSettingClient, enabled);
+
+        this.processor = getBulkProcessor(cancellableBulk, settings);
         final Consumer<IndexRequest> consumer = this.processor::add;
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
@@ -62,7 +72,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
             .build();
 
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender",
-            rateLimitingFilterForIndexing, ecsLayout, consumer);
+            rateLimitingFilterForIndexing, ecsLayout, consumer, enabled);
         enableDeprecationLogIndexing(enableDeprecationLogIndexingDefault);
     }
 
@@ -70,10 +80,13 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     protected void doStart() {
         this.appender.start();
         Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        this.enabled.set(true);
     }
 
     @Override
     protected void doStop() {
+        logger.info("closing indexing component");
+        this.enabled.set(false);
         Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
         this.appender.stop();
     }
@@ -83,10 +96,9 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
         this.processor.close();
     }
 
-
     public void enableDeprecationLogIndexing(boolean newEnabled) {
-        if (appender.isEnabled() != newEnabled) {
-            appender.setEnabled(newEnabled);
+        if (enabled.get() != newEnabled) {
+            enabled.set(newEnabled);
 
             // We've flipped from disabled to enabled. Make sure we start with a clean cache of
             // previously-seen keys, otherwise we won't index anything.
@@ -94,6 +106,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
                 this.rateLimitingFilterForIndexing.reset();
             } else {
                 // we have flipped from enabled to disabled. A processor could have accumulated some requests, so we have to flush it
+                //TODO but this will emit a warning that it atempts to index after disabled
                 this.processor.flush();
             }
         }
@@ -102,17 +115,17 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
     /**
      * Constructs a bulk processor for writing documents
      *
-     * @param client   the client to use
+     * @param cancellableBulk a bulk operation that can be cancelled before executed
      * @param settings the settings to use
      * @return an initialised bulk processor
      */
-    private BulkProcessor getBulkProcessor(Client client, Settings settings) {
+    private BulkProcessor getBulkProcessor(CancellableBulk cancellableBulk, Settings settings) {
         final BulkProcessor.Listener listener = new DeprecationBulkListener();
 
         // This configuration disables the size count and size thresholds,
         // and instead uses a scheduled flush only. This means that calling
         // processor.add() will not block the calling thread.
-        return BulkProcessor.builder(client::bulk, listener, "deprecation-indexing")
+        return BulkProcessor.builder(cancellableBulk, listener, "deprecation-indexing")
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
             .setBulkActions(-1)
@@ -121,9 +134,31 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent {
             .build();
     }
 
+
+    private static class CancellableBulk implements BiConsumer<BulkRequest, ActionListener<BulkResponse>> {
+        private final Client client;
+        private AtomicBoolean enabled;
+
+        CancellableBulk(Client client, AtomicBoolean enabled) {
+            this.client = client;
+            this.enabled = enabled;
+        }
+
+        @Override
+        public void accept(BulkRequest request, ActionListener<BulkResponse> listener) {
+            if(enabled.get()) {
+                client.bulk(request, listener);
+            } else {
+                logger.info("Attempting to index deprecations after indexing has been disabled");
+            }
+        }
+    }
+
     private static class DeprecationBulkListener implements BulkProcessor.Listener {
         @Override
-        public void beforeBulk(long executionId, BulkRequest request) {}
+        public void beforeBulk(long executionId, BulkRequest request) {
+            logger.debug("about to write deprecations");
+        }
 
         @Override
         public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {

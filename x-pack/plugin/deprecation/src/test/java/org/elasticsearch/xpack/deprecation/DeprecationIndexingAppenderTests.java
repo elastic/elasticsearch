@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.hasEntry;
@@ -31,13 +32,13 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
     private DeprecationIndexingAppender appender;
     private Layout<String> layout;
     private Consumer<IndexRequest> consumer;
-
+    private AtomicBoolean enabled = new AtomicBoolean();
     @Before
     @SuppressWarnings("unchecked")
     public void initialize() {
         layout = mock(Layout.class);
         consumer = mock(Consumer.class);
-        appender = new DeprecationIndexingAppender("a name", null, layout, consumer);
+        appender = new DeprecationIndexingAppender("a name", null, layout, consumer, enabled);
     }
 
     /**
@@ -54,8 +55,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
      * Checks that the service can be disabled after being enabled.
      */
     public void testDoesNotWriteMessageWhenServiceEnabledAndDisabled() {
-        appender.setEnabled(true);
-        appender.setEnabled(false);
+        enabled.set(false);
 
         appender.append(mock(LogEvent.class));
 
@@ -67,7 +67,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
      * Formatted is handled entirely by the configured Layout, so that is not verified here.
      */
     public void testWritesMessageWhenServiceEnabled() {
-        appender.setEnabled(true);
+        enabled.set(true);
 
         when(layout.toByteArray(any())).thenReturn("{ \"some key\": \"some value\" }".getBytes(StandardCharsets.UTF_8));
 

@@ -15,7 +15,6 @@ def remoteClusterReg = testClusters.register('remote-cluster') {
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: "test_user", password: "x-pack-test-password"
 }
@@ -30,7 +29,6 @@ def integTestClusterReg = testClusters.register('integTest') {
   setting 'cluster.remote.connections_per_cluster', "1"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   user username: "test_user", password: "x-pack-test-password"
 }

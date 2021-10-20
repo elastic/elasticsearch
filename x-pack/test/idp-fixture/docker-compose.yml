@@ -44,7 +44,7 @@ services:
       - xpack.security.authc.realms.oidc.c2id-implicit.op.jwkset_path=op-jwks.json
       - xpack.security.authc.realms.oidc.c2id-implicit.rp.redirect_uri=https://my.fantastic.rp/cb
       - xpack.security.authc.realms.oidc.c2id-implicit.rp.client_id=elasticsearch-rp
-      - xpack.security.authc.realms.oidc.c2id-implicit.rp.response_type=id_token token
+      - xpack.security.authc.realms.oidc.c2id-implicit.rp.response_type=id_token
       - xpack.security.authc.realms.oidc.c2id-implicit.claims.principal=sub
       - xpack.security.authc.realms.oidc.c2id-implicit.claims.name=name
       - xpack.security.authc.realms.oidc.c2id-implicit.claims.mail=email

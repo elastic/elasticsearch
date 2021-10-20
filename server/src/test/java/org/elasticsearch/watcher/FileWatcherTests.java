@@ -106,7 +106,8 @@ public class FileWatcherTests extends ESTestCase {
         assertThat(changes.notifications(), hasSize(0));
 
         // change modification date, but not contents [we set the time in the future to guarantee a change]
-        Files.setLastModifiedTime(testFile, FileTime.fromMillis(System.currentTimeMillis() + 1));
+        // On Java 8 file modification dates have second granularity, so we need to set it quite far into the future
+        Files.setLastModifiedTime(testFile, FileTime.fromMillis(System.currentTimeMillis() + 5_000_000));
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileChanged: test.txt")));
 
@@ -283,7 +284,7 @@ public class FileWatcherTests extends ESTestCase {
 
         // Change lastModified on file #2 (set it to before this test started so there's no chance of accidental matching)
         // However the contents haven't changed, so it won't be notified
-        Files.setLastModifiedTime(testDir.resolve("test2.txt"), FileTime.fromMillis(startTime - 100));
+        Files.setLastModifiedTime(testDir.resolve("test2.txt"), FileTime.fromMillis(startTime - 10_000_000));
 
         // Add a new file
         Files.write(testDir.resolve("test5.txt"), "abc".getBytes(StandardCharsets.UTF_8));
@@ -301,7 +302,7 @@ public class FileWatcherTests extends ESTestCase {
         Files.write(testDir.resolve("test2.txt"), "changed".getBytes(StandardCharsets.UTF_8));
         // Change lastModified on file #3 (newer than the last update, but still before the test started)
         // But no change to contents, so no notification
-        Files.setLastModifiedTime(testDir.resolve("test3.txt"), FileTime.fromMillis(startTime - 50));
+        Files.setLastModifiedTime(testDir.resolve("test3.txt"), FileTime.fromMillis(startTime - 5_000_000));
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
@@ -321,8 +322,8 @@ public class FileWatcherTests extends ESTestCase {
         ));
 
         // Change lastModified on files #2 & #3, but not the contents
-        Files.setLastModifiedTime(testDir.resolve("test2.txt"), FileTime.fromMillis(System.currentTimeMillis() + 3));
-        Files.setLastModifiedTime(testDir.resolve("test3.txt"), FileTime.fromMillis(System.currentTimeMillis() + 3));
+        Files.setLastModifiedTime(testDir.resolve("test2.txt"), FileTime.fromMillis(System.currentTimeMillis() + 3_000_000));
+        Files.setLastModifiedTime(testDir.resolve("test3.txt"), FileTime.fromMillis(System.currentTimeMillis() + 3_000_000));
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();

@@ -136,9 +136,15 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                             onFileCreated(false);
                         } else {
                             // Remained file
+                            logger.info("cmp ({},{}) ({},{})", prevLastModified, lastModified, prevLength, length);
                             if (prevLastModified != lastModified || prevLength != length) {
                                 if (checkFileContents) {
                                     digest = calculateDigest();
+                                    logger.info(
+                                        "digest ({},{})",
+                                        prevDigest == null ? "<null>" : MessageDigests.toHexString(prevDigest),
+                                        digest == null ? "<null>" : MessageDigests.toHexString(digest)
+                                    );
                                     if (digest == null || Arrays.equals(prevDigest, digest) == false) {
                                         onFileChanged();
                                     }

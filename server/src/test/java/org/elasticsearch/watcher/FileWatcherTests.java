@@ -105,7 +105,7 @@ public class FileWatcherTests extends ESTestCase {
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), hasSize(0));
 
-        // change modification date, but not contents [we set the time the future to guarantee a change]
+        // change modification date, but not contents [we set the time in the future to guarantee a change]
         Files.setLastModifiedTime(testFile, FileTime.fromMillis(System.currentTimeMillis() + 1));
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), contains(equalTo("onFileChanged: test.txt")));
@@ -139,9 +139,7 @@ public class FileWatcherTests extends ESTestCase {
         // change modification date, but not contents
         Files.setLastModifiedTime(testFile, FileTime.fromMillis(System.currentTimeMillis() + 1));
         fileWatcher.checkAndNotify();
-        // This will trigger a notification because it's the first time we've calculated the hash
-        // That's a performance tradeoff that we don't bother generating a file hash until we really need it
-        assertThat(changes.notifications(), contains(equalTo("onFileChanged: test.txt")));
+        assertThat(changes.notifications(), empty());
 
         changes.notifications().clear();
 
@@ -284,6 +282,7 @@ public class FileWatcherTests extends ESTestCase {
         append("Test-1", testDir.resolve("test1.txt"), Charset.defaultCharset());
 
         // Change lastModified on file #2 (set it to before this test started so there's no chance of accidental matching)
+        // However the contents haven't changed, so it won't be notified
         Files.setLastModifiedTime(testDir.resolve("test2.txt"), FileTime.fromMillis(startTime - 100));
 
         // Add a new file
@@ -294,26 +293,24 @@ public class FileWatcherTests extends ESTestCase {
             changes.notifications(),
             containsInAnyOrder(
                 "onFileChanged: test-dir/test1.txt",
-                "onFileChanged: test-dir/test2.txt",
                 "onFileCreated: test-dir/test5.txt"
             )
         );
 
-        // Change lastModified on files #2 & #3 (newer than the last update, but still before the test started)
-        Files.setLastModifiedTime(testDir.resolve("test2.txt"), FileTime.fromMillis(startTime - 50));
+        // Change file #2 but don't change the size
+        Files.writeString(testDir.resolve("test2.txt"), "changed", StandardCharsets.UTF_8);
+        // Change lastModified on file #3 (newer than the last update, but still before the test started)
+        // But no change to contents, so no notification
         Files.setLastModifiedTime(testDir.resolve("test3.txt"), FileTime.fromMillis(startTime - 50));
 
         changes.notifications().clear();
         fileWatcher.checkAndNotify();
         assertThat(changes.notifications(), containsInAnyOrder(
-            // Only #3 is changed because #2 was notified last time and the contents haven't changed since
-            // Due to lazy calculation of the file hash, we get 1 notification after the last-modified changes, and then it starts to check
-            // file contents
-            equalTo("onFileChanged: test-dir/test3.txt")
+            equalTo("onFileChanged: test-dir/test2.txt")
         ));
 
-        // change the contents of files #2 and #3
-        Files.writeString(testDir.resolve("test2.txt"), "changed", StandardCharsets.UTF_8);
+        // change the contents of files #2 (change in size) and #3 (same size)
+        Files.writeString(testDir.resolve("test2.txt"), "new contents", StandardCharsets.UTF_8);
         Files.writeString(testDir.resolve("test3.txt"), "updated", StandardCharsets.UTF_8);
 
         changes.notifications().clear();

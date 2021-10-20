@@ -96,6 +96,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             boolean prevIsDirectory = isDirectory;
             long prevLength = length;
             long prevLastModified = lastModified;
+            byte[] prevDigest = digest;
 
             exists = Files.exists(path);
             // TODO we might use the new NIO2 API to get real notification?
@@ -134,8 +135,15 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                             onFileCreated(false);
                         } else {
                             // Remained file
-                            if (fileHasChanged(prevLength, prevLastModified)) {
-                                onFileChanged();
+                            if (prevLastModified != lastModified || prevLength != length) {
+                                if (checkFileContents) {
+                                    digest = calculateDigest();
+                                    if (digest == null || Arrays.equals(prevDigest, digest) == false) {
+                                        onFileChanged();
+                                    }
+                                } else {
+                                    onFileChanged();
+                                }
                             }
                         }
                     }
@@ -160,36 +168,16 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         }
 
-        private boolean fileHasChanged(long prevLength, long prevLastModified) {
-            if (prevLength != length) {
-                // Forcibly clear the digest
-                this.digest = null;
-                // Change in length means the file definitely changed
-                return true;
-            }
-            if (prevLastModified == lastModified) {
-                // Same last modified timestamp, means the file didn't change
-                return false;
-            }
-            if (checkFileContents == false) {
-                // If not configured to check contents, then a change to lastModified is sufficient to mark the file as changed
-                return true;
-            }
-            byte[] prevDigest = this.digest;
+        private byte[] calculateDigest() {
             try (var in = Files.newInputStream(path)) {
-                this.digest = MessageDigests.digest(in, MessageDigests.md5());
-                // If this is the first time the file's "last modified" has changed, then this will also be the first time we calculated
-                // the digest so "prevDigest" will be null & this "equals" check will be false
-                // That means we will notify of one additional change that might not be real (but might be), and then not notify again
-                // until the content actually changes
-                return Arrays.equals(this.digest, prevDigest) == false;
+                return MessageDigests.digest(in, MessageDigests.md5());
             } catch (IOException e) {
                 logger.warn(
-                    "failed to read file [{}] while checking for file changes [{}] - assuming file has been modified",
+                    "failed to read file [{}] while checking for file changes [{}], will assuming file has been modified",
                     path,
                     e.toString()
                 );
-                return true;
+                return null;
             }
         }
 
@@ -203,6 +191,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 } else {
                     length = attributes.size();
                     lastModified = attributes.lastModifiedTime().toMillis();
+                    if (checkFileContents) {
+                        digest = calculateDigest();
+                    }
                     onFileCreated(initial);
                 }
             }

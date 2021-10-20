@@ -25,6 +25,8 @@ import java.util.Objects;
  */
 public final class MessageDigests {
 
+    static final int STREAM_DIGEST_BLOCK_SIZE = 1024;
+
     private static ThreadLocal<MessageDigest> createThreadLocalMessageDigest(String digest) {
         return ThreadLocal.withInitial(() -> {
             try {
@@ -148,13 +150,11 @@ public final class MessageDigests {
      * @return digest result
      */
     public static byte[] digest(InputStream stream, MessageDigest digest) throws IOException {
-        byte[] block = new byte[1024];
-        for (;;) {
-            final int len = stream.read(block);
-            if (len <= 0) {
-                break;
-            }
+        byte[] block = new byte[STREAM_DIGEST_BLOCK_SIZE];
+        int len = stream.read(block);
+        while (len > 0) {
             digest.update(block, 0, len);
+            len = stream.read(block);
         }
         return digest.digest();
     }

@@ -1072,4 +1072,62 @@ class NodeDeprecationChecks {
         }
         return null;
     }
+
+    private static DeprecationIssue deprecatedAffixSetting(Setting.AffixSetting<?> deprecatedAffixSetting, String detailPattern,
+                                                           String url, DeprecationIssue.Level warningLevel, Settings settings) {
+        List<Setting<?>> deprecatedConcreteSettings = deprecatedAffixSetting.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+
+        if (deprecatedConcreteSettings.isEmpty()) {
+            return null;
+        }
+
+        final String concatSettingNames = deprecatedConcreteSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "The [%s] settings are deprecated and will be removed after 8.0",
+            concatSettingNames
+        );
+        final String details = String.format(Locale.ROOT, detailPattern, concatSettingNames);
+
+        return new DeprecationIssue(warningLevel, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkExporterUseIngestPipelineSettings(final Settings settings,
+                                                                   final PluginsAndModules pluginsAndModules,
+                                                                   final ClusterState clusterState,
+                                                                   final XPackLicenseState licenseState) {
+        return deprecatedAffixSetting(
+            Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest", key -> Setting.boolSetting(key, true)),
+            "Remove the following settings from elasticsearch.yml: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
+
+    static DeprecationIssue checkExporterPipelineMasterTimeoutSetting(final Settings settings,
+                                                                      final PluginsAndModules pluginsAndModules,
+                                                                      final ClusterState clusterState,
+                                                                      final XPackLicenseState licenseState) {
+        return deprecatedAffixSetting(
+            Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
+                (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE)),
+            "Remove the following settings from elasticsearch.yml: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
+
+    static DeprecationIssue checkExporterCreateLegacyTemplateSetting(final Settings settings,
+                                                                     final PluginsAndModules pluginsAndModules,
+                                                                     final ClusterState clusterState,
+                                                                     final XPackLicenseState licenseState) {
+        return deprecatedAffixSetting(
+            Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
+                (key) -> Setting.boolSetting(key, true)),
+            "Remove the following settings from elasticsearch.yml: [%s]",
+            "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
+            DeprecationIssue.Level.WARNING,
+            settings);
+    }
 }

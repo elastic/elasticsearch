@@ -75,8 +75,8 @@ public final class ScriptContext<FactoryType> {
     public final boolean allowStoredScript;
 
     /** Construct a context with the related instance and compiled classes with caller provided cache defaults */
-    ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
-                  boolean compilationRateLimited, boolean allowStoredScript) {
+    public ScriptContext(String name, Class<FactoryType> factoryClazz, int cacheSizeDefault, TimeValue cacheExpireDefault,
+                         boolean compilationRateLimited, boolean allowStoredScript) {
         this.name = name;
         this.factoryClazz = factoryClazz;
         Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
@@ -105,20 +105,10 @@ public final class ScriptContext<FactoryType> {
     }
 
     /** Construct a context with the related instance and compiled classes with defaults for cacheSizeDefault, cacheExpireDefault and
-     *  maxCompilationRateDefault and allow scripts of this context to be stored scripts */
+     *  compilationRateLimited and allow scripts of this context to be stored scripts */
     public ScriptContext(String name, Class<FactoryType> factoryClazz) {
         // cache size default, cache expire default, max compilation rate are defaults from ScriptService.
         this(name, factoryClazz, 100, TimeValue.timeValueMillis(0), true, true);
-    }
-
-    /**
-     * Construct a context for a system script usage, using the:
-     *  - default cache size (only relevant when context caching enabled): 200
-     *  - default cache expiration: no expiration
-     *  - unlimited compilation rate
-     */
-    public ScriptContext(String name, Class<FactoryType> factoryClazz, boolean allowStoredScript) {
-        this(name, factoryClazz, 200, TimeValue.timeValueMillis(0), false, allowStoredScript);
     }
 
     /** Returns a method with the given name, or throws an exception if multiple are found. */

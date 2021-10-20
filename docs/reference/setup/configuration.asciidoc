@@ -137,16 +137,15 @@ setting will not override a defined transient or persistent setting.
 
 [TIP]
 ====
-If you use {ess}, use the {cloud}/ec-add-user-settings.html[edit user settings]
-feature to configure all cluster settings. When you use this method, {ess}
-automatically rejects settings that could break your cluster.
+If you use {ess}, use the {cloud}/ec-add-user-settings.html[user settings]
+feature to configure all cluster settings. This method lets {ess} automatically
+reject unsafe settings that could break your cluster.
 
 If you run {es} on your own hardware, use the <<cluster-update-settings,cluster
-update settings API>> to configure dynamic settings. Only use
-`elasticsearch.yml` for node settings and static cluster settings. The API
-ensures a setting's value is the same on all nodes. If you accidentally
-configure different cluster setting values in `elasticsearch.yml` on different
-nodes, it can be difficult to notice discrepancies.
+update settings API>> to configure dynamic cluster settings. Use
+`elasticsearch.yml` for static cluster settings and node settings only. The API
+doesn't require a restart and ensures a setting's value is the same on all
+nodes.
 ====
 
 NOTE: Transient settings are deprecated and will be removed in a future release.

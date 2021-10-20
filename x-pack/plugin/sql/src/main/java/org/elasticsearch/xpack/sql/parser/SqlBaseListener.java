@@ -112,6 +112,18 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
+   * Enter a parse tree produced by the {@code showCatalogs}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void enterShowCatalogs(SqlBaseParser.ShowCatalogsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code showCatalogs}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void exitShowCatalogs(SqlBaseParser.ShowCatalogsContext ctx);
+  /**
    * Enter a parse tree produced by the {@code sysTables}
    * labeled alternative in {@link SqlBaseParser#statement}.
    * @param ctx the parse tree

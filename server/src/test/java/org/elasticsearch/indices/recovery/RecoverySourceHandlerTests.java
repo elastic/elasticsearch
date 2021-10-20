@@ -229,7 +229,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             randomBoolean(),
             randomNonNegativeLong(),
             randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
-                SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+                SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
+            true
+        );
     }
 
     public void testSendSnapshotSendsOps() throws IOException {

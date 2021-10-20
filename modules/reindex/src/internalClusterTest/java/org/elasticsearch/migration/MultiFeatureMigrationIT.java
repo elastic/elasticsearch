@@ -259,7 +259,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
         .setPrimaryIndex(".second-int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
         .setSettings(createSimpleSettings(Version.V_6_0_0, 0))
-        .setMappings(createSimpleMapping(true, true))
+        .setMappings(createSimpleMapping(true, true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())

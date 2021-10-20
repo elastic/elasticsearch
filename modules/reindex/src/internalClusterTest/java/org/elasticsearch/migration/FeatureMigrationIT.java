@@ -36,6 +36,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -238,14 +239,14 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             );
         }
         if (descriptor.getMappings() == null) {
-            createRequest.addMapping("_doc", createSimpleMapping(false, descriptor.isInternal()));
+            createRequest.addMapping("_doc", createSimpleMapping(false, descriptor.isInternal(), false), XContentType.JSON);
         }
         CreateIndexResponse response = createRequest.get();
         assertTrue(response.isShardsAcknowledged());
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(client().prepareIndex("_doc", indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(client().prepareIndex(indexName, "_doc").setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(indexName).setDocs(true).get();
@@ -271,7 +272,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setPrimaryIndex(".int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
         .setSettings(createSimpleSettings(Version.V_6_0_0, INTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, true))
+        .setMappings(createSimpleMapping(true, true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
@@ -293,7 +294,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
         .setSettings(createSimpleSettings(Version.V_6_0_0, EXTERNAL_MANAGED_FLAG_VALUE))
-        .setMappings(createSimpleMapping(true, false))
+        .setMappings(createSimpleMapping(true, false, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
@@ -319,9 +320,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             .build();
     }
 
-    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal) {
+    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal, boolean includeType) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
+            if (includeType) {
+                builder.startObject("_doc");
+            }
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
@@ -339,6 +343,9 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 builder.endObject();
             }
             builder.endObject();
+            if (includeType) {
+                builder.endObject();
+            }
             return Strings.toString(builder);
         } catch (IOException e) {
             // Just rethrow, it should be impossible for this to throw here

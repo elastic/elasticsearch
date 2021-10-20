@@ -44,6 +44,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test30EnrollToClusterWithInvalidToken() throws Exception {
+        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,
             sh,
@@ -56,6 +57,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test40EnrollmentFailsForConfiguredNode() throws Exception {
+        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         // auto-config requires that the archive owner and the process user be the same,
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         startElasticsearch();
@@ -73,6 +75,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test50MultipleValuesForEnrollmentToken() throws Exception {
+        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         // if invoked with --enrollment-token tokenA tokenB tokenC, only tokenA is read
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,
@@ -86,6 +89,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test60MultipleParametersForEnrollmentToken() throws Exception {
+        assumeTrue("something in our tests wrap the error code to 1 on windows", distribution.platform != Distribution.Platform.WINDOWS);
         // if invoked with --enrollment-token tokenA --enrollment-token tokenB --enrollment-token tokenC, only tokenC is used
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,

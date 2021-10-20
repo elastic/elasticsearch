@@ -356,9 +356,6 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
                 }
               }
             }""");
-        assertResult(SAMPLE, "a,b,c,d,e.f1,e.f2,e.g1,e.g2,h.i.j.k.l", true, SAMPLE);
-        assertResult(SAMPLE, "", true, "");
-        assertResult(SAMPLE, "h.", true, "");
     }
 
     public void testExclusiveFilters() throws Exception {
@@ -747,9 +744,6 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
               "e": [ { "f1": "f1_value", "f2": "f2_value" }, { "g1": "g1_value", "g2": "g2_value" } ]
             }""");
 
-        assertResult(SAMPLE, "a,b,c,d,e.f1,e.f2,e.g1,e.g2,h.i.j.k.l", false, "");
-        assertResult(SAMPLE, "", false, SAMPLE);
-        assertResult(SAMPLE, "h.", false, SAMPLE);
     }
 
     public void testInclusiveFiltersWithDots() throws Exception {

@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -234,6 +235,17 @@ public class PyTorchModelIT extends ESRestTestCase {
             String statusState = (String)XContentMapValues.extractValue("allocation_status.state", stats.get(0));
             assertThat(stats.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            Integer byteSize = (Integer)XContentMapValues.extractValue("model_size_bytes", stats.get(0));
+            assertThat(byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int)RAW_MODEL_SIZE));
+
+            Response humanResponse = client()
+                .performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?human"));
+            stats = (List<Map<String, Object>>)entityAsMap(humanResponse).get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            String stringBytes = (String)XContentMapValues.extractValue("model_size", stats.get(0));
+            assertThat(stringBytes, is(not(nullValue())));
+            assertThat(stringBytes, equalTo("1.5kb"));
             stopDeployment(model);
         };
 
@@ -242,7 +254,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertAtLeast.accept(modelStarted, AllocationStatus.State.FULLY_ALLOCATED);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1961")
     @SuppressWarnings("unchecked")
     public void testLiveDeploymentStats() throws IOException {
         String modelA = "model_a";

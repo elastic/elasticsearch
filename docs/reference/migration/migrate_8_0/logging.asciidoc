@@ -11,13 +11,8 @@
 ====
 *Details* +
 {es}'s {ref}/logging.html[JSON logs] now comply with the
-{ecs-ref}/index.html[Elastic Common Schema (ECS)]. This includes several notable
-changes:
-
-// * Notable change
-// * Other notable change
-
-Previously, {es}'s JSON logs used a custom schema.
+{ecs-ref}/index.html[Elastic Common Schema (ECS)]. Previously, {es}'s JSON logs
+used a custom schema.
 
 *Impact* +
 If your application parses {es}'s JSON logs, update it to support the new ECS

@@ -69,8 +69,10 @@ public class OperatorPrivilegesPartiallyEnabledIntegTestCase extends SecurityInt
         final Request getShutdownRequest = new Request("GET", "/_nodes/shutdown");
         getShutdownRequest.setOptions(getShutdownRequest.getOptions().toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
 
-        // RestClient round-robin requests to each node, run the requests in a loop so that each node
-        // has a chance to handle the request and ensure they all are successful
+        // RestClient round-robin requests to each node, we run the requests in a loop so that each node
+        // has a chance to handle at least one operator-only request.
+        // They must all be successful to prove that any node in a cluster with partially enabled operator privileges
+        // can handle operator-only actions with no error.
         for (int i = 0; i < cluster().size(); i++) {
             final Response clearVotingResponse = restClient.performRequest(clearVotingRequest);
             assertThat(clearVotingResponse.getStatusLine().getStatusCode(), equalTo(200));

@@ -71,16 +71,17 @@ class AuthenticatorChain {
         );
     }
 
-    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> listener) {
+    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
-        // Check whether authentication is an operator user and mark the threadContext
-        final ActionListener<Authentication> opMarkingListener = listener.map(authentication -> {
+        // Check whether authentication is an operator user and mark the threadContext if necessary
+        // before returning the authentication object
+        final ActionListener<Authentication> listener = originalListener.map(authentication -> {
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
             return authentication;
         });
         // If a token is directly provided in the context, authenticate with it
         if (context.getMostRecentAuthenticationToken() != null) {
-            authenticateAsyncWithExistingAuthenticationToken(context, opMarkingListener);
+            authenticateAsyncWithExistingAuthenticationToken(context, listener);
             return;
         }
         final Authentication authentication;
@@ -92,9 +93,9 @@ class AuthenticatorChain {
         }
         if (authentication != null) {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
-            opMarkingListener.onResponse(authentication);
+            listener.onResponse(authentication);
         } else {
-            doAuthenticate(context, true, ActionListener.runBefore(opMarkingListener, context::close));
+            doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
         }
     }
 

@@ -94,8 +94,8 @@ public class InitialNodeSecurityAutoConfiguration {
                 }
                 // output itself is redirected;
                 if (false == processOutputAttachedToTerminal) {
-                    // Avoid outputting secrets if output is not a terminal, because we assume that the output could eventually end up in a file and
-                    // we should avoid printing credentials (even temporary ones) to files.
+                    // Avoid outputting secrets if output is not a terminal, because we assume that the output could eventually end up
+                    // in a file and we should avoid printing credentials (even temporary ones) to files.
                     // The HTTPS CA fingerprint, which is not a secret, IS printed, but as a LOG ENTRY rather than a saliently formatted
                     // human-friendly message, in order to avoid breaking parsers that expect the node output to only contain log entries.
                     return;

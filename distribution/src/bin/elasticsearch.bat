@@ -39,10 +39,13 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 		SET attemptautoconfig=N
 	)
 
-	IF "!previous!" == "--enrollment-token" (
-	    SET enrollmenttoken=!current!
+	IF "!current!" == "--enrollment-token" (
 		SET enrolltocluster=Y
 		SET attemptautoconfig=N
+	)
+
+	IF "!previous!" == "--enrollment-token" (
+		SET enrollmenttoken="!current!"
 	)
 
 	IF "!silent!" == "Y" (
@@ -95,6 +98,8 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 IF "%attemptautoconfig%"=="Y" (
+    ECHO "AUTOCONFIG"
+	ECHO !newparams!
     ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
       -Des.path.home="%ES_HOME%" ^
       -Des.path.conf="%ES_PATH_CONF%" ^
@@ -112,15 +117,18 @@ IF "%attemptautoconfig%"=="Y" (
 )
 
 IF "!enrolltocluster!"=="Y" (
+    ECHO "ENROLL"
+	ECHO !newparams! --enrolment-token %enrollmenttoken%
     ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
       -Des.path.home="%ES_HOME%" ^
       -Des.path.conf="%ES_PATH_CONF%" ^
       -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
       -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" !newparams! --enrollment-token "%enrollmenttoken%"
-    IF !ERRORLEVEL! NEQ 0 (
-      exit /b !ERRORLEVEL!
-    )
+      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" ^
+      !newparams! --enrollment-token %enrollmenttoken%
+	IF !ERRORLEVEL! NEQ 0 (
+	    exit /b !ERRORLEVEL!
+	)
 )
 
 if not defined ES_TMPDIR (

@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.junit.BeforeClass;
@@ -36,7 +37,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
 
     public void test20EnrollToClusterWithEmptyTokenValue() throws Exception {
         Shell.Result result = Archives.runElasticsearchStartCommand(installation, sh, null, List.of("--enrollment-token"), false);
-        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
+        assertThat(result.exitCode, equalTo(ExitCodes.USAGE));
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -53,6 +54,8 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
     }
 
     public void test40EnrollmentFailsForConfiguredNode() throws Exception {
+        // auto-config requires that the archive owner and the process user be the same,
+        Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         startElasticsearch();
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
@@ -64,7 +67,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             false
         );
         assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
-        verifySecurityNotAutoConfigured(installation);
+        Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
     public void test50MultipleValuesForEnrollmentToken() throws Exception {

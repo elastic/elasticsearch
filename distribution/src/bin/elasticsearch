@@ -39,13 +39,6 @@ while [ $# -gt 0 ]; do
    fi
 done
 
-# Remove enrollment related parameters before passing the arg list to Elasticsearch
-for i in "${!ARG_LIST[@]}"; do
-  if [[ ${ARG_LIST[i]} = "--enrollment-token" || ${ARG_LIST[i]} = "$ENROLLMENT_TOKEN" ]]; then
-    unset 'ARG_LIST[i]'
-  fi
-done
-
 if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
@@ -67,7 +60,7 @@ if [[ $ENROLL_TO_CLUSTER = true ]]; then
   ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
   ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
   ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-  bin/elasticsearch-cli "$@" --enrollment-token "$ENROLLMENT_TOKEN" <<<"$KEYSTORE_PASSWORD"
+  bin/elasticsearch-cli "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
 elif [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   # It is possible that an auto-conf failure prevents the node from starting, but this is only the exceptional case (exit code 1).
   # Most likely an auto-conf failure will leave the configuration untouched (exit codes 73, 78 and 80), optionally printing a message
@@ -77,7 +70,7 @@ elif [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
     ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
     ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
-    bin/elasticsearch-cli "$@" <<<"$KEYSTORE_PASSWORD"; then
+    bin/elasticsearch-cli "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"; then
       :
   else
     retval=$?
@@ -97,6 +90,13 @@ fi
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
 ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
+
+# Remove enrollment related parameters before passing the arg list to Elasticsearch
+for i in "${!ARG_LIST[@]}"; do
+  if [[ ${ARG_LIST[i]} = "--enrollment-token" || ${ARG_LIST[i]} = "$ENROLLMENT_TOKEN" ]]; then
+    unset 'ARG_LIST[i]'
+  fi
+done
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then

@@ -12,8 +12,9 @@ class org.elasticsearch.xpack.unsignedlong.UnsignedLongScriptDocValues {
 }
 
 class org.elasticsearch.xpack.unsignedlong.UnsignedLongField @dynamic_type {
-  long getLong(long)
-  long getLong(int, long)
+  long getValue(long)
+  long getValue(int, long)
+  List getValues()
   BigInteger getBigInteger(BigInteger)
   BigInteger getBigInteger(int, BigInteger)
   List getBigIntegers()

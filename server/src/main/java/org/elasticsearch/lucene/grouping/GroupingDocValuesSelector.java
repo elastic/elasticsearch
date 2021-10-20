@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.apache.lucene.search.grouping;
+package org.elasticsearch.lucene.grouping;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
@@ -17,6 +17,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.grouping.GroupSelector;
+import org.apache.lucene.search.grouping.SearchGroup;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
@@ -26,12 +28,12 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * Utility class that ensures that a single collapse key is extracted per document.
+ * Utility class that ensures that a single grouping key is extracted per document.
  */
-abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
+abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
     protected final String field;
 
-    CollapsingDocValuesSource(String field) {
+    GroupingDocValuesSelector(String field) {
         this.field = field;
     }
 
@@ -44,7 +46,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
      * Implementation for {@link NumericDocValues} and {@link SortedNumericDocValues}.
      * Fails with an {@link IllegalStateException} if a document contains multiple values for the specified field.
      */
-    static class Numeric extends CollapsingDocValuesSource<Long> {
+    static class Numeric extends GroupingDocValuesSelector<Long> {
         private NumericDocValues values;
         private long value;
         private boolean hasValue;
@@ -100,8 +102,8 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
                                     if (sorted.docValueCount() > 1) {
-                                        throw new IllegalStateException("failed to collapse " + target +
-                                                ", the collapse field must be single valued");
+                                        throw new IllegalStateException("failed to extract doc:" + target +
+                                                ", the grouping field must be single valued");
                                     }
                                     value = sorted.nextValue();
                                     return true;
@@ -138,7 +140,7 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
      * Implementation for {@link SortedDocValues} and {@link SortedSetDocValues}.
      * Fails with an {@link IllegalStateException} if a document contains multiple values for the specified field.
      */
-    static class Keyword extends CollapsingDocValuesSource<BytesRef> {
+    static class Keyword extends GroupingDocValuesSelector<BytesRef> {
         private SortedDocValues values;
         private int ord;
 
@@ -207,8 +209,8 @@ abstract class CollapsingDocValuesSource<T> extends GroupSelector<T> {
                                 if (sorted.advanceExact(target)) {
                                     ord = (int) sorted.nextOrd();
                                     if (sorted.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                        throw new IllegalStateException("failed to collapse " + target +
-                                            ", the collapse field must be single valued");
+                                        throw new IllegalStateException("failed to extract doc:" + target +
+                                            ", the grouping field must be single valued");
                                     }
                                     return true;
                                 } else {

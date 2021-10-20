@@ -362,6 +362,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyPutWatches(0);
         verifyDeleteWatches(EXPECTED_WATCHES);
         verifyNoMoreInteractions(client);
+
+        assertWarnings("[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() {

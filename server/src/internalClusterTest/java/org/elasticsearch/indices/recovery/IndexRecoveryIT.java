@@ -776,6 +776,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
 
+        if (shouldSkipTestWithBlockedAction(recoveryActionToBlock)) {
+            return;
+        }
+
         if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
@@ -825,6 +829,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             blueTransportService.clearAllRules();
             redTransportService.clearAllRules();
         }
+    }
+
+    public boolean shouldSkipTestWithBlockedAction(String blockedAction) {
+        return blockedAction.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT);
     }
 
     private class TransientReceiveRejected implements StubbableTransport.RequestHandlingBehavior<TransportRequest> {
@@ -956,6 +964,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         final boolean dropRequests = randomBoolean();
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
+
+        if (shouldSkipTestWithBlockedAction(recoveryActionToBlock)) {
+            return;
+        }
 
         // Generate a snapshot to recover from it if the action that we're blocking is sending the request  snapshot files
         if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {

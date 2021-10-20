@@ -28,7 +28,7 @@ public class ShardSnapshot {
     private final Store.MetadataSnapshot metadataSnapshot;
     private final org.apache.lucene.util.Version commitLuceneVersion;
 
-    ShardSnapshot(ShardSnapshotInfo shardSnapshotInfo,
+    public ShardSnapshot(ShardSnapshotInfo shardSnapshotInfo,
                   List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles,
                   Map<String, String> luceneCommitUserData,
                   org.apache.lucene.util.Version commitLuceneVersion) {

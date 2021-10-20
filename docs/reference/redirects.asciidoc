@@ -999,43 +999,43 @@ See <<how-es-highlighters-work-internally>>.
 === Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
-For more information, see the 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.x/searchable-snapshots-apis.html[7.x docs].
+For more information, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.16/searchable-snapshots-apis.html[7.16 docs].
 
 [role="exclude",id="ilm-searchable-snapshot"]
 === Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
-For more information, see the 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.x/ilm-searchable-snapshot.html[7.x docs].
+For more information, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.16/ilm-searchable-snapshot.html[7.16 docs].
 
 [role="exclude",id="searchable-snapshots-api-stats"]
 === Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
-For more information, see the 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.x/searchable-snapshots-api-stats.html[7.x docs].
+For more information, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.16/searchable-snapshots-api-stats.html[7.16 docs].
 
 [role="exclude",id="searchable-snapshots-api-mount-snapshot"]
 === Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
-For more information, see the 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.x/searchable-snapshots-api-mount-snapshot.html[7.x docs].
+For more information, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.16/searchable-snapshots-api-mount-snapshot.html[7.16 docs].
 
 [role="exclude",id="searchable-snapshots-api-clear-cache"]
 === Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
-For more information, see the 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.x/searchable-snapshots-api-clear-cache.html[7.x docs].
+For more information, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.16/searchable-snapshots-api-clear-cache.html[7.16 docs].
 
 [role="exclude",id="searchable-snapshots-repository-stats"]
 === Searchable snapshots coming soon
 
 Searchable snapshots are not supported in 7.8, but will be part of an upcoming release.
-For more information, see the 
-https://www.elastic.co/guide/en/elasticsearch/reference/7.x/searchable-snapshots-repository-stats.html[7.x docs].
+For more information, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.16/searchable-snapshots-repository-stats.html[7.16 docs].
 
 
 [role="exclude",id="search-request-body"]

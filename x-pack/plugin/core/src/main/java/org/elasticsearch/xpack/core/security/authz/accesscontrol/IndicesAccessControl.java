@@ -40,7 +40,7 @@ public class IndicesAccessControl {
 
     public IndicesAccessControl(boolean granted, Map<String, IndexAccessControl> indexPermissions) {
         this.granted = granted;
-        this.indexPermissions = indexPermissions;
+        this.indexPermissions = Objects.requireNonNull(indexPermissions);
     }
 
     /**
@@ -292,7 +292,7 @@ public class IndicesAccessControl {
         private final IndexAccessControl allowAllIndexAccessControl = new IndexAccessControl(true, null, null);
 
         private AllowAllIndicesAccessControl() {
-            super(true, null);
+            super(true, Map.of());
         }
 
         @Override
@@ -301,13 +301,8 @@ public class IndicesAccessControl {
         }
 
         @Override
-        public boolean isGranted() {
-            return true;
-        }
-
-        @Override
-        public Collection<?> getDeniedIndices() {
-            return Set.of();
+        public String toString() {
+            return "AllowAllIndicesAccessControl{}";
         }
     }
 

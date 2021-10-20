@@ -332,6 +332,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     }
 
     void prepareModelToLoad(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+        logger.debug(() -> new ParameterizedMessage("[{}] preparing to load model with task params: {}",
+            taskParams.getModelId(), taskParams));
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
             TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + taskParams.getModelId(),
@@ -432,6 +434,19 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
             task.getModelId(),
             new RoutingStateAndReason(RoutingState.FAILED, ExceptionsHelper.unwrapCause(ex).getMessage()),
             ActionListener.wrap(r -> stopTask.run(), e -> stopTask.run())
+        );
+    }
+
+    public void failAllocation(TrainedModelDeploymentTask task, String reason) {
+        updateStoredState(
+            task.getModelId(),
+            new RoutingStateAndReason(RoutingState.FAILED, reason),
+            ActionListener.wrap(r -> logger.debug(
+                    new ParameterizedMessage("[{}] Successfully updating allocation state to [{}] with reason [{}]",
+                        task.getModelId(), RoutingState.FAILED, reason))
+            , e -> logger.error(new ParameterizedMessage("[{}] Error while updating allocation state to [{}] with reason [{}]",
+                        task.getModelId(), RoutingState.FAILED, reason), e)
+            )
         );
     }
 }

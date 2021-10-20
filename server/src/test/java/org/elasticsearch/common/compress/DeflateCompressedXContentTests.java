@@ -11,15 +11,17 @@ package org.elasticsearch.common.compress;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -105,5 +107,19 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         ToXContentFragment toXContentFragment = (builder, params) -> builder.field("field", "value");
         CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"field\":\"value\"}", compressedXContent.string());
+    }
+
+    public void testEquals() throws IOException {
+        final String[] randomJSON =
+            generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, true);
+        assertNotNull(randomJSON);
+        final BytesReference jsonDirect =
+            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().stringListField("arr", Arrays.asList(randomJSON)).endObject());
+        final CompressedXContent one =
+            new CompressedXContent(jsonDirect);
+        final CompressedXContent sameAsOne =
+            new CompressedXContent((builder, params) ->
+                builder.stringListField("arr", Arrays.asList(randomJSON)), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        assertEquals(one, sameAsOne);
     }
 }

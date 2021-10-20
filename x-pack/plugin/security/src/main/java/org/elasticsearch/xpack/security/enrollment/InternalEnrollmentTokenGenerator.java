@@ -54,7 +54,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     }
 
     /**
-     * Tries to creates an enrollment token for Elasticsearch nodes enrolling to the current node.
+     * Tries to create an enrollment token for Elasticsearch nodes enrolling to the current node.
      * If node is bound only on localhost for either the transport or the HTTPS interface, no token is generated,
      * in which case an empty string token is returned.
      * In case of errors, including due to issues with the node's configuration, a {@code null} token is returned, and the exception

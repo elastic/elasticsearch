@@ -62,6 +62,11 @@ public class InitialNodeSecurityAutoConfiguration {
         if (false == ENROLLMENT_ENABLED.get(environment.settings())) {
             return;
         }
+        final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
+            environment,
+            sslService,
+            client
+        );
         // if enrollment is enabled, we assume (and document this assumption) that the node is auto-configured in a specific way
         // wrt to TLS and cluster formation
         final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
@@ -69,15 +74,6 @@ public class InitialNodeSecurityAutoConfiguration {
             out.getType() != AnsiType.Redirected && // output is a pipe
             out.getType() != AnsiType.Unsupported && // could not determine terminal type
             out.getTerminalWidth() > 0; // hack to determine when logs are output to a terminal inside a docker container, but the docker
-        // output itself is redirected;
-        if (false == processOutputAttachedToTerminal) {
-            // Avoid outputting secrets if output is not a terminal, because we assume that the output could eventually end up in a file and
-            // we should avoid printing credentials (even temporary ones) to files.
-            // The HTTPS CA fingerprint, which is not a secret, IS printed, but as a LOG ENTRY rather than a saliently formatted
-            // human-friendly message, in order to avoid breaking parsers that expect the node output to only contain log entries.
-            // TODO log
-            return;
-        }
         securityIndexManager.onStateRecovered(securityIndexState -> {
             if (false == securityIndexState.indexExists()) {
                 // a starting node with {@code ENROLLMENT_ENABLED} set to true, and with no .security index,
@@ -87,6 +83,24 @@ public class InitialNodeSecurityAutoConfiguration {
                 // that new tokens and possibly credentials are generated anew
                 // TODO maybe we can improve the check that this is indeed the initial node
                 assert out != null;
+                String fingerprint;
+                try {
+                    fingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();
+                    LOGGER.info("HTTPS has been configured with automatically generated certificates, " +
+                        "and the CA's hex-encoded SHA-256 fingerprint is [" + fingerprint + "]");
+                } catch (Exception e) {
+                    fingerprint = null;
+                    LOGGER.error("Failed to compute the HTTPS CA fingerprint, probably the certs are not auto-generated", e);
+                }
+                // output itself is redirected;
+                if (false == processOutputAttachedToTerminal) {
+                    // Avoid outputting secrets if output is not a terminal, because we assume that the output could eventually end up in a file and
+                    // we should avoid printing credentials (even temporary ones) to files.
+                    // The HTTPS CA fingerprint, which is not a secret, IS printed, but as a LOG ENTRY rather than a saliently formatted
+                    // human-friendly message, in order to avoid breaking parsers that expect the node output to only contain log entries.
+                    return;
+                }
+                final String httpsCaFingerprint = fingerprint;
                 GroupedActionListener<Map<String, String>> groupedActionListener =
                     new GroupedActionListener<>(ActionListener.wrap(results -> {
                         final Map<String, String> allResultsMap = new HashMap<>();
@@ -96,11 +110,10 @@ public class InitialNodeSecurityAutoConfiguration {
                         final String elasticPassword = allResultsMap.get("generated_elastic_user_password");
                         final String kibanaEnrollmentToken = allResultsMap.get("kibana_enrollment_token");
                         final String nodeEnrollmentToken = allResultsMap.get("node_enrollment_token");
-                        final String caCertFingerprint = allResultsMap.get("https_ca_fingerprint");
-                        outputInformationToConsole(elasticPassword, kibanaEnrollmentToken, nodeEnrollmentToken, caCertFingerprint, out);
+                        outputInformationToConsole(elasticPassword, kibanaEnrollmentToken, nodeEnrollmentToken, httpsCaFingerprint, out);
                     }, e -> {
                         LOGGER.error("Unexpected exception during security auto-configuration", e);
-                    }), 4);
+                    }), 3);
                 // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the first
                 // time a node starts it will form a cluster by itself and can hold the .security index (which we assume it is when
                 // {@code ENROLLMENT_ENABLED} is true), that the node process's output is a terminal and that the password is not
@@ -128,19 +141,6 @@ public class InitialNodeSecurityAutoConfiguration {
                     }
                     // empty password in case password generation is skyped
                     groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
-                }
-                final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
-                    environment,
-                    sslService,
-                    client
-                );
-                try {
-                    String httpsCaFingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();
-                    groupedActionListener.onResponse(Map.of("https_ca_fingerprint", httpsCaFingerprint));
-                    LOGGER.debug("Successfully computed the fingerprint of the auto-generated HTTPS CA certificate");
-                } catch (Exception e) {
-                    LOGGER.error("Failed to compute HTTPS CA fingerprint, possibly the certs are not auto-generated", e);
-                    groupedActionListener.onResponse(Map.of());
                 }
                 enrollmentTokenGenerator.createKibanaEnrollmentToken(kibanaToken -> {
                     if (kibanaToken != null) {

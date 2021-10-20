@@ -21,7 +21,7 @@ import java.util.Enumeration;
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
-    private static SetOnce<AnsiPrintStream> terminalPrintStream = new SetOnce<>();
+    private static SetOnce<AnsiPrintStream> consolePrintStream = new SetOnce<>();
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -53,7 +53,7 @@ public final class BootstrapInfo {
     /**
      * Returns a reference to the terminal output
      */
-    public static AnsiPrintStream getTerminalPrintStream() { return terminalPrintStream.get(); }
+    public static AnsiPrintStream getConsolePrintStream() { return consolePrintStream.get(); }
 
     /**
      * codebase location for untrusted scripts (provide some additional safety)
@@ -119,8 +119,8 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init(AnsiPrintStream terminalPrintStream) {
-        BootstrapInfo.terminalPrintStream.set(terminalPrintStream);
+    public static void init(AnsiPrintStream consolePrintStream) {
+        BootstrapInfo.consolePrintStream.set(consolePrintStream);
     }
 
 }

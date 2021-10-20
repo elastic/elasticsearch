@@ -69,7 +69,7 @@ public class InitialNodeSecurityAutoConfiguration {
         );
         // if enrollment is enabled, we assume (and document this assumption) that the node is auto-configured in a specific way
         // wrt to TLS and cluster formation
-        final AnsiPrintStream out = BootstrapInfo.getTerminalPrintStream();
+        final AnsiPrintStream out = BootstrapInfo.getConsolePrintStream();
         final boolean processOutputAttachedToTerminal = out != null &&
             out.getType() != AnsiType.Redirected && // output is a pipe
             out.getType() != AnsiType.Unsupported && // could not determine terminal type

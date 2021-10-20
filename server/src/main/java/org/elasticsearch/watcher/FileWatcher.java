@@ -9,10 +9,12 @@ package org.elasticsearch.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -27,6 +29,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private FileObserver rootFileObserver;
     private final Path path;
+    private final boolean checkFileContents;
 
     private static final Logger logger = LogManager.getLogger(FileWatcher.class);
 
@@ -35,7 +38,19 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
      * @param path the directory to watch
      */
     public FileWatcher(Path path) {
+        this(path, false);
+    }
+
+    /**
+     * Creates new file watcher on the given directory
+     * @param path the directory to watch
+     * @param checkFileContents whether to inspect the content of the file for changes (via a message digest)
+     *                          - this is a "best efforts" check and will err on the side of sending extra change notifications if the file
+     *                          <em>might</em> have changed.
+     */
+    public FileWatcher(Path path, boolean checkFileContents) {
         this.path = path;
+        this.checkFileContents = checkFileContents;
         rootFileObserver = new FileObserver(path);
     }
 
@@ -65,11 +80,13 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private class FileObserver {
         private final Path path;
+
         private boolean exists;
         private long length;
         private long lastModified;
         private boolean isDirectory;
         private FileObserver[] children;
+        private byte[] digest;
 
         FileObserver(Path path) {
             this.path = path;
@@ -80,6 +97,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             boolean prevIsDirectory = isDirectory;
             long prevLength = length;
             long prevLastModified = lastModified;
+            byte[] prevDigest = digest;
 
             exists = Files.exists(path);
             // TODO we might use the new NIO2 API to get real notification?
@@ -119,7 +137,14 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                         } else {
                             // Remained file
                             if (prevLastModified != lastModified || prevLength != length) {
-                                onFileChanged();
+                                if (checkFileContents) {
+                                    digest = calculateDigest();
+                                    if (digest == null || Arrays.equals(prevDigest, digest) == false) {
+                                        onFileChanged();
+                                    }
+                                } else {
+                                    onFileChanged();
+                                }
                             }
                         }
                     }
@@ -144,6 +169,19 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
         }
 
+        private byte[] calculateDigest() {
+            try (InputStream in = Files.newInputStream(path)) {
+                return MessageDigests.digest(in, MessageDigests.md5());
+            } catch (IOException e) {
+                logger.warn(
+                    "failed to read file [{}] while checking for file changes [{}], will assuming file has been modified",
+                    path,
+                    e.toString()
+                );
+                return null;
+            }
+        }
+
         private void init(boolean initial) throws IOException {
             exists = Files.exists(path);
             if (exists) {
@@ -154,6 +192,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 } else {
                     length = attributes.size();
                     lastModified = attributes.lastModifiedTime().toMillis();
+                    if (checkFileContents) {
+                        digest = calculateDigest();
+                    }
                     onFileCreated(initial);
                 }
             }

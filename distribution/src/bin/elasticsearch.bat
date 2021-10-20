@@ -98,8 +98,6 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 IF "%attemptautoconfig%"=="Y" (
-    ECHO "AUTOCONFIG"
-	ECHO !newparams!
     ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
       -Des.path.home="%ES_HOME%" ^
       -Des.path.conf="%ES_PATH_CONF%" ^
@@ -117,8 +115,6 @@ IF "%attemptautoconfig%"=="Y" (
 )
 
 IF "!enrolltocluster!"=="Y" (
-    ECHO "ENROLL"
-	ECHO !newparams! --enrolment-token %enrollmenttoken%
     ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
       -Des.path.home="%ES_HOME%" ^
       -Des.path.conf="%ES_PATH_CONF%" ^

@@ -81,7 +81,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         );
         // Assert we used the first value which is a proper enrollment token but failed because the node is already configured ( 80 )
         assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
-        verifySecurityNotAutoConfigured(installation);
     }
 
     public void test60MultipleParametersForEnrollmentToken() throws Exception {

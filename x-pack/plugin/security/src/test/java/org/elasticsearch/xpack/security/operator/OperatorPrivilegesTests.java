@@ -34,6 +34,7 @@ import org.mockito.Mockito;
 
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -114,19 +115,23 @@ public class OperatorPrivilegesTests extends ESTestCase {
             Loggers.setLevel(logger, (Level) null);
         }
 
-        // Will not mark for non-operator user
+        // Will mark empty for non-operator user
         threadContext = new ThreadContext(settings);
         operatorPrivilegesService.maybeMarkOperatorUser(nonOperatorAuth, threadContext);
-        assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+        assertThat(
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY),
+            equalTo(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY));
 
-        // Will not mark for run_as user
+        // Will mark empty for run_as user
         final Authentication runAsAuth = mock(Authentication.class);
         when(runAsAuth.getUser()).thenReturn(new User(operatorUser, operatorUser));
         Mockito.reset(fileOperatorUsersStore);
         when(fileOperatorUsersStore.isOperatorUser(runAsAuth)).thenReturn(true);
         threadContext = new ThreadContext(settings);
         operatorPrivilegesService.maybeMarkOperatorUser(runAsAuth, threadContext);
-        assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+        assertThat(
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY),
+            equalTo(AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY));
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
 
         // Will not mark for internal users
@@ -134,8 +139,16 @@ public class OperatorPrivilegesTests extends ESTestCase {
         when(internalAuth.getUser()).thenReturn(
             randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE));
         threadContext = new ThreadContext(settings);
-        operatorPrivilegesService.maybeMarkOperatorUser(runAsAuth, threadContext);
+        operatorPrivilegesService.maybeMarkOperatorUser(internalAuth, threadContext);
         assertNull(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
+        verify(fileOperatorUsersStore, never()).isOperatorUser(any());
+
+        // Will skip if header already exist
+        threadContext = new ThreadContext(settings);
+        final String value = randomAlphaOfLength(20);
+        threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, value);
+        operatorPrivilegesService.maybeMarkOperatorUser(nonOperatorAuth, threadContext);
+        assertThat(threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY), equalTo(value));
         verify(fileOperatorUsersStore, never()).isOperatorUser(any());
     }
 

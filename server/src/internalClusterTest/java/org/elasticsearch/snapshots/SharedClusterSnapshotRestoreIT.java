@@ -8,6 +8,8 @@
 
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -72,10 +74,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -1185,13 +1189,21 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo");
 
-        awaitClusterState(
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
-                .flatMap(s -> s.shards().stream())
-                .filter(e -> e.getValue().nodeId().equals(blockedNodeId) == false)
-                .allMatch(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
-        );
+        awaitClusterState(state -> {
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            if (snapshots.size() != 1) {
+                return false;
+            }
+            SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshots.iterator().next());
+            for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
+                if (shard.value.nodeId().equals(blockedNodeId) == false
+                    && shard.value.state() == SnapshotsInProgress.ShardState.SUCCESS == false) {
+                    return false;
+                }
+            }
+            return true;
+        });
 
         logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus("test-repo").execute().actionGet();

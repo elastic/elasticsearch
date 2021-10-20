@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -421,9 +422,14 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for snapshots to get to a consistent state");
         awaitClusterState(state -> {
-            List<SnapshotsInProgress.ShardState> statuses = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .asStream()
-                .flatMap(s -> s.shards().stream())
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
+            if (snapshots.size() != 1) {
+                return false;
+            }
+            SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshots.iterator().next());
+            List<SnapshotsInProgress.ShardState> statuses = entry.shards()
+                .stream()
                 .map(e -> e.getValue().state())
                 .collect(Collectors.toList());
             return statuses.size() > 1

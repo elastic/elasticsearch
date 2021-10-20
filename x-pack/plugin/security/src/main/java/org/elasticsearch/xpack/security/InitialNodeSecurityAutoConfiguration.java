@@ -178,17 +178,18 @@ public class InitialNodeSecurityAutoConfiguration {
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         ansi.a("-".repeat(Math.max(1, out.getTerminalWidth())));
+        ansi.a(System.lineSeparator());
+        ansi.a(System.lineSeparator());
         ansi.bold();
-        ansi.a(System.lineSeparator());
-        ansi.a(System.lineSeparator());
         if (elasticPassword == null) {
             ansi.a("Unable to auto-generate the password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF)
                 .a(" built-in superuser.");
         } else if (Strings.isEmpty(elasticPassword)) {
-            ansi.a("The password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF)
+            ansi.a("The generated password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF)
                 .a(" built-in superuser has not been changed.");
         } else {
-            ansi.a("Password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF).a(" built-in superuser:");
+            ansi.a("The generated password for the ").a(Ansi.Attribute.ITALIC).a("elastic").a(Ansi.Attribute.ITALIC_OFF)
+                .a(" built-in superuser is:");
             ansi.a(System.lineSeparator());
             ansi.a(Ansi.Attribute.UNDERLINE);
             ansi.a(elasticPassword);
@@ -230,6 +231,7 @@ public class InitialNodeSecurityAutoConfiguration {
             ansi.a(Ansi.Attribute.UNDERLINE_OFF);
             ansi.a(System.lineSeparator());
         }
+        ansi.boldOff();
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         ansi.a("You can use 'bin/elasticsearch-reset-elastic-password' at any time in order to set or reset the password for " +
@@ -244,7 +246,6 @@ public class InitialNodeSecurityAutoConfiguration {
                 "elasticsearch nodes.");
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
-        ansi.boldOff();
         ansi.a("-".repeat(Math.max(1, out.getTerminalWidth())));
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());

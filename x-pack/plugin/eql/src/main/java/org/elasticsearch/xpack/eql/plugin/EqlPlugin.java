@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.eql.EqlFeatureSet;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.ArrayList;
@@ -72,11 +73,13 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        return createComponents(client, clusterService.getClusterName().value());
+        return createComponents(client, environment.settings(), clusterService);
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
+    private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
+        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, circuitBreaker.get());
         return Collections.singletonList(planExecutor);
     }

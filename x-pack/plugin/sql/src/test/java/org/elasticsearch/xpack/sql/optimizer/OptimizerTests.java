@@ -179,7 +179,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testPruneSubQueryAliases() {
-        ShowTables s = new ShowTables(EMPTY, null, null, false);
+        ShowTables s = new ShowTables(EMPTY, null, null, null, null, false);
         SubQueryAlias plan = new SubQueryAlias(EMPTY, s, "show");
         LogicalPlan result = new PruneSubQueryAliases().apply(plan);
         assertEquals(result, s);

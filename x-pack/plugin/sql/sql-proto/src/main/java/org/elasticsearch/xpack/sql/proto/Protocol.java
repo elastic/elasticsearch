@@ -22,6 +22,7 @@ public final class Protocol {
     public static final String QUERY_NAME = "query";
     public static final String CURSOR_NAME = "cursor"; /* request/reply */
     public static final String TIME_ZONE_NAME = "time_zone";
+    public static final String CATALOG_NAME = "catalog";
     public static final String FETCH_SIZE_NAME = "fetch_size";
     public static final String REQUEST_TIMEOUT_NAME = "request_timeout";
     public static final String PAGE_TIMEOUT_NAME = "page_timeout";

@@ -306,7 +306,12 @@ public class AuthenticationService {
             this.fallbackUser = fallbackUser;
             this.fallbackToAnonymous = fallbackToAnonymous;
             this.defaultOrderedRealmList = realms.getActiveRealms();
-            this.listener = listener;
+            // Check whether authentication is an operator user and mark the threadContext if necessary
+            // before returning the authentication object
+            this.listener = listener.map(authentication -> {
+                operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
+                return authentication;
+            });
         }
 
         /**
@@ -713,9 +718,6 @@ public class AuthenticationService {
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
                 request.authenticationSuccess(authentication);
-                // Header for operator privileges will only be written if authentication actually happens,
-                // i.e. not read from either header or transient header
-                operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
             } catch (Exception e) {
                 logger.debug(
                         new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, request), e);

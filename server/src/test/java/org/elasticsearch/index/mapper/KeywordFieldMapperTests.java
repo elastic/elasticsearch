@@ -585,7 +585,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "All fields that match routing_path must be keyword time_series_dimensions but [field] was not a time_series_dimension";
+        return "All fields that match routing_path must be unscripted "
+            + "keyword time_series_dimensions but [field] was not a time_series_dimension";
     }
 
     public void testDimensionInRoutingPath() throws IOException {

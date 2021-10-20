@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
@@ -42,6 +39,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -70,6 +68,8 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
 
 class NodeDeprecationChecks {
+
+    static final String JAVA_DEPRECATION_MESSAGE = "Java 11 is required in 8.0";
 
     static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules,
                                          final ClusterState clusterState, final XPackLicenseState licenseState) {
@@ -106,11 +106,11 @@ class NodeDeprecationChecks {
 
         final String details = String.format(
             Locale.ROOT,
-            "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order.",
+            "Specify the realm order for all realms [%s]. If no realm order is specified, the node will fail to start in 8.0. ",
             String.join("; ", orderNotConfiguredRealms));
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Realm order will be required in next major release.",
+            "Realm order is required",
             "https://ela.st/es-deprecation-7-realm-orders-required",
             details,
             false,
@@ -140,13 +140,13 @@ class NodeDeprecationChecks {
 
         final String details = String.format(
             Locale.ROOT,
-            "Found multiple realms configured with the same order: [%s]. " +
-                "In next major release, node will fail to start with duplicated realm order.",
+            "The same order is configured for multiple realms: [%s]]. Configure a unique order for each realm. If duplicate realm orders " +
+                "exist, the node will fail to start in 8.0. ",
             String.join("; ", duplicateOrders));
 
         return new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Realm orders must be unique in next major release.",
+            "Realm orders must be unique",
             "https://ela.st/es-deprecation-7-realm-orders-unique",
             details,
            false, null
@@ -160,15 +160,12 @@ class NodeDeprecationChecks {
         if ( XPackSettings.SECURITY_ENABLED.exists(settings) == false
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
             || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
-          String details = "The default behavior of disabling security on " + licenseState.getOperationMode().description()
-              + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
-              + "default to \"true\" , regardless of the license level. "
-              + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
-              + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
-              + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml";
+          String details = "Security will no longer be disabled by default for Trial licenses in 8.0. The [xpack.security.enabled] " +
+              "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your cluster" +
+              ". To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Security is enabled by default for all licenses in the next major version.",
+                "Security is enabled by default for all licenses",
                 "https://ela.st/es-deprecation-7-implicitly-disabled-security",
                 details,
                false, null);
@@ -247,16 +244,14 @@ class NodeDeprecationChecks {
         } else {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "Realm names cannot start with [" + RESERVED_REALM_NAME_PREFIX + "] in a future major release.",
+                "Prefixing realm names with an underscore (_) is deprecated",
                 "https://ela.st/es-deprecation-7-realm-names",
-                String.format(Locale.ROOT, "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
-                        + " with reserved prefix [%s]: [%s]. "
-                        + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
-                    RESERVED_REALM_NAME_PREFIX,
+                String.format(Locale.ROOT, "Rename the following realm%s in the realm chain: %s.",
+                    reservedPrefixedRealmIdentifiers.size() > 1 ? "s" : "",
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
-                        .collect(Collectors.joining("; "))),
+                        .collect(Collectors.joining(", "))),
                false, null
             );
         }
@@ -278,7 +273,8 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(
             settings,
             setting.get(),
-            "https://ela.st/es-deprecation-7-thread-pool-listener-settings");
+            "https://ela.st/es-deprecation-7-thread-pool-listener-settings",
+            "The listener pool is no longer used in 8.0.");
     }
 
     public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
@@ -301,7 +297,8 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(
             settings,
             Node.NODE_LOCAL_STORAGE_SETTING,
-            "https://ela.st/es-deprecation-7-node-local-storage-setting"
+            "https://ela.st/es-deprecation-7-node-local-storage-setting",
+            "All nodes require local storage in 8.0 and cannot share data paths."
         );
     }
 
@@ -309,7 +306,8 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(
             settings,
             setting,
-            "https://ela.st/es-deprecation-7-xpack-basic-feature-settings"
+            "https://ela.st/es-deprecation-7-xpack-basic-feature-settings",
+            "Basic features are always enabled in 8.0."
         );
     }
 
@@ -318,20 +316,30 @@ class NodeDeprecationChecks {
         final Settings settings,
         final PluginsAndModules pluginsAndModules
     ) {
-
-        return checkDeprecatedSetting(
-            settings,
-            pluginsAndModules,
-            legacyRoleSetting,
-            NodeRoleSettings.NODE_ROLES_SETTING,
-            (v, s) -> {
-                return DiscoveryNode.getRolesFromSettings(s)
-                    .stream()
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.joining(","));
-            },
-            "https://ela.st/es-deprecation-7-node-roles"
-        );
+        assert legacyRoleSetting.isDeprecated() : legacyRoleSetting;
+        if (legacyRoleSetting.exists(settings) == false) {
+            return null;
+        }
+        String legacyRoleSettingKey = legacyRoleSetting.getKey();
+        String role;
+        if (legacyRoleSettingKey.isEmpty() == false && legacyRoleSettingKey.contains(".")
+            && legacyRoleSettingKey.indexOf(".") <= legacyRoleSettingKey.length() + 2) {
+            role = legacyRoleSettingKey.substring(legacyRoleSettingKey.indexOf(".") + 1);
+        } else {
+            role = "unknown"; //Should never get here, but putting these checks to avoid crashing the API just in case
+        }
+        final String message = String.format(
+            Locale.ROOT,
+            "Setting [%s] is deprecated",
+            legacyRoleSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "Remove the [%s] setting. Set [%s] and include the [%s] role.",
+            legacyRoleSettingKey,
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            role);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message,
+            "https://ela.st/es-deprecation-7-node-roles", details, false, null);
     }
 
     static DeprecationIssue checkBootstrapSystemCallFilterSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
@@ -339,7 +347,8 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(
             settings,
             BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
-            "https://ela.st/es-deprecation-7-system-call-filter-setting"
+            "https://ela.st/es-deprecation-7-system-call-filter-setting",
+            "System call filters are always required in 8.0."
         );
     }
 
@@ -370,14 +379,12 @@ class NodeDeprecationChecks {
         final String value = deprecatedSetting.get(settings).toString();
         final String message = String.format(
             Locale.ROOT,
-            "setting [%s] is deprecated in favor of setting [%s]",
-            deprecatedSettingKey,
-            replacementSettingKey);
+            "Setting [%s] is deprecated",
+            deprecatedSettingKey);
         final String details = String.format(
             Locale.ROOT,
-            "the setting [%s] is currently set to [%s], instead set [%s] to [%s]",
+            "Remove the [%s] setting and set [%s] to [%s].",
             deprecatedSettingKey,
-            value,
             replacementSettingKey,
             replacementValue.apply(value, settings));
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
@@ -412,18 +419,22 @@ class NodeDeprecationChecks {
         final String value = deprecatedSetting.get(settings).toString();
         final String message = String.format(
             Locale.ROOT,
-            "setting [%s] is deprecated in favor of grouped setting [%s]",
+            "Setting [%s] is deprecated",
             deprecatedSettingKey,
             replacementSettingKey);
         final String details = String.format(
             Locale.ROOT,
-            "the setting [%s] is currently set to [%s], instead set [%s] to [%s] where * is %s",
+            "Remove the [%s] setting. Set [%s] to [%s], where * is %s",
             deprecatedSettingKey,
-            value,
             replacementSettingKey,
             replacementValue.apply(value, settings),
             star);
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url,
+                                                String additionalDetailMessage) {
+        return checkRemovedSetting(settings, removedSetting, url, additionalDetailMessage, DeprecationIssue.Level.CRITICAL);
     }
 
     static DeprecationIssue checkDeprecatedSetting(final Settings settings, final Setting<?> deprecatedSetting, final String url,
@@ -440,13 +451,10 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
-    static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
-        return checkRemovedSetting(settings, removedSetting, url, DeprecationIssue.Level.CRITICAL);
-    }
-
     static DeprecationIssue checkRemovedSetting(final Settings settings,
                                                 final Setting<?> removedSetting,
                                                 final String url,
+                                                String additionalDetailMessage,
                                                 DeprecationIssue.Level deprecationLevel) {
         if (removedSetting.exists(settings) == false) {
             return null;
@@ -460,9 +468,9 @@ class NodeDeprecationChecks {
             value = removedSettingValue.toString();
         }
         final String message =
-            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details =
-            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
+            String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
     }
 
@@ -472,11 +480,11 @@ class NodeDeprecationChecks {
 
         if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "Java 11 is required",
+                JAVA_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-java-version",
-                "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
-                    + javaVersion.toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
-                    + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
+                "This node is running Java version [" + javaVersion.toString() + "]. Consider switching to a distribution of " +
+                    "Elasticsearch with a bundled JDK or upgrade. If you are already using a distribution with a bundled JDK, ensure the " +
+                    "JAVA_HOME environment variable is not set.",
                 false, null);
         }
         return null;
@@ -499,9 +507,11 @@ class NodeDeprecationChecks {
                                                final XPackLicenseState licenseState) {
         if (Environment.dataPathUsesList(nodeSettings)) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "[path.data] in a list is deprecated, use a string value",
+                "Multiple data paths are not supported",
                 "https://ela.st/es-deprecation-7-multiple-paths",
-                "Configuring [path.data] with a list is deprecated. Instead specify as a string value.", false, null);
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level " +
+                    "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
+                false, null);
         }
         return null;
     }
@@ -510,9 +520,10 @@ class NodeDeprecationChecks {
                                                        final ClusterState clusterState, final XPackLicenseState licenseState) {
         if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
             final String message = String.format(Locale.ROOT,
-                "setting [%s] is deprecated and will be removed in a future version", Environment.PATH_SHARED_DATA_SETTING.getKey());
+                "Setting [%s] is deprecated", Environment.PATH_SHARED_DATA_SETTING.getKey());
             final String url = "https://ela.st/es-deprecation-7-shared-path-settings";
-            final String details = "Found shared data path configured. Discontinue use of this setting.";
+            final String details = String.format(Locale.ROOT,
+                "Remove the [%s] setting. This setting has had no effect since 6.0.", Environment.PATH_SHARED_DATA_SETTING.getKey());
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
         }
         return null;
@@ -524,10 +535,10 @@ class NodeDeprecationChecks {
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                String.format(Locale.ROOT, "setting [%s=false] is deprecated and will not be available in a future version", key),
+                String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
-                String.format(Locale.ROOT, "found [%s] configured to false. Discontinue use of this setting or set it to true.", key),
-                    false, null
+                String.format(Locale.ROOT, "Remove the [%s] setting. Disk watermarks are always enabled for single node clusters in 8.0.",
+                    key),false, null
             );
         }
 
@@ -536,13 +547,12 @@ class NodeDeprecationChecks {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                String.format(Locale.ROOT, "the default value [false] of setting [%s] is deprecated and will be changed to true" +
-                    " in a future version. This cluster has only one data node and behavior will therefore change when upgrading", key),
+                String.format(Locale.ROOT, "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
+                    key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
-                String.format(Locale.ROOT, "found [%s] defaulting to false on a single data node cluster." +
-                        " Set it to true to avoid this warning." +
-                        " Consider using [%s] to disable disk based allocation", key,
-                    disableDiskDecider),
+                String.format(Locale.ROOT, "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node" +
+                        " cluster when you upgrade. You can set \"%s\" to false to disable" +
+                        " disk based allocation.", disableDiskDecider),
                 false,
                 null
             );
@@ -558,7 +568,7 @@ class NodeDeprecationChecks {
         ClusterState cs,
         XPackLicenseState licenseState
     ) {
-        // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a depedency on monitoring module:
+        // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a dependency on monitoring module:
         // (just having the setting prefix and suffic here is sufficient to check on whether this setting is used)
         final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password", s -> Setting.simpleString(s));
@@ -572,12 +582,13 @@ class NodeDeprecationChecks {
         final String passwordSettings = passwords.stream().map(Setting::getKey).collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "non-secure passwords for monitoring exporters [%s] are deprecated and will be removed in the next major version",
+            "Monitoring exporters must use secure passwords",
             passwordSettings
         );
         final String details = String.format(
             Locale.ROOT,
-            "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
+            "Remove the non-secure monitoring exporter password settings: [%s]. Configure secure passwords with " +
+                "[xpack.monitoring.exporters.*.auth.secure_password].",
             passwordSettings
         );
         final String url = "https://ela.st/es-deprecation-7-monitoring-exporter-passwords";
@@ -591,6 +602,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             JoinHelper.JOIN_TIMEOUT_SETTING,
             "https://ela.st/es-deprecation-7-cluster-join-timeout-setting",
+            "Cluster join attempts never time out in 8.0.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -624,14 +636,10 @@ class NodeDeprecationChecks {
             return null;
         }
         final String remoteClusterSeedSettings = remoteClusterSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
-        final String message = String.format(
-            Locale.ROOT,
-            "search.remote settings [%s] are deprecated and will be removed in the next major version",
-            remoteClusterSeedSettings
-        );
+        final String message = "Remotes for cross cluster search must be configured with cluster remote settings";
         final String details = String.format(
             Locale.ROOT,
-            "replace search.remote settings [%s] with their secure 'cluster.remote' replacements",
+            "Replace the search.remote settings [%s] with their secure [cluster.remote] equivalents",
             remoteClusterSeedSettings
         );
         final String url = "https://ela.st/es-deprecation-7-search-remote-settings";
@@ -645,6 +653,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
+            "Relocating shards are always taken into account in 8.0.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -669,10 +678,10 @@ class NodeDeprecationChecks {
             return null;
         }
         String url = "https://ela.st/es-deprecation-7-fractional-byte-settings";
-        String message = "support for fractional byte size values is deprecated and will be removed in a future release";
-        String details = "change the following settings to non-fractional values: [" +
-            fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey() + "->" +
-                fractionalByteSetting.getValue()).collect(Collectors.joining(", ")) + "]";
+        String message = "Configuring fractional byte sizes is deprecated";
+        String details = String.format(Locale.ROOT, "Set the following to whole numbers: [%s].",
+            fractionalByteSettings.entrySet().stream().map(fractionalByteSetting -> fractionalByteSetting.getKey())
+                .collect(Collectors.joining(", ")));
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
@@ -687,11 +696,11 @@ class NodeDeprecationChecks {
             if (cacheSize.getBytes() > 0) {
                 final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
                 if (DataTier.isFrozenNode(new HashSet<>(roles)) == false) {
-                    String message = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes",
+                    String message = String.format(Locale.ROOT, "Only frozen nodes can have a [%s] greater than zero.",
                         cacheSizeSettingKey);
                     String url = "https://ela.st/es-deprecation-7-searchable-snapshot-shared-cache-setting";
-                    String details = String.format(Locale.ROOT, "setting [%s] cannot be greater than zero on non-frozen nodes, and is " +
-                        "currently set to [%s]", cacheSizeSettingKey, settings.get(cacheSizeSettingKey));
+                    String details = String.format(Locale.ROOT, "Set [%s] to zero on any node that doesn't have the [data_frozen] role.",
+                        cacheSizeSettingKey);
                     return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
                 }
             }
@@ -710,8 +719,9 @@ class NodeDeprecationChecks {
             Settings sslSettings = settings.filter(setting -> setting.startsWith(prefix));
             if (enabledSettingValue == null && sslSettings.size() > 0) {
                 String keys = sslSettings.keySet().stream().collect(Collectors.joining(","));
-                String detail = String.format(Locale.ROOT, "setting [%s] is unset but the following settings exist: [%s]",
-                    enabledSettingKey, keys);
+                String detail = String.format(Locale.ROOT, "The [%s] setting is not configured, but the following SSL settings are: [%s]." +
+                        " To configure SSL, set [%s] or the node will fail to start in 8.0.",
+                    enabledSettingKey, keys, enabledSettingKey);
                 details.add(detail);
             }
         }
@@ -719,7 +729,7 @@ class NodeDeprecationChecks {
             return null;
         } else {
             String url = "https://ela.st/es-deprecation-7-explicit-ssl-required";
-            String message = "cannot set ssl properties without explicitly enabling or disabling ssl";
+            String message = "Must explicitly enable or disable SSL to configure SSL settings";
             String detailsString = details.stream().collect(Collectors.joining("; "));
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
         }
@@ -741,21 +751,21 @@ class NodeDeprecationChecks {
                 boolean keyPathSettingExists = settings.get(keyPathSettingKey) != null;
                 boolean certificatePathSettingExists = settings.get(certificatePathSettingKey) != null;
                 if (keystorePathSettingExists == false && keyPathSettingExists == false && certificatePathSettingExists == false) {
-                    String detail = String.format(Locale.ROOT, "none of [%s], [%s], or [%s] are set. If [%s] is true either [%s] must be " +
-                            "set, or [%s] and [%s] must be set", keystorePathSettingKey, keyPathSettingKey,
-                        certificatePathSettingKey, enabledSettingKey, keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    String detail = String.format(Locale.ROOT, "None of [%s], [%s], or [%s] are set. If [%s] is true either use a " +
+                            "keystore, or configure [%s] and [%s].", keystorePathSettingKey, keyPathSettingKey,
+                        certificatePathSettingKey, enabledSettingKey, keyPathSettingKey, certificatePathSettingKey);
                     details.add(detail);
                 } else if (keystorePathSettingExists && keyPathSettingExists && certificatePathSettingExists) {
-                    String detail = String.format(Locale.ROOT, "all of [%s], [%s], and [%s] are set. Either [%s] must be set, or [%s] and" +
-                            " [%s] must be set", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
-                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                    String detail = String.format(Locale.ROOT, "All of [%s], [%s], and [%s] are set. Either use a keystore, or " +
+                            "configure [%s] and [%s].", keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey,
+                        keyPathSettingKey, certificatePathSettingKey);
                     details.add(detail);
                 } else if (keystorePathSettingExists && (keyPathSettingExists || certificatePathSettingExists)) {
-                    String detail = String.format(Locale.ROOT, "[%s] and [%s] are set. Either [%s] must be set, or [%s] and [%s] must" +
-                            " be set",
+                    String detail = String.format(Locale.ROOT, "Do not configure both [%s] and [%s]. Either" +
+                            " use a keystore, or configure [%s] and [%s].",
                         keystorePathSettingKey,
                         keyPathSettingExists ? keyPathSettingKey : certificatePathSettingKey,
-                        keystorePathSettingKey, keyPathSettingKey, certificatePathSettingKey);
+                        keyPathSettingKey, certificatePathSettingKey);
                     details.add(detail);
                 } else if ((keyPathSettingExists && certificatePathSettingExists == false) ||
                     (keyPathSettingExists == false && certificatePathSettingExists)) {
@@ -770,7 +780,7 @@ class NodeDeprecationChecks {
             return null;
         } else {
             String url = "https://ela.st/es-deprecation-7-ssl-settings";
-            String message = "if ssl is enabled either keystore must be set, or key path and certificate path must be set";
+            String message = "Must either configure a keystore or set the key path and certificate path when SSL is enabled";
             String detailsString = details.stream().collect(Collectors.joining("; "));
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsString, false, null);
         }
@@ -784,13 +794,12 @@ class NodeDeprecationChecks {
         if (permitsHandshakesFromIncompatibleBuildsSupplier.get() != null) {
             final String message = String.format(
                 Locale.ROOT,
-                "the [%s] system property is deprecated and will be removed in the next major release",
+                "Setting the [%s] system property is deprecated",
                 TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
             );
             final String details = String.format(
                 Locale.ROOT,
-                "allowing handshakes from incompatibile builds is deprecated and will be removed in the next major release; the [%s] " +
-                    "system property must be removed",
+                "Remove the [%s] system property. Handshakes from incompatible builds are not allowed in 8.0.",
                 TransportService.PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY
             );
             String url = "https://ela.st/es-deprecation-7-permit-handshake-from-incompatible-builds-setting";
@@ -817,14 +826,10 @@ class NodeDeprecationChecks {
         final String transportProfilesSettings = transportProfiles.stream().map(Setting::getKey).collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "settings [%s] are deprecated and will be removed in the next major version",
+            "Settings [%s] for the Transport client are deprecated",
             transportProfilesSettings
         );
-        final String details = String.format(
-            Locale.ROOT,
-            "transport client will be removed in the next major version so transport client related settings [%s] must be removed",
-            transportProfilesSettings
-        );
+        final String details = "Remove all [transport.profiles] settings. The Transport client no longer exists in 8.0.";
 
         final String url = "https://ela.st/es-deprecation-7-transport-profiles-settings";
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
@@ -847,13 +852,13 @@ class NodeDeprecationChecks {
         final String settingNames = existingSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
-            "cannot use properties related to delaying cluster state recovery after a majority of master nodes have joined because " +
-                "they have been deprecated and will be removed in the next major version",
+            "Delaying cluster state recovery based on the number of available master nodes is not supported",
             settingNames
         );
         final String details = String.format(
             Locale.ROOT,
-            "cannot use properties [%s] because they have been deprecated and will be removed in the next major version",
+            "Use gateway.expected_data_nodes to wait for a certain number of data nodes. Remove the following settings or the node will " +
+                "fail to start in 8.0: [%s]",
             settingNames
         );
         final String url = "https://ela.st/es-deprecation-7-deferred-cluster-state-recovery";
@@ -879,16 +884,10 @@ class NodeDeprecationChecks {
             return null;
         }
         final String settingNames = existingSettings.stream().map(Setting::getKey).collect(Collectors.joining(","));
-        final String message = String.format(
-            Locale.ROOT,
-            "cannot use properties [%s] because fixed_auto_queue_size threadpool type has been deprecated and will be removed in the next" +
-                " major version",
-            settingNames
-        );
+        final String message = "The fixed_auto_queue_size threadpool type is not supported";
         final String details = String.format(
             Locale.ROOT,
-            "cannot use properties [%s] because fixed_auto_queue_size threadpool type has been deprecated and will be removed in the next" +
-                " major version",
+            "Remove the following settings or the node will fail to start in 8.0: [%s].",
             settingNames
         );
         final String url = "https://ela.st/es-deprecation-7-fixed-auto-queue-size-settings";
@@ -902,6 +901,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_REQUIRE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
+            "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -913,6 +913,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_INCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
+            "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -924,6 +925,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_EXCLUDE_SETTING,
             "https://ela.st/es-deprecation-7-tier-filtering-settings",
+            "Use [index.routing.allocation.include._tier_preference] to control allocation to data tiers.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -935,6 +937,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             Setting.boolSetting(SecurityField.setting("authc.accept_default_password"),true, Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-accept-default-password-setting",
+            "This setting has not had any effect since 6.0.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -946,6 +949,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             Setting.intSetting(SecurityField.setting("authz.store.roles.index.cache.max_size"), 10000, Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-roles-index-cache-settings",
+            "Native role cache settings have had no effect since 5.2.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -958,6 +962,7 @@ class NodeDeprecationChecks {
             Setting.timeSetting(SecurityField.setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20),
                 Setting.Property.Deprecated),
             "https://ela.st/es-deprecation-7-roles-index-cache-settings",
+            "Native role cache settings have had no effect since 5.2.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -969,6 +974,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings,
             NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
             "https://ela.st/es-deprecation-7-node-local-storage-setting",
+            "All nodes require local storage in 8.0 and cannot share data paths.",
             DeprecationIssue.Level.CRITICAL
         );
     }
@@ -987,7 +993,7 @@ class NodeDeprecationChecks {
                         String realm = concreteSamlPrincipalSettingKey.substring(0, principalKeySuffixIndex);
                         String concreteNameIdFormatSettingKey = realm + ".nameid_format";
                         if (settings.get(concreteNameIdFormatSettingKey) == null) {
-                            return String.format(Locale.ROOT, "no value for [%s] set in realm [%s]",
+                            return String.format(Locale.ROOT, "Configure \"%s\" for SAML realms: \"%s\".",
                                 concreteNameIdFormatSettingKey, realm);
                         }
                     }
@@ -997,10 +1003,10 @@ class NodeDeprecationChecks {
         if (detailsList.isEmpty()) {
             return null;
         } else {
-            String message = "if nameid_format is not explicitly set, the previous default of " +
-                "'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' is no longer used";
+            String message = "The SAML nameid_format is not set and no longer defaults to " +
+                "\"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\"";
             String url = "https://ela.st/es-deprecation-7-saml-nameid-format";
-            String details = detailsList.stream().collect(Collectors.joining(","));
+            String details = detailsList.stream().collect(Collectors.joining(" "));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
     }

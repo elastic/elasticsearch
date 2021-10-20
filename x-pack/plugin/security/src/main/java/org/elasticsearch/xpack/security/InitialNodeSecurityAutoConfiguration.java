@@ -87,19 +87,20 @@ public class InitialNodeSecurityAutoConfiguration {
                 // that new tokens and possibly credentials are generated anew
                 // TODO maybe we can improve the check that this is indeed the initial node
                 assert out != null;
-                GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(results -> {
-                    final Map<String, String> allResultsMap = new HashMap<>();
-                    for (Map<String, String> result : results) {
-                        allResultsMap.putAll(result);
-                    }
-                    final String elasticPassword = allResultsMap.get("generated_elastic_user_password");
-                    final String kibanaEnrollmentToken = allResultsMap.get("kibana_enrollment_token");
-                    final String nodeEnrollmentToken = allResultsMap.get("node_enrollment_token");
-                    final String caCertFingerprint = allResultsMap.get("https_ca_fingerprint");
-                    outputInformationToConsole(elasticPassword, kibanaEnrollmentToken, nodeEnrollmentToken, caCertFingerprint, out);
-                }, e -> {
-                    LOGGER.error("Unexpected exception during security auto-configuration", e);
-                }), 4);
+                GroupedActionListener<Map<String, String>> groupedActionListener =
+                    new GroupedActionListener<>(ActionListener.wrap(results -> {
+                        final Map<String, String> allResultsMap = new HashMap<>();
+                        for (Map<String, String> result : results) {
+                            allResultsMap.putAll(result);
+                        }
+                        final String elasticPassword = allResultsMap.get("generated_elastic_user_password");
+                        final String kibanaEnrollmentToken = allResultsMap.get("kibana_enrollment_token");
+                        final String nodeEnrollmentToken = allResultsMap.get("node_enrollment_token");
+                        final String caCertFingerprint = allResultsMap.get("https_ca_fingerprint");
+                        outputInformationToConsole(elasticPassword, kibanaEnrollmentToken, nodeEnrollmentToken, caCertFingerprint, out);
+                    }, e -> {
+                        LOGGER.error("Unexpected exception during security auto-configuration", e);
+                    }), 4);
                 // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the first
                 // time a node starts it will form a cluster by itself and can hold the .security index (which we assume it is when
                 // {@code ENROLLMENT_ENABLED} is true), that the node process's output is a terminal and that the password is not
@@ -125,7 +126,7 @@ public class InitialNodeSecurityAutoConfiguration {
                         LOGGER.debug("The password for the elastic built-in superuser has already been generated, the [" +
                             AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey() + "] secure setting is set");
                     }
-                    // empty password in case generation is skyped
+                    // empty password in case password generation is skyped
                     groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
                 }
                 final InternalEnrollmentTokenGenerator enrollmentTokenGenerator = new InternalEnrollmentTokenGenerator(
@@ -144,7 +145,7 @@ public class InitialNodeSecurityAutoConfiguration {
                 enrollmentTokenGenerator.createKibanaEnrollmentToken(kibanaToken -> {
                     if (kibanaToken != null) {
                         try {
-                            // TODO debug log
+                            LOGGER.debug("Successfully generated the kibana enrollment token");
                             groupedActionListener.onResponse(Map.of("kibana_enrollment_token", kibanaToken.getEncoded()));
                         } catch (Exception e) {
                             LOGGER.error("Failed to encode kibana enrollment token", e);
@@ -154,15 +155,9 @@ public class InitialNodeSecurityAutoConfiguration {
                         groupedActionListener.onResponse(Map.of());
                     }
                 });
-                enrollmentTokenGenerator.createNodeEnrollmentToken(nodeToken -> {
-                    if (nodeToken != null) {
-                        try {
-                            // TODO debug log
-                            groupedActionListener.onResponse(Map.of("node_enrollment_token", nodeToken.getEncoded()));
-                        } catch (Exception e) {
-                            LOGGER.error("Failed to encode node enrollment token", e);
-                            groupedActionListener.onResponse(Map.of());
-                        }
+                enrollmentTokenGenerator.maybeCreateNodeEnrollmentToken(encodedNodeToken -> {
+                    if (encodedNodeToken != null) {
+                        groupedActionListener.onResponse(Map.of("node_enrollment_token", encodedNodeToken));
                     } else {
                         groupedActionListener.onResponse(Map.of());
                     }
@@ -198,7 +193,7 @@ public class InitialNodeSecurityAutoConfiguration {
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
         if (null != kibanaEnrollmentToken) {
-            ansi.a("Enrollment token for ").a(Ansi.Attribute.ITALIC).a("Kibana").a(Ansi.Attribute.ITALIC_OFF)
+            ansi.a("The enrollment token for ").a(Ansi.Attribute.ITALIC).a("Kibana").a(Ansi.Attribute.ITALIC_OFF)
                 .a(" instances, valid for the next ").a(BaseEnrollmentTokenGenerator.ENROLL_API_KEY_EXPIRATION_MINUTES)
                 .a(" minutes:");
             ansi.a(System.lineSeparator());
@@ -210,21 +205,23 @@ public class InitialNodeSecurityAutoConfiguration {
         }
         ansi.a(System.lineSeparator());
         ansi.a(System.lineSeparator());
-        if (null != nodeEnrollmentToken) {
-            ansi.a("Enrollment token for ").a(Ansi.Attribute.ITALIC).a("Elasticsearch").a(Ansi.Attribute.ITALIC_OFF)
+        if (nodeEnrollmentToken == null) {
+            ansi.a("Unable to generate an enrollment token for Elasticsearch nodes.");
+            ansi.a(System.lineSeparator());
+            ansi.a(System.lineSeparator());
+        } else if (false == Strings.isEmpty(nodeEnrollmentToken)) {
+            ansi.a("The enrollment token for ").a(Ansi.Attribute.ITALIC).a("Elasticsearch").a(Ansi.Attribute.ITALIC_OFF)
                 .a(" instances, valid for the next ").a(BaseEnrollmentTokenGenerator.ENROLL_API_KEY_EXPIRATION_MINUTES)
                 .a(" minutes:");
             ansi.a(System.lineSeparator());
             ansi.a(Ansi.Attribute.UNDERLINE);
             ansi.a(nodeEnrollmentToken);
             ansi.a(Ansi.Attribute.UNDERLINE_OFF);
-        } else {
-            ansi.a("Unable to generate an enrollment token for Elasticsearch nodes.");
+            ansi.a(System.lineSeparator());
+            ansi.a(System.lineSeparator());
         }
-        ansi.a(System.lineSeparator());
-        ansi.a(System.lineSeparator());
         if (null != caCertFingerprint) {
-            ansi.a("Hex-encoded SHA-256 fingerprint of the generated HTTPS CA DER-encoded certificate:");
+            ansi.a("The hex-encoded SHA-256 fingerprint of the generated HTTPS CA DER-encoded certificate:");
             ansi.a(System.lineSeparator());
             ansi.a(Ansi.Attribute.UNDERLINE);
             ansi.a(caCertFingerprint);
